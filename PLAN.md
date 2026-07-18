@@ -4,7 +4,7 @@ A CLI tool that ingests DIM CSV exports, tags weapons and armor as keep/junk/inf
 
 ## Goals
 
-- Cut vault clutter with no account access: no API keys, no OAuth, no credentials, no live inventory reads. Vault data enters only via DIM CSV exports. Unauthenticated static game-content downloads (wishlist files; the Bungie manifest's public item definitions, used for perk name→hash mapping) are permitted and cached locally, so runs work offline.
+- Cut vault clutter with no account access: no API keys, no OAuth, no credentials, no live inventory reads. Vault data enters only via DIM CSV exports. Unauthenticated static game-content downloads (wishlist files; the Bungie manifest's public item definitions, used for perk name→hash mapping) are permitted and cached locally: the first wishlist-enabled run needs network access to populate the caches, subsequent runs work offline, and `dupes --no-wishlists` is the zero-network fallback.
 - Encode *my* rules: Armor 3.0 stat priorities (Melee-primary Titan builds first), wishlist-driven weapon judgement, dupe resolution.
 - Every junk decision is explainable — the output includes a reason per item, and nothing is deleted by the tool itself. DIM import + in-game dismantle remain the manual confirmation steps.
 

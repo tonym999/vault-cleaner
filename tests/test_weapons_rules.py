@@ -134,6 +134,22 @@ def test_hard_protected_never_trash_tagged():
     assert run(weapons, WISHLIST, PERK_MAP, 10).decisions == []
 
 
+def test_conflicted_copies_still_resolve_as_dupes():
+    # Both copies match a keep roll AND a trash entry: trash is skipped
+    # (2 conflicts), but dupe rules still junk the lower copy — the CLI
+    # summary must not claim nothing happened to these items.
+    wl = parse_wishlist("dimwishlist:item=200&perks=1\ndimwishlist:item=-200&perks=")
+    weapons = df(
+        weapon("A", 200, perks=["Perk A"], **{"Masterwork Tier": "10"}),
+        weapon("B", 200, perks=["Perk A"]),
+    )
+    result = run(weapons, wl, PERK_MAP, 10)
+    assert result.keep_trash_conflicts == 2
+    assert [(d.id, d.action) for d in result.decisions] == [("B", "junk")]
+    assert "dupe-lower" in result.decisions[0].note
+    assert result.decisions[0].kept_id == "A"
+
+
 def test_no_conflicts_counts_zero():
     weapons = df(weapon("A", 300, perks=["Bad Perk"]), weapon("B", 999))
     result = run(weapons, WISHLIST, PERK_MAP, 10)

@@ -95,7 +95,10 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     wl_note = f" ({len(trash)} from wishlist-trash)" if use_wishlists else " (wishlists off)"
     print(f"resolved: {len(junk)} junk, {len(review)} review (soft-protected){wl_note}")
     if conflicts:
-        print(f"note: {conflicts} item(s) matched both keep and trash lists — keep won, no action taken")
+        print(
+            f"note: {conflicts} item(s) matched both keep and trash lists — "
+            "keep outranked trash; normal dupe rules still apply to these items"
+        )
     for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
         print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
