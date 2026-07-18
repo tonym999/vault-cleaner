@@ -2,6 +2,12 @@
 # Rule thresholds (top-N per slot, score floors, archetype weights, set
 # bonuses) land here as M2–M4 arrive — see PLAN.md.
 
+[rails]
+# Crafted weapons at/above this level are hard-protected (never junked).
+# Locked and exotic items are soft rails: never tagged junk, but flagged
+# with a #vc-review note when a dupe pass finds a better copy.
+crafted_level_protect = 10
+
 [paths]
 input_dir = "data/in"
 output_dir = "data/out"
