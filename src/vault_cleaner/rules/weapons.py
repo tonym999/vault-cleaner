@@ -53,6 +53,7 @@ def run(
     keep_counts: dict[str, int] = {}
     decisions: list[dupes.Decision] = []
     trash_ids: set[str] = set()
+    trash_junk_ids: set[str] = set()
 
     for _, row in weapons.iterrows():
         item_hash = int(row["Hash"])
@@ -71,6 +72,7 @@ def run(
         else:
             action, tag = "junk", "junk"
             hashtag = f"#vc-junk: wishlist-trash {kind}"
+            trash_junk_ids.add(row["Id"])
         decisions.append(
             dupes.Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
@@ -80,8 +82,13 @@ def run(
         )
         trash_ids.add(row["Id"])
 
+    # Trash-junked copies are leaving the vault, so they must not compete in
+    # dupe resolution — a trash copy winning "best" would junk every clean
+    # copy against it. Soft-reviewed trash stays in the pool: it's only
+    # flagged, and probably staying.
+    pool = weapons[~weapons["Id"].isin(trash_junk_ids)]
     dupe_decisions = dupes.resolve(
-        weapons, crafted_level_protect,
+        pool, crafted_level_protect,
         wishlist_key=lambda row: keep_counts.get(row["Id"], 0),
     )
     decisions.extend(d for d in dupe_decisions if d.id not in trash_ids)

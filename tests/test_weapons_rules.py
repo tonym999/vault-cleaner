@@ -102,6 +102,31 @@ def test_no_double_row_when_trash_and_dupe_lower():
     assert all("wishlist-trash" in d.note for d in decisions)
 
 
+def test_trash_junked_copy_never_survives_as_best():
+    # The trash-matched copy outranks the clean one (MW 10 vs 0); it must be
+    # excluded from dupe resolution, not crowned "kept" while leaving.
+    weapons = df(
+        weapon("T", 300, perks=["Bad Perk"], **{"Masterwork Tier": "10"}),
+        weapon("U", 300),
+    )
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10)
+    assert [(d.id, d.action) for d in decisions] == [("T", "junk")]
+    assert "wishlist-trash roll" in decisions[0].note
+    # U survives untouched — the only remaining copy after T leaves
+
+
+def test_soft_reviewed_trash_copy_still_competes_in_dupes():
+    # A locked trash-match is only flagged, so it stays in the dupe pool
+    weapons = df(
+        weapon("T", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"}),
+        weapon("U", 300),
+    )
+    d = {x.id: x for x in run(weapons, WISHLIST, PERK_MAP, 10)}
+    assert d["T"].action == "review"
+    assert d["U"].action == "junk"  # dupe-lower vs the (staying) locked copy
+    assert d["U"].kept_id == "T"
+
+
 def test_hard_protected_never_trash_tagged():
     weapons = df(weapon("A", 200, Tag="favorite"))
     assert run(weapons, WISHLIST, PERK_MAP, 10) == []

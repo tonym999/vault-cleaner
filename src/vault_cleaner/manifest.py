@@ -48,25 +48,41 @@ def _extract_names(defs: dict) -> dict[str, list[int]]:
     return names
 
 
+def _read_cache(cache: Path) -> dict | None:
+    """Return the cached document, or None if it's missing, unreadable,
+    corrupt, or structurally invalid (treated identically: rebuild)."""
+    try:
+        data = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("version"), str):
+        return None
+    names = data.get("names")
+    if not isinstance(names, dict):
+        return None
+    return data
+
+
 def load_perk_map(
     cache_dir: str | Path,
     max_age_days: float = 30,
     refresh: bool = False,
 ) -> dict[str, frozenset[int]]:
     cache_dir = Path(cache_dir)
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise ManifestError(f"cannot create manifest cache dir {cache_dir}: {e}") from e
     cache = cache_dir / CACHE_FILENAME
 
-    cached: dict | None = None
-    if cache.exists():
+    cached = _read_cache(cache)
+    if cached is not None and not refresh:
         try:
-            cached = json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError:
-            cached = None  # corrupt cache — rebuild below
-        else:
             age_ok = (time.time() - cache.stat().st_mtime) < max_age_days * 86400
-            if age_ok and not refresh:
-                return {n: frozenset(hs) for n, hs in cached["names"].items()}
+        except OSError:
+            age_ok = False
+        if age_ok:
+            return {n: frozenset(hs) for n, hs in cached["names"].items()}
 
     # Stale, missing, or forced: ask the (small) index what the current
     # version is before committing to the ~200MB definitions download.
@@ -82,8 +98,11 @@ def load_perk_map(
             return {n: frozenset(hs) for n, hs in cached["names"].items()}
         raise ManifestError(f"manifest index unavailable and no cached perk map: {e}") from e
 
-    if cached is not None and cached.get("version") == version and not refresh:
-        cache.touch()  # same manifest — restart the freshness clock
+    if cached is not None and cached["version"] == version and not refresh:
+        try:
+            cache.touch()  # same manifest — restart the freshness clock
+        except OSError:
+            pass  # worst case we re-check the index again next run
         return {n: frozenset(hs) for n, hs in cached["names"].items()}
 
     print(f"downloading Bungie manifest {version} (~200MB, cached after this)...", file=sys.stderr)
@@ -96,5 +115,10 @@ def load_perk_map(
         raise ManifestError(f"manifest download failed and no cached perk map: {e}") from e
 
     names = _extract_names(defs)
-    cache.write_text(json.dumps({"version": version, "names": names}), encoding="utf-8")
+    try:
+        cache.write_text(json.dumps({"version": version, "names": names}), encoding="utf-8")
+    except OSError as e:
+        # The map is in hand — a failed cache write costs a re-download next
+        # run, not this one.
+        print(f"warning: could not write perk map cache {cache}: {e}", file=sys.stderr)
     return {n: frozenset(hs) for n, hs in names.items()}

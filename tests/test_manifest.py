@@ -76,6 +76,25 @@ def test_new_version_rebuilds(tmp_path, monkeypatch):
     assert pm == {"perk b": frozenset({201})}
 
 
+def test_structurally_invalid_cache_rebuilt(tmp_path, monkeypatch):
+    # Valid JSON but wrong shape ({}, wrong types) must rebuild, not KeyError
+    for bad in ("{}", '{"version": 1, "names": {}}', '{"version": "v1", "names": []}', "not json"):
+        (tmp_path / "perk-name-map.json").write_text(bad)
+        monkeypatch.setattr(mf, "_get_json", fake_get())
+        assert load_perk_map(tmp_path)["perk a"] == frozenset({101, 102})
+        (tmp_path / "perk-name-map.json").unlink()
+
+
+def test_unwritable_cache_still_returns_map(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(mf, "_get_json", fake_get())
+    tmp_path.chmod(0o555)
+    try:
+        assert load_perk_map(tmp_path)["perk a"] == frozenset({101, 102})
+        assert "could not write perk map cache" in capsys.readouterr().err
+    finally:
+        tmp_path.chmod(0o755)
+
+
 def _down(url, timeout=300):
     raise OSError("bungie down")
 
