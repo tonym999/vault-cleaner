@@ -3,6 +3,25 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-18 (night) — M3 complete: wishlist matching in the rules (#5)
+
+- **Perk name→hash resolved via the Bungie manifest** (`manifest.py`):
+  DestinyInventoryItemDefinition is public static JSON (no key/OAuth — still
+  inside the no-API-integration rule, which is about live inventory).
+  ~200MB one-time download reduced to a ~1MB name→hashes cache in
+  `data/cache/`; on staleness only the small index is re-checked, the big
+  file re-fetched only when Bungie's manifest *version* changes. One name
+  maps to several hashes (base + enhanced variants) — kept deliberately so
+  wishlist entries citing either variant match.
+- `rules/weapons.py`: full pipeline rails → wishlist pass → dupes. Trash
+  match (whole-item or roll ⊆ item perks) → junk / review-if-soft, unless a
+  keep roll also matches. Keep matches feed `dupes.resolve` as the
+  top-ranked key (match count). Perk names from `Perks N` columns, trailing
+  `*` (DIM's selected marker) stripped.
+- `dupes` CLI now runs the wishlist pass by default; `--no-wishlists`
+  opts out; wishlist/manifest failures error cleanly with that hint.
+- Real vault: 679 weapons → 186 junk, 97 review; 23 wishlist-trash calls.
+
 ## 2026-07-18 (evening) — M3 part 1: wishlist download/cache/parse (#3, #4)
 
 - `wishlist.py`: `fetch` (cache in `wishlists/`, re-download after

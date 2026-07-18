@@ -12,6 +12,13 @@ crafted_level_protect = 10
 input_dir = "data/in"
 output_dir = "data/out"
 wishlist_cache_dir = "wishlists"
+manifest_cache_dir = "data/cache"
+
+[manifest]
+# The Bungie manifest supplies the perk name->hash map (~200MB download,
+# reduced to a ~1MB cache). Past this age the small index endpoint is
+# re-checked; the big file is only re-fetched when the version changed.
+max_age_days = 30
 
 [wishlists]
 # Cached copies live in wishlist_cache_dir; re-downloaded when older than
