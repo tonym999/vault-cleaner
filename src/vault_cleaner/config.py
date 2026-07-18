@@ -13,10 +13,14 @@ DEFAULTS = {
         "input_dir": "data/in",
         "output_dir": "data/out",
         "wishlist_cache_dir": "wishlists",
+        "manifest_cache_dir": "data/cache",
     },
     "wishlists": {
         "max_age_days": 7,
         "sources": {},
+    },
+    "manifest": {
+        "max_age_days": 30,
     },
 }
 

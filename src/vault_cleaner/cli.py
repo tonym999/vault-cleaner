@@ -13,8 +13,9 @@ import sys
 from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
-from vault_cleaner.rules import dupes
-from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
+from vault_cleaner.manifest import ManifestError, load_perk_map
+from vault_cleaner.rules import dupes, weapons as weapons_rules
+from vault_cleaner.wishlist import WishlistError, fetch, load_all, parse_wishlist
 
 LOADERS = {
     "weapons": (load_weapons, "data/in/destiny-weapon.csv"),
@@ -68,12 +69,36 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     except (FileNotFoundError, SchemaError, ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    decisions = dupes.resolve(weapons, cfg["rails"]["crafted_level_protect"])
+    clp = cfg["rails"]["crafted_level_protect"]
+    use_wishlists = not args.no_wishlists and bool(cfg["wishlists"]["sources"])
+    if use_wishlists:
+        try:
+            wl = load_all(cfg)
+            perk_map = load_perk_map(
+                cfg["paths"]["manifest_cache_dir"], cfg["manifest"]["max_age_days"]
+            )
+        except (WishlistError, ManifestError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            print("(pass --no-wishlists to run dupes without wishlist data)", file=sys.stderr)
+            return 1
+        result = weapons_rules.run(weapons, wl, perk_map, clp)
+        decisions = result.decisions
+        conflicts = result.keep_trash_conflicts
+    else:
+        decisions = dupes.resolve(weapons, clp)
+        conflicts = 0
 
     junk = [d for d in decisions if d.action == "junk"]
     review = [d for d in decisions if d.action == "review"]
+    trash = [d for d in decisions if "wishlist-trash" in d.note]
     print(f"parsed {len(weapons)} weapons from {input_path}")
-    print(f"dupe groups resolved: {len(junk)} junk, {len(review)} review (soft-protected)")
+    wl_note = f" ({len(trash)} from wishlist-trash)" if use_wishlists else " (wishlists off)"
+    print(f"resolved: {len(junk)} junk, {len(review)} review (soft-protected){wl_note}")
+    if conflicts:
+        print(
+            f"note: {conflicts} item(s) matched both keep and trash lists — "
+            "keep outranked trash; normal dupe rules still apply to these items"
+        )
     for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
         print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
@@ -151,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
     dp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
     dp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     dp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
+    dp.add_argument("--no-wishlists", action="store_true",
+                    help="skip the wishlist pass (trash tagging + keep-roll ranking)")
     dp.set_defaults(func=_cmd_dupes)
 
     wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")
