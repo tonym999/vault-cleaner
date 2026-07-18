@@ -11,8 +11,9 @@ surprises the next agent should know about.
 - **M1 done.** `vault-cleaner roundtrip` parses a DIM export by header name
   (loud `SchemaError` on drift), tags one sacrificial item, writes a DIM
   `Id/Hash/Tag/Notes` import CSV. Dry-run default, `--write` to emit.
-  Verified against a real export (684 weapons). *DIM import of
-  `data/out/dim-import.csv` still pending manual confirmation in DIM.*
+  Verified against a real export (684 weapons). **Round trip confirmed in
+  DIM**: imported CSV set tag=junk + note on the target item (screenshot
+  check by user). M1 fully done.
 - **Ghost support added** (`--kind ghosts`). Ghost exports lack the `Type`
   column, which forced per-kind schema sets — see AGENTS.md gotchas.
 - **Finding:** "A Good Shout" exists under two different item hashes
