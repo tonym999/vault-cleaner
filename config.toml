@@ -1,0 +1,8 @@
+# vault-cleaner configuration.
+# Rule thresholds (top-N per slot, score floors, archetype weights, set
+# bonuses) land here as M2–M4 arrive — see PLAN.md.
+
+[paths]
+input_dir = "data/in"
+output_dir = "data/out"
+wishlist_cache_dir = "wishlists"

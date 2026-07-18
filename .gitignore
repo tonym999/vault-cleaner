@@ -1,0 +1,15 @@
+# Personal vault data — never commit (public repo)
+data/
+
+# Cached wishlist downloads (committed-or-not still TBD, see PLAN.md)
+wishlists/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# WSL metadata
+*:Zone.Identifier

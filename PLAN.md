@@ -1,0 +1,89 @@
+# Vault Cleaner — Initial Plan
+
+A CLI tool that ingests DIM CSV exports, tags weapons and armor as keep/junk/infuse according to configurable rules, and writes a CSV that DIM can re-import. Mass deletion then happens in-game via a `tag:junk` search in DIM.
+
+## Goals
+
+- Cut vault clutter without ever touching the Bungie API or account credentials — pure file in, file out.
+- Encode *my* rules: Armor 3.0 stat priorities (Melee-primary Titan builds first), wishlist-driven weapon judgement, dupe resolution.
+- Every junk decision is explainable — the output includes a reason per item, and nothing is deleted by the tool itself. DIM import + in-game dismantle remain the manual confirmation steps.
+
+## Non-goals (v1)
+
+- No direct Bungie API integration, OAuth, or live inventory reads.
+- No automatic deletion or item moves.
+- No GUI — CLI first; a local web UI is a possible later phase.
+
+## Architecture
+
+```
+DIM Organizer                    vault-cleaner                     DIM Settings
+─────────────                    ─────────────                     ────────────
+export CSVs ──► data/in/ ──► parse ──► rules engine ──► data/out/ ──► "Import tags/
+(weapons,                      │            │                          notes from CSV"
+ armor)                        │            ├─ armor scorer
+                               │            ├─ wishlist matcher
+                     wishlists/│            ├─ dupe resolver
+                     (voltron, └────────────┴─ report writer
+                      aegis, cached)
+```
+
+- **Input:** DIM weapon + armor CSV exports. Access columns **by header name, never position** — DIM's format changes between releases.
+- **Output:** CSV with `Id`, `Hash`, `Tag`, `Notes` columns (DIM ignores extras). `Notes` carries the reason string (e.g. `#vc-junk: dupe-lower, no wishlist match`), which doubles as a searchable hashtag in DIM.
+- **Wishlists:** download and cache `choosy_voltron.txt` (keep + thumbs-down rolls) and the Aegis endgame/trash lists. Parse `dimwishlist:item=HASH&perks=...` lines; negative item hash prefix = trash entry.
+
+## Rules engine
+
+Order matters — earlier rules win:
+
+1. **Safety rails (never junk):** exotics, anything already tagged favorite/keep/archive in DIM, locked items, crafted/enhanced weapons above a level threshold, equipped items.
+2. **Weapons — wishlist pass:** trash-list or thumbs-down match → candidate junk. Keep-roll match → protected from junk (but not blanket "keep" — dupes among matched rolls still resolve to best copy).
+3. **Weapons — dupe pass:** group by item Hash; rank copies (wishlist match > enhanced perks > masterwork tier > stat total); best copy survives, rest → junk.
+4. **Armor — score pass:** score each legendary piece against configurable stat archetypes (v1 ships with Melee-primary and a generic spike profile). Keep top-N per slot per class; set-bonus armor gets a configurable score bonus so mediocre-stat pieces from active sets survive. Below floor → junk.
+5. **Everything unmatched:** left untagged — the tool only tags what it has a reason for.
+
+All thresholds (top-N, score floors, archetype weights, set bonuses to favor) live in a single `config.toml`.
+
+## Tech stack
+
+Python 3.12, pandas for CSV handling, `tomllib` for config, `pytest` for tests. No other runtime dependencies for v1.
+
+## Repo layout
+
+```
+vault-cleaner/
+├── src/vault_cleaner/
+│   ├── parse.py          # DIM CSV ingestion, header-name mapping
+│   ├── wishlist.py       # download, cache, parse wishlist files
+│   ├── rules/            # armor.py, weapons.py, dupes.py
+│   ├── report.py         # output CSV + human-readable summary
+│   └── cli.py
+├── wishlists/            # cached downloads (gitignored or committed — TBD)
+├── data/                 # in/ and out/ — gitignored, personal vault data
+├── config.toml
+├── tests/                # fixture CSVs with fake items
+└── PLAN.md               # this file
+```
+
+Public repo; `data/` gitignored from the first commit.
+
+## Milestones
+
+1. **M1 — Round trip:** parse DIM CSVs, write a valid tags/notes CSV, verify DIM imports it (tag one sacrificial item). Proves the pipeline before any rules exist.
+2. **M2 — Weapon dupes:** dupe resolver + safety rails. First real cleanup value.
+3. **M3 — Wishlists:** choosy_voltron + Aegis download/parse/match, integrated with dupe ranking.
+4. **M4 — Armor scoring:** Armor 3.0 archetype scorer, set-bonus handling, config-driven thresholds.
+5. **M5 — Polish:** dry-run summary report ("would junk 214 items: …"), per-item reasons, maybe a `--profile pvp|pve` switch.
+
+## Risks & mitigations
+
+- **DIM CSV format drift** — header-name access, a schema-sanity check on load that fails loudly, fixture tests pinned to a real export.
+- **Wishlist format edge cases** — the format is informal; parse defensively, log-and-skip malformed lines rather than crash.
+- **Over-aggressive junking** — safety rails first, tool never deletes, dry-run mode default until `--write` is passed.
+- **Stat column changes (Armor 3.0 naming)** — map stat names through one lookup table so a rename is a one-line fix.
+
+## Later ideas (explicitly out of scope for now)
+
+- Bungie API mode for live data (read-only).
+- Streamlit/Flask review UI with per-item override before writing output.
+- Generating a personal wishlist file from kept rolls (hosted as a public Gist for DIM to subscribe to).
