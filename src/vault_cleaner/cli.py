@@ -10,28 +10,33 @@ from __future__ import annotations
 import argparse
 import sys
 
-from vault_cleaner.parse import SchemaError, load_weapons
+from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
 
-DEFAULT_INPUT = "data/in/destiny-weapon.csv"
+LOADERS = {
+    "weapons": (load_weapons, "data/in/destiny-weapon.csv"),
+    "ghosts": (load_ghosts, "data/in/destiny-ghost.csv"),
+}
 DEFAULT_OUTPUT = "data/out/dim-import.csv"
 
 
 def _cmd_roundtrip(args: argparse.Namespace) -> int:
+    loader, default_input = LOADERS[args.kind]
+    input_path = args.input or default_input
     try:
-        weapons = load_weapons(args.input)
+        items = loader(input_path)
     except (FileNotFoundError, SchemaError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
     if args.id:
-        matches = weapons[weapons["Id"] == args.id]
+        matches = items[items["Id"] == args.id]
     else:
-        matches = weapons[weapons["Name"].str.casefold() == args.item.casefold()]
+        matches = items[items["Name"].str.casefold() == args.item.casefold()]
 
     if matches.empty:
         wanted = args.id or args.item
-        print(f"error: no item matching {wanted!r} in {args.input}", file=sys.stderr)
+        print(f"error: no item matching {wanted!r} in {input_path}", file=sys.stderr)
         return 1
 
     rows = [
@@ -39,7 +44,7 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
         for _, r in matches.iterrows()
     ]
 
-    print(f"parsed {len(weapons)} weapons from {args.input}")
+    print(f"parsed {len(items)} {args.kind} from {input_path}")
     for row, (_, r) in zip(rows, matches.iterrows()):
         print(f"  would tag {args.tag!r}: {r['Name']} (id {r['Id']}, owner {r.get('Owner', '?')})")
 
@@ -57,7 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     rt = sub.add_parser("roundtrip", help="tag one item and write a DIM import CSV (M1 pipeline check)")
-    rt.add_argument("--input", default=DEFAULT_INPUT, help=f"DIM weapons export (default {DEFAULT_INPUT})")
+    rt.add_argument("--kind", default="weapons", choices=sorted(LOADERS), help="which DIM export to read (default weapons)")
+    rt.add_argument("--input", default=None, help="DIM export CSV (default: data/in/ path for --kind)")
     rt.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
     pick = rt.add_mutually_exclusive_group(required=True)
     pick.add_argument("--item", help="item name to tag (case-insensitive; tags every copy)")

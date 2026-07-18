@@ -18,9 +18,12 @@ class SchemaError(ValueError):
 
 # The minimal set of columns the pipeline relies on. Everything else in the
 # export is carried along untouched but never assumed to exist.
-REQUIRED_WEAPON_COLUMNS = frozenset(
-    {"Name", "Hash", "Id", "Tag", "Rarity", "Type", "Locked", "Equipped", "Notes"}
+REQUIRED_BASE_COLUMNS = frozenset(
+    {"Name", "Hash", "Id", "Tag", "Rarity", "Locked", "Equipped", "Notes"}
 )
+REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {"Type"}
+# Ghost exports have no Type column — the base set is all we need.
+REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS
 
 
 def _strip_dim_id_quotes(series: pd.Series) -> pd.Series:
@@ -29,17 +32,15 @@ def _strip_dim_id_quotes(series: pd.Series) -> pd.Series:
     return series.str.strip('"')
 
 
-def load_weapons(path: str | Path) -> pd.DataFrame:
-    """Load a DIM weapons export. All columns come back as strings; empty
-    cells are empty strings, not NaN."""
+def _load_dim_csv(path: str | Path, required: frozenset[str], kind: str) -> pd.DataFrame:
     path = Path(path)
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
 
-    missing = REQUIRED_WEAPON_COLUMNS - set(df.columns)
+    missing = required - set(df.columns)
     if missing:
         raise SchemaError(
             f"{path}: missing expected DIM columns {sorted(missing)} — "
-            f"the export format may have changed, or this isn't a weapons export."
+            f"the export format may have changed, or this isn't a {kind} export."
         )
 
     df["Id"] = _strip_dim_id_quotes(df["Id"])
@@ -47,3 +48,14 @@ def load_weapons(path: str | Path) -> pd.DataFrame:
         dupes = df.loc[df["Id"].duplicated(), "Id"].tolist()
         raise SchemaError(f"{path}: duplicate instance ids {dupes[:5]} — corrupt export?")
     return df
+
+
+def load_weapons(path: str | Path) -> pd.DataFrame:
+    """Load a DIM weapons export. All columns come back as strings; empty
+    cells are empty strings, not NaN."""
+    return _load_dim_csv(path, REQUIRED_WEAPON_COLUMNS, "weapons")
+
+
+def load_ghosts(path: str | Path) -> pd.DataFrame:
+    """Load a DIM ghost export. Same string/empty-cell semantics as weapons."""
+    return _load_dim_csv(path, REQUIRED_GHOST_COLUMNS, "ghost")

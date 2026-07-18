@@ -2,9 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from vault_cleaner.parse import SchemaError, load_weapons
+from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
 
 FIXTURE = Path(__file__).parent / "fixtures" / "weapons.csv"
+GHOST_FIXTURE = Path(__file__).parent / "fixtures" / "ghosts.csv"
 
 
 def test_load_weapons_by_header_name():
@@ -34,6 +35,24 @@ def test_missing_required_column_fails_loudly(tmp_path):
     bad.write_text("Name,Hash,Tag\nThing,123,\n")
     with pytest.raises(SchemaError, match="missing expected DIM columns"):
         load_weapons(bad)
+
+
+def test_load_ghosts():
+    df = load_ghosts(GHOST_FIXTURE)
+    assert len(df) == 2
+    assert df["Id"].tolist() == ["2000000000000000001", "2000000000000000002"]
+    assert df.loc[1, "Tag"] == "favorite"
+
+
+def test_ghost_export_has_no_type_column_but_loads():
+    # Ghost exports genuinely lack Type — the ghost schema must not demand it.
+    df = load_ghosts(GHOST_FIXTURE)
+    assert "Type" not in df.columns
+
+
+def test_weapons_loader_rejects_ghost_export():
+    with pytest.raises(SchemaError, match="isn't a weapons export"):
+        load_weapons(GHOST_FIXTURE)
 
 
 def test_duplicate_instance_ids_rejected(tmp_path):
