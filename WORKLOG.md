@@ -21,6 +21,14 @@ surprises the next agent should know about.
 - `dupes` CLI now runs the wishlist pass by default; `--no-wishlists`
   opts out; wishlist/manifest failures error cleanly with that hint.
 - Real vault: 679 weapons → 186 junk, 97 review; 23 wishlist-trash calls.
+- Review follow-ups: **PLAN.md amended (user-approved)** — the no-API rule
+  now precisely bans authenticated access (keys/OAuth/live inventory)
+  while permitting unauthenticated static content like the manifest.
+  Keep-over-trash conflicts are counted and reported by the CLI (15 in
+  the real vault). Cache validation checks every name→hash entry. The
+  unwritable-cache test monkeypatches the write instead of chmod (which
+  silently doesn't block writes on Windows-backed mounts — it failed on
+  the user's WSL setup while passing in CI).
 
 ## 2026-07-18 (evening) — M3 part 1: wishlist download/cache/parse (#3, #4)
 

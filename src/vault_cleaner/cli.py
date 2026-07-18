@@ -81,9 +81,12 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
             print(f"error: {e}", file=sys.stderr)
             print("(pass --no-wishlists to run dupes without wishlist data)", file=sys.stderr)
             return 1
-        decisions = weapons_rules.run(weapons, wl, perk_map, clp)
+        result = weapons_rules.run(weapons, wl, perk_map, clp)
+        decisions = result.decisions
+        conflicts = result.keep_trash_conflicts
     else:
         decisions = dupes.resolve(weapons, clp)
+        conflicts = 0
 
     junk = [d for d in decisions if d.action == "junk"]
     review = [d for d in decisions if d.action == "review"]
@@ -91,6 +94,8 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     print(f"parsed {len(weapons)} weapons from {input_path}")
     wl_note = f" ({len(trash)} from wishlist-trash)" if use_wishlists else " (wishlists off)"
     print(f"resolved: {len(junk)} junk, {len(review)} review (soft-protected){wl_note}")
+    if conflicts:
+        print(f"note: {conflicts} item(s) matched both keep and trash lists — keep won, no action taken")
     for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
         print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")

@@ -10,10 +10,20 @@ Wishlist semantics (rule 2):
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import pandas as pd
 
 from vault_cleaner.rules import dupes, rails
 from vault_cleaner.wishlist import Wishlist
+
+
+@dataclass
+class RunResult:
+    decisions: list[dupes.Decision] = field(default_factory=list)
+    # Items matching both a keep roll and a trash entry (sources disagree);
+    # keep wins, but the count is surfaced so the conflict isn't invisible.
+    keep_trash_conflicts: int = 0
 
 
 def row_perk_hashes(row: pd.Series, perk_map: dict[str, frozenset[int]]) -> frozenset[int]:
@@ -49,9 +59,10 @@ def run(
     wl: Wishlist,
     perk_map: dict[str, frozenset[int]],
     crafted_level_protect: int,
-) -> list[dupes.Decision]:
+) -> RunResult:
     keep_counts: dict[str, int] = {}
-    decisions: list[dupes.Decision] = []
+    result = RunResult()
+    decisions = result.decisions
     trash_ids: set[str] = set()
     trash_junk_ids: set[str] = set()
 
@@ -61,8 +72,11 @@ def run(
         keep_counts[row["Id"]] = keep_match_count(item_hash, perk_hashes, wl)
 
         kind = trash_match(item_hash, perk_hashes, wl)
-        if kind is None or keep_counts[row["Id"]] > 0:
-            continue  # no trash match, or a keep roll outweighs it
+        if kind is None:
+            continue
+        if keep_counts[row["Id"]] > 0:
+            result.keep_trash_conflicts += 1  # keep wins, visibly
+            continue
         level, reason = rails.protection(row, crafted_level_protect)
         if level == rails.HARD:
             continue
@@ -92,4 +106,4 @@ def run(
         wishlist_key=lambda row: keep_counts.get(row["Id"], 0),
     )
     decisions.extend(d for d in dupe_decisions if d.id not in trash_ids)
-    return decisions
+    return result

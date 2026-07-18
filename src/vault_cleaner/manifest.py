@@ -60,6 +60,11 @@ def _read_cache(cache: Path) -> dict | None:
     names = data.get("names")
     if not isinstance(names, dict):
         return None
+    for name, hashes in names.items():
+        if not isinstance(name, str) or not isinstance(hashes, list):
+            return None
+        if not all(isinstance(h, int) and not isinstance(h, bool) for h in hashes):
+            return None
     return data
 
 

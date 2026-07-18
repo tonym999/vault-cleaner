@@ -78,7 +78,15 @@ def test_new_version_rebuilds(tmp_path, monkeypatch):
 
 def test_structurally_invalid_cache_rebuilt(tmp_path, monkeypatch):
     # Valid JSON but wrong shape ({}, wrong types) must rebuild, not KeyError
-    for bad in ("{}", '{"version": 1, "names": {}}', '{"version": "v1", "names": []}', "not json"):
+    for bad in (
+        "{}",
+        '{"version": 1, "names": {}}',
+        '{"version": "v1", "names": []}',
+        '{"version": "v1", "names": {"perk a": null}}',
+        '{"version": "v1", "names": {"perk a": [1, "bad"]}}',
+        '{"version": "v1", "names": {"perk a": [true]}}',
+        "not json",
+    ):
         (tmp_path / "perk-name-map.json").write_text(bad)
         monkeypatch.setattr(mf, "_get_json", fake_get())
         assert load_perk_map(tmp_path)["perk a"] == frozenset({101, 102})
@@ -86,13 +94,16 @@ def test_structurally_invalid_cache_rebuilt(tmp_path, monkeypatch):
 
 
 def test_unwritable_cache_still_returns_map(tmp_path, monkeypatch, capsys):
+    # Deterministic across filesystems (chmod is unreliable on Windows-backed
+    # mounts): fail the write itself.
     monkeypatch.setattr(mf, "_get_json", fake_get())
-    tmp_path.chmod(0o555)
-    try:
-        assert load_perk_map(tmp_path)["perk a"] == frozenset({101, 102})
-        assert "could not write perk map cache" in capsys.readouterr().err
-    finally:
-        tmp_path.chmod(0o755)
+
+    def fail_write(self, *args, **kwargs):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(mf.Path, "write_text", fail_write)
+    assert load_perk_map(tmp_path)["perk a"] == frozenset({101, 102})
+    assert "could not write perk map cache" in capsys.readouterr().err
 
 
 def _down(url, timeout=300):
