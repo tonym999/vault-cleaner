@@ -22,6 +22,20 @@ DEFAULTS = {
     "manifest": {
         "max_age_days": 30,
     },
+    "armor": {
+        "top_n_per_slot": 5,
+        "score_floor": 65,
+        "set_bonus": 10,
+        "favored_set_perks": [],
+        "archetypes": {
+            "melee_primary": {
+                "weights": {
+                    "melee": 3.0, "health": 1.5, "class": 1.0,
+                    "grenade": 1.0, "super": 0.5, "weapons": 0.5,
+                }
+            },
+        },
+    },
 }
 
 

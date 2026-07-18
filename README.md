@@ -37,7 +37,7 @@ python3 -m venv .venv
 - ✅ M1 — round trip: parse DIM weapon + ghost exports, write a DIM-importable tags CSV
 - ✅ M2 — weapon dupe resolver + safety rails (`vault-cleaner dupes`; locked/exotics get review notes, never junk)
 - ✅ M3 — wishlists: download/parse (choosy_voltron, Aegis keep + trash) and matching wired into the dupe ranking via the Bungie manifest's perk name→hash map
-- ⬜ M4 — Armor 3.0 archetype scoring
+- ✅ M4 — Armor 3.0 archetype scoring (`vault-cleaner armor`; config-driven build weights, set-bonus favoring, top-N + floor)
 - ⬜ M5 — polish: summary report, per-item reasons
 
 See the [issue board](https://github.com/tonym999/vault-cleaner/issues) for

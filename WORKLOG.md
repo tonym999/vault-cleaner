@@ -3,6 +3,26 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-18 (late night) — M4: armor loader + archetype scorer (#6, #7)
+
+- `load_armor` on the shared loader; **`ARMOR_STATS` in parse.py is THE
+  stat lookup table** (canonical name → `(Base)` column) — an Armor 3.0
+  rename is a one-line fix there. Weapons schema now also requires `Ammo`
+  because an armor export otherwise satisfies it silently.
+- `rules/armor.py`: score every legendary against each configured
+  archetype, take the best; favored-set perks (matched by name in Perks
+  columns, e.g. "Erebos Glance") add `set_bonus`. Keep top-N per slot per
+  class OR anything ≥ floor; junk only both-outside, with reason
+  (`#vc-junk: armor-score 56 < floor 65 (best: melee_primary, rank 26/50
+  titan gauntlets)`). Rails as usual; exotics never scored.
+- **Design finding (measured, not assumed):** every Armor 3.0 tier-5
+  piece has the same fixed 30+25 stat spike and ~75 base total, so the
+  planned "generic spike profile" scores everything identically (165) and
+  discriminates nothing. Dropped from defaults (mechanism `top_stats = N`
+  remains for legacy armor); scoring is entirely build-alignment weights.
+  Scores are normalized to the Total (Base) scale.
+- Real vault: 872 pieces, 559 legendaries scored → 227 junk, 38 review.
+
 ## 2026-07-18 (night) — M3 complete: wishlist matching in the rules (#5)
 
 - **Perk name→hash resolved via the Bungie manifest** (`manifest.py`):

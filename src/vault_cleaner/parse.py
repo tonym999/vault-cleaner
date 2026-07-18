@@ -21,9 +21,27 @@ class SchemaError(ValueError):
 REQUIRED_BASE_COLUMNS = frozenset(
     {"Name", "Hash", "Id", "Tag", "Rarity", "Locked", "Equipped", "Notes"}
 )
-REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {"Type"}
+# Ammo is weapons-only: it keeps an armor export (which also has Type) from
+# silently loading through the weapons path.
+REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {"Type", "Ammo"}
 # Ghost exports have no Type column — the base set is all we need.
 REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS
+
+# THE armor stat lookup table (PLAN.md risks): canonical stat name → export
+# column. If DIM or Armor 3.0 renames a stat, fix it here and only here.
+# Scoring uses base stats — mods are removable and shouldn't flatter a piece.
+ARMOR_STATS = {
+    "weapons": "Weapons (Base)",
+    "health": "Health (Base)",
+    "class": "Class (Base)",
+    "grenade": "Grenade (Base)",
+    "super": "Super (Base)",
+    "melee": "Melee (Base)",
+}
+
+REQUIRED_ARMOR_COLUMNS = (
+    REQUIRED_BASE_COLUMNS | {"Type", "Equippable"} | set(ARMOR_STATS.values())
+)
 
 
 def _strip_dim_id_quotes(series: pd.Series) -> pd.Series:
@@ -59,3 +77,8 @@ def load_weapons(path: str | Path) -> pd.DataFrame:
 def load_ghosts(path: str | Path) -> pd.DataFrame:
     """Load a DIM ghost export. Same string/empty-cell semantics as weapons."""
     return _load_dim_csv(path, REQUIRED_GHOST_COLUMNS, "ghost")
+
+
+def load_armor(path: str | Path) -> pd.DataFrame:
+    """Load a DIM armor export. Same string/empty-cell semantics as weapons."""
+    return _load_dim_csv(path, REQUIRED_ARMOR_COLUMNS, "armor")
