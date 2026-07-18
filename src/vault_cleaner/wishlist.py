@@ -69,6 +69,12 @@ def parse_wishlist(text: str, name: str = "") -> Wishlist:
             wl.wildcards += 1
             continue
         perks = frozenset(int(p) for p in (m.group(2) or "").split(",") if p)
+        if m.group(2) is not None and not perks:
+            # perks= was given but held no perks (e.g. "perks=,"): treating
+            # that as an empty set would silently escalate a typo into
+            # "any roll" / "whole item" — count it as malformed instead.
+            wl.skipped += 1
+            continue
         bucket = wl.trash if trash else wl.keep
         bucket.setdefault(item, []).append(perks)
     return wl

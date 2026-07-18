@@ -45,6 +45,21 @@ def test_non_wishlist_lines_ignored_silently(parsed):
     assert parsed.entries == 5  # 3 keep rolls + 2 trash entries
 
 
+def test_benign_comma_noise_tolerated():
+    wl = parse_wishlist("dimwishlist:item=1&perks=10,20,\ndimwishlist:item=2&perks=30,,40")
+    assert wl.keep[1] == [frozenset({10, 20})]
+    assert wl.keep[2] == [frozenset({30, 40})]
+    assert wl.skipped == 0
+
+
+def test_empty_perks_param_is_malformed_not_any_roll():
+    # perks= present but no perks: must not become an empty set (which would
+    # mean "any roll" on keep or "whole item" on trash)
+    wl = parse_wishlist("dimwishlist:item=1&perks=,\ndimwishlist:item=-2&perks=,")
+    assert wl.keep == {} and wl.trash == {}
+    assert wl.skipped == 2
+
+
 def test_merge_combines_and_sums():
     a = parse_wishlist("dimwishlist:item=1&perks=10", "a")
     b = parse_wishlist("dimwishlist:item=1&perks=11\ndimwishlist:item=-2", "b")
