@@ -3,6 +3,23 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-18 (later) — M2: safety rails + dupe resolver
+
+- **Design change from the plan (user decision):** rails are now two-tier.
+  Hard (never touched): favorite/keep/archive tags, equipped, crafted ≥
+  `rails.crafted_level_protect` (config, default 10). Soft (never tagged
+  junk, `#vc-review` note when outranked as a dupe, existing tag/notes
+  preserved): **locked and exotic items** — the user wanted recommendations
+  on those rather than blanket protection. PLAN.md rule 1 updated.
+- `rules/rails.py` (protection classifier), `rules/dupes.py` (group by
+  Hash, rank: gear Tier > masterwork > crafted level > stat total; ranking
+  takes a pluggable `wishlist_key` for M3 to prepend), `config.py`
+  (tomllib + defaults), `vault-cleaner dupes` CLI (dry-run default).
+- Output rows append our hashtag to *existing* DIM notes rather than
+  replacing them; review rows carry the item's existing tag so import is a
+  tag no-op.
+- Real-vault dry run: 684 weapons → 184 junk, 89 review.
+
 ## 2026-07-18 — Repo bootstrap, M1, ghosts, published
 
 - Initialized repo from PLAN.md; `data/` gitignored from the first commit.

@@ -10,8 +10,10 @@ from __future__ import annotations
 import argparse
 import sys
 
+from vault_cleaner.config import load_config
 from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
+from vault_cleaner.rules import dupes
 
 LOADERS = {
     "weapons": (load_weapons, "data/in/destiny-weapon.csv"),
@@ -57,6 +59,35 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_dupes(args: argparse.Namespace) -> int:
+    input_path = args.input or LOADERS["weapons"][1]
+    try:
+        weapons = load_weapons(input_path)
+    except (FileNotFoundError, SchemaError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    cfg = load_config(args.config)
+    decisions = dupes.resolve(weapons, cfg["rails"]["crafted_level_protect"])
+
+    junk = [d for d in decisions if d.action == "junk"]
+    review = [d for d in decisions if d.action == "review"]
+    print(f"parsed {len(weapons)} weapons from {input_path}")
+    print(f"dupe groups resolved: {len(junk)} junk, {len(review)} review (soft-protected)")
+    for d in decisions:
+        marker = "junk  " if d.action == "junk" else "review"
+        print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+
+    if not args.write:
+        print("dry run — pass --write to write the import CSV")
+        return 0
+
+    rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
+    n = write_import_csv(rows, args.output)
+    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vault-cleaner")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -72,6 +103,13 @@ def main(argv: list[str] | None = None) -> int:
     rt.add_argument("--note", default="#vc-test: m1 round trip", help="note text (default '#vc-test: m1 round trip')")
     rt.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     rt.set_defaults(func=_cmd_roundtrip)
+
+    dp = sub.add_parser("dupes", help="resolve weapon dupes: best copy per Hash survives, rest junk/review")
+    dp.add_argument("--input", default=None, help="DIM weapons export (default data/in/destiny-weapon.csv)")
+    dp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    dp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
+    dp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
+    dp.set_defaults(func=_cmd_dupes)
 
     args = parser.parse_args(argv)
     return args.func(args)

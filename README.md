@@ -35,7 +35,7 @@ python3 -m venv .venv
 ## Status
 
 - ✅ M1 — round trip: parse DIM weapon + ghost exports, write a DIM-importable tags CSV
-- ⬜ M2 — weapon dupe resolver + safety rails
+- ✅ M2 — weapon dupe resolver + safety rails (`vault-cleaner dupes`; locked/exotics get review notes, never junk)
 - ⬜ M3 — wishlist download / parse / match (choosy_voltron, Aegis)
 - ⬜ M4 — Armor 3.0 archetype scoring
 - ⬜ M5 — polish: summary report, per-item reasons
