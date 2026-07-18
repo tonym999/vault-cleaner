@@ -31,6 +31,11 @@ def test_trash_roll_with_perks(parsed):
     assert parsed.trash[444] == [frozenset({7, 8})]
 
 
+def test_explicit_empty_perks_param_is_whole_item_trash(parsed):
+    # `&perks=` with no value is the Aegis trash list's whole-item convention
+    assert parsed.trash[555] == [frozenset()]
+
+
 def test_wildcard_entries_counted_not_stored(parsed):
     assert parsed.wildcards == 1
     assert 69420 not in parsed.keep and 69420 not in parsed.trash
@@ -42,7 +47,7 @@ def test_malformed_wishlist_line_counted(parsed):
 
 def test_non_wishlist_lines_ignored_silently(parsed):
     # titles, comments, prose, @description junk — no effect on any counter
-    assert parsed.entries == 5  # 3 keep rolls + 2 trash entries
+    assert parsed.entries == 6  # 3 keep rolls + 3 trash entries
 
 
 def test_benign_comma_noise_tolerated():
@@ -58,6 +63,15 @@ def test_empty_perks_param_is_malformed_not_any_roll():
     wl = parse_wishlist("dimwishlist:item=1&perks=,\ndimwishlist:item=-2&perks=,")
     assert wl.keep == {} and wl.trash == {}
     assert wl.skipped == 2
+
+
+def test_oversized_numbers_skipped_never_crash():
+    # Python's int() raises on huge digit strings; these must land in skipped
+    big = "9" * 5000
+    assert parse_wishlist(f"dimwishlist:item=1&perks={big}").skipped == 1
+    assert parse_wishlist(f"dimwishlist:item={big}&perks=1").skipped == 1
+    # 11 digits — longer than any uint32 hash
+    assert parse_wishlist("dimwishlist:item=1&perks=12345678901").skipped == 1
 
 
 def test_merge_combines_and_sums():
@@ -108,3 +122,17 @@ def test_fetch_failure_without_cache_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(wl_mod, "_download", _boom)
     with pytest.raises(WishlistError, match="no cached copy"):
         fetch("test", "https://x/w.txt", cache_dir=tmp_path)
+
+
+def _boom_url(url, timeout=30):
+    raise ValueError("unknown url type: 'htp'")
+
+
+def test_malformed_url_uses_stale_cache_or_clean_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(wl_mod, "_download", _boom_url)
+    with pytest.raises(WishlistError, match="no cached copy"):
+        fetch("test", "htp://typo/w.txt", cache_dir=tmp_path)
+    p = tmp_path / "test.txt"
+    p.write_text("stale")
+    os.utime(p, (0, 0))
+    assert fetch("test", "htp://typo/w.txt", cache_dir=tmp_path).read_text() == "stale"

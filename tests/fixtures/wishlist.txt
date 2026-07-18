@@ -8,6 +8,7 @@ dimwishlist:item=111&perks=1,2,4
 dimwishlist:item=222&perks=5,6#notes:inline note suffix
 dimwishlist:item=-333
 dimwishlist:item=-444&perks=7,8
+dimwishlist:item=-555&perks=
 dimwishlist:item=-69420&perks=9
 dimwishlist:item=oops&perks=1
 @description:stray metadata line seen in real lists

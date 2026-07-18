@@ -16,6 +16,13 @@ surprises the next agent should know about.
   trash entries (choosy), 5k keep (aegis).
 - **Decision:** `wishlists/` stays gitignored — choosy_voltron alone is
   26MB of refreshable third-party content.
+- Review follow-up: added the Aegis **trash** list (Ciceron14/
+  dim-extra-wishlists, 291 whole-item entries for D-tier-or-lower; updates
+  less often than the keep lists). That list writes whole-item trash as
+  `&perks=` (present, empty) — the parser now accepts that deliberately
+  while still rejecting separator-only `perks=,` as malformed. Also:
+  digit runs bounded to uint32 length (huge numbers can't crash `int()`),
+  and malformed URLs fall back to stale cache like any download failure.
 - **Open question for #5:** wishlist perks are hashes; the DIM export has
   perk *names*. Matching needs a name→hash bridge (or a hash-bearing
   export) — investigate before building the matcher.

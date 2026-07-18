@@ -20,8 +20,12 @@ from pathlib import Path
 # skipped (v1 matches per-item only) but counted, so we know they exist.
 WILDCARD_ITEM_HASH = 69420
 
-# dimwishlist:item=HASH[&perks=1,2,3][#notes:...]  — negative HASH = trash
-LINE_RE = re.compile(r"^dimwishlist:item=(-?\d+)(?:&perks=([\d,]+))?(?:#.*)?$")
+# dimwishlist:item=HASH[&perks=1,2,3][#notes:...]  — negative HASH = trash.
+# Destiny hashes are uint32, so digit runs are bounded (an unbounded \d+
+# would let a pathological line crash int() via Python's digit limit).
+# `&perks=` with an empty value is real and deliberate: the Aegis trash
+# list writes whole-item entries that way.
+LINE_RE = re.compile(r"^dimwishlist:item=(-?\d{1,10})(?:&perks=([\d,]*))?(?:#.*)?$")
 
 
 class WishlistError(Exception):
@@ -68,11 +72,17 @@ def parse_wishlist(text: str, name: str = "") -> Wishlist:
         if item == WILDCARD_ITEM_HASH:
             wl.wildcards += 1
             continue
-        perks = frozenset(int(p) for p in (m.group(2) or "").split(",") if p)
-        if m.group(2) is not None and not perks:
-            # perks= was given but held no perks (e.g. "perks=,"): treating
-            # that as an empty set would silently escalate a typo into
-            # "any roll" / "whole item" — count it as malformed instead.
+        raw = m.group(2)
+        tokens = [p for p in (raw or "").split(",") if p]
+        if any(len(p) > 10 for p in tokens):
+            wl.skipped += 1  # longer than any uint32 — malformed, never crash
+            continue
+        perks = frozenset(int(p) for p in tokens)
+        if raw and not perks:
+            # perks= held only separators (e.g. "perks=,"): treating that as
+            # an empty set would silently escalate a typo into "any roll" /
+            # "whole item" — count it as malformed instead. (A fully empty
+            # "&perks=" is the deliberate whole-item convention and parses.)
             wl.skipped += 1
             continue
         bucket = wl.trash if trash else wl.keep
@@ -105,7 +115,7 @@ def fetch(
 
     try:
         text = _download(url)
-    except OSError as e:
+    except (OSError, ValueError) as e:  # ValueError: malformed/unsupported URL
         if path.exists():
             print(f"warning: {name}: download failed ({e}); using stale cache {path}", file=sys.stderr)
             return path
