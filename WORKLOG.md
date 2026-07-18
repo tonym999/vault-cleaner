@@ -3,6 +3,23 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-18 (evening) — M3 part 1: wishlist download/cache/parse (#3, #4)
+
+- `wishlist.py`: `fetch` (cache in `wishlists/`, re-download after
+  `wishlists.max_age_days`, stale-cache fallback with warning when offline,
+  `WishlistError` only when there's no copy at all) and `parse_wishlist`
+  (defensive: non-`dimwishlist:` lines ignored, malformed entries counted
+  in `.skipped`, DIM's `-69420` wildcard entries counted but unsupported).
+- Sources in `config.toml`: 48klocs choosy_voltron (keep + trash entries)
+  and Nitaraku/dim-wishlists aegis_wishlist.txt (auto-generated from the
+  Aegis PvE tierlist, actively updated). Real parse: 252k keep rolls + 53
+  trash entries (choosy), 5k keep (aegis).
+- **Decision:** `wishlists/` stays gitignored — choosy_voltron alone is
+  26MB of refreshable third-party content.
+- **Open question for #5:** wishlist perks are hashes; the DIM export has
+  perk *names*. Matching needs a name→hash bridge (or a hash-bearing
+  export) — investigate before building the matcher.
+
 ## 2026-07-18 (later) — M2: safety rails + dupe resolver
 
 - **Design change from the plan (user decision):** rails are now two-tier.

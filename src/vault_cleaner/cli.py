@@ -14,6 +14,7 @@ from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
 from vault_cleaner.rules import dupes
+from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
 LOADERS = {
     "weapons": (load_weapons, "data/in/destiny-weapon.csv"),
@@ -87,6 +88,48 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_wishlists(args: argparse.Namespace) -> int:
+    try:
+        cfg = load_config(args.config)
+    except ConfigError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    sources = cfg["wishlists"]["sources"]
+    if not sources:
+        print("error: no [wishlists.sources] configured in config.toml", file=sys.stderr)
+        return 1
+
+    total_keep = total_trash = 0
+    for name, url in sources.items():
+        try:
+            path = fetch(
+                name, url,
+                cache_dir=cfg["paths"]["wishlist_cache_dir"],
+                max_age_days=cfg["wishlists"]["max_age_days"],
+                refresh=args.refresh,
+            )
+        except WishlistError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        wl = parse_wishlist(path.read_text(encoding="utf-8"), name)
+        keep = sum(len(v) for v in wl.keep.values())
+        trash = sum(len(v) for v in wl.trash.values())
+        total_keep += keep
+        total_trash += trash
+        extras = []
+        if wl.skipped:
+            extras.append(f"{wl.skipped} malformed lines skipped")
+        if wl.wildcards:
+            extras.append(f"{wl.wildcards} wildcard entries ignored")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        print(
+            f"{name}: {keep} keep rolls across {len(wl.keep)} items, "
+            f"{trash} trash entries across {len(wl.trash)} items{suffix}"
+        )
+    print(f"total: {total_keep} keep rolls, {total_trash} trash entries")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vault-cleaner")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -109,6 +152,11 @@ def main(argv: list[str] | None = None) -> int:
     dp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     dp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     dp.set_defaults(func=_cmd_dupes)
+
+    wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")
+    wp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
+    wp.add_argument("--refresh", action="store_true", help="re-download even if the cache is fresh")
+    wp.set_defaults(func=_cmd_wishlists)
 
     args = parser.parse_args(argv)
     return args.func(args)

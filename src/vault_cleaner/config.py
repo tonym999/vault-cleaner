@@ -9,6 +9,15 @@ DEFAULTS = {
     "rails": {
         "crafted_level_protect": 10,
     },
+    "paths": {
+        "input_dir": "data/in",
+        "output_dir": "data/out",
+        "wishlist_cache_dir": "wishlists",
+    },
+    "wishlists": {
+        "max_age_days": 7,
+        "sources": {},
+    },
 }
 
 
