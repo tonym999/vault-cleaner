@@ -93,7 +93,7 @@ def run(armor: pd.DataFrame, cfg: dict) -> ArmorResult:
             if level == rails.HARD:
                 continue
             detail = (
-                f"armor-score {score:.0f} < floor {acfg['score_floor']} "
+                f"armor-score {score:.1f} < floor {acfg['score_floor']} "
                 f"(best: {archetype}, rank {rank}/{len(scored_rows)} "
                 f"{row['Equippable'].lower()} {row['Type'].lower()})"
             )

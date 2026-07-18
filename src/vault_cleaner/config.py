@@ -1,9 +1,16 @@
-"""Load config.toml with defaults, so a missing file or key never crashes."""
+"""Load config.toml with defaults, so a missing file or key never crashes.
+
+Armor settings are validated at load time: a misspelt stat weight or an
+empty archetypes table would silently skew every score, and --write exports
+those junk decisions — better to refuse loudly.
+"""
 
 from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+
+from vault_cleaner.parse import ARMOR_STATS
 
 DEFAULTS = {
     "rails": {
@@ -40,7 +47,45 @@ DEFAULTS = {
 
 
 class ConfigError(ValueError):
-    """config.toml is unreadable or malformed."""
+    """config.toml is unreadable, malformed, or invalid."""
+
+
+def _is_number(v: object) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _validate_armor(cfg: dict) -> None:
+    a = cfg["armor"]
+    if not isinstance(a.get("top_n_per_slot"), int) or a["top_n_per_slot"] < 0:
+        raise ConfigError("armor.top_n_per_slot must be a non-negative integer")
+    for key in ("score_floor", "set_bonus"):
+        if not _is_number(a.get(key)):
+            raise ConfigError(f"armor.{key} must be a number")
+
+    archetypes = a.get("archetypes")
+    if not isinstance(archetypes, dict) or not archetypes:
+        raise ConfigError("armor.archetypes must define at least one archetype")
+    for name, spec in archetypes.items():
+        where = f"armor.archetypes.{name}"
+        if not isinstance(spec, dict) or ("weights" in spec) == ("top_stats" in spec):
+            raise ConfigError(f"{where}: define exactly one of 'weights' or 'top_stats'")
+        if "top_stats" in spec:
+            t = spec["top_stats"]
+            if not isinstance(t, int) or isinstance(t, bool) or not 1 <= t <= len(ARMOR_STATS):
+                raise ConfigError(f"{where}.top_stats must be an integer in 1..{len(ARMOR_STATS)}")
+            continue
+        weights = spec["weights"]
+        if not isinstance(weights, dict) or not weights:
+            raise ConfigError(f"{where}.weights must be a non-empty table")
+        unknown = set(weights) - set(ARMOR_STATS)
+        if unknown:
+            raise ConfigError(
+                f"{where}.weights: unknown stat(s) {sorted(unknown)} — valid: {sorted(ARMOR_STATS)}"
+            )
+        if any(not _is_number(w) or w < 0 for w in weights.values()):
+            raise ConfigError(f"{where}.weights values must be numbers >= 0")
+        if not any(w > 0 for w in weights.values()):
+            raise ConfigError(f"{where}.weights needs at least one positive weight")
 
 
 def load_config(path: str | Path = "config.toml") -> dict:
@@ -57,4 +102,5 @@ def load_config(path: str | Path = "config.toml") -> dict:
         merged[section] = {**defaults, **data.get(section, {})}
     for section, values in data.items():
         merged.setdefault(section, values)
+    _validate_armor(merged)
     return merged

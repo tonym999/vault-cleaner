@@ -19,3 +19,33 @@ def test_malformed_toml_raises_config_error(tmp_path):
     p.write_text("[rails\nnot toml")
     with pytest.raises(ConfigError):
         load_config(p)
+
+
+@pytest.mark.parametrize(
+    "snippet,match",
+    [
+        ("[armor.archetypes.bad]\nweights = { meele = 3.0 }", "unknown stat"),
+        ("[armor]\narchetypes = {}", "at least one archetype"),
+        ("[armor.archetypes.bad]\nweights = { melee = -1.0 }", ">= 0"),
+        ("[armor.archetypes.bad]\nweights = { melee = 0.0 }", "positive weight"),
+        ("[armor.archetypes.bad]\ntop_stats = 0", "in 1..6"),
+        ("[armor.archetypes.bad]\ntop_stats = 7", "in 1..6"),
+        ("[armor.archetypes.bad]\nweights = { melee = 1.0 }\ntop_stats = 2", "exactly one"),
+        ("[armor.archetypes.bad]\nnothing = true", "exactly one"),
+        ("[armor]\ntop_n_per_slot = -1", "non-negative"),
+        ('[armor]\nscore_floor = "high"', "must be a number"),
+    ],
+)
+def test_invalid_armor_config_rejected(tmp_path, snippet, match):
+    # A silent typo here would skew every score and --write the damage
+    p = tmp_path / "config.toml"
+    p.write_text(snippet + "\n")
+    with pytest.raises(ConfigError, match=match):
+        load_config(p)
+
+
+def test_valid_custom_archetype_accepted(tmp_path):
+    p = tmp_path / "config.toml"
+    p.write_text("[armor.archetypes.grenadier]\nweights = { grenade = 3.0, super = 1.0 }\n")
+    cfg = load_config(p)
+    assert cfg["armor"]["archetypes"] == {"grenadier": {"weights": {"grenade": 3.0, "super": 1.0}}}
