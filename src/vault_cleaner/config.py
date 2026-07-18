@@ -12,12 +12,19 @@ DEFAULTS = {
 }
 
 
+class ConfigError(ValueError):
+    """config.toml is unreadable or malformed."""
+
+
 def load_config(path: str | Path = "config.toml") -> dict:
     path = Path(path)
     data: dict = {}
     if path.exists():
-        with path.open("rb") as f:
-            data = tomllib.load(f)
+        try:
+            with path.open("rb") as f:
+                data = tomllib.load(f)
+        except (tomllib.TOMLDecodeError, OSError) as e:
+            raise ConfigError(f"{path}: {e}") from e
     merged = {}
     for section, defaults in DEFAULTS.items():
         merged[section] = {**defaults, **data.get(section, {})}

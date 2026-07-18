@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from vault_cleaner.config import load_config
+from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
 from vault_cleaner.rules import dupes
@@ -63,11 +63,10 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     input_path = args.input or LOADERS["weapons"][1]
     try:
         weapons = load_weapons(input_path)
-    except (FileNotFoundError, SchemaError) as e:
+        cfg = load_config(args.config)
+    except (FileNotFoundError, SchemaError, ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-
-    cfg = load_config(args.config)
     decisions = dupes.resolve(weapons, cfg["rails"]["crafted_level_protect"])
 
     junk = [d for d in decisions if d.action == "junk"]

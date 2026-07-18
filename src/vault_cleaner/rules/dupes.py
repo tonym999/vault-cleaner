@@ -36,7 +36,7 @@ class Decision:
     action: str  # "junk" | "review"
     tag: str  # what the output row will carry
     note: str  # full Notes cell (existing notes + our hashtag)
-    best_id: str  # the copy that outranked this one
+    kept_id: str  # the surviving copy this one lost (or tied) against
 
 
 def rank_key(row, wishlist_key: Callable | None = None) -> tuple:
@@ -55,30 +55,34 @@ def resolve(
     for _, group in weapons.groupby("Hash", sort=False):
         if len(group) < 2:
             continue
-        copies = sorted(
-            (row for _, row in group.iterrows()),
-            key=lambda r: rank_key(r, wishlist_key),
+        # Stable sort: on tied keys the earlier row in the export survives,
+        # so results are deterministic for a given export.
+        keyed = sorted(
+            ((rank_key(row, wishlist_key), row) for _, row in group.iterrows()),
+            key=lambda kr: kr[0],
             reverse=True,
         )
-        best = copies[0]
-        for row in copies[1:]:
+        best_key, best = keyed[0]
+        for key, row in keyed[1:]:
             level, reason = rails.protection(row, crafted_level_protect)
             if level == rails.HARD:
                 continue
+            # A tied copy isn't worse, just redundant — say so honestly.
+            rel = "dupe-tie" if key == best_key else "dupe-lower"
             if level == rails.SOFT:
                 action = "review"
                 tag = row["Tag"]  # preserve whatever tag it has — import must not change it
-                hashtag = f"#vc-review: dupe-lower ({reason}), best {best['Id']}"
+                hashtag = f"#vc-review: {rel} ({reason}), kept {best['Id']}"
             else:
                 action = "junk"
                 tag = "junk"
-                hashtag = f"#vc-junk: dupe-lower, best {best['Id']}"
+                hashtag = f"#vc-junk: {rel}, kept {best['Id']}"
             note = f"{row['Notes']} {hashtag}".strip()
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
                     owner=row.get("Owner", ""), action=action, tag=tag,
-                    note=note, best_id=best["Id"],
+                    note=note, kept_id=best["Id"],
                 )
             )
     return decisions
