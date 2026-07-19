@@ -31,9 +31,14 @@ def rank_key(row: pd.Series) -> tuple[int, ...]:
 
 def run(ghosts: pd.DataFrame, cfg: dict) -> list[Decision]:
     keep_top_n = cfg["ghosts"]["keep_top_n"]
+    # Instance Id as the tie-breaker: with rank cells empty in current
+    # exports everything ties, and CSV order changes between exports — a
+    # shifting top-N would cumulatively junk-tag every shell across runs
+    # (kept shells emit no row, so stale junk tags are never cleared).
+    # Ids are stable and increase over time, so ties keep the newest shells.
     ranked = sorted(
         (row for _, row in ghosts.iterrows()),
-        key=rank_key,
+        key=lambda row: (rank_key(row), rails.to_int(row.get("Id"))),
         reverse=True,
     )
 
@@ -44,11 +49,19 @@ def run(ghosts: pd.DataFrame, cfg: dict) -> list[Decision]:
         level, _ = rails.protection(row, crafted_level_protect=0)
         if level == rails.HARD:
             continue
-        key = rank_key(row)
-        if any(key):
-            detail = f"ghost-surplus (energy {key[0]}, rank {rank}/{len(ranked)})"
+        # Wording from raw cell presence: an empty cell must not be reported
+        # as "energy 0", and an explicit 0 is data, not "no data".
+        raw_energy = str(row.get("Energy Capacity", "")).strip()
+        raw_mw = str(row.get("Masterwork Tier", "")).strip()
+        if raw_energy:
+            stat = f"energy {rails.to_int(raw_energy)}"
+        elif raw_mw:
+            stat = f"masterwork {rails.to_int(raw_mw)}"
         else:
-            # Don't fabricate a stat ranking the data doesn't contain
+            stat = ""
+        if stat:
+            detail = f"ghost-surplus ({stat}, rank {rank}/{len(ranked)})"
+        else:
             detail = f"ghost-surplus (rank {rank}/{len(ranked)}, no energy/masterwork data)"
         # Checked directly: rails.protection reports "exotic" before "locked",
         # and for ghosts exotic is junk-eligible while locked still reviews.

@@ -99,6 +99,38 @@ def test_note_with_real_energy_data_keeps_stat_wording(cfg):
     assert "energy 4, rank 4/9" in d["5006"].note
 
 
+def test_tied_ranks_deterministic_across_export_order(tmp_path, cfg):
+    # All rank cells empty -> everything ties; a reordered export must junk
+    # the SAME shells (else repeated runs cumulatively junk-tag everything,
+    # since kept shells emit no row to clear a stale tag)
+    lines = EMPTY_FIXTURE.read_text().splitlines()
+    reordered = tmp_path / "reordered.csv"
+    reordered.write_text("\n".join([lines[0]] + list(reversed(lines[1:]))) + "\n")
+    cfg["ghosts"]["keep_top_n"] = 1
+    junk_a = {d.id for d in run(load_ghosts(EMPTY_FIXTURE), cfg) if d.action == "junk"}
+    junk_b = {d.id for d in run(load_ghosts(reordered), cfg) if d.action == "junk"}
+    assert junk_a == junk_b
+    # newest (highest instance id) shell wins the tie
+    assert junk_a == {"2000000000000000001"}
+
+
+def test_partial_rank_data_reported_accurately():
+    import pandas as pd
+
+    def shell(id, energy, mw):
+        return {"Id": id, "Hash": "1", "Name": f"S{id}", "Owner": "Vault",
+                "Tag": "", "Notes": "", "Rarity": "Exotic", "Locked": "false",
+                "Equipped": "false", "Energy Capacity": energy, "Masterwork Tier": mw}
+
+    cfg = load_config(Path("nonexistent.toml"))
+    cfg["ghosts"]["keep_top_n"] = 0
+    df = pd.DataFrame([shell("1", "", "5"), shell("2", "0", "0"), shell("3", "", "")]).astype(str)
+    notes = {d.id: d.note for d in run(df, cfg)}
+    assert "masterwork 5" in notes["1"] and "energy 0" not in notes["1"]
+    assert "energy 0" in notes["2"] and "no energy" not in notes["2"]
+    assert "no energy/masterwork data" in notes["3"]
+
+
 def test_invalid_keep_top_n_rejected(tmp_path):
     p = tmp_path / "config.toml"
     p.write_text("[ghosts]\nkeep_top_n = -1\n")
