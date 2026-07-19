@@ -7,6 +7,11 @@ license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = ["pandas>=3.0,<4"]
 
+[project.optional-dependencies]
+# The dev toolchain, shared by CI and local setup (AGENTS.md) so the two
+# can't drift: everything CI gates on must come from here.
+dev = ["pytest", "ruff"]
+
 [project.scripts]
 vault-cleaner = "vault_cleaner.cli:main"
 

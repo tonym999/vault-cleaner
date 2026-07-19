@@ -7,7 +7,8 @@ Read this before touching the repo. [PLAN.md](PLAN.md) is the spec;
 
 ```bash
 python3 -m venv .venv                # if .venv doesn't already exist
-.venv/bin/pip install -e . pytest
+.venv/bin/pip install -e ".[dev]"    # dev extra = the exact toolchain CI gates on
+.venv/bin/ruff check src tests       # must pass before every commit
 .venv/bin/pytest -q                  # must pass before every commit
 .venv/bin/vault-cleaner roundtrip --item "NAME"   # dry-run pipeline check
 ```
