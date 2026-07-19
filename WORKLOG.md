@@ -3,6 +3,22 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 (evening) — M5: dry-run summary report (#9)
+
+- `vault-cleaner report`: runs weapons (wishlist-aware), armor, and ghost
+  passes dry, prints "would junk N item(s) and flag M for review" grouped
+  by action + reason with per-item lines beneath (junk groups first,
+  largest first). `--write` emits one combined import CSV. Missing exports
+  are skipped with a warning; item sets are disjoint across passes so
+  concatenation is safe.
+- `report.reason_slug` parses the reason out of the `#vc-` hashtags —
+  the notes remain the single source of truth for reasons.
+- `_resolve_weapons` helper extracted so `dupes` and `report` share the
+  wishlist/manifest setup.
+- Real vault: 430 junk + 135 review across 1,580 items.
+- PLAN.md's `--profile pvp|pve` stretch idea intentionally not done —
+  file a ticket if wanted.
+
 ## 2026-07-19 (later) — Ghost pass redesigned: protection-only (#8, PR #15)
 
 - **Owner decision during review: no ranking at all.** The ranking design
