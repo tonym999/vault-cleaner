@@ -62,9 +62,11 @@ def _validate_armor(cfg: dict) -> None:
     top_n = a.get("top_n_per_slot")
     if not isinstance(top_n, int) or isinstance(top_n, bool) or top_n < 0:
         raise ConfigError("armor.top_n_per_slot must be a non-negative integer")
-    for key in ("score_floor", "set_bonus"):
-        if not _is_number(a.get(key)):
-            raise ConfigError(f"armor.{key} must be a finite number")
+    if not _is_number(a.get("score_floor")):
+        raise ConfigError("armor.score_floor must be a finite number")
+    if not _is_number(a.get("set_bonus")) or a["set_bonus"] < 0:
+        # A negative bonus would penalize the *favored* sets toward junk
+        raise ConfigError("armor.set_bonus must be a finite number >= 0")
 
     favored = a.get("favored_set_perks")
     if not isinstance(favored, list) or any(

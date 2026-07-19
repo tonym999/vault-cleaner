@@ -87,7 +87,7 @@ def load_armor(path: str | Path) -> pd.DataFrame:
     Fail loudly instead (PLAN.md risks)."""
     df = _load_dim_csv(path, REQUIRED_ARMOR_COLUMNS, "armor")
     for col in ARMOR_STATS.values():
-        bad = ~df[col].str.strip().str.fullmatch(r"-?\d+")
+        bad = ~df[col].str.strip().str.fullmatch(r"\d+")  # non-negative integers only
         if bad.any():
             offender = df.loc[bad].iloc[0]
             raise SchemaError(

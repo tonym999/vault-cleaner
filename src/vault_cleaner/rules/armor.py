@@ -59,7 +59,9 @@ def best_score(stats: dict[str, int], archetypes: dict[str, dict]) -> tuple[floa
 def has_favored_set_perk(row: pd.Series, favored: list[str]) -> bool:
     if not favored:
         return False
-    wanted = {f.casefold() for f in favored}
+    # Strip to mirror the export-side normalization below — otherwise a
+    # padded config name silently never matches
+    wanted = {f.strip().casefold() for f in favored}
     for col in row.index:
         if not col.startswith("Perks "):
             continue

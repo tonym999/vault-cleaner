@@ -55,6 +55,26 @@ def test_malformed_stat_cell_fails_loudly(tmp_path):
         load_armor(bad)
 
 
+def test_negative_stat_cell_fails_loudly(tmp_path):
+    # Base stats are non-negative; -1 must not quietly lower a score
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    col_idx = header.index("Melee (Base)")
+    row = lines[1].split(",")
+    row[col_idx] = "-1"
+    bad = tmp_path / "bad.csv"
+    bad.write_text("\n".join([lines[0], ",".join(row)] + lines[2:]) + "\n")
+    with pytest.raises(SchemaError, match="non-numeric 'Melee \\(Base\\)' value '-1'"):
+        load_armor(bad)
+
+
+def test_padded_favored_set_perk_still_matches(cfg):
+    # " Test Set Perk " in config must match the export's stripped name
+    cfg["armor"]["favored_set_perks"] = ["  Test Set Perk  "]
+    cfg["armor"]["score_floor"] = 45  # 36 + 10 bonus survives only if matched
+    assert "4008" not in decisions_by_id(cfg)
+
+
 def test_scores_are_on_total_base_scale():
     # Uniform stats: every archetype scores exactly the Total (Base) value
     uniform = {s: 10 for s in ARMOR_STATS}

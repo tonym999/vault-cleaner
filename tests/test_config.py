@@ -37,6 +37,7 @@ def test_malformed_toml_raises_config_error(tmp_path):
         ('[armor]\nscore_floor = "high"', "finite number"),
         ("[armor]\nscore_floor = nan", "finite number"),
         ("[armor]\nset_bonus = inf", "finite number"),
+        ("[armor]\nset_bonus = -10", ">= 0"),
         ("[armor.archetypes.bad]\nweights = { melee = 1.0, health = nan }", ">= 0"),
         ('[armor]\nfavored_set_perks = "Erebos Glance"', "list of non-empty strings"),
         ("[armor]\nfavored_set_perks = [1]", "list of non-empty strings"),
