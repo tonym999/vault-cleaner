@@ -17,6 +17,12 @@ surprises the next agent should know about.
   before locked. Tags/equipped hard-protect as usual.
 - Real vault: 29 shells → 15 junk, 5 review, top 6 + 3 protected kept.
 - New fixtures now written LF-only (csv module defaults to CRLF).
+- Review follow-up + finding: **current DIM exports leave Energy Capacity
+  and Masterwork Tier EMPTY on every shell** (retired system) — ranking
+  ties at (0,0) and falls back to export order. Rank columns are now
+  schema-required, cells validated empty-or-digits (strict `\d+` à la
+  armor would reject the real export!), and notes say "no
+  energy/masterwork data" instead of fabricating "energy 0" rankings.
 
 ## 2026-07-18 (late night) — M4: armor loader + archetype scorer (#6, #7)
 

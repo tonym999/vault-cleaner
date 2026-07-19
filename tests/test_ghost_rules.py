@@ -3,10 +3,11 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner.config import ConfigError, load_config
-from vault_cleaner.parse import load_ghosts
+from vault_cleaner.parse import SchemaError, load_ghosts
 from vault_cleaner.rules.ghosts import run
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ghosts_cleanup.csv"
+EMPTY_FIXTURE = Path(__file__).parent / "fixtures" / "ghosts.csv"  # real-world: rank cells empty
 
 
 @pytest.fixture
@@ -56,6 +57,46 @@ def test_keep_top_n_zero_junks_all_unprotected(cfg):
     cfg["ghosts"]["keep_top_n"] = 0
     d = decisions_by_id(cfg)
     assert set(d) == {"5001", "5002", "5005", "5006", "5007", "5008", "5009"}
+
+
+def test_missing_rank_column_fails_loudly(tmp_path):
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    idx = header.index("Energy Capacity")
+    stripped = [",".join(line.split(",")[:idx] + line.split(",")[idx + 1:]) for line in lines]
+    bad = tmp_path / "bad.csv"
+    bad.write_text("\n".join(stripped) + "\n")
+    with pytest.raises(SchemaError, match="missing expected DIM columns"):
+        load_ghosts(bad)
+
+
+def test_garbage_rank_cell_fails_loudly(tmp_path):
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    idx = header.index("Energy Capacity")
+    row = lines[1].split(",")
+    row[idx] = "oops"
+    bad = tmp_path / "bad.csv"
+    bad.write_text("\n".join([lines[0], ",".join(row)] + lines[2:]) + "\n")
+    with pytest.raises(SchemaError, match="non-numeric 'Energy Capacity' value 'oops'"):
+        load_ghosts(bad)
+
+
+def test_empty_rank_cells_are_the_norm_and_load(cfg):
+    # Current DIM exports leave energy/masterwork empty on every shell —
+    # loads fine, ties at (0,0), and notes must not fabricate a stat ranking
+    df = load_ghosts(EMPTY_FIXTURE)
+    cfg["ghosts"]["keep_top_n"] = 0
+    decisions = run(df, cfg)
+    junk = [d for d in decisions if d.action == "junk"]
+    assert junk, "expected surplus decisions from the all-empty fixture"
+    assert all("no energy/masterwork data" in d.note for d in junk)
+    assert all("energy 0" not in d.note for d in junk)
+
+
+def test_note_with_real_energy_data_keeps_stat_wording(cfg):
+    d = decisions_by_id(cfg)
+    assert "energy 4, rank 4/9" in d["5006"].note
 
 
 def test_invalid_keep_top_n_rejected(tmp_path):
