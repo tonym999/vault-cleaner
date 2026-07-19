@@ -40,8 +40,17 @@ ARMOR_STATS = {
     "melee": "Melee (Base)",
 }
 
+# Beyond the scoring columns, the armor dupe passes need: Loadouts (loadout
+# membership keeps a piece, as in the ghost pass), the fingerprint columns
+# (Tuning Stat / Seasonal Mod / Holofoil — roll identity, see
+# rules/armor_dupes.py), and the survivor-ranking columns (Masterwork Tier,
+# Power). Required so a renamed column fails loudly instead of silently
+# merging dupe groups.
 REQUIRED_ARMOR_COLUMNS = (
-    REQUIRED_BASE_COLUMNS | {"Type", "Equippable"} | set(ARMOR_STATS.values())
+    REQUIRED_BASE_COLUMNS
+    | {"Type", "Equippable", "Loadouts", "Tuning Stat", "Seasonal Mod",
+       "Holofoil", "Masterwork Tier", "Power"}
+    | set(ARMOR_STATS.values())
 )
 
 

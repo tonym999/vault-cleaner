@@ -39,8 +39,10 @@ Order matters — earlier rules win:
 1. **Safety rails — two tiers.** *Hard* (tool never touches them): anything already tagged favorite/keep/archive in DIM, equipped items, crafted/enhanced weapons above a level threshold. *Soft* (never tagged junk, but a losing dupe gets a `#vc-review` note recommending manual review, existing tag preserved): exotics, locked items.
 2. **Weapons — wishlist pass:** trash-list or thumbs-down match → candidate junk. Keep-roll match → protected from junk (but not blanket "keep" — dupes among matched rolls still resolve to best copy).
 3. **Weapons — dupe pass:** group by item Hash (never name — reissues collide); rank copies (wishlist match > gear tier > masterwork tier > crafted level > stat total); best copy survives, rest → junk. Ties are still junked (keep one of N identical rolls) but noted as `dupe-tie` rather than `dupe-lower`; soft-protected copies get `#vc-review` notes instead of tags.
-4. **Armor — score pass:** score each legendary piece against configurable stat archetypes (v1 ships with Melee-primary and a generic spike profile). Keep top-N per slot per class; set-bonus armor gets a configurable score bonus so mediocre-stat pieces from active sets survive. Below floor → junk.
-5. **Everything unmatched:** left untagged — the tool only tags what it has a reason for.
+4. **Armor — exact-dupe pass (M6):** group by fingerprint (Hash + six base stats + Tuning Stat + Seasonal Mod + Holofoil + exotic Spirit signature — all roll identity, measured in #16); one deterministic survivor per group (hard-protected > loadout-referenced > locked > masterwork > power, then lowest id — never CSV order), rest → junk. Loadout-referenced losers are review-only: DIM loadouts pin instance ids, so junking a twin breaks the loadout.
+5. **Armor — close-dupe pass (M6, review-only):** flag dominated and near-identical pieces among the survivors for manual review; never tags junk.
+6. **Armor — score pass:** score each legendary piece against configurable stat archetypes (v1 ships with Melee-primary and a generic spike profile). Keep top-N per slot per class; set-bonus armor gets a configurable score bonus so mediocre-stat pieces from active sets survive. Below floor → junk.
+7. **Everything unmatched:** left untagged — the tool only tags what it has a reason for.
 
 All thresholds (top-N, score floors, archetype weights, set bonuses to favor) live in a single `config.toml`.
 
