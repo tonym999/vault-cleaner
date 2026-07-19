@@ -74,10 +74,13 @@ surprises the next agent should know about.
   unmasterworked). `Perks 0` is schema-required, so the Spirit identity source
   can't vanish silently; and (owner call, round 2) the belt-and-braces
   guard is in too — an exotic class item exporting no Spirit perks is an
-  unknown roll and is never grouped. Measured, spirits are visible on all
-  38/38 real copies, so the guard only fires on data we haven't seen —
-  better silent than wrong. Ordinary exotics (no spirits by design) still
-  group normally.
+  unknown roll and is never grouped. Round 3 closed the guard's own gap:
+  a complete roll is exactly two Spirits (measured, 38/38 copies), so a
+  one-Spirit signature is truncated identity — two rolls sharing their
+  first Spirit must not merge — and anything shorter than
+  `SPIRIT_ROLL_SIZE` is now treated as unknown. The guards only fire on
+  data we haven't seen — better silent than wrong. Ordinary exotics (no
+  spirits by design) still group normally.
 
 ## 2026-07-19 (wrap-up) — v1 chores (#21)
 
