@@ -16,6 +16,7 @@ from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
 from vault_cleaner.manifest import ManifestError, load_perk_map
 from vault_cleaner.rules import (
     armor as armor_rules,
+    armor_close,
     armor_dupes,
     dupes,
     ghosts as ghost_rules,
@@ -119,13 +120,15 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
 
 
 def _resolve_armor(armor, cfg):
-    """Run the armor pipeline: rails → exact dupes → score. Earlier passes
-    win — a piece decided by the dupe pass never reaches scoring, so each
-    item carries at most one decision. Returns (decisions, scored)."""
-    dupe_decisions = armor_dupes.run(armor, cfg["rails"]["crafted_level_protect"])
-    decided = {d.id for d in dupe_decisions}
-    score_result = armor_rules.run(armor[~armor["Id"].isin(decided)], cfg)
-    return dupe_decisions + score_result.decisions, score_result.scored
+    """Run the armor pipeline: rails → exact dupes → close dupes → score.
+    Earlier passes win — each pass only sees pieces no earlier pass decided,
+    so each item carries at most one decision. Returns (decisions, scored)."""
+    decisions = armor_dupes.run(armor, cfg["rails"]["crafted_level_protect"])
+    remaining = armor[~armor["Id"].isin({d.id for d in decisions})]
+    decisions += armor_close.run(remaining, cfg)
+    remaining = remaining[~remaining["Id"].isin({d.id for d in decisions})]
+    score_result = armor_rules.run(remaining, cfg)
+    return decisions + score_result.decisions, score_result.scored
 
 
 def _cmd_armor(args: argparse.Namespace) -> int:
@@ -141,8 +144,12 @@ def _cmd_armor(args: argparse.Namespace) -> int:
     junk = [d for d in decisions if d.action == "junk"]
     review = [d for d in decisions if d.action == "review"]
     dupe_rows = [d for d in decisions if "armor-exact-dupe" in d.note]
+    close_rows = [d for d in decisions if "armor-dominated" in d.note or "armor-similar" in d.note]
     print(f"parsed {len(armor)} armor pieces from {input_path} ({scored} legendaries scored)")
-    print(f"resolved: {len(junk)} junk, {len(review)} review ({len(dupe_rows)} from exact dupes)")
+    print(
+        f"resolved: {len(junk)} junk, {len(review)} review "
+        f"({len(dupe_rows)} from exact dupes, {len(close_rows)} close-dupe reviews)"
+    )
     for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
         print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
