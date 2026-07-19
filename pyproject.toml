@@ -5,7 +5,7 @@ description = "Tag Destiny 2 vault clutter from DIM CSV exports, for re-import i
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-dependencies = ["pandas>=2.0"]
+dependencies = ["pandas>=3.0,<4"]
 
 [project.scripts]
 vault-cleaner = "vault_cleaner.cli:main"

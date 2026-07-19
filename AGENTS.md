@@ -37,6 +37,24 @@ add any without a ticket saying so.
   Dupe grouping must use `Hash`, never `Name`.
 - Ghost exports have no `Type` column — schemas differ per export kind.
 - Empty CSV cells are empty strings (`keep_default_na=False`), never NaN.
+- **Measure the real export before designing a rule.** Every spec-first
+  rule design died on real data; examples below all came from measuring.
+- Ghost `Energy Capacity` / `Masterwork Tier` are empty on every shell
+  (retired system) — that's why the ghost pass is protection-only, no
+  ranking. Don't "fix" the empty columns.
+- Armor 3.0 tier-5 pieces all share a fixed 30+25 stat spike (~75 base
+  total): spike/total scoring discriminates nothing; only build-alignment
+  weights do. Armor scores are normalized to the `Total (Base)` scale.
+- Perk name→hash comes from Bungie's public static manifest, cached in
+  `data/cache/` and re-fetched only when the manifest version changes.
+  Names map to *all* hash variants (base + enhanced share display names).
+- DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
+  parse the *last* one (`report.reason_slug` does).
+- Python's `csv` module writes CRLF by default: generate fixtures with
+  `lineterminator="\n"` or `git diff --check` will flag them.
+- `pip install -e .` leaves a `build/` tree (gitignored). Check
+  `git status` before committing anyway — that rule saved `data/` once
+  and failed on `build/` once.
 
 ## Conventions
 
