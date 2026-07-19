@@ -39,6 +39,13 @@ SPIRIT_PREFIX = "Spirit of "
 # kind whose roll identity lives in the Perks columns (Spirit perks).
 CLASS_ITEM_TYPES = frozenset({"Titan Mark", "Warlock Bond", "Hunter Cloak"})
 
+# A complete exotic class item roll carries exactly this many Spirit perks
+# (measured: 38/38 real copies). Fewer means the identity is truncated —
+# e.g. a Perks column beyond the schema-required Perks 0 vanished — and a
+# truncated signature could merge distinct rolls that share their first
+# Spirit. Longer can't false-merge anything, so only shorter is rejected.
+SPIRIT_ROLL_SIZE = 2
+
 
 def spirit_signature(row: pd.Series) -> tuple[str, ...]:
     """Sorted exotic-class-item Spirit perks — roll identity, unlike the
@@ -55,14 +62,15 @@ def spirit_signature(row: pd.Series) -> tuple[str, ...]:
 
 
 def unknown_spirit_roll(row: pd.Series) -> bool:
-    """An exotic class item exporting no Spirit perks is an unknown roll:
-    it can't be proven identical to anything, so the dupe passes must not
-    group or compare it. (Measured: every real copy shows its spirits, so
-    this only fires on data we haven't seen — better silent than wrong.)"""
+    """An exotic class item exporting fewer than SPIRIT_ROLL_SIZE Spirit
+    perks is an unknown (or truncated) roll: it can't be proven identical
+    to anything, so the dupe passes must not group or compare it.
+    (Measured: every real copy shows exactly two spirits, so this only
+    fires on data we haven't seen — better silent than wrong.)"""
     return (
         row["Rarity"] == "Exotic"
         and row["Type"] in CLASS_ITEM_TYPES
-        and not spirit_signature(row)
+        and len(spirit_signature(row)) < SPIRIT_ROLL_SIZE
     )
 
 

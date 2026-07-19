@@ -112,6 +112,13 @@ def test_spiritless_exotic_class_items_never_group():
     assert "5111" not in d and "5112" not in d
 
 
+def test_truncated_spirit_signatures_never_group():
+    # A single visible Spirit (of a measured two) is incomplete identity:
+    # two distinct rolls sharing their first Spirit must not merge
+    d = by_id(decisions())
+    assert "5131" not in d and "5132" not in d
+
+
 def test_plain_exotics_without_spirits_still_group():
     # Non-class-item exotics legitimately have no Spirit perks; the guard
     # must not exempt them from normal dupe grouping
