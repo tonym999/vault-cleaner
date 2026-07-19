@@ -65,7 +65,7 @@ surprises the next agent should know about.
   empty-or-digits at load (to_int would coerce garbage to 0 and silently
   flip a survivor; strict `\d+` would repeat the ghost-pass mistake — the
   measured export is all digits, but empty legitimately means
-  unmasterworked). `Perks 0` schema-required so the Spirit identity source
+  unmasterworked). `Perks 0` is schema-required, so the Spirit identity source
   can't vanish silently; the stronger "refuse to group spiritless exotic
   class items" guard was declined for now — measured: spirits are visible
   on all 38/38 copies including masterwork 0, and exotics only ever get
