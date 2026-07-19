@@ -11,10 +11,10 @@ import argparse
 import sys
 
 from vault_cleaner.config import ConfigError, load_config
-from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
+from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
 from vault_cleaner.manifest import ManifestError, load_perk_map
-from vault_cleaner.rules import dupes, weapons as weapons_rules
+from vault_cleaner.rules import armor as armor_rules, dupes, weapons as weapons_rules
 from vault_cleaner.wishlist import WishlistError, fetch, load_all, parse_wishlist
 
 LOADERS = {
@@ -113,6 +113,34 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_armor(args: argparse.Namespace) -> int:
+    input_path = args.input or "data/in/destiny-armor.csv"
+    try:
+        armor = load_armor(input_path)
+        cfg = load_config(args.config)
+    except (FileNotFoundError, SchemaError, ConfigError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    result = armor_rules.run(armor, cfg)
+    junk = [d for d in result.decisions if d.action == "junk"]
+    review = [d for d in result.decisions if d.action == "review"]
+    print(f"parsed {len(armor)} armor pieces from {input_path} ({result.scored} legendaries scored)")
+    print(f"resolved: {len(junk)} junk, {len(review)} review (soft-protected)")
+    for d in result.decisions:
+        marker = "junk  " if d.action == "junk" else "review"
+        print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+
+    if not args.write:
+        print("dry run — pass --write to write the import CSV")
+        return 0
+
+    rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in result.decisions]
+    n = write_import_csv(rows, args.output)
+    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    return 0
+
+
 def _cmd_wishlists(args: argparse.Namespace) -> int:
     try:
         cfg = load_config(args.config)
@@ -179,6 +207,13 @@ def main(argv: list[str] | None = None) -> int:
     dp.add_argument("--no-wishlists", action="store_true",
                     help="skip the wishlist pass (trash tagging + keep-roll ranking)")
     dp.set_defaults(func=_cmd_dupes)
+
+    ap = sub.add_parser("armor", help="score legendary armor per archetype; junk low-rank low-score pieces")
+    ap.add_argument("--input", default=None, help="DIM armor export (default data/in/destiny-armor.csv)")
+    ap.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    ap.add_argument("--config", default="config.toml", help="config file (default config.toml)")
+    ap.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
+    ap.set_defaults(func=_cmd_armor)
 
     wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")
     wp.add_argument("--config", default="config.toml", help="config file (default config.toml)")

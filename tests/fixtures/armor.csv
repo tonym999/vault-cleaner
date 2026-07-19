@@ -1,0 +1,13 @@
+Name,Hash,Id,Tag,Rarity,Tier,Type,Source,Equippable,Power,Energy Capacity,Archetype,Tertiary Stat,Tuning Stat,Masterwork Tier,Owner,Locked,Equipped,Holofoil,Year,Season,Event,Weapons,Health,Class,Grenade,Super,Melee,Total,Weapons (Base),Health (Base),Class (Base),Grenade (Base),Super (Base),Melee (Base),Total (Base),Seasonal Mod,Loadouts,Notes,Perks 0,Perks 1,Perks 2,Perks 3,Perks 4,Perks 5,Perks 6,Perks 7,Perks 8
+Melee God Plate,987517,"""4001""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,5,20,10,5,5,30,75,,,,,,,,,,,,
+Spike Plate,841211,"""4002""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,30,0,0,30,5,5,70,,,,,,,,,,,,
+Decent Plate,809909,"""4003""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,10,15,10,10,10,15,70,,,,,,,,,,,,
+Mediocre Plate,664753,"""4004""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,8,8,8,8,8,8,48,,,,,,,,,,,,
+Bad Plate,102619,"""4005""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,5,5,5,5,5,5,30,,,,,,,,,,,,
+Bad Locked Plate,682991,"""4006""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,true,false,,,,,,,,,,,,5,5,5,5,5,4,29,,,,,,,,,,,,
+Bad Kept Plate,765189,"""4007""",keep,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,4,4,4,4,4,4,24,,,,,,,,,,,,
+Set Bonus Plate,980870,"""4008""",,Legendary,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,6,6,6,6,6,6,36,,,,Test Set Perk*,,,,,,,,
+Lone Helm A,333433,"""4011""",,Legendary,5,Helmet,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,5,5,5,5,5,5,30,,,,,,,,,,,,
+Lone Helm B,111988,"""4012""",,Legendary,5,Helmet,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,4,4,4,4,4,4,24,,,,,,,,,,,,
+Warlock Robe,318248,"""4021""",,Legendary,5,Chest Armor,,Warlock,,,,,,,Vault,false,false,,,,,,,,,,,,5,5,5,5,5,5,30,,,,,,,,,,,,
+Exotic Plate,706783,"""4031""",,Exotic,5,Chest Armor,,Titan,,,,,,,Vault,false,false,,,,,,,,,,,,1,1,1,1,1,1,6,,,,,,,,,,,,
