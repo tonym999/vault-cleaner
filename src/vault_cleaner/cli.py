@@ -155,14 +155,13 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    decisions = ghost_rules.run(ghosts, cfg)
-    junk = [d for d in decisions if d.action == "junk"]
-    review = [d for d in decisions if d.action == "review"]
+    del cfg  # ghosts take no config — policy is purely protection-based
+    decisions = ghost_rules.run(ghosts)
+    kept = len(ghosts) - len(decisions)
     print(f"parsed {len(ghosts)} ghosts from {input_path}")
-    print(f"resolved: {len(junk)} junk, {len(review)} review (keeping top {cfg['ghosts']['keep_top_n']})")
+    print(f"resolved: {len(decisions)} junk ({kept} protected: equipped/locked/tagged/in-loadout)")
     for d in decisions:
-        marker = "junk  " if d.action == "junk" else "review"
-        print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+        print(f"  junk   {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
 
     if not args.write:
         print("dry run — pass --write to write the import CSV")
@@ -248,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     ap.set_defaults(func=_cmd_armor)
 
-    gp = sub.add_parser("ghosts", help="keep the N best ghost shells; junk the surplus")
+    gp = sub.add_parser("ghosts", help="junk every shell not equipped/locked/tagged/in a loadout")
     gp.add_argument("--input", default=None, help="DIM ghost export (default data/in/destiny-ghost.csv)")
     gp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
     gp.add_argument("--config", default="config.toml", help="config file (default config.toml)")

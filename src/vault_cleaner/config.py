@@ -30,9 +30,6 @@ DEFAULTS = {
     "manifest": {
         "max_age_days": 30,
     },
-    "ghosts": {
-        "keep_top_n": 6,
-    },
     "armor": {
         "top_n_per_slot": 5,
         "score_floor": 65,
@@ -58,12 +55,6 @@ def _is_number(v: object) -> bool:
     # bool subclasses int; TOML permits nan/inf literals, and NaN silently
     # poisons every score comparison — finite numbers only.
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
-
-
-def _validate_ghosts(cfg: dict) -> None:
-    n = cfg["ghosts"].get("keep_top_n")
-    if not isinstance(n, int) or isinstance(n, bool) or n < 0:
-        raise ConfigError("ghosts.keep_top_n must be a non-negative integer")
 
 
 def _validate_armor(cfg: dict) -> None:
@@ -130,5 +121,4 @@ def load_config(path: str | Path = "config.toml") -> dict:
     for section, values in data.items():
         merged.setdefault(section, values)
     _validate_armor(merged)
-    _validate_ghosts(merged)
     return merged

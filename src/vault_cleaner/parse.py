@@ -24,13 +24,9 @@ REQUIRED_BASE_COLUMNS = frozenset(
 # Ammo is weapons-only: it keeps an armor export (which also has Type) from
 # silently loading through the weapons path.
 REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {"Type", "Ammo"}
-# Ghost cleanup ranks by these. NOTE: current DIM exports leave them EMPTY
-# on every shell (ghost energy is a retired system) — empty is the normal
-# state and means "no value"; only non-empty garbage is format drift.
-GHOST_RANK_COLUMNS = ["Energy Capacity", "Masterwork Tier"]
-
-# Ghost exports have no Type column.
-REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS | set(GHOST_RANK_COLUMNS)
+# Ghost exports have no Type column. Loadouts is required because loadout
+# membership is a keep signal in the ghost cleanup pass.
+REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS | {"Loadouts"}
 
 # THE armor stat lookup table (PLAN.md risks): canonical stat name → export
 # column. If DIM or Armor 3.0 renames a stat, fix it here and only here.
@@ -80,21 +76,8 @@ def load_weapons(path: str | Path) -> pd.DataFrame:
 
 
 def load_ghosts(path: str | Path) -> pd.DataFrame:
-    """Load a DIM ghost export. Same string/empty-cell semantics as weapons.
-
-    Ranking cells must be empty (the current-export norm) or a non-negative
-    integer; anything else would silently rank as 0 and mis-junk shells."""
-    df = _load_dim_csv(path, REQUIRED_GHOST_COLUMNS, "ghost")
-    for col in GHOST_RANK_COLUMNS:
-        bad = ~df[col].str.strip().str.fullmatch(r"\d*")
-        if bad.any():
-            offender = df.loc[bad].iloc[0]
-            raise SchemaError(
-                f"{path}: non-numeric {col!r} value {offender[col]!r} on "
-                f"{offender['Name']} (id {offender['Id']}) — refusing to rank "
-                f"ghosts with malformed cells."
-            )
-    return df
+    """Load a DIM ghost export. Same string/empty-cell semantics as weapons."""
+    return _load_dim_csv(path, REQUIRED_GHOST_COLUMNS, "ghost")
 
 
 def load_armor(path: str | Path) -> pd.DataFrame:

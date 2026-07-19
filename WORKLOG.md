@@ -3,7 +3,24 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
-## 2026-07-19 — Ghost cleanup pass (#8)
+## 2026-07-19 (later) — Ghost pass redesigned: protection-only (#8, PR #15)
+
+- **Owner decision during review: no ranking at all.** The ranking design
+  below went through two review rounds (empty rank columns → tie-breaks →
+  determinism) before the honest conclusion: ghosts carry no quality
+  signal, and "top N" was an arbitrary policy wearing a ranking costume.
+  Final policy: keep only shells that are equipped, **locked (the lock IS
+  the keep signal for ghosts — no #vc-review)**, tagged
+  favorite/keep/archive, or **referenced by a saved DIM loadout**
+  (`Loadouts` column, now schema-required); junk everything else as
+  `#vc-junk: ghost-unprotected-surplus`. Rarity still irrelevant.
+  Rationale: mods move freely, Collections reacquires dismantled shells,
+  and dry-run + DIM review + in-game dismantle remain the gates.
+- Removed: `ghosts.keep_top_n`, rank-column schema/validation, tie-breaks.
+  Ghosts take no config — lock/tag shells in DIM to keep them.
+- Real vault: 29 shells → 17 junk, 12 protected.
+
+## 2026-07-19 — Ghost cleanup pass (#8) — superseded, see above
 
 - `rules/ghosts.py` + `vault-cleaner ghosts`. **Measured data reshaped the
   ticket sketch:** zero duplicate hashes exist, ghost mods move freely
