@@ -94,6 +94,7 @@ def test_spirit_rolls_are_compatibility_boundaries(cfg):
     assert "#vc-review: armor-similar to 6101" in d["6102"].note
     assert "6103" not in d  # identical stats to 6101, different spirits
     assert "6104" not in d  # spiritless: unknown roll
+    assert "6105" not in d  # one Spirit of a measured two: truncated identity
 
 
 def test_one_note_per_piece(cfg):

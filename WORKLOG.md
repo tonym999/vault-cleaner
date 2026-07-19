@@ -37,6 +37,10 @@ surprises the next agent should know about.
   (same rule as set bonuses), and a spiritless copy is an unknown roll,
   compared with nothing. Real vault: 124 → 115 close reviews; the 9
   removed notes were cross-spirit "similar" advice, i.e. misleading.
+- Round 3: the shared `unknown_spirit_roll` helper now also rejects
+  truncated signatures (fewer than the measured two Spirits), closing the
+  round-2 gap in both passes — a one-Spirit copy sharing its first Spirit
+  with a full roll no longer compares with it. Real vault unchanged.
 
 ## 2026-07-19 (M6) — armor measurement spike + exact-dupe pass (#16, #17)
 
