@@ -18,6 +18,16 @@ set_bonus = 10       # score bonus for pieces carrying a favored set perk
 # e.g. ["Erebos Glance"]
 favored_set_perks = []
 
+# Close-dupe pass (review-only, never junk): two pieces of the same Hash +
+# Tier count as "similar" when no base stat differs by more than
+# max_stat_delta AND the deltas sum to at most max_total_delta. Measured on
+# a real export the pairs are bimodal — identical rolls (usually differing
+# only in Tuning Stat) or a whole archetype apart — so any cap from 1-9 /
+# 1-19 selects the same pairs; these sit mid-dead-zone.
+[armor.close_dupes]
+max_stat_delta = 5
+max_total_delta = 12
+
 # Melee-primary Titan builds first (PLAN.md goals). Add more archetype
 # tables for other builds; a piece takes its best score across all of them.
 [armor.archetypes.melee_primary]
