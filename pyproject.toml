@@ -2,6 +2,8 @@
 name = "vault-cleaner"
 version = "0.1.0"
 description = "Tag Destiny 2 vault clutter from DIM CSV exports, for re-import into DIM"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = ["pandas>=2.0"]
 
@@ -9,7 +11,8 @@ dependencies = ["pandas>=2.0"]
 vault-cleaner = "vault_cleaner.cli:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+# >=77.0.3 for PEP 639 (SPDX license expression + license-files)
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

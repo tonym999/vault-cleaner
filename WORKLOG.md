@@ -3,6 +3,16 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 (late) — MIT license (#10, PR #20)
+
+- **Owner decision: MIT.** LICENSE file (copyright Tony M), PEP 639
+  metadata in pyproject (`license = "MIT"`, `license-files`, setuptools
+  ≥77.0.3), README section. All five PLAN.md milestones plus the board
+  are now complete; v1 wrap-up chores tracked in #21.
+- Review note: kept the README heading "License" (en-US) — repo prose
+  follows ecosystem convention and DIM's own en-US terms; an en-GB sweep
+  would belong in #21 if ever wanted.
+
 ## 2026-07-19 (evening) — M5: dry-run summary report (#9)
 
 - `vault-cleaner report`: runs weapons (wishlist-aware), armor, and ghost

@@ -42,3 +42,7 @@ python3 -m venv .venv
 
 See the [issue board](https://github.com/tonym999/vault-cleaner/issues) for
 ticket-level detail.
+
+## License
+
+[MIT](LICENSE)
