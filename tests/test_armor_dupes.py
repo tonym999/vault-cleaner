@@ -105,6 +105,22 @@ def test_lock_outranks_masterwork_and_locked_loser_reviews():
     assert "#vc-review: armor-exact-dupe (locked), kept 5101" in d["5102"].note
 
 
+def test_spiritless_exotic_class_items_never_group():
+    # No visible Spirit perks means the roll is unknown — an unknown roll
+    # can't be proven identical to anything, so no grouping, no advice
+    d = by_id(decisions())
+    assert "5111" not in d and "5112" not in d
+
+
+def test_plain_exotics_without_spirits_still_group():
+    # Non-class-item exotics legitimately have no Spirit perks; the guard
+    # must not exempt them from normal dupe grouping
+    d = by_id(decisions())
+    assert "5121" not in d  # survivor
+    assert d["5122"].action == "review"
+    assert "#vc-review: armor-exact-dupe (exotic), kept 5121" in d["5122"].note
+
+
 def test_fingerprint_ignores_mutable_state():
     df = load_armor(FIXTURE).set_index("Id", drop=False)
     a, b = df.loc["5001"], df.loc["5002"]  # differ in mw/power/notes only
