@@ -48,6 +48,12 @@ def test_invalid_tag_rejected(tmp_path):
          ("junk", "armor-score")),
         ("#vc-junk: ghost-unprotected-surplus", ("junk", "ghost-unprotected-surplus")),
         ("no hashtag here", ("unknown", "unknown")),
+        # Stacked hashtags from a DIM import/re-export cycle: the LAST
+        # (current run's) hashtag must win, not the stale one
+        ("#vc-junk: dupe-lower, kept 1 #vc-review: wishlist-trash roll (locked)",
+         ("review", "wishlist-trash roll")),
+        ("pvp roll #vc-review: dupe-lower (locked), kept 2 #vc-junk: dupe-lower, kept 9",
+         ("junk", "dupe-lower")),
     ],
 )
 def test_reason_slug_from_every_note_shape(note, expected):

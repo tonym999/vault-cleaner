@@ -22,11 +22,15 @@ _REASON_RE = re.compile(r"#vc-(junk|review): ([a-z-]+(?: [a-z-]+)*)")
 
 
 def reason_slug(note: str) -> tuple[str, str]:
-    """(action, slug) parsed from the #vc- hashtag in a Notes value."""
-    m = _REASON_RE.search(note)
-    if not m:
+    """(action, slug) parsed from the #vc- hashtag in a Notes value.
+
+    The LAST match wins: rules append hashtags to existing notes and DIM
+    round-trips them, so after an import/re-export cycle a note may carry a
+    stale hashtag from an earlier run ahead of the current one."""
+    matches = list(_REASON_RE.finditer(note))
+    if not matches:
         return "unknown", "unknown"
-    return m.group(1), m.group(2)
+    return matches[-1].group(1), matches[-1].group(2)
 
 
 def summarize(sections: Iterable[tuple[str, list]]) -> str:
