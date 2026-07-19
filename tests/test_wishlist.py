@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import wishlist as wl_mod
-from vault_cleaner.wishlist import Wishlist, WishlistError, fetch, parse_wishlist
+from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
 FIXTURE = Path(__file__).parent / "fixtures" / "wishlist.txt"
 

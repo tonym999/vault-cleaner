@@ -3,6 +3,17 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 (wrap-up) — v1 chores (#21)
+
+- AGENTS.md gotchas absorbed the durable worklog lessons (empty ghost rank
+  columns, fixed Armor 3.0 spikes, manifest name→hash, stacked hashtags,
+  csv CRLF, build/ artifacts) so future agents get them up front.
+- ruff added to CI (one finding: unused import, autofixed).
+- Older fixtures (weapons/ghosts/weapons_dupes) normalized to LF.
+- pandas pinned `>=3.0,<4` — the venv and CI actually run pandas 3.0.3;
+  the old `>=2.0` floor advertised an untested major version.
+- After merge: tag v0.1.0 on main — all five milestones + full board done.
+
 ## 2026-07-19 (late) — MIT license (#10, PR #20)
 
 - **Owner decision: MIT.** LICENSE file (copyright Tony M), PEP 639
