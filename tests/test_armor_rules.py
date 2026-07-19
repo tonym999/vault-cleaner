@@ -41,6 +41,20 @@ def test_weapons_loader_rejects_armor_export():
         load_weapons(FIXTURE)
 
 
+def test_malformed_stat_cell_fails_loudly(tmp_path):
+    # An empty/garbage (Base) cell must not silently score as 0 and junk
+    # a good piece — refuse the whole export with the offender named
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    col_idx = header.index('"Melee (Base)"') if '"Melee (Base)"' in header else header.index("Melee (Base)")
+    row = lines[1].split(",")
+    row[col_idx] = ""
+    bad = tmp_path / "bad.csv"
+    bad.write_text("\n".join([lines[0], ",".join(row)] + lines[2:]) + "\n")
+    with pytest.raises(SchemaError, match="non-numeric 'Melee \\(Base\\)'"):
+        load_armor(bad)
+
+
 def test_scores_are_on_total_base_scale():
     # Uniform stats: every archetype scores exactly the Total (Base) value
     uniform = {s: 10 for s in ARMOR_STATS}

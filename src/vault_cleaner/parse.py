@@ -80,5 +80,19 @@ def load_ghosts(path: str | Path) -> pd.DataFrame:
 
 
 def load_armor(path: str | Path) -> pd.DataFrame:
-    """Load a DIM armor export. Same string/empty-cell semantics as weapons."""
-    return _load_dim_csv(path, REQUIRED_ARMOR_COLUMNS, "armor")
+    """Load a DIM armor export. Same string/empty-cell semantics as weapons.
+
+    Stat cells are validated here: scoring junks pieces by these numbers, so
+    a malformed cell silently becoming 0 could junk a best-in-slot piece.
+    Fail loudly instead (PLAN.md risks)."""
+    df = _load_dim_csv(path, REQUIRED_ARMOR_COLUMNS, "armor")
+    for col in ARMOR_STATS.values():
+        bad = ~df[col].str.strip().str.fullmatch(r"-?\d+")
+        if bad.any():
+            offender = df.loc[bad].iloc[0]
+            raise SchemaError(
+                f"{path}: non-numeric {col!r} value {offender[col]!r} on "
+                f"{offender['Name']} (id {offender['Id']}) — refusing to score "
+                f"armor with malformed stats."
+            )
+    return df

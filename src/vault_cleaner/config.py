@@ -7,6 +7,7 @@ those junk decisions — better to refuse loudly.
 
 from __future__ import annotations
 
+import math
 import tomllib
 from pathlib import Path
 
@@ -51,16 +52,28 @@ class ConfigError(ValueError):
 
 
 def _is_number(v: object) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
+    # bool subclasses int; TOML permits nan/inf literals, and NaN silently
+    # poisons every score comparison — finite numbers only.
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
 def _validate_armor(cfg: dict) -> None:
     a = cfg["armor"]
-    if not isinstance(a.get("top_n_per_slot"), int) or a["top_n_per_slot"] < 0:
+    top_n = a.get("top_n_per_slot")
+    if not isinstance(top_n, int) or isinstance(top_n, bool) or top_n < 0:
         raise ConfigError("armor.top_n_per_slot must be a non-negative integer")
     for key in ("score_floor", "set_bonus"):
         if not _is_number(a.get(key)):
-            raise ConfigError(f"armor.{key} must be a number")
+            raise ConfigError(f"armor.{key} must be a finite number")
+
+    favored = a.get("favored_set_perks")
+    if not isinstance(favored, list) or any(
+        not isinstance(p, str) or not p.strip() for p in favored
+    ):
+        raise ConfigError(
+            "armor.favored_set_perks must be a list of non-empty strings "
+            '(e.g. ["Erebos Glance"]), not a bare string'
+        )
 
     archetypes = a.get("archetypes")
     if not isinstance(archetypes, dict) or not archetypes:
@@ -99,7 +112,10 @@ def load_config(path: str | Path = "config.toml") -> dict:
             raise ConfigError(f"{path}: {e}") from e
     merged = {}
     for section, defaults in DEFAULTS.items():
-        merged[section] = {**defaults, **data.get(section, {})}
+        value = data.get(section, {})
+        if not isinstance(value, dict):
+            raise ConfigError(f"{path}: [{section}] must be a table, got {type(value).__name__}")
+        merged[section] = {**defaults, **value}
     for section, values in data.items():
         merged.setdefault(section, values)
     _validate_armor(merged)

@@ -33,7 +33,16 @@ def test_malformed_toml_raises_config_error(tmp_path):
         ("[armor.archetypes.bad]\nweights = { melee = 1.0 }\ntop_stats = 2", "exactly one"),
         ("[armor.archetypes.bad]\nnothing = true", "exactly one"),
         ("[armor]\ntop_n_per_slot = -1", "non-negative"),
-        ('[armor]\nscore_floor = "high"', "must be a number"),
+        ("[armor]\ntop_n_per_slot = true", "non-negative"),
+        ('[armor]\nscore_floor = "high"', "finite number"),
+        ("[armor]\nscore_floor = nan", "finite number"),
+        ("[armor]\nset_bonus = inf", "finite number"),
+        ("[armor.archetypes.bad]\nweights = { melee = 1.0, health = nan }", ">= 0"),
+        ('[armor]\nfavored_set_perks = "Erebos Glance"', "list of non-empty strings"),
+        ("[armor]\nfavored_set_perks = [1]", "list of non-empty strings"),
+        ('[armor]\nfavored_set_perks = [""]', "list of non-empty strings"),
+        ("armor = true", "must be a table"),
+        ("rails = 5", "must be a table"),
     ],
 )
 def test_invalid_armor_config_rejected(tmp_path, snippet, match):
