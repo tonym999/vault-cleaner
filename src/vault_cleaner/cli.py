@@ -147,15 +147,15 @@ def _cmd_armor(args: argparse.Namespace) -> int:
 
 
 def _cmd_ghosts(args: argparse.Namespace) -> int:
+    # No config involvement at all: the ghost policy is purely
+    # protection-based, and an unrelated config error must not block it.
     input_path = args.input or LOADERS["ghosts"][1]
     try:
         ghosts = load_ghosts(input_path)
-        cfg = load_config(args.config)
-    except (FileNotFoundError, SchemaError, ConfigError) as e:
+    except (FileNotFoundError, SchemaError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    del cfg  # ghosts take no config — policy is purely protection-based
     decisions = ghost_rules.run(ghosts)
     kept = len(ghosts) - len(decisions)
     print(f"parsed {len(ghosts)} ghosts from {input_path}")
@@ -250,7 +250,6 @@ def main(argv: list[str] | None = None) -> int:
     gp = sub.add_parser("ghosts", help="junk every shell not equipped/locked/tagged/in a loadout")
     gp.add_argument("--input", default=None, help="DIM ghost export (default data/in/destiny-ghost.csv)")
     gp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
-    gp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     gp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     gp.set_defaults(func=_cmd_ghosts)
 
