@@ -85,6 +85,17 @@ def test_hard_protected_gets_no_note_but_still_dominates_and_partners(cfg):
     assert "#vc-review: armor-similar to 6091" in d["6093"].note
 
 
+def test_spirit_rolls_are_compatibility_boundaries(cfg):
+    # Same spirits: comparable. Different spirits: functionally different
+    # exotics, never compared even at identical stats. No visible spirits:
+    # unknown roll, compared with nothing.
+    d = by_id(close_decisions(cfg))
+    assert "#vc-review: armor-similar to 6102" in d["6101"].note
+    assert "#vc-review: armor-similar to 6101" in d["6102"].note
+    assert "6103" not in d  # identical stats to 6101, different spirits
+    assert "6104" not in d  # spiritless: unknown roll
+
+
 def test_one_note_per_piece(cfg):
     ids = [d.id for d in close_decisions(cfg)]
     assert len(ids) == len(set(ids))

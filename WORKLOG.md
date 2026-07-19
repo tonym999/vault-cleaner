@@ -31,6 +31,12 @@ surprises the next agent should know about.
   by 6001" then junked 6001; similar partners never needed the shield
   because their notes are symmetric, so both sides are already decided or
   hard-protected).
+- Round 2 (owner call, follows the #17 spiritless guard): the Spirit
+  signature joined the close-pass compatibility bucket — two exotic class
+  items with different Spirit combos are functionally different pieces
+  (same rule as set bonuses), and a spiritless copy is an unknown roll,
+  compared with nothing. Real vault: 124 → 115 close reviews; the 9
+  removed notes were cross-spirit "similar" advice, i.e. misleading.
 
 ## 2026-07-19 (M6) — armor measurement spike + exact-dupe pass (#16, #17)
 

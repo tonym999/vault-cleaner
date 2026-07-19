@@ -13,12 +13,16 @@ notes and the human decides in DIM. Two categories:
   either identical (usually differing only in Tuning Stat) or a whole
   archetype template apart, so any sane caps select the same pairs.
 
-Compatibility: same Hash + same Tier. Measured (#16): every vault legendary
-belongs to a manifest set and every set has exactly one item hash per
-class x slot, so class+slot+tier+set-signature collapses to Hash + Tier —
-which also covers the "exotics compare within the same Hash only" rule and
-structurally excludes cross-set comparison. A tier-2 piece never dominates
-a tier-5.
+Compatibility: same Hash + same Tier + same Spirit signature. Measured
+(#16): every vault legendary belongs to a manifest set and every set has
+exactly one item hash per class x slot, so class+slot+tier+set-signature
+collapses to Hash + Tier — which also covers the "exotics compare within
+the same Hash only" rule and structurally excludes cross-set comparison.
+A tier-2 piece never dominates a tier-5. The Spirit signature (empty for
+everything but exotic class items) is the same identity rule: two
+Stoicism with different Spirit combos are functionally different pieces,
+and one with no visible spirits is an unknown roll — compared with
+nothing.
 
 Runs after the exact pass on the pieces it left undecided: a dominator that
 was junked as an exact dupe would be false advice ("a better copy exists" —
@@ -34,6 +38,7 @@ import pandas as pd
 
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
+from vault_cleaner.rules.armor_dupes import spirit_signature, unknown_spirit_roll
 from vault_cleaner.rules.dupes import Decision
 
 
@@ -51,8 +56,13 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
     stat_cap, total_cap = caps["max_stat_delta"], caps["max_total_delta"]
     clp = cfg["rails"]["crafted_level_protect"]
 
+    if armor.empty:
+        return []
+    known = armor[~armor.apply(unknown_spirit_roll, axis=1)]
+    known = known.assign(_spirits=known.apply(spirit_signature, axis=1))
+
     decisions: list[Decision] = []
-    for _, group in armor.groupby(["Hash", "Tier"], sort=False):
+    for _, group in known.groupby(["Hash", "Tier", "_spirits"], sort=False):
         if len(group) < 2:
             continue
         rows = [
