@@ -125,10 +125,19 @@ def _resolve_armor(armor, cfg):
     so each item carries at most one decision. Returns (decisions, scored)."""
     decisions = armor_dupes.run(armor, cfg["rails"]["crafted_level_protect"])
     remaining = armor[~armor["Id"].isin({d.id for d in decisions})]
-    decisions += armor_close.run(remaining, cfg)
-    remaining = remaining[~remaining["Id"].isin({d.id for d in decisions})]
+    close_decisions = armor_close.run(remaining, cfg)
+    decisions += close_decisions
+    remaining = remaining[~remaining["Id"].isin({d.id for d in close_decisions})]
     score_result = armor_rules.run(remaining, cfg)
-    return decisions + score_result.decisions, score_result.scored
+    # Only kept pieces dominate (#18): a close note says "a better/twin copy
+    # exists" — the score pass must not junk that cited copy out from under
+    # the advice. (Similar partners are already safe — their notes are
+    # symmetric — so this only ever bites for dominators.)
+    cited = {d.kept_id for d in close_decisions}
+    score_decisions = [
+        d for d in score_result.decisions if not (d.action == "junk" and d.id in cited)
+    ]
+    return decisions + score_decisions, score_result.scored
 
 
 def _cmd_armor(args: argparse.Namespace) -> int:

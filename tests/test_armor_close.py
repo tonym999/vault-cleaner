@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 
+from vault_cleaner.cli import _resolve_armor
 from vault_cleaner.config import ConfigError, load_config
-from vault_cleaner.parse import load_armor
+from vault_cleaner.parse import SchemaError, load_armor
 from vault_cleaner.rules.armor_close import run
 from vault_cleaner.rules.armor_dupes import run as run_exact
 
@@ -101,6 +102,32 @@ def test_tighter_caps_drop_the_wide_pairs(cfg):
     d = by_id(close_decisions(cfg))
     assert "6011" in d  # delta (2, 4) still in
     assert "6041" not in d and "6042" not in d  # (5, 10) now out
+
+
+def test_score_pass_never_junks_a_cited_dominator(cfg):
+    # "Only kept pieces dominate" (#18): under a strict-but-valid scoring
+    # config, 6002's note says 6001 is the better copy — the score pass must
+    # not junk 6001 out from under that advice
+    cfg["armor"]["top_n_per_slot"] = 0
+    cfg["armor"]["score_floor"] = 200
+    decisions, _ = _resolve_armor(load_armor(FIXTURE), cfg)
+    d = {x.id: x for x in decisions}
+    assert "armor-dominated by 6001" in d["6002"].note
+    assert "6001" not in d  # shielded from score junking
+    assert d["6021"].action == "junk"  # uncited pieces still score-junked
+
+
+def test_missing_tier_column_fails_loudly(tmp_path):
+    # The close pass groups on Tier — its disappearance must be a
+    # SchemaError at load, not a KeyError mid-pass
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    idx = header.index("Tier")
+    stripped = [",".join(cells.split(",")[:idx] + cells.split(",")[idx + 1:]) for cells in lines]
+    bad = tmp_path / "bad.csv"
+    bad.write_text("\n".join(stripped) + "\n")
+    with pytest.raises(SchemaError, match="Tier"):
+        load_armor(bad)
 
 
 def test_close_dupes_config_validated(tmp_path):

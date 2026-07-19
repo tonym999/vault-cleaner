@@ -24,6 +24,13 @@ surprises the next agent should know about.
 - Real vault: 124 close-dupe reviews (mostly "identical stats, tuning X
   vs Y" — the tuning-twin cluster measured in #16), 0 dominated (as
   measured: structurally impossible at tier 5's fixed 75 totals).
+- Review follow-ups: `Tier` schema-required (the close pass groups on it —
+  drift was a KeyError, now a SchemaError). Score pass no longer junks a
+  piece cited as a close-pass dominator ("only kept pieces dominate" —
+  under a strict-but-valid config the old code reviewed 6002 as "dominated
+  by 6001" then junked 6001; similar partners never needed the shield
+  because their notes are symmetric, so both sides are already decided or
+  hard-protected).
 
 ## 2026-07-19 (M6) — armor measurement spike + exact-dupe pass (#16, #17)
 
