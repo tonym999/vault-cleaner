@@ -12,7 +12,7 @@ import sys
 
 from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
-from vault_cleaner.report import VALID_TAGS, write_import_csv
+from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
 from vault_cleaner.manifest import ManifestError, load_perk_map
 from vault_cleaner.rules import (
     armor as armor_rules,
@@ -66,6 +66,17 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_weapons(weapons, cfg, no_wishlists: bool):
+    """Run the weapons pipeline. Returns (decisions, conflicts, used_wishlists)."""
+    clp = cfg["rails"]["crafted_level_protect"]
+    if no_wishlists or not cfg["wishlists"]["sources"]:
+        return dupes.resolve(weapons, clp), 0, False
+    wl = load_all(cfg)
+    perk_map = load_perk_map(cfg["paths"]["manifest_cache_dir"], cfg["manifest"]["max_age_days"])
+    result = weapons_rules.run(weapons, wl, perk_map, clp)
+    return result.decisions, result.keep_trash_conflicts, True
+
+
 def _cmd_dupes(args: argparse.Namespace) -> int:
     input_path = args.input or LOADERS["weapons"][1]
     try:
@@ -74,24 +85,12 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     except (FileNotFoundError, SchemaError, ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    clp = cfg["rails"]["crafted_level_protect"]
-    use_wishlists = not args.no_wishlists and bool(cfg["wishlists"]["sources"])
-    if use_wishlists:
-        try:
-            wl = load_all(cfg)
-            perk_map = load_perk_map(
-                cfg["paths"]["manifest_cache_dir"], cfg["manifest"]["max_age_days"]
-            )
-        except (WishlistError, ManifestError) as e:
-            print(f"error: {e}", file=sys.stderr)
-            print("(pass --no-wishlists to run dupes without wishlist data)", file=sys.stderr)
-            return 1
-        result = weapons_rules.run(weapons, wl, perk_map, clp)
-        decisions = result.decisions
-        conflicts = result.keep_trash_conflicts
-    else:
-        decisions = dupes.resolve(weapons, clp)
-        conflicts = 0
+    try:
+        decisions, conflicts, use_wishlists = _resolve_weapons(weapons, cfg, args.no_wishlists)
+    except (WishlistError, ManifestError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
+        return 1
 
     junk = [d for d in decisions if d.action == "junk"]
     review = [d for d in decisions if d.action == "review"]
@@ -170,6 +169,70 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
     n = write_import_csv(rows, args.output)
     print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    """Run every pass dry and print the aggregated would-junk summary (#9)."""
+    try:
+        cfg = load_config(args.config)
+    except ConfigError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    sections: list[tuple[str, list]] = []
+    conflicts = 0
+
+    loaders = [
+        ("weapons", load_weapons, LOADERS["weapons"][1]),
+        ("armor", load_armor, "data/in/destiny-armor.csv"),
+        ("ghosts", load_ghosts, LOADERS["ghosts"][1]),
+    ]
+    for kind, loader, default_path in loaders:
+        path = getattr(args, kind) or default_path
+        try:
+            items = loader(path)
+        except FileNotFoundError:
+            print(f"skipping {kind}: {path} not found", file=sys.stderr)
+            continue
+        except SchemaError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        if kind == "weapons":
+            try:
+                decisions, conflicts, _ = _resolve_weapons(items, cfg, args.no_wishlists)
+            except (WishlistError, ManifestError) as e:
+                print(f"error: {e}", file=sys.stderr)
+                print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
+                return 1
+        elif kind == "armor":
+            decisions = armor_rules.run(items, cfg).decisions
+        else:
+            decisions = ghost_rules.run(items)
+        sections.append((kind, decisions))
+
+    if not sections:
+        print("error: no exports found in data/in/ — nothing to report on", file=sys.stderr)
+        return 1
+
+    print(summarize(sections))
+    if conflicts:
+        print(
+            f"\nnote: {conflicts} weapon(s) matched both keep and trash lists — "
+            "keep outranked trash; normal dupe rules still apply to these items"
+        )
+
+    if not args.write:
+        print("\ndry run — pass --write to write the combined import CSV")
+        return 0
+
+    rows = [
+        {"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note}
+        for _, decisions in sections
+        for d in decisions
+    ]
+    n = write_import_csv(rows, args.output)
+    print(f"\nwrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
 
@@ -252,6 +315,16 @@ def main(argv: list[str] | None = None) -> int:
     gp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
     gp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     gp.set_defaults(func=_cmd_ghosts)
+
+    rp = sub.add_parser("report", help="run all passes dry and print the aggregated would-junk summary")
+    rp.add_argument("--weapons", default=None, help="weapons export (default data/in/destiny-weapon.csv)")
+    rp.add_argument("--armor", default=None, help="armor export (default data/in/destiny-armor.csv)")
+    rp.add_argument("--ghosts", default=None, help="ghost export (default data/in/destiny-ghost.csv)")
+    rp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"combined import CSV to write (default {DEFAULT_OUTPUT})")
+    rp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
+    rp.add_argument("--no-wishlists", action="store_true", help="skip the wishlist pass for weapons")
+    rp.add_argument("--write", action="store_true", help="write the combined import CSV (default is dry run)")
+    rp.set_defaults(func=_cmd_report)
 
     wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")
     wp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
