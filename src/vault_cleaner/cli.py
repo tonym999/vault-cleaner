@@ -14,7 +14,12 @@ from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
 from vault_cleaner.report import VALID_TAGS, write_import_csv
 from vault_cleaner.manifest import ManifestError, load_perk_map
-from vault_cleaner.rules import armor as armor_rules, dupes, weapons as weapons_rules
+from vault_cleaner.rules import (
+    armor as armor_rules,
+    dupes,
+    ghosts as ghost_rules,
+    weapons as weapons_rules,
+)
 from vault_cleaner.wishlist import WishlistError, fetch, load_all, parse_wishlist
 
 LOADERS = {
@@ -141,6 +146,34 @@ def _cmd_armor(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ghosts(args: argparse.Namespace) -> int:
+    input_path = args.input or LOADERS["ghosts"][1]
+    try:
+        ghosts = load_ghosts(input_path)
+        cfg = load_config(args.config)
+    except (FileNotFoundError, SchemaError, ConfigError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    decisions = ghost_rules.run(ghosts, cfg)
+    junk = [d for d in decisions if d.action == "junk"]
+    review = [d for d in decisions if d.action == "review"]
+    print(f"parsed {len(ghosts)} ghosts from {input_path}")
+    print(f"resolved: {len(junk)} junk, {len(review)} review (keeping top {cfg['ghosts']['keep_top_n']})")
+    for d in decisions:
+        marker = "junk  " if d.action == "junk" else "review"
+        print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+
+    if not args.write:
+        print("dry run — pass --write to write the import CSV")
+        return 0
+
+    rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
+    n = write_import_csv(rows, args.output)
+    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    return 0
+
+
 def _cmd_wishlists(args: argparse.Namespace) -> int:
     try:
         cfg = load_config(args.config)
@@ -214,6 +247,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     ap.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     ap.set_defaults(func=_cmd_armor)
+
+    gp = sub.add_parser("ghosts", help="keep the N best ghost shells; junk the surplus")
+    gp.add_argument("--input", default=None, help="DIM ghost export (default data/in/destiny-ghost.csv)")
+    gp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    gp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
+    gp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
+    gp.set_defaults(func=_cmd_ghosts)
 
     wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")
     wp.add_argument("--config", default="config.toml", help="config file (default config.toml)")

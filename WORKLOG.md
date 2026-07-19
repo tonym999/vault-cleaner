@@ -3,6 +3,21 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 — Ghost cleanup pass (#8)
+
+- `rules/ghosts.py` + `vault-cleaner ghosts`. **Measured data reshaped the
+  ticket sketch:** zero duplicate hashes exist, ghost mods move freely
+  between shells (the mod carries the utility), and 28/29 shells are
+  Exotic *rarity* — cosmetic for ghosts. So: rank all shells by Energy
+  Capacity then Masterwork Tier, keep top `ghosts.keep_top_n` (default 6),
+  junk the surplus with rank in the note.
+- **Deliberate rails deviation:** exotic rarity is NOT a soft rail for
+  ghosts (it would flag everything and clean nothing). Locked still
+  reviews — checked directly because `rails.protection` reports exotic
+  before locked. Tags/equipped hard-protect as usual.
+- Real vault: 29 shells → 15 junk, 5 review, top 6 + 3 protected kept.
+- New fixtures now written LF-only (csv module defaults to CRLF).
+
 ## 2026-07-18 (late night) — M4: armor loader + archetype scorer (#6, #7)
 
 - `load_armor` on the shared loader; **`ARMOR_STATS` in parse.py is THE

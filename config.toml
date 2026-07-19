@@ -2,6 +2,13 @@
 # Rule thresholds (top-N per slot, score floors, archetype weights, set
 # bonuses) land here as M2–M4 arrive — see PLAN.md.
 
+[ghosts]
+# Shells are functionally interchangeable (mods move freely between them),
+# so keep the N best by Energy Capacity then Masterwork Tier; the rest are
+# surplus. Exotic *rarity* is not protection for ghosts — nearly every
+# shell is exotic and it's cosmetic. Tags/equipped protect as usual.
+keep_top_n = 6
+
 [armor]
 # Scores live on the Total (Base) scale (~60-100 for tier-5 armor): a
 # weighted archetype score equals what Total (Base) would read if the
