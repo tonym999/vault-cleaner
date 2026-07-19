@@ -24,8 +24,9 @@ REQUIRED_BASE_COLUMNS = frozenset(
 # Ammo is weapons-only: it keeps an armor export (which also has Type) from
 # silently loading through the weapons path.
 REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {"Type", "Ammo"}
-# Ghost exports have no Type column — the base set is all we need.
-REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS
+# Ghost exports have no Type column. Loadouts is required because loadout
+# membership is a keep signal in the ghost cleanup pass.
+REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS | {"Loadouts"}
 
 # THE armor stat lookup table (PLAN.md risks): canonical stat name → export
 # column. If DIM or Armor 3.0 renames a stat, fix it here and only here.

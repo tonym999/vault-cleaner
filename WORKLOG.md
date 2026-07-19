@@ -3,6 +3,44 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 (later) — Ghost pass redesigned: protection-only (#8, PR #15)
+
+- **Owner decision during review: no ranking at all.** The ranking design
+  below went through two review rounds (empty rank columns → tie-breaks →
+  determinism) before the honest conclusion: ghosts carry no quality
+  signal, and "top N" was an arbitrary policy wearing a ranking costume.
+  Final policy: keep only shells that are equipped, **locked (the lock IS
+  the keep signal for ghosts — no #vc-review)**, tagged
+  favorite/keep/archive, or **referenced by a saved DIM loadout**
+  (`Loadouts` column, now schema-required); junk everything else as
+  `#vc-junk: ghost-unprotected-surplus`. Rarity still irrelevant.
+  Rationale: mods move freely, Collections reacquires dismantled shells,
+  and dry-run + DIM review + in-game dismantle remain the gates.
+- Removed: `ghosts.keep_top_n`, rank-column schema/validation, tie-breaks.
+  Ghosts take no config — lock/tag shells in DIM to keep them.
+- Real vault: 29 shells → 17 junk, 12 protected.
+
+## 2026-07-19 — Ghost cleanup pass (#8) — superseded, see above
+
+- `rules/ghosts.py` + `vault-cleaner ghosts`. **Measured data reshaped the
+  ticket sketch:** zero duplicate hashes exist, ghost mods move freely
+  between shells (the mod carries the utility), and 28/29 shells are
+  Exotic *rarity* — cosmetic for ghosts. So: rank all shells by Energy
+  Capacity then Masterwork Tier, keep top `ghosts.keep_top_n` (default 6),
+  junk the surplus with rank in the note.
+- **Deliberate rails deviation:** exotic rarity is NOT a soft rail for
+  ghosts (it would flag everything and clean nothing). Locked still
+  reviews — checked directly because `rails.protection` reports exotic
+  before locked. Tags/equipped hard-protect as usual.
+- Real vault: 29 shells → 15 junk, 5 review, top 6 + 3 protected kept.
+- New fixtures now written LF-only (csv module defaults to CRLF).
+- Review follow-up + finding: **current DIM exports leave Energy Capacity
+  and Masterwork Tier EMPTY on every shell** (retired system) — ranking
+  ties at (0,0) and falls back to export order. Rank columns are now
+  schema-required, cells validated empty-or-digits (strict `\d+` à la
+  armor would reject the real export!), and notes say "no
+  energy/masterwork data" instead of fabricating "energy 0" rankings.
+
 ## 2026-07-18 (late night) — M4: armor loader + archetype scorer (#6, #7)
 
 - `load_armor` on the shared loader; **`ARMOR_STATS` in parse.py is THE
