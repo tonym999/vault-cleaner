@@ -35,6 +35,10 @@ DEFAULTS = {
         "score_floor": 65,
         "set_bonus": 10,
         "favored_set_perks": [],
+        "close_dupes": {
+            "max_stat_delta": 5,
+            "max_total_delta": 12,
+        },
         "archetypes": {
             "melee_primary": {
                 "weights": {
@@ -76,6 +80,16 @@ def _validate_armor(cfg: dict) -> None:
             "armor.favored_set_perks must be a list of non-empty strings "
             '(e.g. ["Erebos Glance"]), not a bare string'
         )
+
+    close = a.get("close_dupes")
+    if not isinstance(close, dict):
+        raise ConfigError("armor.close_dupes must be a table")
+    for key in ("max_stat_delta", "max_total_delta"):
+        v = close.get(key)
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+            # An [armor.close_dupes] override replaces the whole table, so a
+            # partial one is missing a key — name it rather than KeyError later
+            raise ConfigError(f"armor.close_dupes.{key} must be a non-negative integer")
 
     archetypes = a.get("archetypes")
     if not isinstance(archetypes, dict) or not archetypes:

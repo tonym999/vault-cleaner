@@ -3,6 +3,45 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 (M6, part 2) — armor close-dupe pass (#18)
+
+- `rules/armor_close.py`: review-only — dominated (`armor-dominated by
+  <id> (+N total)`) and similar (`armor-similar to <id>`), compared within
+  Hash + Tier only. The measured collapse (#16): every vault legendary is
+  in a manifest set and every set has exactly one hash per class×slot, so
+  class+slot+tier+set-signature ⇔ Hash + Tier — no set table, no manifest,
+  no network. A dominated pair is never also "similar" (either direction of
+  domination excludes the pair); one note per piece, best partner
+  (closest, then lowest id — order-independent, tested by CSV reversal).
+- Caps in `[armor.close_dupes]` (`max_stat_delta = 5`, `max_total_delta =
+  12`), validated non-negative-int with a named error on partial override.
+  Measured bimodality means any cap 1–9/1–19 picks the same pairs today.
+- Pipeline: rails → exact dupes → close dupes → score. **Deliberate
+  consequence:** junk dropped 227 → 175 on the real vault, because ~52
+  near-twin pieces the score pass used to junk now get a close-dupe
+  review note instead — earlier passes win, and a near-dupe deserves
+  human eyes over a blind score junk.
+- Real vault: 124 close-dupe reviews (mostly "identical stats, tuning X
+  vs Y" — the tuning-twin cluster measured in #16), 0 dominated (as
+  measured: structurally impossible at tier 5's fixed 75 totals).
+- Review follow-ups: `Tier` schema-required (the close pass groups on it —
+  drift was a KeyError, now a SchemaError). Score pass no longer junks a
+  piece cited as a close-pass dominator ("only kept pieces dominate" —
+  under a strict-but-valid config the old code reviewed 6002 as "dominated
+  by 6001" then junked 6001; similar partners never needed the shield
+  because their notes are symmetric, so both sides are already decided or
+  hard-protected).
+- Round 2 (owner call, follows the #17 spiritless guard): the Spirit
+  signature joined the close-pass compatibility bucket — two exotic class
+  items with different Spirit combos are functionally different pieces
+  (same rule as set bonuses), and a spiritless copy is an unknown roll,
+  compared with nothing. Real vault: 124 → 115 close reviews; the 9
+  removed notes were cross-spirit "similar" advice, i.e. misleading.
+- Round 3: the shared `unknown_spirit_roll` helper now also rejects
+  truncated signatures (fewer than the measured two Spirits), closing the
+  round-2 gap in both passes — a one-Spirit copy sharing its first Spirit
+  with a full roll no longer compares with it. Real vault unchanged.
+
 ## 2026-07-19 (M6) — armor measurement spike + exact-dupe pass (#16, #17)
 
 - **Spike first (#16), and it rewrote both designs** — full numbers in the
