@@ -41,7 +41,7 @@ surprises the next agent should know about.
   guard is in too — an exotic class item exporting no Spirit perks is an
   unknown roll and is never grouped. Round 3 closed the guard's own gap:
   a complete roll is exactly two Spirits (measured, 38/38 copies), so a
-  one-Spirit signature is truncated identity — two rolls sharing their
+  one-Spirit signature is a truncated identity — two rolls sharing their
   first Spirit must not merge — and anything shorter than
   `SPIRIT_ROLL_SIZE` is now treated as unknown. The guards only fire on
   data we haven't seen — better silent than wrong. Ordinary exotics (no
