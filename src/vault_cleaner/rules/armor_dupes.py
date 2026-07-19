@@ -35,6 +35,10 @@ from vault_cleaner.rules.dupes import Decision
 
 SPIRIT_PREFIX = "Spirit of "
 
+# DIM's Type values for class items. Exotic class items are the one armor
+# kind whose roll identity lives in the Perks columns (Spirit perks).
+CLASS_ITEM_TYPES = frozenset({"Titan Mark", "Warlock Bond", "Hunter Cloak"})
+
 
 def spirit_signature(row: pd.Series) -> tuple[str, ...]:
     """Sorted exotic-class-item Spirit perks — roll identity, unlike the
@@ -48,6 +52,18 @@ def spirit_signature(row: pd.Series) -> tuple[str, ...]:
             if name.startswith(SPIRIT_PREFIX):
                 spirits.add(name)
     return tuple(sorted(spirits))
+
+
+def unknown_spirit_roll(row: pd.Series) -> bool:
+    """An exotic class item exporting no Spirit perks is an unknown roll:
+    it can't be proven identical to anything, so the dupe passes must not
+    group or compare it. (Measured: every real copy shows its spirits, so
+    this only fires on data we haven't seen — better silent than wrong.)"""
+    return (
+        row["Rarity"] == "Exotic"
+        and row["Type"] in CLASS_ITEM_TYPES
+        and not spirit_signature(row)
+    )
 
 
 def fingerprint(row: pd.Series) -> tuple:
@@ -84,6 +100,8 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
     decisions: list[Decision] = []
     groups: dict[tuple, list[pd.Series]] = {}
     for _, row in armor.iterrows():
+        if unknown_spirit_roll(row):
+            continue
         groups.setdefault(fingerprint(row), []).append(row)
 
     for group in groups.values():

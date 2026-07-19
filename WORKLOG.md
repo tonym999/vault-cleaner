@@ -37,10 +37,12 @@ surprises the next agent should know about.
   flip a survivor; strict `\d+` would repeat the ghost-pass mistake — the
   measured export is all digits, but empty legitimately means
   unmasterworked). `Perks 0` is schema-required, so the Spirit identity source
-  can't vanish silently; the stronger "refuse to group spiritless exotic
-  class items" guard was declined for now — measured: spirits are visible
-  on all 38/38 copies including masterwork 0, and exotics only ever get
-  review advice.
+  can't vanish silently; and (owner call, round 2) the belt-and-braces
+  guard is in too — an exotic class item exporting no Spirit perks is an
+  unknown roll and is never grouped. Measured, spirits are visible on all
+  38/38 real copies, so the guard only fires on data we haven't seen —
+  better silent than wrong. Ordinary exotics (no spirits by design) still
+  group normally.
 
 ## 2026-07-19 (wrap-up) — v1 chores (#21)
 
