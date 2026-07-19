@@ -3,6 +3,50 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-19 (M6) — armor measurement spike + exact-dupe pass (#16, #17)
+
+- **Spike first (#16), and it rewrote both designs** — full numbers in the
+  issue comments. Highlights: the Perks columns are a masterwork-gated
+  socket dump (unupgraded copies export almost nothing), so raw perk
+  hashing is unusable; but Hash already implies the set perk — the
+  manifest's DestinyEquipableItemSetDefinition has 56 sets × exactly one
+  hash per class×slot, covering every legendary in the vault. Tuning Stat
+  is roll identity, not socket state (present before anything is socketed;
+  a socketed '+X/-Y' always matches it on legendaries; always empty on
+  exotics — and one tier-5 legendary quirk-exports it empty). No tuning
+  leak into base stats: every tier-5 piece totals exactly 75 base.
+  Tertiary Stat/Archetype are derivable from base stats. Exotic class item
+  Spirit perks are roll identity and visible on every copy.
+- `rules/armor_dupes.py` (#17): fingerprint = Hash + 6 base stats +
+  Tuning Stat + Seasonal Mod + Holofoil + Spirit signature. Survivor:
+  hard > loadout > locked > masterwork > power, then lowest id — reversing
+  the CSV changes nothing (tested). Loadout losers review-only (loadouts
+  pin instance ids). Fingerprint + ranking columns are now
+  schema-required; PLAN.md rules list amended (exact + close dupes).
+- Armor pipeline is now rails → exact dupes → score via `_resolve_armor`
+  (shared by `armor` and `report`); earlier passes win, one decision per
+  item.
+- Real vault: 7 exact-dupe rows — 1 junk, 1 loadout review (the rule fired
+  on real data: an identical twin survives but the loser is in a loadout),
+  5 exotic reviews. Small by design; the volume lives in the close-dupe
+  pass (#18): dominated is structurally impossible within tier 5 (fixed 75
+  totals) and "similar" is bimodal — 65 pairs differ only in Tuning Stat,
+  then nothing until far-apart archetypes.
+- Review follow-ups: Masterwork Tier / Power cells validated
+  empty-or-digits at load (to_int would coerce garbage to 0 and silently
+  flip a survivor; strict `\d+` would repeat the ghost-pass mistake — the
+  measured export is all digits, but empty legitimately means
+  unmasterworked). `Perks 0` is schema-required, so the Spirit identity source
+  can't vanish silently; and (owner call, round 2) the belt-and-braces
+  guard is in too — an exotic class item exporting no Spirit perks is an
+  unknown roll and is never grouped. Round 3 closed the guard's own gap:
+  a complete roll is exactly two Spirits (measured, 38/38 copies), so a
+  one-Spirit signature is a truncated identity — two rolls sharing their
+  first Spirit must not merge — and anything shorter than
+  `SPIRIT_ROLL_SIZE` is now treated as unknown. The guards only fire on
+  data we haven't seen — better silent than wrong. Ordinary exotics (no
+  spirits by design) still group normally.
+
 ## 2026-07-19 (wrap-up) — v1 chores (#21)
 
 - AGENTS.md gotchas absorbed the durable worklog lessons (empty ghost rank

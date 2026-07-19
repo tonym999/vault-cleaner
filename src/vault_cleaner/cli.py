@@ -16,6 +16,7 @@ from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
 from vault_cleaner.manifest import ManifestError, load_perk_map
 from vault_cleaner.rules import (
     armor as armor_rules,
+    armor_dupes,
     dupes,
     ghosts as ghost_rules,
     weapons as weapons_rules,
@@ -117,6 +118,16 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_armor(armor, cfg):
+    """Run the armor pipeline: rails → exact dupes → score. Earlier passes
+    win — a piece decided by the dupe pass never reaches scoring, so each
+    item carries at most one decision. Returns (decisions, scored)."""
+    dupe_decisions = armor_dupes.run(armor, cfg["rails"]["crafted_level_protect"])
+    decided = {d.id for d in dupe_decisions}
+    score_result = armor_rules.run(armor[~armor["Id"].isin(decided)], cfg)
+    return dupe_decisions + score_result.decisions, score_result.scored
+
+
 def _cmd_armor(args: argparse.Namespace) -> int:
     input_path = args.input or "data/in/destiny-armor.csv"
     try:
@@ -126,12 +137,13 @@ def _cmd_armor(args: argparse.Namespace) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    result = armor_rules.run(armor, cfg)
-    junk = [d for d in result.decisions if d.action == "junk"]
-    review = [d for d in result.decisions if d.action == "review"]
-    print(f"parsed {len(armor)} armor pieces from {input_path} ({result.scored} legendaries scored)")
-    print(f"resolved: {len(junk)} junk, {len(review)} review (soft-protected)")
-    for d in result.decisions:
+    decisions, scored = _resolve_armor(armor, cfg)
+    junk = [d for d in decisions if d.action == "junk"]
+    review = [d for d in decisions if d.action == "review"]
+    dupe_rows = [d for d in decisions if "armor-exact-dupe" in d.note]
+    print(f"parsed {len(armor)} armor pieces from {input_path} ({scored} legendaries scored)")
+    print(f"resolved: {len(junk)} junk, {len(review)} review ({len(dupe_rows)} from exact dupes)")
+    for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
         print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
 
@@ -139,7 +151,7 @@ def _cmd_armor(args: argparse.Namespace) -> int:
         print("dry run — pass --write to write the import CSV")
         return 0
 
-    rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in result.decisions]
+    rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
     n = write_import_csv(rows, args.output)
     print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
     return 0
@@ -206,7 +218,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
                 print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
                 return 1
         elif kind == "armor":
-            decisions = armor_rules.run(items, cfg).decisions
+            decisions, _ = _resolve_armor(items, cfg)
         else:
             decisions = ghost_rules.run(items)
         sections.append((kind, decisions))
@@ -303,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="skip the wishlist pass (trash tagging + keep-roll ranking)")
     dp.set_defaults(func=_cmd_dupes)
 
-    ap = sub.add_parser("armor", help="score legendary armor per archetype; junk low-rank low-score pieces")
+    ap = sub.add_parser("armor", help="armor pipeline: exact dupes then archetype scoring; junk with reasons")
     ap.add_argument("--input", default=None, help="DIM armor export (default data/in/destiny-armor.csv)")
     ap.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
     ap.add_argument("--config", default="config.toml", help="config file (default config.toml)")

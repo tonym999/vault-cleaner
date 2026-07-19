@@ -40,8 +40,18 @@ ARMOR_STATS = {
     "melee": "Melee (Base)",
 }
 
+# Beyond the scoring columns, the armor dupe passes need: Loadouts (loadout
+# membership keeps a piece, as in the ghost pass), the fingerprint columns
+# (Tuning Stat / Seasonal Mod / Holofoil — roll identity, see
+# rules/armor_dupes.py), the survivor-ranking columns (Masterwork Tier,
+# Power), and Perks 0 — the Spirit perks in the Perks columns are the roll
+# identity for exotic class items, so their wholesale disappearance must not
+# silently merge distinct rolls. Required so a renamed column fails loudly.
 REQUIRED_ARMOR_COLUMNS = (
-    REQUIRED_BASE_COLUMNS | {"Type", "Equippable"} | set(ARMOR_STATS.values())
+    REQUIRED_BASE_COLUMNS
+    | {"Type", "Equippable", "Loadouts", "Tuning Stat", "Seasonal Mod",
+       "Holofoil", "Masterwork Tier", "Power", "Perks 0"}
+    | set(ARMOR_STATS.values())
 )
 
 
@@ -95,5 +105,18 @@ def load_armor(path: str | Path) -> pd.DataFrame:
                 f"{path}: non-numeric {col!r} value {offender[col]!r} on "
                 f"{offender['Name']} (id {offender['Id']}) — refusing to score "
                 f"armor with malformed stats."
+            )
+    # Survivor ranking (dupe pass) reads these via to_int, which coerces
+    # garbage to 0 and could silently flip which copy survives. Digits when
+    # present; empty stays legitimate ("unmasterworked" — strict \d+ was the
+    # ghost-pass mistake, it rejects real exports of retired systems).
+    for col in ("Masterwork Tier", "Power"):
+        bad = ~df[col].str.strip().str.fullmatch(r"\d*")
+        if bad.any():
+            offender = df.loc[bad].iloc[0]
+            raise SchemaError(
+                f"{path}: malformed {col!r} value {offender[col]!r} on "
+                f"{offender['Name']} (id {offender['Id']}) — refusing to rank "
+                f"dupe survivors on corrupt data."
             )
     return df
