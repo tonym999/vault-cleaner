@@ -117,13 +117,42 @@ def test_spirit_signature_reads_only_spirit_perks():
     assert spirit_signature(df.loc["5001"]) == ()
 
 
-def test_missing_fingerprint_column_fails_loudly(tmp_path):
-    # A vanished Tuning Stat column must not silently merge dupe groups
+@pytest.mark.parametrize("column", ["Tuning Stat", "Perks 0"])
+def test_missing_fingerprint_column_fails_loudly(tmp_path, column):
+    # A vanished fingerprint column must not silently merge dupe groups —
+    # Perks 0 carries the Spirit roll identity for exotic class items
     lines = FIXTURE.read_text().splitlines()
     header = lines[0].split(",")
-    idx = header.index("Tuning Stat")
+    idx = header.index(column)
     stripped = [",".join(cells.split(",")[:idx] + cells.split(",")[idx + 1:]) for cells in lines]
     bad = tmp_path / "bad.csv"
     bad.write_text("\n".join(stripped) + "\n")
-    with pytest.raises(SchemaError, match="Tuning Stat"):
+    with pytest.raises(SchemaError, match=column.replace(" ", r"\s")):
         load_armor(bad)
+
+
+@pytest.mark.parametrize(("column", "value"), [("Masterwork Tier", "abc"), ("Power", "-5")])
+def test_malformed_ranking_cell_fails_loudly(tmp_path, column, value):
+    # to_int would coerce these to 0 and silently flip the dupe survivor
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    idx = header.index(column)
+    row = lines[1].split(",")
+    row[idx] = value
+    bad = tmp_path / "bad.csv"
+    bad.write_text("\n".join([lines[0], ",".join(row)] + lines[2:]) + "\n")
+    with pytest.raises(SchemaError, match=f"malformed '{column}' value '{value}'"):
+        load_armor(bad)
+
+
+def test_empty_ranking_cells_stay_legitimate(tmp_path):
+    # Empty means "unmasterworked", not corrupt — strict validation here was
+    # the ghost-pass mistake (it rejected the real export)
+    lines = FIXTURE.read_text().splitlines()
+    header = lines[0].split(",")
+    row = lines[1].split(",")
+    row[header.index("Masterwork Tier")] = ""
+    row[header.index("Power")] = ""
+    ok = tmp_path / "ok.csv"
+    ok.write_text("\n".join([lines[0], ",".join(row)] + lines[2:]) + "\n")
+    assert len(load_armor(ok)) == len(load_armor(FIXTURE))
