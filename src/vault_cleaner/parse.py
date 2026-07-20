@@ -44,14 +44,16 @@ ARMOR_STATS = {
 # membership keeps a piece, as in the ghost pass), the fingerprint columns
 # (Tuning Stat / Seasonal Mod / Holofoil — roll identity, see
 # rules/armor_dupes.py), the survivor-ranking columns (Masterwork Tier,
-# Power), Tier (the close pass never compares across gear tiers), and
-# Perks 0 — the Spirit perks in the Perks columns are the roll identity for
-# exotic class items, so their wholesale disappearance must not silently
-# merge distinct rolls. Required so a renamed column fails loudly.
+# Power), Tier (the close pass never compares across gear tiers), Perks 0 —
+# the Spirit perks in the Perks columns are the roll identity for exotic
+# class items, so their wholesale disappearance must not silently merge
+# distinct rolls — and Archetype (the score pass's last-of-kind guard keys
+# on it; empty cells are valid — legacy pieces have no archetype). Required
+# so a renamed column fails loudly.
 REQUIRED_ARMOR_COLUMNS = (
     REQUIRED_BASE_COLUMNS
     | {"Type", "Equippable", "Loadouts", "Tuning Stat", "Seasonal Mod",
-       "Holofoil", "Masterwork Tier", "Power", "Tier", "Perks 0"}
+       "Holofoil", "Masterwork Tier", "Power", "Tier", "Perks 0", "Archetype"}
     | set(ARMOR_STATS.values())
 )
 

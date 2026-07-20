@@ -126,7 +126,12 @@ def test_score_pass_never_junks_a_cited_dominator(cfg):
     d = {x.id: x for x in decisions}
     assert "armor-dominated by 6001" in d["6002"].note
     assert "6001" not in d  # shielded from score junking
-    assert d["6021"].action == "junk"  # uncited pieces still score-junked
+    # 6121/6122 share a (Hash, Archetype) but are too far apart for the
+    # close pass: the last-of-kind guard (#30) spares the better-scoring
+    # 6122 as review; 6121 proves score junk still fires
+    assert d["6122"].action == "review"
+    assert "armor-last-archetype" in d["6122"].note
+    assert d["6121"].action == "junk"
 
 
 def test_missing_tier_column_fails_loudly(tmp_path):

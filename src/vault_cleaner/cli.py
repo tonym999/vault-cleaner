@@ -128,7 +128,14 @@ def _resolve_armor(armor, cfg):
     close_decisions = armor_close.run(remaining, cfg)
     decisions += close_decisions
     remaining = remaining[~remaining["Id"].isin({d.id for d in close_decisions})]
-    score_result = armor_rules.run(remaining, cfg)
+    # Review-noted pieces stay in the vault, so their (Hash, Archetype)
+    # combos count as survivors for the score pass's last-of-kind guard
+    review_ids = {d.id for d in decisions if d.action == "review"}
+    kept_elsewhere = frozenset(
+        (r["Hash"], r["Archetype"])
+        for _, r in armor[armor["Id"].isin(review_ids)].iterrows()
+    )
+    score_result = armor_rules.run(remaining, cfg, kept_elsewhere)
     # Only kept pieces dominate (#18): a close note says "a better/twin copy
     # exists" — the score pass must not junk that cited copy out from under
     # the advice. (Similar partners are already safe — their notes are

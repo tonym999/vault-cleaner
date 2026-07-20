@@ -3,6 +3,38 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-20 — v0.2.0 tagged; last-of-kind guard in the score pass (#30)
+
+- v0.2.0 tagged + released (M6). First real post-M6 import run surfaced
+  the next design gap: the score pass junked the vault's only
+  weapons/grenade/super Gunner Ferropotent Mark at score 40 — no dupe
+  reasoning, just build-misfit against the single configured archetype.
+  Its four same-archetype set-mates survived only because their identical
+  stats earned them close-dupe review notes (accidental shielding).
+- **Measured before designing:** 115/175 junk rows were the last kept
+  copy of their (Hash, Archetype); 174/175 the last at
+  (Hash, Archetype, tertiary) — the dupe passes already remove real
+  duplicates, so the score pass mostly sees unique rolls, and a
+  full-granularity guard would kill it (rejected). 5 (class, set) combos
+  lost 4-piece fieldability; the archetype-level guard fixes all 5 free
+  (every slot's pieces share one Hash).
+- **Owner-picked policy: (Hash, Archetype).** Score pass now runs two
+  phases — classify, then junk — and demotes the best-scoring junk
+  candidate of any combo that would otherwise lose its last kept copy
+  (`#vc-review: armor-last-archetype (<archetype>), armor-score …`).
+  Ties break on id, never CSV order. Review-noted pieces from earlier
+  passes count as survivors via `kept_elsewhere` (an exact-dupe junk
+  always leaves an identical twin, so those combos were already safe).
+  `Archetype` is schema-required (empty = legacy, valid).
+- Real vault (fresh export, 884 pieces): 73 junk, 102 last-archetype
+  demotions. The original Gunner mark still junks — four better Gunner
+  set-mates survive, so the combo isn't foreclosed; lock a specific roll
+  in DIM to keep it (soft rail).
+- Also: PR #27 had merged into its stacked base branch instead of main
+  (GitHub only retargets when the base branch is deleted) — re-landed as
+  #28 by cherry-picking the stranded squash. Verify content reached main
+  after merging stacked PRs.
+
 ## 2026-07-19 (M6, part 2) — armor close-dupe pass (#18)
 
 - `rules/armor_close.py`: review-only — dominated (`armor-dominated by
