@@ -134,6 +134,20 @@ def test_score_pass_never_junks_a_cited_dominator(cfg):
     assert d["6121"].action == "junk"
 
 
+def test_cited_dominator_counts_as_combo_survivor(cfg):
+    # 6131 is cited as 6132's dominator, so the #18 shield keeps it — the
+    # #30 guard must know that: its combo-mate 6133 (better-scoring, too
+    # far for the close pass) junks normally instead of being demoted as
+    # "last of its kind"
+    cfg["armor"]["top_n_per_slot"] = 0
+    cfg["armor"]["score_floor"] = 200
+    decisions, _ = _resolve_armor(load_armor(FIXTURE), cfg)
+    d = {x.id: x for x in decisions}
+    assert "armor-dominated by 6131" in d["6132"].note
+    assert "6131" not in d  # shielded from score junking, no demotion note
+    assert d["6133"].action == "junk"
+
+
 def test_missing_tier_column_fails_loudly(tmp_path):
     # The close pass groups on Tier — its disappearance must be a
     # SchemaError at load, not a KeyError mid-pass
