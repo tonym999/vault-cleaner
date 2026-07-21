@@ -128,12 +128,20 @@ def _resolve_armor(armor, cfg):
     close_decisions = armor_close.run(remaining, cfg)
     decisions += close_decisions
     remaining = remaining[~remaining["Id"].isin({d.id for d in close_decisions})]
-    score_result = armor_rules.run(remaining, cfg)
+    # Review-noted pieces stay in the vault, and cited close-pass partners
+    # survive by construction (their junk rows are dropped below) — both
+    # count as survivors for the score pass's last-of-kind guard
+    review_ids = {d.id for d in decisions if d.action == "review"}
+    cited = {d.kept_id for d in close_decisions}
+    kept_elsewhere = frozenset(
+        (r["Hash"], r["Archetype"])
+        for _, r in armor[armor["Id"].isin(review_ids | cited)].iterrows()
+    )
+    score_result = armor_rules.run(remaining, cfg, kept_elsewhere)
     # Only kept pieces dominate (#18): a close note says "a better/twin copy
     # exists" — the score pass must not junk that cited copy out from under
     # the advice. (Similar partners are already safe — their notes are
     # symmetric — so this only ever bites for dominators.)
-    cited = {d.kept_id for d in close_decisions}
     score_decisions = [
         d for d in score_result.decisions if not (d.action == "junk" and d.id in cited)
     ]

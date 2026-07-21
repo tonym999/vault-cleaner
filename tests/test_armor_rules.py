@@ -21,12 +21,18 @@ def cfg():
     return c
 
 
-def result(cfg):
-    return run(load_armor(FIXTURE), cfg)
+def result(cfg, kept_elsewhere=None):
+    armor = load_armor(FIXTURE)
+    if kept_elsewhere is None:
+        # Neutralize the last-of-kind guard (#30): most fixture rows are the
+        # sole copy of their (Hash, Archetype), and these tests target the
+        # floor/top-N logic. The guard has its own tests below.
+        kept_elsewhere = frozenset((h, a) for h, a in zip(armor["Hash"], armor["Archetype"]))
+    return run(armor, cfg, kept_elsewhere)
 
 
-def decisions_by_id(cfg):
-    return {d.id: d for d in result(cfg).decisions}
+def decisions_by_id(cfg, kept_elsewhere=None):
+    return {d.id: d for d in result(cfg, kept_elsewhere).decisions}
 
 
 def test_load_armor_by_header_and_stat_map():
@@ -135,4 +141,34 @@ def test_classes_and_slots_group_independently(cfg):
 
 def test_exotics_never_scored(cfg):
     assert "4031" not in decisions_by_id(cfg)
-    assert result(cfg).scored == 11  # 12 rows minus the exotic
+    assert result(cfg).scored == 14  # 15 rows minus the exotic
+
+
+def test_last_of_kind_demoted_to_review(cfg):
+    # 4004 is the vault's only copy of its (Hash, Archetype): junking it
+    # would foreclose that set/build option with no dupe reasoning (#30)
+    d = decisions_by_id(cfg, kept_elsewhere=frozenset())
+    assert d["4004"].action == "review"
+    assert d["4004"].tag == ""  # existing tag preserved
+    assert "#vc-review: armor-last-archetype (no archetype), armor-score" in d["4004"].note
+
+
+def test_guard_spares_only_the_best_of_a_combo(cfg):
+    # Guard Plates A+B share (Hash, Archetype); A scores higher, so A is
+    # demoted to review and B still junks. C shares the Hash but not the
+    # Archetype — its own combo, so it is spared too.
+    d = decisions_by_id(cfg, kept_elsewhere=frozenset())
+    assert d["4051"].action == "review"
+    assert "armor-last-archetype (no archetype)" in d["4051"].note
+    assert d["4052"].action == "junk"
+    assert d["4053"].action == "review"
+    assert "armor-last-archetype (gunner)" in d["4053"].note
+
+
+def test_kept_elsewhere_counts_as_combo_survivor(cfg):
+    # A review-noted twin outside the score frame means the combo survives:
+    # no demotion, both copies junk normally
+    d = decisions_by_id(cfg, kept_elsewhere=frozenset({("555001", "")}))
+    assert d["4051"].action == "junk"
+    assert d["4052"].action == "junk"
+    assert d["4053"].action == "review"  # different archetype: still guarded
