@@ -11,22 +11,17 @@ import argparse
 import sys
 
 from vault_cleaner.config import ConfigError, load_config
+from vault_cleaner.manifest import ManifestError
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
+from vault_cleaner.pipeline import resolve_armor, resolve_weapons
 from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
-from vault_cleaner.manifest import ManifestError, load_perk_map
-from vault_cleaner.rules import (
-    armor as armor_rules,
-    armor_close,
-    armor_dupes,
-    dupes,
-    ghosts as ghost_rules,
-    weapons as weapons_rules,
-)
-from vault_cleaner.wishlist import WishlistError, fetch, load_all, parse_wishlist
+from vault_cleaner.report_run import DEFAULT_EXPORT_PATHS, NoExportsError, run_report
+from vault_cleaner.rules import ghosts as ghost_rules
+from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
 LOADERS = {
-    "weapons": (load_weapons, "data/in/destiny-weapon.csv"),
-    "ghosts": (load_ghosts, "data/in/destiny-ghost.csv"),
+    "weapons": (load_weapons, DEFAULT_EXPORT_PATHS["weapons"]),
+    "ghosts": (load_ghosts, DEFAULT_EXPORT_PATHS["ghosts"]),
 }
 DEFAULT_OUTPUT = "data/out/dim-import.csv"
 
@@ -69,14 +64,13 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
 
 
 def _resolve_weapons(weapons, cfg, no_wishlists: bool):
-    """Run the weapons pipeline. Returns (decisions, conflicts, used_wishlists)."""
-    clp = cfg["rails"]["crafted_level_protect"]
-    if no_wishlists or not cfg["wishlists"]["sources"]:
-        return dupes.resolve(weapons, clp), 0, False
-    wl = load_all(cfg)
-    perk_map = load_perk_map(cfg["paths"]["manifest_cache_dir"], cfg["manifest"]["max_age_days"])
-    result = weapons_rules.run(weapons, wl, perk_map, clp)
-    return result.decisions, result.keep_trash_conflicts, True
+    """Compatibility tuple around the public pipeline result."""
+    result = resolve_weapons(weapons, cfg, no_wishlists)
+    return (
+        result.decisions,
+        result.keep_trash_conflicts,
+        result.wishlists_used,
+    )
 
 
 def _cmd_dupes(args: argparse.Namespace) -> int:
@@ -120,36 +114,13 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
 
 
 def _resolve_armor(armor, cfg):
-    """Run the armor pipeline: rails → exact dupes → close dupes → score.
-    Earlier passes win — each pass only sees pieces no earlier pass decided,
-    so each item carries at most one decision. Returns (decisions, scored)."""
-    decisions = armor_dupes.run(armor, cfg["rails"]["crafted_level_protect"])
-    remaining = armor[~armor["Id"].isin({d.id for d in decisions})]
-    close_decisions = armor_close.run(remaining, cfg)
-    decisions += close_decisions
-    remaining = remaining[~remaining["Id"].isin({d.id for d in close_decisions})]
-    # Review-noted pieces stay in the vault, and cited close-pass partners
-    # survive by construction (their junk rows are dropped below) — both
-    # count as survivors for the score pass's last-of-kind guard
-    review_ids = {d.id for d in decisions if d.action == "review"}
-    cited = {d.kept_id for d in close_decisions}
-    kept_elsewhere = frozenset(
-        (r["Hash"], r["Archetype"])
-        for _, r in armor[armor["Id"].isin(review_ids | cited)].iterrows()
-    )
-    score_result = armor_rules.run(remaining, cfg, kept_elsewhere)
-    # Only kept pieces dominate (#18): a close note says "a better/twin copy
-    # exists" — the score pass must not junk that cited copy out from under
-    # the advice. (Similar partners are already safe — their notes are
-    # symmetric — so this only ever bites for dominators.)
-    score_decisions = [
-        d for d in score_result.decisions if not (d.action == "junk" and d.id in cited)
-    ]
-    return decisions + score_decisions, score_result.scored
+    """Compatibility tuple around the public armor pipeline result."""
+    result = resolve_armor(armor, cfg)
+    return result.decisions, result.scored
 
 
 def _cmd_armor(args: argparse.Namespace) -> int:
-    input_path = args.input or "data/in/destiny-armor.csv"
+    input_path = args.input or DEFAULT_EXPORT_PATHS["armor"]
     try:
         armor = load_armor(input_path)
         cfg = load_config(args.config)
@@ -209,66 +180,44 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
-    """Run every pass dry and print the aggregated would-junk summary (#9)."""
+    """Run every pass and print the aggregated would-junk summary (#9)."""
     try:
-        cfg = load_config(args.config)
-    except ConfigError as e:
+        result = run_report(
+            config_path=args.config,
+            weapons_path=args.weapons or DEFAULT_EXPORT_PATHS["weapons"],
+            armor_path=args.armor or DEFAULT_EXPORT_PATHS["armor"],
+            ghosts_path=args.ghosts or DEFAULT_EXPORT_PATHS["ghosts"],
+            no_wishlists=args.no_wishlists,
+        )
+    except (ConfigError, SchemaError, NoExportsError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-
-    sections: list[tuple[str, list]] = []
-    conflicts = 0
-
-    loaders = [
-        ("weapons", load_weapons, LOADERS["weapons"][1]),
-        ("armor", load_armor, "data/in/destiny-armor.csv"),
-        ("ghosts", load_ghosts, LOADERS["ghosts"][1]),
-    ]
-    for kind, loader, default_path in loaders:
-        path = getattr(args, kind) or default_path
-        try:
-            items = loader(path)
-        except FileNotFoundError:
-            print(f"skipping {kind}: {path} not found", file=sys.stderr)
-            continue
-        except SchemaError as e:
-            print(f"error: {e}", file=sys.stderr)
-            return 1
-        if kind == "weapons":
-            try:
-                decisions, conflicts, _ = _resolve_weapons(items, cfg, args.no_wishlists)
-            except (WishlistError, ManifestError) as e:
-                print(f"error: {e}", file=sys.stderr)
-                print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
-                return 1
-        elif kind == "armor":
-            decisions, _ = _resolve_armor(items, cfg)
-        else:
-            decisions = ghost_rules.run(items)
-        sections.append((kind, decisions))
-
-    if not sections:
-        print("error: no exports found in data/in/ — nothing to report on", file=sys.stderr)
+    except (WishlistError, ManifestError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
         return 1
 
-    print(summarize(sections))
-    if conflicts:
+    for warning in result.warnings:
+        print(warning, file=sys.stderr)
+
+    print(summarize(result.summary_sections()))
+    if result.keep_trash_conflicts:
         print(
-            f"\nnote: {conflicts} weapon(s) matched both keep and trash lists — "
-            "keep outranked trash; normal dupe rules still apply to these items"
+            f"\nnote: {result.keep_trash_conflicts} weapon(s) matched both "
+            "keep and trash lists — keep outranked trash; normal dupe rules "
+            "still apply to these items"
         )
 
     if not args.write:
         print("\ndry run — pass --write to write the combined import CSV")
         return 0
 
-    rows = [
-        {"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note}
-        for _, decisions in sections
-        for d in decisions
-    ]
+    rows = result.import_rows()
     n = write_import_csv(rows, args.output)
-    print(f"\nwrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    print(
+        f"\nwrote {n} row(s) to {args.output} — "
+        "import via DIM Settings → Import tags/notes from CSV"
+    )
     return 0
 
 

@@ -32,6 +32,11 @@ export CSVs ──► data/in/ ──► parse ──► rules engine ──► 
 - **Output:** CSV with `Id`, `Hash`, `Tag`, `Notes` columns (DIM ignores extras). `Notes` carries the reason string (e.g. `#vc-junk: dupe-lower, no wishlist match`), which doubles as a searchable hashtag in DIM.
 - **Wishlists:** download and cache `choosy_voltron.txt` (keep + thumbs-down rolls) and the Aegis endgame/trash lists. Parse `dimwishlist:item=HASH&perks=...` lines; negative item hash prefix = trash entry.
 
+**M7 boundary:** `pipeline.py` owns ordered rule execution; `report_run.py`
+loads available exports into a reusable structured result and produces a
+versioned, JSON-safe snapshot. The CLI is a presentation adapter over that
+API. Python remains the only authoritative rules engine and DIM CSV writer.
+
 ## Rules engine
 
 Order matters — earlier rules win:
@@ -57,9 +62,11 @@ vault-cleaner/
 ├── src/vault_cleaner/
 │   ├── parse.py          # DIM CSV ingestion, header-name mapping
 │   ├── wishlist.py       # download, cache, parse wishlist files
-│   ├── rules/            # armor.py, weapons.py, dupes.py
+│   ├── rules/            # one module per ordered rule pass
+│   ├── pipeline.py       # reusable ordered weapons/armor pipelines
+│   ├── report_run.py     # all-passes result + versioned snapshot/fingerprint
 │   ├── report.py         # output CSV + human-readable summary
-│   └── cli.py
+│   └── cli.py            # presentation and explicit --write boundary
 ├── wishlists/            # cached downloads (gitignored or committed — TBD)
 ├── data/                 # in/ and out/ — gitignored, personal vault data
 ├── config.toml
@@ -76,6 +83,8 @@ Public repo; `data/` gitignored from the first commit.
 3. **M3 — Wishlists:** choosy_voltron + Aegis download/parse/match, integrated with dupe ranking.
 4. **M4 — Armor scoring:** Armor 3.0 archetype scorer, set-bonus handling, config-driven thresholds.
 5. **M5 — Polish:** dry-run summary report ("would junk 214 items: …"), per-item reasons, maybe a `--profile pvp|pve` switch.
+6. **M6 — Armor dupes:** measured exact-dupe cleanup, close-dupe review, and last-of-archetype score guard.
+7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review → validated armor threshold what-if controls.
 
 ## Risks & mitigations
 
@@ -87,5 +96,5 @@ Public repo; `data/` gitignored from the first commit.
 ## Later ideas (explicitly out of scope for now)
 
 - Bungie API mode for live data (read-only).
-- Streamlit/Flask review UI with per-item override before writing output.
+- Ephemeral localhost bridge only if the dependency-free static M7 review workflow proves too awkward.
 - Generating a personal wishlist file from kept rolls (hosted as a public Gist for DIM to subscribe to).

@@ -3,7 +3,7 @@ import json
 import pytest
 
 from vault_cleaner import manifest as mf
-from vault_cleaner.manifest import ManifestError, _extract_names, load_perk_map
+from vault_cleaner.manifest import ManifestError, _extract_names, load_perk_map, load_perk_map_data
 
 INDEX = {
     "Response": {
@@ -37,6 +37,13 @@ def test_builds_and_caches_map(tmp_path, monkeypatch):
     assert pm["perk a"] == frozenset({101, 102})
     cached = json.loads((tmp_path / "perk-name-map.json").read_text())
     assert cached["version"] == "v1"
+
+
+def test_metadata_loader_exposes_manifest_version(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "_get_json", fake_get())
+    loaded = load_perk_map_data(tmp_path)
+    assert loaded.version == "v1"
+    assert loaded.names["perk a"] == frozenset({101, 102})
 
 
 def test_fresh_cache_skips_network(tmp_path, monkeypatch):

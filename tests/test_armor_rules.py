@@ -144,6 +144,19 @@ def test_exotics_never_scored(cfg):
     assert result(cfg).scored == 14  # 15 rows minus the exotic
 
 
+def test_result_exposes_every_score_evaluation(cfg):
+    scored = result(cfg)
+    assert len(scored.evaluations) == scored.scored
+    locked = next(item for item in scored.evaluations if item.id == "4006")
+    source = load_armor(FIXTURE).loc[lambda frame: frame["Id"] == "4006"].iloc[0]
+    assert locked.hash == source["Hash"]
+    assert locked.stats == base_stats(source)
+    assert locked.rank > cfg["armor"]["top_n_per_slot"]
+    assert locked.protection_level == "soft"
+    assert locked.protection_reason == "locked"
+    assert locked.original_notes == ""
+
+
 def test_last_of_kind_demoted_to_review(cfg):
     # 4004 is the vault's only copy of its (Hash, Archetype): junking it
     # would foreclose that set/build option with no dupe reasoning (#30)

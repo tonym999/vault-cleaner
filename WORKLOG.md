@@ -3,6 +3,25 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-24 — M7 foundation: reusable report snapshot (#35)
+
+- Extracted ordered rule execution from `cli.py` into `pipeline.py`;
+  individual commands and the combined report now share the same public
+  weapons/armor pipeline results. The CLI remains the dry-run / explicit
+  `--write` presentation boundary, and its summary/CSV behaviour is unchanged.
+- Added `report_run.py`: available exports become a structured `ReportRun`
+  with per-section source metadata, original item state, decisions, conflicts,
+  effective config, armor score evaluations, and a deterministic JSON-safe
+  snapshot (schema v1). DIM instance ids and hashes stay opaque strings.
+- Snapshot fingerprints cover export bytes, the effective config, raw cached
+  wishlist files, and both the Bungie manifest version and the semantic perk
+  map digest. `manifest.load_perk_map_data` exposes version metadata while the
+  existing `load_perk_map` dict API remains compatible.
+- Armor scoring now records every scored legendary's raw base stats, base and
+  bonus score, class/slot rank, protection state, and source tag/notes for
+  the later static review/what-if tickets; rule decisions did not change.
+- Ruff clean; 186 tests pass (176 before this ticket).
+
 ## 2026-07-20 — v0.2.0 tagged; last-of-kind guard in the score pass (#30)
 
 - v0.2.0 tagged + released (M6). First real post-M6 import run surfaced
