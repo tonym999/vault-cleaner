@@ -8,8 +8,8 @@ tagged junk, or note-flagged for review when soft-protected.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import pandas as pd
 

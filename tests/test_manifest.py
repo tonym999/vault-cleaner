@@ -3,7 +3,12 @@ import json
 import pytest
 
 from vault_cleaner import manifest as mf
-from vault_cleaner.manifest import ManifestError, _extract_names, load_perk_map, load_perk_map_data
+from vault_cleaner.manifest import (
+    ManifestError,
+    _extract_names,
+    load_perk_map,
+    load_perk_map_data,
+)
 
 INDEX = {
     "Response": {
@@ -71,6 +76,22 @@ def test_stale_cache_same_version_skips_big_download(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "_get_json", index_only)
     assert load_perk_map(tmp_path, max_age_days=0)["perk a"] == frozenset({101, 102})
     assert calls  # index was consulted
+
+
+def test_refresh_rechecks_index_but_reuses_matching_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "_get_json", fake_get())
+    load_perk_map(tmp_path)
+
+    calls = []
+
+    def index_only(url, timeout=300):
+        calls.append(url)
+        assert "Platform" in url, "matching manifest was unnecessarily re-downloaded"
+        return INDEX
+
+    monkeypatch.setattr(mf, "_get_json", index_only)
+    assert load_perk_map(tmp_path, refresh=True)["perk a"] == frozenset({101, 102})
+    assert calls
 
 
 def test_new_version_rebuilds(tmp_path, monkeypatch):

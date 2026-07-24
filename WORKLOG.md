@@ -3,6 +3,26 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-25 — M7 foundation review follow-up (#35 / PR #39)
+
+- Made effective TOML config recursively JSON-safe (date/time values use ISO
+  strings) before fingerprinting or snapshotting; this closes an uncaught
+  `TypeError` regression without accepting arbitrary object stringification.
+- Split snapshot schema v1 from ruleset v1 so presentation-only schema changes
+  do not invalidate persisted reviews, while decision-semantic changes do.
+- Snapshot source metadata, warnings, and configured directories now store
+  basenames only, so absolute user paths cannot leak into the later shareable
+  HTML report.
+- Reused one streaming file-digest helper, normalized source/wishlist race
+  failures to domain errors, made armor `set_bonus` consistently a JSON float,
+  and kept matching manifest caches even after an explicit index refresh.
+- Pinned the CI dev tools after unbounded Ruff drift made local 0.15.22 pass
+  while CI's 0.16.0 reported nine findings; updated those findings and added a
+  checked-in schema-v1 golden snapshot plus focused regression coverage.
+- The golden test exposed that `load_config` shallow-copied nested defaults,
+  letting one caller contaminate later report runs; defaults are now deep-copied
+  and an order-isolation regression test pins that behavior.
+
 ## 2026-07-24 — M7 foundation: reusable report snapshot (#35)
 
 - Extracted ordered rule execution from `cli.py` into `pipeline.py`;

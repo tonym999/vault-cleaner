@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import report_run
+from vault_cleaner.config import ConfigError
 from vault_cleaner.pipeline import (
     ManifestIdentity,
     WeaponPipelineResult,
@@ -11,6 +12,7 @@ from vault_cleaner.pipeline import (
 )
 from vault_cleaner.report_run import (
     NoExportsError,
+    SourceReadError,
     compute_fingerprint,
     run_report,
     snapshot_dict,
@@ -21,6 +23,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = FIXTURES / "weapons_dupes.csv"
 ARMOR = FIXTURES / "armor.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
+GOLDEN = FIXTURES / "report_snapshot_v1.json"
 
 
 def build_report():
@@ -43,8 +46,11 @@ def test_report_run_contains_sections_sources_decisions_and_config():
     assert result.effective_config["armor"]["score_floor"] == 65
     assert result.keep_trash_conflicts == 0
     assert not result.wishlists_used
+    assert result.wishlist_sources == ()
+    assert result.manifest is None
 
     for section in result.sections:
+        assert section.source.path == Path(section.source.path).name
         assert section.source.item_count > 0
         assert len(section.source.sha256) == 64
         assert all(isinstance(decision.id, str) for decision in section.decisions)
@@ -92,7 +98,12 @@ def test_snapshot_serialization_is_deterministic():
     assert snapshot_json(first) == snapshot_json(second)
     document = json.loads(snapshot_json(first))
     assert document["schema_version"] == 1
+    assert document["ruleset_version"] == 1
     assert document["fingerprint"] == first.fingerprint
+
+
+def test_snapshot_matches_schema_v1_golden():
+    assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
 
 
 def test_large_instance_ids_remain_exact_json_strings(tmp_path):
@@ -113,6 +124,45 @@ def test_large_instance_ids_remain_exact_json_strings(tmp_path):
     assert decision["id"] == "1000000000000000002"
     assert isinstance(decision["id"], str)
     assert isinstance(decision["hash"], str)
+    assert document["inputs"]["sources"][0]["path"] == "large-ids.csv"
+    assert str(tmp_path) not in snapshot_json(result)
+
+
+def test_toml_dates_are_normalized_for_fingerprint_and_snapshot(tmp_path):
+    config = tmp_path / "dated.toml"
+    config.write_text(
+        "[metadata]\n"
+        "last_refreshed = 2026-07-01\n"
+        "[paths]\n"
+        'input_dir = "/home/example/private/in"\n'
+    )
+    result = run_report(
+        config_path=config,
+        weapons_path=WEAPONS,
+        armor_path=tmp_path / "missing-armor.csv",
+        ghosts_path=tmp_path / "missing-ghosts.csv",
+        no_wishlists=True,
+    )
+
+    document = json.loads(snapshot_json(result))
+    assert document["inputs"]["effective_config"]["metadata"] == {
+        "last_refreshed": "2026-07-01"
+    }
+    assert document["inputs"]["effective_config"]["paths"]["input_dir"] == "in"
+    assert "/home/example" not in snapshot_json(result)
+
+
+def test_non_finite_unknown_config_has_a_clean_error(tmp_path):
+    config = tmp_path / "non-finite.toml"
+    config.write_text("[metadata]\nvalue = nan\n")
+    with pytest.raises(ConfigError, match="not snapshot-safe"):
+        run_report(
+            config_path=config,
+            weapons_path=WEAPONS,
+            armor_path=tmp_path / "missing-armor.csv",
+            ghosts_path=tmp_path / "missing-ghosts.csv",
+            no_wishlists=True,
+        )
 
 
 def test_fingerprint_changes_for_every_input_category():
@@ -142,6 +192,20 @@ def test_fingerprint_changes_for_every_input_category():
     assert compute_fingerprint(
         sources, config, wishlist, ManifestIdentity("v1", "manifest-b")
     ) != baseline
+    assert compute_fingerprint(
+        sources,
+        config,
+        wishlist,
+        manifest,
+        ruleset_version=2,
+    ) != baseline
+
+
+def test_snapshot_schema_version_does_not_change_input_fingerprint(monkeypatch):
+    before = compute_fingerprint({"weapons": "export"}, {"armor": {}})
+    monkeypatch.setattr(report_run, "SNAPSHOT_SCHEMA_VERSION", 2)
+    after = compute_fingerprint({"weapons": "export"}, {"armor": {}})
+    assert after == before
 
 
 def test_external_identities_flow_into_snapshot(monkeypatch, tmp_path):
@@ -179,5 +243,20 @@ def test_library_errors_when_every_export_is_missing(tmp_path):
             weapons_path=tmp_path / "weapons.csv",
             armor_path=tmp_path / "armor.csv",
             ghosts_path=tmp_path / "ghosts.csv",
+            no_wishlists=True,
+        )
+
+
+def test_export_hash_race_has_a_domain_error(monkeypatch, tmp_path):
+    def fail_hash(path):
+        raise OSError("file disappeared")
+
+    monkeypatch.setattr(report_run, "sha256_file", fail_hash)
+    with pytest.raises(SourceReadError, match="became unreadable"):
+        run_report(
+            config_path="nonexistent.toml",
+            weapons_path=WEAPONS,
+            armor_path=tmp_path / "missing-armor.csv",
+            ghosts_path=tmp_path / "missing-ghosts.csv",
             no_wishlists=True,
         )

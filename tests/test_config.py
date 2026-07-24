@@ -8,6 +8,13 @@ def test_missing_file_returns_defaults(tmp_path):
     assert cfg["rails"]["crafted_level_protect"] == 10
 
 
+def test_nested_defaults_are_isolated_between_loads(tmp_path):
+    first = load_config(tmp_path / "nope.toml")
+    first["armor"]["archetypes"]["temporary"] = {"top_stats": 2}
+    second = load_config(tmp_path / "nope.toml")
+    assert "temporary" not in second["armor"]["archetypes"]
+
+
 def test_file_values_override_defaults(tmp_path):
     p = tmp_path / "config.toml"
     p.write_text("[rails]\ncrafted_level_protect = 5\n")

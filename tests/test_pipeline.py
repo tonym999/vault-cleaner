@@ -1,11 +1,13 @@
 import hashlib
 from pathlib import Path
 
+import pytest
+
 from vault_cleaner import pipeline
 from vault_cleaner.config import load_config
 from vault_cleaner.manifest import PerkMapData
 from vault_cleaner.parse import load_weapons
-from vault_cleaner.wishlist import Wishlist
+from vault_cleaner.wishlist import Wishlist, WishlistError
 
 FIXTURE = Path(__file__).parent / "fixtures" / "weapons_dupes.csv"
 
@@ -39,3 +41,20 @@ def test_weapon_pipeline_captures_actual_external_input_identities(
     assert result.manifest is not None
     assert result.manifest.version == "manifest-v1"
     assert len(result.manifest.sha256) == 64
+
+
+def test_missing_wishlist_cache_has_a_domain_error(tmp_path, monkeypatch):
+    cfg = load_config("nonexistent.toml")
+    cfg["paths"]["wishlist_cache_dir"] = str(tmp_path / "wishlists")
+    cfg["wishlists"]["sources"] = {
+        "test": "https://example.test/wishlist",
+    }
+    monkeypatch.setattr(pipeline, "load_all", lambda config: Wishlist(name="test"))
+    monkeypatch.setattr(
+        pipeline,
+        "load_perk_map_data",
+        lambda *args: PerkMapData(names={}, version="manifest-v1"),
+    )
+
+    with pytest.raises(WishlistError, match="cached wishlist disappeared"):
+        pipeline.resolve_weapons(load_weapons(FIXTURE), cfg)

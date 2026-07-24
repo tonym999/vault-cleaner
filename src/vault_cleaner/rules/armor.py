@@ -136,9 +136,9 @@ def run(
             stats = base_stats(row)
             base, archetype = best_score(stats, archetypes)
             bonus = (
-                acfg["set_bonus"]
+                float(acfg["set_bonus"])
                 if has_favored_set_perk(row, acfg["favored_set_perks"])
-                else 0
+                else 0.0
             )
             score = base + bonus
             scored_rows.append((score, base, bonus, archetype, stats, row))

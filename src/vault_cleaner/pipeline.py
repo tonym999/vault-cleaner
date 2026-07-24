@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date, time
 from pathlib import Path
 
 import pandas as pd
@@ -53,18 +56,44 @@ class ArmorPipelineResult:
     kept_elsewhere: frozenset[tuple[str, str]]
 
 
+def json_safe(value: object) -> object:
+    """Normalize TOML-compatible values into deterministic JSON values."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("non-finite floats are not valid JSON")
+        return value
+    if isinstance(value, (date, time)):
+        return value.isoformat()
+    if isinstance(value, Mapping):
+        normalized = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(
+                    "JSON object keys must be strings, "
+                    f"got {type(key).__name__}"
+                )
+            normalized[key] = json_safe(item)
+        return normalized
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    raise TypeError(f"unsupported JSON value {type(value).__name__}")
+
+
 def canonical_sha256(value: object) -> str:
     payload = json.dumps(
-        value,
+        json_safe(value),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
         allow_nan=False,
-    ).encode()
+    ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
 
-def _sha256_path(path: Path) -> str:
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest of a file without loading it all at once."""
     digest = hashlib.sha256()
     with path.open("rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
@@ -78,7 +107,7 @@ def _wishlist_identities(cfg: dict) -> tuple[WishlistSourceIdentity, ...]:
     for name, url in sorted(cfg["wishlists"]["sources"].items()):
         path = cache_dir / f"{name}.txt"
         try:
-            digest = _sha256_path(path)
+            digest = sha256_file(path)
         except OSError as e:
             raise WishlistError(
                 f"{name}: cached wishlist disappeared before it could be fingerprinted: {e}"

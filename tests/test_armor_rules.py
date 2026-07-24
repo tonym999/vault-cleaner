@@ -81,6 +81,12 @@ def test_padded_favored_set_perk_still_matches(cfg):
     assert "4008" not in decisions_by_id(cfg)
 
 
+def test_evaluation_set_bonus_is_always_float(cfg):
+    evaluations = result(cfg).evaluations
+    assert evaluations
+    assert all(isinstance(evaluation.set_bonus, float) for evaluation in evaluations)
+
+
 def test_scores_are_on_total_base_scale():
     # Uniform stats: every archetype scores exactly the Total (Base) value
     uniform = {s: 10 for s in ARMOR_STATS}

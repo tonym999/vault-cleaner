@@ -47,7 +47,7 @@ class Wishlist:
     def entries(self) -> int:
         return sum(len(v) for v in self.keep.values()) + sum(len(v) for v in self.trash.values())
 
-    def merge(self, other: "Wishlist") -> None:
+    def merge(self, other: Wishlist) -> None:
         for item, rolls in other.keep.items():
             self.keep.setdefault(item, []).extend(rolls)
         for item, rolls in other.trash.items():
@@ -91,7 +91,7 @@ def parse_wishlist(text: str, name: str = "") -> Wishlist:
 
 
 def _download(url: str, timeout: int = 30) -> str:
-    with urllib.request.urlopen(url, timeout=timeout) as r:  # noqa: S310 — config-supplied https URLs
+    with urllib.request.urlopen(url, timeout=timeout) as r:
         return r.read().decode("utf-8", errors="replace")
 
 

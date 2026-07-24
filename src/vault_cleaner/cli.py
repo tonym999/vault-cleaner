@@ -15,7 +15,12 @@ from vault_cleaner.manifest import ManifestError
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import resolve_armor, resolve_weapons
 from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
-from vault_cleaner.report_run import DEFAULT_EXPORT_PATHS, NoExportsError, run_report
+from vault_cleaner.report_run import (
+    DEFAULT_EXPORT_PATHS,
+    NoExportsError,
+    SourceReadError,
+    run_report,
+)
 from vault_cleaner.rules import ghosts as ghost_rules
 from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
@@ -189,7 +194,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
             ghosts_path=args.ghosts or DEFAULT_EXPORT_PATHS["ghosts"],
             no_wishlists=args.no_wishlists,
         )
-    except (ConfigError, SchemaError, NoExportsError) as e:
+    except (ConfigError, SchemaError, NoExportsError, SourceReadError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     except (WishlistError, ManifestError) as e:

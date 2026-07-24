@@ -2,23 +2,24 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Mapping
 
 import pandas as pd
 
-from vault_cleaner.config import load_config
+from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import (
     ArmorPipelineResult,
     ManifestIdentity,
     WishlistSourceIdentity,
     canonical_sha256,
+    json_safe,
     resolve_armor,
     resolve_weapons,
+    sha256_file,
 )
 from vault_cleaner.report import reason_slug
 from vault_cleaner.rules import ghosts as ghost_rules
@@ -27,6 +28,9 @@ from vault_cleaner.rules.armor import ArmorEvaluation
 from vault_cleaner.rules.dupes import Decision
 
 SNAPSHOT_SCHEMA_VERSION = 1
+# Bump only when decision semantics change. Snapshot presentation/schema
+# changes are deliberately independent so they do not invalidate reviews.
+RULESET_VERSION = 1
 DEFAULT_EXPORT_PATHS = {
     "weapons": "data/in/destiny-weapon.csv",
     "armor": "data/in/destiny-armor.csv",
@@ -36,6 +40,10 @@ DEFAULT_EXPORT_PATHS = {
 
 class NoExportsError(FileNotFoundError):
     """None of the requested DIM exports exist."""
+
+
+class SourceReadError(OSError):
+    """An export vanished or became unreadable during report construction."""
 
 
 @dataclass(frozen=True)
@@ -116,12 +124,21 @@ class ReportRun:
         ]
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _snapshot_config(cfg: Mapping[str, object]) -> dict:
+    """Make config JSON-safe and redact directories from shareable output."""
+    try:
+        normalized = json_safe(cfg)
+    except (TypeError, ValueError) as e:
+        raise ConfigError(f"effective config is not snapshot-safe: {e}") from e
+    if not isinstance(normalized, dict):
+        raise TypeError("effective config must be a JSON object")
+    paths = normalized.get("paths")
+    if isinstance(paths, dict):
+        normalized["paths"] = {
+            key: Path(str(value)).name or "."
+            for key, value in paths.items()
+        }
+    return normalized
 
 
 def compute_fingerprint(
@@ -129,10 +146,12 @@ def compute_fingerprint(
     effective_config: Mapping[str, object],
     wishlist_sources: tuple[WishlistSourceIdentity, ...] = (),
     manifest: ManifestIdentity | None = None,
+    *,
+    ruleset_version: int = RULESET_VERSION,
 ) -> str:
     """Fingerprint every input that can change report decisions."""
     payload = {
-        "schema_version": SNAPSHOT_SCHEMA_VERSION,
+        "ruleset_version": ruleset_version,
         "sources": dict(sorted(source_digests.items())),
         "effective_config": effective_config,
         "wishlists": [asdict(source) for source in wishlist_sources],
@@ -152,9 +171,10 @@ def _decision_records(
     for decision in decisions:
         row = rows[str(decision.id)]
         if kind == "ghosts":
-            protection = ghost_rules.protection_reason(row)
-            level = rails.HARD if protection else None
-            protection_reason = protection or ""
+            # ghost_rules only returns unprotected rows. Exotic rarity is
+            # deliberately not a ghost rail, so the generic rails helper
+            # cannot be used here.
+            level, protection_reason = None, ""
         else:
             level, protection_reason = rails.protection(
                 row, crafted_level_protect
@@ -227,10 +247,11 @@ def snapshot_dict(run: ReportRun) -> dict:
 
     return {
         "schema_version": SNAPSHOT_SCHEMA_VERSION,
+        "ruleset_version": RULESET_VERSION,
         "fingerprint": run.fingerprint,
         "inputs": {
             "sources": [asdict(section.source) for section in run.sections],
-            "effective_config": run.effective_config,
+            "effective_config": json_safe(run.effective_config),
             "wishlists_used": run.wishlists_used,
             "wishlist_sources": [
                 asdict(source) for source in run.wishlist_sources
@@ -263,6 +284,7 @@ def run_report(
 ) -> ReportRun:
     """Load available exports and run every ordered rules pipeline."""
     cfg = load_config(config_path)
+    effective_config = _snapshot_config(cfg)
     warnings = []
     sections = []
     conflicts = 0
@@ -279,14 +301,22 @@ def run_report(
         try:
             items = loader(path)
         except FileNotFoundError:
-            warnings.append(f"skipping {kind}: {path} not found")
+            warnings.append(f"skipping {kind}: {path.name} not found")
             continue
+        except OSError as e:
+            raise SourceReadError(f"could not read {kind} export {path}: {e}") from e
 
+        try:
+            source_digest = sha256_file(path)
+        except OSError as e:
+            raise SourceReadError(
+                f"{kind} export became unreadable while fingerprinting {path}: {e}"
+            ) from e
         source = SourceMetadata(
             kind=kind,
-            path=str(path),
+            path=path.name,
             item_count=len(items),
-            sha256=_sha256_file(path),
+            sha256=source_digest,
         )
         armor_details = None
         if kind == "weapons":
@@ -327,13 +357,13 @@ def run_report(
 
     fingerprint = compute_fingerprint(
         {section.kind: section.source.sha256 for section in sections},
-        cfg,
+        effective_config,
         wishlist_sources,
         manifest,
     )
     return ReportRun(
         sections=tuple(sections),
-        effective_config=cfg,
+        effective_config=effective_config,
         keep_trash_conflicts=conflicts,
         warnings=tuple(warnings),
         wishlists_used=wishlists_used,

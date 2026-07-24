@@ -35,7 +35,9 @@ export CSVs ──► data/in/ ──► parse ──► rules engine ──► 
 **M7 boundary:** `pipeline.py` owns ordered rule execution; `report_run.py`
 loads available exports into a reusable structured result and produces a
 versioned, JSON-safe snapshot. The CLI is a presentation adapter over that
-API. Python remains the only authoritative rules engine and DIM CSV writer.
+API. Snapshot schema and ruleset versions advance independently, and source
+paths are reduced to non-sensitive basenames. Python remains the only
+authoritative rules engine and DIM CSV writer.
 
 ## Rules engine
 

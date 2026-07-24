@@ -46,7 +46,7 @@ class PerkMapData:
 
 
 def _get_json(url: str, timeout: int = 300) -> dict:
-    with urllib.request.urlopen(url, timeout=timeout) as r:  # noqa: S310 — fixed bungie.net URLs
+    with urllib.request.urlopen(url, timeout=timeout) as r:
         return json.load(r)
 
 
@@ -125,7 +125,7 @@ def load_perk_map_data(
             return _loaded(cached)
         raise ManifestError(f"manifest index unavailable and no cached perk map: {e}") from e
 
-    if cached is not None and cached["version"] == version and not refresh:
+    if cached is not None and cached["version"] == version:
         try:
             cache.touch()  # same manifest — restart the freshness clock
         except OSError:
