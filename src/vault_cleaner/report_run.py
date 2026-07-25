@@ -55,6 +55,19 @@ class SourceMetadata:
 
 
 @dataclass(frozen=True)
+class ReportWarning:
+    """A runtime warning whose path is rendered at the output boundary."""
+
+    kind: str
+    path: str
+    reason: str
+
+    def render(self, *, redact_path: bool = False) -> str:
+        path = Path(self.path).name if redact_path else self.path
+        return f"skipping {self.kind}: {path} {self.reason}"
+
+
+@dataclass(frozen=True)
 class ReportDecision:
     id: str
     kind: str
@@ -104,7 +117,7 @@ class ReportRun:
     sections: tuple[ReportSection, ...]
     effective_config: dict
     keep_trash_conflicts: int
-    warnings: tuple[str, ...]
+    warnings: tuple[ReportWarning, ...]
     wishlists_used: bool
     wishlist_sources: tuple[WishlistSourceIdentity, ...]
     manifest: ManifestIdentity | None
@@ -147,19 +160,19 @@ def _snapshot_config(cfg: Mapping[str, object]) -> dict:
     return normalized
 
 
+def _fingerprint_config(cfg: Mapping[str, object]) -> dict:
+    """Return only config values whose changes can affect decisions."""
+    normalized = _normalize_config(cfg)
+    # Directory choices only locate external bytes. Those bytes are already
+    # covered by export, wishlist, and manifest identities.
+    normalized.pop("paths", None)
+    return normalized
+
+
 def _snapshot_source(source: SourceMetadata) -> dict:
     data = asdict(source)
     data["path"] = Path(source.path).name
     return data
-
-
-def _snapshot_warning(warning: str) -> str:
-    prefix, separator, detail = warning.partition(": ")
-    suffix = " not found"
-    if separator and prefix.startswith("skipping ") and detail.endswith(suffix):
-        path = detail.removesuffix(suffix)
-        return f"{prefix}: {Path(path).name}{suffix}"
-    return warning
 
 
 def compute_fingerprint(
@@ -174,7 +187,7 @@ def compute_fingerprint(
     payload = {
         "ruleset_version": ruleset_version,
         "sources": dict(sorted(source_digests.items())),
-        "effective_config": effective_config,
+        "effective_config": _fingerprint_config(effective_config),
         "wishlists": [asdict(source) for source in wishlist_sources],
         "manifest": asdict(manifest) if manifest else None,
     }
@@ -280,7 +293,9 @@ def snapshot_dict(run: ReportRun) -> dict:
             "manifest": asdict(run.manifest) if run.manifest else None,
         },
         "keep_trash_conflicts": run.keep_trash_conflicts,
-        "warnings": [_snapshot_warning(warning) for warning in run.warnings],
+        "warnings": [
+            warning.render(redact_path=True) for warning in run.warnings
+        ],
         "sections": sections,
     }
 
@@ -322,7 +337,9 @@ def run_report(
         try:
             digest_before = sha256_file(path)
         except FileNotFoundError:
-            warnings.append(f"skipping {kind}: {path} not found")
+            warnings.append(
+                ReportWarning(kind=kind, path=str(path), reason="not found")
+            )
             continue
         except OSError as e:
             raise SourceReadError(

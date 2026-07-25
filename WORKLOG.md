@@ -13,9 +13,13 @@ surprises the next agent should know about.
   documented the required version bump beside the rule conventions.
 - Shareable snapshots reduce source metadata, missing-source warnings, and
   configured directories to basenames, while the in-memory `ReportRun` and CLI
-  retain truthful full paths and effective config.
+  retain truthful full paths and effective config. Missing-source warnings are
+  structured internally and rendered independently at those two boundaries.
+- Fingerprints omit configured directories because external content is already
+  covered by export, wishlist, and manifest identities; a snapshot can therefore
+  reproduce its fingerprint from its own recorded, redacted inputs.
 - Reused one streaming file-digest helper, detected export changes across load,
-  and fingerprint the exact captured wishlist bytes that were parsed. Wishlist
+  and fingerprinted the exact captured wishlist bytes that were parsed. Wishlist
   downloads now accept only HTTP(S), and source/wishlist races become domain
   errors rather than raw filesystem failures.
 - Made armor `set_bonus` consistently a JSON float, removed the misleading

@@ -203,7 +203,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         return 1
 
     for warning in result.warnings:
-        print(warning, file=sys.stderr)
+        print(warning.render(), file=sys.stderr)
 
     print(summarize(result.summary_sections()))
     if result.keep_trash_conflicts:

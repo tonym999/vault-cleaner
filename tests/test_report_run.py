@@ -131,6 +131,17 @@ def test_large_instance_ids_remain_exact_json_strings(tmp_path):
     assert isinstance(decision["hash"], str)
     assert document["inputs"]["sources"][0]["path"] == "large-ids.csv"
     assert result.sections[0].source.path == str(large_ids)
+    assert [warning.path for warning in result.warnings] == [
+        str(tmp_path / "missing-armor.csv"),
+        str(tmp_path / "missing-ghosts.csv"),
+    ]
+    assert result.warnings[0].render() == (
+        f"skipping armor: {tmp_path / 'missing-armor.csv'} not found"
+    )
+    assert document["warnings"] == [
+        "skipping armor: missing-armor.csv not found",
+        "skipping ghosts: missing-ghosts.csv not found",
+    ]
     assert str(tmp_path) not in snapshot_json(result)
 
 
@@ -207,6 +218,36 @@ def test_fingerprint_changes_for_every_input_category():
         manifest,
         ruleset_version=2,
     ) != baseline
+
+
+def test_fingerprint_ignores_paths_covered_by_content_identities():
+    sources = {"weapons": "export"}
+    first = {"armor": {"score_floor": 65}, "paths": {"input_dir": "one"}}
+    second = {"armor": {"score_floor": 65}, "paths": {"input_dir": "two"}}
+    assert compute_fingerprint(sources, first) == compute_fingerprint(sources, second)
+
+
+def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs():
+    document = snapshot_dict(build_report())
+    inputs = document["inputs"]
+    source_digests = {
+        source["kind"]: source["sha256"] for source in inputs["sources"]
+    }
+    wishlist_sources = tuple(
+        WishlistSourceIdentity(**source) for source in inputs["wishlist_sources"]
+    )
+    manifest = (
+        ManifestIdentity(**inputs["manifest"])
+        if inputs["manifest"] is not None
+        else None
+    )
+    assert compute_fingerprint(
+        source_digests,
+        inputs["effective_config"],
+        wishlist_sources,
+        manifest,
+        ruleset_version=document["ruleset_version"],
+    ) == document["fingerprint"]
 
 
 def test_snapshot_schema_version_does_not_change_input_fingerprint(monkeypatch):
