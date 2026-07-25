@@ -61,6 +61,10 @@ add any without a ticket saying so.
   parse the *last* one (`report.reason_slug` does).
 - Python's `csv` module writes CRLF by default: generate fixtures with
   `lineterminator="\n"` or `git diff --check` will flag them.
+- In `review_html.py`, a literal `</script>` anywhere in `APP_JS`, `CSS`, or
+  `BODY_HTML` silently truncates its own script element — even inside a JS
+  comment. Snapshot *data* is safe (`embed_json` escapes it); source text is
+  not. A test guards all three constants; don't quote closing tags in comments.
 - `pip install -e .` leaves a `build/` tree (gitignored). Check
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.

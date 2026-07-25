@@ -3,6 +3,63 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-25 — self-contained static HTML review UI (#37)
+
+- New `review_html.py` renders one portable file: inline CSS/JS, the #35
+  snapshot embedded as an inert `application/json` data block, and a
+  `default-src 'none'` CSP so the page physically cannot fetch or exfiltrate
+  anything. No runtime dependency, no asset file (the CSS/JS are Python string
+  constants, so packaging needed no `package-data` change).
+- Chose a **new `review-html` subcommand** over `review --output x.html`.
+  `review --output` already means "the reviewed CSV", and the issue's own
+  requirement is that the two write actions stay unambiguous. Each command now
+  owns exactly one output, and `report --write` is untouched.
+- **A literal `</script>` in the app source truncates its own script element.**
+  Found the hard way: an explanatory comment quoted a closing script tag as an
+  example of hostile input, which silently cut the shipped script in half — the
+  page still parsed, just missing most of its code. Now guarded by a test over
+  `APP_JS`/`CSS`/`BODY_HTML`. Snapshot *data* is safe by construction:
+  `embed_json` escapes `<`, `>`, `&`, U+2028, and U+2029 to `\uXXXX`, which is
+  value-identical JSON but cannot spell a tag or a comment delimiter.
+- The page's pure logic is exported under CommonJS when `module` exists and
+  only touches the DOM otherwise. That is what lets `test_review_html_js.py`
+  extract the script from a *generated artifact* and drive the real filtering,
+  grouping, counting, and manifest code under node — skipped when node is
+  absent, so nothing new is required to `pip install`.
+- Grouping is asserted equal to `report.summarize`'s group headers, string for
+  string and in order, so the page and the terminal cannot drift. That works
+  because the snapshot's `action`/`reason` are the same pair `reason_slug`
+  re-derives from `note`; a test pins that invariant too.
+- Ids and hashes never touch a JS number. `compareIds` orders decimal uint64
+  strings by length then lexicographically (a test shows `Number()` ties
+  2**64-1 and 2**64-2), and `itemsFromSnapshot` *throws* on a non-string id
+  rather than coercing one.
+- Data-keyed maps are all `Object.create(null)`. An item literally named
+  `__proto__` is in the hostile fixture: with a plain `{}` accumulator its
+  count assignment is a silent no-op and the whole group vanishes from the
+  filter dropdown, which is the failure a test now pins.
+- Exported `name` is clipped to 200 **code points** — `review.parse_manifest`
+  rejects longer strings, and slicing UTF-16 units could leave half a
+  surrogate pair. The 260-character fixture name proves the cap is needed.
+- Verified for real, not just in tests: headless Chromium opened the file over
+  `file://` with the CSP live, vetoed rows through the actual buttons, approved
+  one via the `a` key (focus survives, because a verdict change repaints the
+  row in place instead of rebuilding the table), exported, re-imported, and
+  `localStorage` worked under `file://`. That exported manifest then went
+  through `vault-cleaner review --manifest ... --write` and produced the
+  reviewed CSV with exactly the vetoed rows suppressed.
+- `SNAPSHOT_SCHEMA_VERSION`/`RULESET_VERSION` deliberately unchanged: no
+  decision semantics moved, and bumping the ruleset would invalidate every
+  persisted veto for a presentation-only feature.
+- Known gap, deliberate: `review-html` does not pre-mark items that already
+  have persisted vetoes in `data/overrides.json`, for the same reason `report`
+  does not apply them — the page shows what the rules propose. Re-vetoing is
+  harmless (merges are additive), but a future `--overrides` flag to seed the
+  page's verdicts would be a real ergonomic win.
+- Also left out: no browser-side threshold what-if controls. That is #38, and
+  every knob a user could turn there is inside the fingerprint, so a what-if
+  that changed decisions must not export a manifest against the original run.
+
 ## 2026-07-25 — persistent review overrides and reviewed export (#36)
 
 - New `review.py` owns the review manifest schema, `data/overrides.json`, and

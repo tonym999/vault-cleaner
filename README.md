@@ -14,8 +14,11 @@ manual, in-game step via a `tag:junk` search in DIM.
 2. `vault-cleaner` parses them, applies rules (safety rails → wishlists →
    dupes → armor scoring), and writes `data/out/dim-import.csv` with
    `Id, Hash, Tag, Notes` columns
-3. DIM Settings → "Import tags/notes from CSV"
-4. In game: search `tag:junk`, review, dismantle
+3. Optionally review the proposals first — in the terminal, or in the
+   [static HTML review page](#reviewing-in-a-browser) — and let the reviewed
+   CSV replace the raw one
+4. DIM Settings → "Import tags/notes from CSV"
+5. In game: search `tag:junk`, review, dismantle
 
 `data/` is personal vault data and is gitignored — it never leaves your machine.
 
@@ -42,6 +45,9 @@ writes the reviewed import CSV.
 # what the rules propose (unchanged; never applies your vetoes)
 .venv/bin/vault-cleaner report
 
+# a browsable review page for the same proposals (dry run by default)
+.venv/bin/vault-cleaner review-html --write
+
 # how your saved vetoes line up with a fresh run — no manifest needed
 .venv/bin/vault-cleaner review
 
@@ -51,6 +57,49 @@ writes the reviewed import CSV.
 # persist the vetoes and write the reviewed CSV
 .venv/bin/vault-cleaner review --manifest data/review.json --write
 ```
+
+Each command owns exactly one output. `report --write` writes the proposal
+CSV, `review-html --write` writes the review page, and `review --write` writes
+the reviewed CSV (and updates `data/overrides.json`). None of them ever
+changes what another one produces.
+
+### Reviewing in a browser
+
+`vault-cleaner review-html` generates one self-contained HTML file — inline
+CSS and JavaScript, the report snapshot embedded as inert JSON, and no fonts,
+scripts, styles, analytics, or network requests of any kind. Open it straight
+off disk; there is no server, port, or process to run.
+
+```bash
+# describe what would be generated, write nothing
+.venv/bin/vault-cleaner review-html
+
+# generate it (default: data/out/vault-review.html, gitignored)
+.venv/bin/vault-cleaner review-html --write
+
+# then: open it, approve/veto, export a review manifest, and apply it
+.venv/bin/vault-cleaner review --manifest ~/Downloads/vault-review-manifest.json --write
+```
+
+> **Privacy:** the page embeds personal vault metadata — item names, instance
+> ids, notes, and character names. Treat it like your DIM export: keep it
+> local, and do not publish, paste, or attach it anywhere. It cannot leak on
+> its own (a `default-src 'none'` policy blocks every outbound request), but
+> the file itself is as sensitive as `data/in/`.
+
+In the page you get overall junk/review counts and counts after vetoes, the
+same action/kind/reason grouping the terminal summary prints, search by name
+or instance id, filters for action, reason, kind, owner, protection state and
+verdict, sortable columns, expandable per-item detail (including armor
+scoring), and individual or bulk approve/veto. Unsaved changes are called out
+explicitly, and with focus inside a row <kbd>a</kbd> approves, <kbd>v</kbd>
+vetoes, and <kbd>u</kbd> unsets.
+
+Verdicts are autosaved to browser storage, namespaced by the report
+fingerprint, purely as a convenience — **export is the durable handoff**. The
+page cannot write your DIM CSV, edit `config.toml`, or run the rules; it only
+produces a manifest, and Python re-validates that from scratch before
+anything is written.
 
 ### What a veto is
 
@@ -112,9 +161,9 @@ they parse. An id may appear only once. The remaining fields are display
 metadata for explaining stale entries later; identity is `id` alone, and the
 run itself is trusted over the manifest for everything else.
 
-The static HTML review UI that generates these is
-[#37](https://github.com/tonym999/vault-cleaner/issues/37); until it lands,
-write the manifest by hand from a report run.
+`vault-cleaner review-html` is what generates these — see
+[Reviewing in a browser](#reviewing-in-a-browser). The format is simple enough
+to hand-write from a report run if you would rather script it.
 
 ## Status
 
@@ -124,7 +173,7 @@ write the manifest by hand from a report run.
 - ✅ M4 — Armor 3.0 archetype scoring (`vault-cleaner armor`; config-driven build weights, set-bonus favoring, top-N + floor)
 - ✅ M5 — polish: ghost cleanup pass (`vault-cleaner ghosts` — junks every shell not equipped/locked/tagged/in a loadout) and the all-passes dry-run summary (`vault-cleaner report`)
 - ✅ M6 — armor dupes: exact-dupe pass, review-only close-dupe pass, and the last-of-archetype score guard
-- 🚧 M7 — review UI: reusable report snapshot ✅, persistent vetoes + reviewed export (`vault-cleaner review`) ✅, static HTML review UI, armor threshold what-if controls
+- 🚧 M7 — review UI: reusable report snapshot ✅, persistent vetoes + reviewed export (`vault-cleaner review`) ✅, static HTML review UI (`vault-cleaner review-html`) ✅, armor threshold what-if controls
 
 See the [issue board](https://github.com/tonym999/vault-cleaner/issues) for
 ticket-level detail.
