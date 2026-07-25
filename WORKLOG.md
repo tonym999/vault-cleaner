@@ -72,6 +72,13 @@ surprises the next agent should know about.
   The `os.open` fake has to be selective — `review.os` *is* the `os` module,
   so a blanket patch breaks `tempfile.mkstemp`; match on `flags == os.O_RDONLY`
   and delegate otherwise.
+- Second review round found the helper did not keep its own promise:
+  `os.close(dir_fd)` sat in a bare `finally` and could still propagate,
+  recreating the exact persisted-vetoes-without-CSV outcome. Restructured so
+  open/fsync share one tolerant block and close is separately swallowed, with
+  `dir_fd = None` guarding the case where the open itself failed. Three
+  targeted tests now pin open, fsync, and close; each was confirmed by
+  reverting the fix and watching it fail.
 - Still unresolved, not part of this PR: `save_overrides()` and
   `write_import_csv()` are two files with no transaction between them, so a
   failed CSV write leaves vetoes persisted without an export. The current

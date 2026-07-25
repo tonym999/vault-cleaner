@@ -1,5 +1,6 @@
 import json
 import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -373,6 +374,28 @@ def test_save_survives_a_platform_that_refuses_directory_handles(tmp_path, monke
         return real_open(path, flags, *args, **kwargs)
 
     monkeypatch.setattr(review.os, "open", picky_open)
+    path = tmp_path / "overrides.json"
+    assert save_overrides(store_of(a_veto()), path) == path
+    assert load_overrides(path).vetoes[0].id == "3002"
+
+
+def test_save_survives_a_directory_handle_that_fails_to_close(tmp_path, monkeypatch):
+    """The post-commit promise covers close too, not just open and fsync."""
+    real_close = os.close
+
+    def failing_close(fd):
+        try:
+            is_directory = stat.S_ISDIR(os.fstat(fd).st_mode)
+        except OSError:
+            is_directory = False
+        if not is_directory:
+            return real_close(fd)
+        # Close it for real first, so the test leaks no descriptor, then
+        # report the failure a flaky filesystem would.
+        real_close(fd)
+        raise OSError("close failed")
+
+    monkeypatch.setattr(review.os, "close", failing_close)
     path = tmp_path / "overrides.json"
     assert save_overrides(store_of(a_veto()), path) == path
     assert load_overrides(path).vetoes[0].id == "3002"

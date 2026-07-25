@@ -472,22 +472,24 @@ def _fsync_directory(directory: Path) -> None:
     """Best-effort durability for the rename itself.
 
     Everything here runs after `os.replace` has already committed, so no
-    failure below may propagate: reporting an error for a write that actually
-    succeeded would abort the caller before it writes the reviewed CSV,
-    leaving persisted vetoes and no export to match them. Directory handles
-    are refused outright on some platforms and directory fsync on some
-    filesystems; the file is intact either way.
+    failure below may propagate — open, fsync *and* close alike: reporting an
+    error for a write that actually succeeded would abort the caller before it
+    writes the reviewed CSV, leaving persisted vetoes and no export to match
+    them. Directory handles are refused outright on some platforms and
+    directory fsync on some filesystems; the file is intact either way.
     """
+    dir_fd = None
     try:
         dir_fd = os.open(directory, os.O_RDONLY)
-    except OSError:
-        return
-    try:
         os.fsync(dir_fd)
     except OSError:
         pass
     finally:
-        os.close(dir_fd)
+        if dir_fd is not None:
+            try:
+                os.close(dir_fd)
+            except OSError:
+                pass
 
 
 def _now() -> str:
