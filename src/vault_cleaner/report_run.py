@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from vault_cleaner.config import ConfigError, load_config
-from vault_cleaner.parse import load_armor, load_ghosts, load_weapons
+from vault_cleaner.parse import ARMOR_STATS, load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import (
     ArmorPipelineResult,
     ManifestIdentity,
@@ -148,13 +148,59 @@ def _normalize_config(cfg: Mapping[str, object]) -> dict:
 
 
 def _decision_config(cfg: Mapping[str, object]) -> dict:
-    """Return only config sections consumed directly by decision rules."""
+    """Return only config keys consumed directly by decision rules."""
     normalized = _normalize_config(cfg)
-    return {
-        section: normalized[section]
-        for section in ("rails", "armor")
-        if section in normalized
-    }
+    projected = {}
+
+    rails_config = normalized.get("rails")
+    if isinstance(rails_config, dict):
+        projected["rails"] = {
+            key: rails_config[key]
+            for key in ("crafted_level_protect",)
+            if key in rails_config
+        }
+
+    armor_config = normalized.get("armor")
+    if isinstance(armor_config, dict):
+        armor = {
+            key: armor_config[key]
+            for key in (
+                "top_n_per_slot",
+                "score_floor",
+                "set_bonus",
+                "favored_set_perks",
+            )
+            if key in armor_config
+        }
+        close = armor_config.get("close_dupes")
+        if isinstance(close, dict):
+            armor["close_dupes"] = {
+                key: close[key]
+                for key in ("max_stat_delta", "max_total_delta")
+                if key in close
+            }
+        archetypes = armor_config.get("archetypes")
+        if isinstance(archetypes, dict):
+            armor["archetypes"] = {}
+            for name, spec in archetypes.items():
+                if not isinstance(spec, dict):
+                    continue
+                archetype = {
+                    key: spec[key]
+                    for key in ("top_stats",)
+                    if key in spec
+                }
+                weights = spec.get("weights")
+                if isinstance(weights, dict):
+                    archetype["weights"] = {
+                        stat: weights[stat]
+                        for stat in ARMOR_STATS
+                        if stat in weights
+                    }
+                armor["archetypes"][name] = archetype
+        projected["armor"] = armor
+
+    return projected
 
 
 def _snapshot_source(source: SourceMetadata) -> dict:

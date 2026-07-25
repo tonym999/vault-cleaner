@@ -15,10 +15,11 @@ surprises the next agent should know about.
   omit configured directories plus unknown TOML sections, while the in-memory
   `ReportRun` and CLI retain truthful full paths and effective config. Warnings
   stay structured in the snapshot; only the CLI renders presentation text.
-- Fingerprints and snapshots share one allowlisted decision config (`rails` and
-  `armor`). External content is covered separately by export, wishlist, and
-  manifest identities, so a snapshot can reproduce its fingerprint from its
-  own recorded inputs without leaking free-form config.
+- Fingerprints and snapshots share one allowlisted decision config, filtered to
+  the exact nested `rails` and `armor` keys consumed by rules. External content
+  is covered separately by export, wishlist, and manifest identities, so a
+  snapshot can reproduce its fingerprint from its own recorded inputs without
+  leaking free-form config.
 - Reused one streaming file-digest helper, detected export changes across load,
   and fingerprinted the exact captured wishlist bytes that were parsed. Wishlist
   downloads now accept only HTTP(S), and source/wishlist races become domain

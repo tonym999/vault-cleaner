@@ -236,6 +236,17 @@ def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):
         f'input_dir = "{private_input}"\n'
         "[notes]\n"
         f'my_vault = "{private_note}"\n'
+        "[rails]\n"
+        f'private_path = "{private_note}"\n'
+        "[armor]\n"
+        f'private_path = "{private_note}"\n'
+        "[armor.close_dupes]\n"
+        "max_stat_delta = 5\n"
+        "max_total_delta = 12\n"
+        f'private_path = "{private_note}"\n'
+        "[armor.archetypes.private]\n"
+        "top_stats = 2\n"
+        f'private_path = "{private_note}"\n'
     )
     result = run_report(
         config_path=config,
@@ -248,7 +259,15 @@ def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):
     inputs = document["inputs"]
     assert result.effective_config["paths"]["input_dir"] == str(private_input)
     assert result.effective_config["notes"]["my_vault"] == str(private_note)
+    assert result.effective_config["rails"]["private_path"] == str(private_note)
+    assert result.effective_config["armor"]["private_path"] == str(private_note)
     assert set(inputs["effective_config"]) == {"armor", "rails"}
+    assert "private_path" not in inputs["effective_config"]["rails"]
+    assert "private_path" not in inputs["effective_config"]["armor"]
+    assert "private_path" not in inputs["effective_config"]["armor"]["close_dupes"]
+    assert "private_path" not in (
+        inputs["effective_config"]["armor"]["archetypes"]["private"]
+    )
     assert str(tmp_path) not in snapshot_json(result)
     source_digests = {
         source["kind"]: source["sha256"] for source in inputs["sources"]
