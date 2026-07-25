@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from vault_cleaner.report_run import (
+    EXPORT_KINDS,
     RULESET_VERSION,
     SNAPSHOT_SCHEMA_VERSION,
     ReportDecision,
@@ -220,6 +221,24 @@ def _require_id(data: Mapping[str, object], error: type[ReviewError], where: str
     return value
 
 
+def _require_kind(data: Mapping[str, object], error: type[ReviewError], where: str) -> str:
+    """Validate a persisted veto's export kind.
+
+    Unlike the rest of a veto's metadata, `kind` is load-bearing: `classify`
+    reads it to decide whether a missing id means the export was skipped or
+    the item is gone. An unrecognised value could only ever land in the
+    `unchecked` bucket, so a hand-edited typo would be reported forever as
+    "that export was not loaded" — a false explanation for a malformed file.
+    """
+    value = _require_text(data, "kind", error, where)
+    if value not in EXPORT_KINDS:
+        raise error(
+            f"{where}: kind {value!r} is not a known export kind "
+            f"({', '.join(sorted(EXPORT_KINDS))})"
+        )
+    return value
+
+
 def _require_version(
     data: Mapping[str, object],
     key: str,
@@ -374,7 +393,7 @@ def load_overrides(path: str | Path) -> OverrideStore:
         vetoes.append(
             Veto(
                 id=item_id,
-                kind=_require_text(entry, "kind", OverridesError, at),
+                kind=_require_kind(entry, OverridesError, at),
                 hash=_require_text(entry, "hash", OverridesError, at),
                 name=_require_text(entry, "name", OverridesError, at, allow_empty=True),
                 action=_require_text(entry, "action", OverridesError, at),
@@ -445,16 +464,30 @@ def save_overrides(
         tmp.unlink(missing_ok=True)
         raise
 
-    dir_fd = os.open(path.parent, os.O_RDONLY)
+    _fsync_directory(path.parent)
+    return path
+
+
+def _fsync_directory(directory: Path) -> None:
+    """Best-effort durability for the rename itself.
+
+    Everything here runs after `os.replace` has already committed, so no
+    failure below may propagate: reporting an error for a write that actually
+    succeeded would abort the caller before it writes the reviewed CSV,
+    leaving persisted vetoes and no export to match them. Directory handles
+    are refused outright on some platforms and directory fsync on some
+    filesystems; the file is intact either way.
+    """
+    try:
+        dir_fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
     try:
         os.fsync(dir_fd)
     except OSError:
-        # Some filesystems refuse directory fsync; the replace already
-        # happened and the file is intact either way.
         pass
     finally:
         os.close(dir_fd)
-    return path
 
 
 def _now() -> str:

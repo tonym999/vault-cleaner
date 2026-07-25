@@ -36,6 +36,8 @@ DEFAULT_EXPORT_PATHS = {
     "armor": "data/in/destiny-armor.csv",
     "ghosts": "data/in/destiny-ghost.csv",
 }
+# The vocabulary of section kinds; run_report builds one section per entry.
+EXPORT_KINDS = frozenset(DEFAULT_EXPORT_PATHS)
 
 
 class NoExportsError(FileNotFoundError):

@@ -44,6 +44,39 @@ surprises the next agent should know about.
   semantics changed. The golden snapshot is untouched for the same reason.
 - Gap worth knowing: nothing generates a manifest yet — #37 is the producer.
   The schema is documented in README so one can be hand-written meanwhile.
+- Review follow-up (PR #42), two findings, both accepted:
+  - `os.fsync` failure on the directory handle was tolerated but the `os.open`
+    that precedes it was not, and by then `os.replace` has already committed.
+    The raise escaped before `write_import_csv()`, so a *successful* write was
+    reported as a failure and left persisted vetoes with no reviewed CSV to
+    match them. Now one `_fsync_directory` helper where nothing past the
+    commit point may propagate. Windows refuses `O_RDONLY` directory handles
+    outright; `EMFILE`/`EACCES` reach the same place on Linux.
+  - Persisted `kind` was accepted as any non-empty text, but `classify` reads
+    it functionally. A hand-edited `"weapon"` could only ever land in
+    `unchecked` and be reported forever as "that export was not loaded" — the
+    exact lie the unchecked/orphaned split exists to prevent, reachable via
+    the README's own advice to edit the file to un-veto. Now validated against
+    `report_run.EXPORT_KINDS`, one vocabulary derived from
+    `DEFAULT_EXPORT_PATHS`.
+- Two non-changes, decided rather than overlooked. Manifest `kind` stays
+  unvalidated: `merge_manifest` discards it and re-reads kind from the run, so
+  there it is free-text display metadata beside `name`/`hash`/`action`/
+  `reason`, none of them enumerated. Overrides `action`/`reason` stay
+  unvalidated too — they are functional, but a typo degrades safely to
+  `stale`, which is truthful. `kind` is the only field whose bad value
+  produces a wrong explanation.
+- `OVERRIDES_SCHEMA_VERSION` not bumped: this rejects files that were always
+  malformed, it does not change the format.
+- Both fixes were confirmed by reverting each and watching the new tests fail.
+  The `os.open` fake has to be selective — `review.os` *is* the `os` module,
+  so a blanket patch breaks `tempfile.mkstemp`; match on `flags == os.O_RDONLY`
+  and delegate otherwise.
+- Still unresolved, not part of this PR: `save_overrides()` and
+  `write_import_csv()` are two files with no transaction between them, so a
+  failed CSV write leaves vetoes persisted without an export. The current
+  order is deliberate — overrides are the durable record of human decisions,
+  the CSV is derived and regenerable by re-running.
 
 ## 2026-07-25 — pytest imports the checkout under test (#40)
 

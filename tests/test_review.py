@@ -302,6 +302,8 @@ def test_saved_overrides_are_deterministically_ordered(tmp_path):
         (lambda p: p.update(extra=1), r"unknown key\(s\) \['extra'\]"),
         (lambda p: p["vetoes"][0].update(id="nope"), "is not a DIM instance id"),
         (lambda p: p["vetoes"][0].update(surprise=1), r"unknown key\(s\) \['surprise'\]"),
+        (lambda p: p["vetoes"][0].update(kind="weapon"), "not a known export kind"),
+        (lambda p: p["vetoes"][0].update(kind="Ghosts"), "not a known export kind"),
         (lambda p: p["vetoes"].append(dict(p["vetoes"][0])), "appears twice"),
     ],
 )
@@ -352,6 +354,27 @@ def test_failure_while_serializing_leaves_no_partial_file(tmp_path, monkeypatch)
 def test_save_creates_missing_parent_directories(tmp_path):
     path = tmp_path / "nested" / "deeper" / "overrides.json"
     save_overrides(store_of(a_veto()), path)
+    assert load_overrides(path).vetoes[0].id == "3002"
+
+
+def test_save_survives_a_platform_that_refuses_directory_handles(tmp_path, monkeypatch):
+    """os.replace has already committed by then — never fail the caller.
+
+    A raise here would abort `review --write` before it writes the reviewed
+    CSV, leaving persisted vetoes with no export to match them.
+    """
+    real_open = os.open
+
+    def picky_open(path, flags, *args, **kwargs):
+        # Selective on purpose: review.os is the os module, so mkstemp's own
+        # os.open (O_CREAT|O_EXCL|O_RDWR) must still get through.
+        if flags == os.O_RDONLY:
+            raise OSError("directory handles are not supported here")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(review.os, "open", picky_open)
+    path = tmp_path / "overrides.json"
+    assert save_overrides(store_of(a_veto()), path) == path
     assert load_overrides(path).vetoes[0].id == "3002"
 
 
