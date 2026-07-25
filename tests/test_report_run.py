@@ -139,13 +139,13 @@ def test_large_instance_ids_remain_exact_json_strings(tmp_path):
         f"skipping armor: {tmp_path / 'missing-armor.csv'} not found"
     )
     assert document["warnings"] == [
-        "skipping armor: missing-armor.csv not found",
-        "skipping ghosts: missing-ghosts.csv not found",
+        {"kind": "armor", "path": "missing-armor.csv", "reason": "not found"},
+        {"kind": "ghosts", "path": "missing-ghosts.csv", "reason": "not found"},
     ]
     assert str(tmp_path) not in snapshot_json(result)
 
 
-def test_toml_dates_are_normalized_for_fingerprint_and_snapshot(tmp_path):
+def test_unknown_config_is_normalized_internally_but_omitted_from_snapshot(tmp_path):
     config = tmp_path / "dated.toml"
     config.write_text(
         "[metadata]\n"
@@ -163,11 +163,11 @@ def test_toml_dates_are_normalized_for_fingerprint_and_snapshot(tmp_path):
 
     document = json.loads(snapshot_json(result))
     assert result.effective_config["paths"]["input_dir"] == "/home/example/private/in"
-    assert len(result.fingerprint) == 64
-    assert document["inputs"]["effective_config"]["metadata"] == {
+    assert result.effective_config["metadata"] == {
         "last_refreshed": "2026-07-01"
     }
-    assert document["inputs"]["effective_config"]["paths"]["input_dir"] == "in"
+    assert len(result.fingerprint) == 64
+    assert set(document["inputs"]["effective_config"]) == {"armor", "rails"}
     assert "/home/example" not in snapshot_json(result)
 
 
@@ -227,9 +227,29 @@ def test_fingerprint_ignores_paths_covered_by_content_identities():
     assert compute_fingerprint(sources, first) == compute_fingerprint(sources, second)
 
 
-def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs():
-    document = snapshot_dict(build_report())
+def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):
+    config = tmp_path / "private.toml"
+    private_input = tmp_path / "private" / "input"
+    private_note = tmp_path / "private" / "vault"
+    config.write_text(
+        "[paths]\n"
+        f'input_dir = "{private_input}"\n'
+        "[notes]\n"
+        f'my_vault = "{private_note}"\n'
+    )
+    result = run_report(
+        config_path=config,
+        weapons_path=WEAPONS,
+        armor_path=ARMOR,
+        ghosts_path=GHOSTS,
+        no_wishlists=True,
+    )
+    document = snapshot_dict(result)
     inputs = document["inputs"]
+    assert result.effective_config["paths"]["input_dir"] == str(private_input)
+    assert result.effective_config["notes"]["my_vault"] == str(private_note)
+    assert set(inputs["effective_config"]) == {"armor", "rails"}
+    assert str(tmp_path) not in snapshot_json(result)
     source_digests = {
         source["kind"]: source["sha256"] for source in inputs["sources"]
     }

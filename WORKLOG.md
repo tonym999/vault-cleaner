@@ -11,13 +11,14 @@ surprises the next agent should know about.
 - Split snapshot schema v1 from ruleset v1 so presentation-only schema changes
   do not invalidate persisted reviews, while decision-semantic changes do;
   documented the required version bump beside the rule conventions.
-- Shareable snapshots reduce source metadata, missing-source warnings, and
-  configured directories to basenames, while the in-memory `ReportRun` and CLI
-  retain truthful full paths and effective config. Missing-source warnings are
-  structured internally and rendered independently at those two boundaries.
-- Fingerprints omit configured directories because external content is already
-  covered by export, wishlist, and manifest identities; a snapshot can therefore
-  reproduce its fingerprint from its own recorded, redacted inputs.
+- Shareable snapshots reduce source and skipped-export paths to basenames and
+  omit configured directories plus unknown TOML sections, while the in-memory
+  `ReportRun` and CLI retain truthful full paths and effective config. Warnings
+  stay structured in the snapshot; only the CLI renders presentation text.
+- Fingerprints and snapshots share one allowlisted decision config (`rails` and
+  `armor`). External content is covered separately by export, wishlist, and
+  manifest identities, so a snapshot can reproduce its fingerprint from its
+  own recorded inputs without leaking free-form config.
 - Reused one streaming file-digest helper, detected export changes across load,
   and fingerprinted the exact captured wishlist bytes that were parsed. Wishlist
   downloads now accept only HTTP(S), and source/wishlist races become domain

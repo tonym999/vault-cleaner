@@ -1,5 +1,5 @@
 {
-  "fingerprint": "6c856a5ea48593b8caed536ae2d1966e75e0385f9eb56476281845453dcf7b79",
+  "fingerprint": "380e9d3d5cba96074b3d72997cbde2820c34fe6710600c3c8fb490029aaf719c",
   "inputs": {
     "effective_config": {
       "armor": {
@@ -24,21 +24,8 @@
         "set_bonus": 10,
         "top_n_per_slot": 5
       },
-      "manifest": {
-        "max_age_days": 30
-      },
-      "paths": {
-        "input_dir": "in",
-        "manifest_cache_dir": "cache",
-        "output_dir": "out",
-        "wishlist_cache_dir": "wishlists"
-      },
       "rails": {
         "crafted_level_protect": 10
-      },
-      "wishlists": {
-        "max_age_days": 7,
-        "sources": {}
       }
     },
     "manifest": null,

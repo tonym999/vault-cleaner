@@ -55,16 +55,15 @@ class SourceMetadata:
 
 
 @dataclass(frozen=True)
-class ReportWarning:
-    """A runtime warning whose path is rendered at the output boundary."""
+class SkippedExportWarning:
+    """An unavailable export skipped while building a partial report."""
 
     kind: str
     path: str
     reason: str
 
-    def render(self, *, redact_path: bool = False) -> str:
-        path = Path(self.path).name if redact_path else self.path
-        return f"skipping {self.kind}: {path} {self.reason}"
+    def render(self) -> str:
+        return f"skipping {self.kind}: {self.path} {self.reason}"
 
 
 @dataclass(frozen=True)
@@ -117,7 +116,7 @@ class ReportRun:
     sections: tuple[ReportSection, ...]
     effective_config: dict
     keep_trash_conflicts: int
-    warnings: tuple[ReportWarning, ...]
+    warnings: tuple[SkippedExportWarning, ...]
     wishlists_used: bool
     wishlist_sources: tuple[WishlistSourceIdentity, ...]
     manifest: ManifestIdentity | None
@@ -148,30 +147,25 @@ def _normalize_config(cfg: Mapping[str, object]) -> dict:
     return normalized
 
 
-def _snapshot_config(cfg: Mapping[str, object]) -> dict:
-    """Return a JSON-safe config copy with directory values redacted."""
+def _decision_config(cfg: Mapping[str, object]) -> dict:
+    """Return only config sections consumed directly by decision rules."""
     normalized = _normalize_config(cfg)
-    paths = normalized.get("paths")
-    if isinstance(paths, dict):
-        normalized["paths"] = {
-            key: Path(str(value)).name or "."
-            for key, value in paths.items()
-        }
-    return normalized
-
-
-def _fingerprint_config(cfg: Mapping[str, object]) -> dict:
-    """Return only config values whose changes can affect decisions."""
-    normalized = _normalize_config(cfg)
-    # Directory choices only locate external bytes. Those bytes are already
-    # covered by export, wishlist, and manifest identities.
-    normalized.pop("paths", None)
-    return normalized
+    return {
+        section: normalized[section]
+        for section in ("rails", "armor")
+        if section in normalized
+    }
 
 
 def _snapshot_source(source: SourceMetadata) -> dict:
     data = asdict(source)
     data["path"] = Path(source.path).name
+    return data
+
+
+def _snapshot_warning(warning: SkippedExportWarning) -> dict:
+    data = asdict(warning)
+    data["path"] = Path(warning.path).name
     return data
 
 
@@ -187,7 +181,7 @@ def compute_fingerprint(
     payload = {
         "ruleset_version": ruleset_version,
         "sources": dict(sorted(source_digests.items())),
-        "effective_config": _fingerprint_config(effective_config),
+        "effective_config": _decision_config(effective_config),
         "wishlists": [asdict(source) for source in wishlist_sources],
         "manifest": asdict(manifest) if manifest else None,
     }
@@ -285,7 +279,7 @@ def snapshot_dict(run: ReportRun) -> dict:
         "fingerprint": run.fingerprint,
         "inputs": {
             "sources": [_snapshot_source(section.source) for section in run.sections],
-            "effective_config": _snapshot_config(run.effective_config),
+            "effective_config": _decision_config(run.effective_config),
             "wishlists_used": run.wishlists_used,
             "wishlist_sources": [
                 asdict(source) for source in run.wishlist_sources
@@ -293,9 +287,7 @@ def snapshot_dict(run: ReportRun) -> dict:
             "manifest": asdict(run.manifest) if run.manifest else None,
         },
         "keep_trash_conflicts": run.keep_trash_conflicts,
-        "warnings": [
-            warning.render(redact_path=True) for warning in run.warnings
-        ],
+        "warnings": [_snapshot_warning(warning) for warning in run.warnings],
         "sections": sections,
     }
 
@@ -338,7 +330,11 @@ def run_report(
             digest_before = sha256_file(path)
         except FileNotFoundError:
             warnings.append(
-                ReportWarning(kind=kind, path=str(path), reason="not found")
+                SkippedExportWarning(
+                    kind=kind,
+                    path=str(path),
+                    reason="not found",
+                )
             )
             continue
         except OSError as e:
