@@ -206,6 +206,12 @@ APP_JS = r"""
   // review.py rejects manifest strings longer than this. Only `name` can
   // realistically reach it, and it is display metadata either way.
   var MAX_TEXT = 200;
+  // The key allowlists from review.py. Kept identical on purpose: anything
+  // this reader waves through is something Python will refuse later, after
+  // the page has already told the user the review was restored.
+  var MANIFEST_KEYS = ["schema_version", "snapshot", "decisions", "generated_at"];
+  var SNAPSHOT_KEYS = ["schema_version", "ruleset_version", "fingerprint"];
+  var DECISION_KEYS = ["id", "kind", "hash", "name", "action", "reason", "verdict"];
 
   function isObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -462,24 +468,76 @@ APP_JS = r"""
     return { ok: false, error: message };
   }
 
-  // Deliberately as strict as review.parse_manifest, so a bad manifest is
-  // caught here rather than after the user believes the review was restored.
+  // The three checks below mirror review.py's _check_keys, _require_text, and
+  // _require_version. Each returns an error string, or "" when the value is
+  // acceptable. Parity is enforced by a test that runs one table of payloads
+  // through both this reader and parse_manifest.
+
+  function unknownKeyError(value, allowed, where) {
+    var unknown = Object.keys(value).filter(function (key) {
+      return allowed.indexOf(key) === -1;
+    }).sort();
+    if (!unknown.length) return "";
+    // Rejected outright rather than ignored, for review.py's reason: a
+    // silently dropped "output_path" is how a file from a browser becomes a
+    // way to point this tool at other files.
+    return where + ": unknown key(s) " + JSON.stringify(unknown) +
+           " — expected " + JSON.stringify(allowed.slice().sort());
+  }
+
+  function textError(value, key, where, allowEmpty) {
+    var text = value[key];
+    if (typeof text !== "string") return where + ": '" + key + "' must be a string";
+    if (!allowEmpty && !text) return where + ": '" + key + "' must not be empty";
+    // Code points, matching Python's len(); counting UTF-16 units would
+    // reject names that parse_manifest accepts.
+    if (Array.from(text).length > MAX_TEXT) {
+      return where + ": '" + key + "' is longer than " + MAX_TEXT + " characters";
+    }
+    return "";
+  }
+
+  function versionError(value, key, expected, where) {
+    var version = value[key];
+    if (typeof version !== "number" || !Number.isInteger(version)) {
+      return where + ": '" + key + "' must be an integer";
+    }
+    if (version !== expected) {
+      return where + ": " + key + " " + version +
+             " is not supported by this build (expected " + expected + ")";
+    }
+    return "";
+  }
+
+  // As strict as review.parse_manifest, in the same order, plus the
+  // fingerprint comparison that check_manifest_matches does on the Python
+  // side — the browser holds the run, so it can do both at once. Anything
+  // waved through here would be refused later, after the user had been told
+  // the review was restored.
   function readManifest(snapshot, items, payload) {
     if (!isObject(payload)) return fail("the file is not a JSON object");
-    if (payload.schema_version !== MANIFEST_SCHEMA_VERSION) {
-      return fail("unsupported manifest schema_version " +
-                  JSON.stringify(payload.schema_version) + " (expected " +
-                  MANIFEST_SCHEMA_VERSION + ")");
+
+    var error = unknownKeyError(payload, MANIFEST_KEYS, "manifest") ||
+                versionError(payload, "schema_version",
+                             MANIFEST_SCHEMA_VERSION, "manifest");
+    if (error) return fail(error);
+    if ("generated_at" in payload) {
+      error = textError(payload, "generated_at", "manifest");
+      if (error) return fail(error);
     }
+
     var snap = payload.snapshot;
     if (!isObject(snap)) return fail("'snapshot' must be an object");
-    if (snap.schema_version !== snapshot.schema_version ||
-        snap.ruleset_version !== snapshot.ruleset_version) {
-      return fail("this manifest targets snapshot schema " +
-                  JSON.stringify(snap.schema_version) + " / ruleset " +
-                  JSON.stringify(snap.ruleset_version) + "; this report is " +
-                  snapshot.schema_version + " / " + snapshot.ruleset_version);
-    }
+    error = unknownKeyError(snap, SNAPSHOT_KEYS, "snapshot") ||
+            versionError(snap, "schema_version",
+                         snapshot.schema_version, "snapshot") ||
+            versionError(snap, "ruleset_version",
+                         snapshot.ruleset_version, "snapshot") ||
+            textError(snap, "fingerprint", "snapshot");
+    if (error) return fail(error);
+
+    // Structure first, identity second: a malformed manifest should say what
+    // is malformed rather than complain about the fingerprint.
     if (snap.fingerprint !== snapshot.fingerprint) {
       return fail("this manifest was produced against a different report run " +
                   "(fingerprint " + str(snap.fingerprint).slice(0, 12) +
@@ -498,11 +556,15 @@ APP_JS = r"""
       var entry = payload.decisions[i];
       var at = "decisions[" + i + "]";
       if (!isObject(entry)) return fail(at + " must be an object");
+      error = unknownKeyError(entry, DECISION_KEYS, at);
+      if (error) return fail(error);
       if (typeof entry.id !== "string") return fail(at + ": 'id' must be a string");
       if (!/^[0-9]{1,20}$/.test(entry.id)) {
         return fail(at + ": 'id' " + JSON.stringify(entry.id) +
                     " is not a DIM instance id (1-20 decimal digits)");
       }
+      error = textError(entry, "verdict", at);
+      if (error) return fail(error);
       if (VERDICTS.indexOf(entry.verdict) === -1) {
         return fail(at + ": verdict " + JSON.stringify(entry.verdict) +
                     " must be 'approved' or 'vetoed'");
@@ -510,6 +572,14 @@ APP_JS = r"""
       if (verdicts[entry.id] !== undefined) {
         return fail(at + ": id " + entry.id + " appears twice");
       }
+      // Display metadata, but still required and still bounded: the manifest
+      // must be the same shape Python will re-read.
+      error = textError(entry, "kind", at) ||
+              textError(entry, "hash", at) ||
+              textError(entry, "name", at, true) ||
+              textError(entry, "action", at) ||
+              textError(entry, "reason", at);
+      if (error) return fail(error);
       verdicts[entry.id] = entry.verdict;
       if (known[entry.id]) applied++; else unknown.push(entry.id);
     }

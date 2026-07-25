@@ -59,6 +59,42 @@ surprises the next agent should know about.
 - Also left out: no browser-side threshold what-if controls. That is #38, and
   every knob a user could turn there is inside the fingerprint, so a what-if
   that changed decisions must not export a manifest against the original run.
+- Review follow-up (PR #44), four findings, all accepted:
+  - The browser's `readManifest` claimed parity with `parse_manifest` and did
+    not have it: **7 of 8** malformed manifests Python refuses, it accepted —
+    extra `snapshot.output_path`, extra root and decision keys, a decision of
+    only `{id, verdict}`, a 300-character `name`, a numeric `kind`, an empty
+    `generated_at`. Import then stored and autosaved the verdicts and reported
+    success, so the page said the review was restored and Python rejected the
+    same file later. Now mirrors `_check_keys`/`_require_text`/`_require_version`
+    in `parse_manifest`'s order, and validates structure *before* comparing
+    the fingerprint so a malformed file says what is malformed.
+  - Text length is capped in **code points** (`Array.from(text).length`), not
+    UTF-16 units. Python's `len()` counts code points, so a 200-emoji name is
+    legal there and naive `.length` would have rejected it — the browser must
+    not be stricter than Python either. Both directions are pinned.
+  - Parity is now enforced by **one table of ~40 payloads run through both**
+    `readManifest` (under node) and `parse_manifest` + `check_manifest_matches`,
+    asserting they agree on accept/refuse. Hand-kept case lists on each side
+    are exactly how the gap appeared. Both Python calls are needed: a
+    well-formed manifest for another run is accepted by `parse_manifest` and
+    only refused by `check_manifest_matches`, while the browser does both at
+    once. Confirmed non-vacuous by re-running it against the old reader.
+  - The `</script>` source guard was case-sensitive. Chromium confirms a
+    mixed-case `</SCRIPT >` inside a comment terminates the element and the
+    rest of the script never runs — the exact bug the guard exists for, in a
+    casing it missed. Now `re.search(r"</script", blob, re.IGNORECASE)`;
+    deliberately not `</script\s*>`, since the end tag also terminates on
+    whitespace or `/`, so requiring the `>` would weaken it.
+  - Two sub-points skipped: making the `_SNAPSHOT_BLOCK`/`_APP_BLOCK`
+    *extraction* regexes case-insensitive buys nothing (they match our own
+    generated lowercase output), and the ast-grep ReDoS warning on that line
+    is a false positive — `APP_ELEMENT_ID` is a module constant, not input.
+  - `test_dry_run_does_not_write_to_the_default_path_either` asserted on the
+    relative default path, so a leftover artifact from any earlier `--write`
+    failed it even though the dry run wrote nothing. Runs from `tmp_path` now.
+  - Node subprocesses get `timeout=NODE_TIMEOUT`: an accidental infinite loop
+    in the shipped script should fail loudly, not hang the suite silently.
 
 ## 2026-07-25 — persistent review overrides and reviewed export (#36)
 

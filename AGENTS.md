@@ -63,8 +63,17 @@ add any without a ticket saying so.
   `lineterminator="\n"` or `git diff --check` will flag them.
 - In `review_html.py`, a literal `</script>` anywhere in `APP_JS`, `CSS`, or
   `BODY_HTML` silently truncates its own script element — even inside a JS
-  comment. Snapshot *data* is safe (`embed_json` escapes it); source text is
-  not. A test guards all three constants; don't quote closing tags in comments.
+  comment, and **in any casing** (`</SCRIPT >` and `</script/` both end it,
+  because HTML matches the end tag case-insensitively and terminates on
+  whitespace or `/` too). Snapshot *data* is safe (`embed_json` escapes it);
+  source text is not. A case-insensitive test guards all three constants; don't
+  quote closing tags in comments.
+- The review page validates manifests **and** so does `review.parse_manifest`.
+  They must refuse exactly the same things, enforced by one payload table run
+  through both in `test_review_html_js.py` — add cases there, not to a
+  one-sided list. Note the browser must not be *stricter* either: cap text at
+  200 **code points** (`Array.from(text).length`), since Python's `len()` counts
+  code points and UTF-16 units would reject names Python accepts.
 - `pip install -e .` leaves a `build/` tree (gitignored). Check
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.

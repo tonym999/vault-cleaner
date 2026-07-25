@@ -26,6 +26,11 @@ from vault_cleaner.review_html import render_review_html
 
 NODE = shutil.which("node")
 
+# Generous: these runs are milliseconds in practice. The point is that an
+# accidental infinite loop in the shipped script fails loudly instead of
+# hanging the whole suite with no diagnostic.
+NODE_TIMEOUT = 60
+
 pytestmark = pytest.mark.skipif(
     NODE is None, reason="node is not installed; the review page's logic is JavaScript"
 )
@@ -209,13 +214,15 @@ def drive(workdir: Path, run) -> Harness:
     (workdir / "harness.js").write_text(HARNESS, encoding="utf-8")
 
     # A syntax error here means the artifact ships a broken script.
-    subprocess.run([NODE, "--check", str(workdir / "app.js")], check=True)
+    subprocess.run(
+        [NODE, "--check", str(workdir / "app.js")], check=True, timeout=NODE_TIMEOUT
+    )
     completed = subprocess.run(
         [
             NODE, str(workdir / "harness.js"),
             str(workdir / "app.js"), str(workdir / "snapshot.json"), str(workdir),
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, check=False, timeout=NODE_TIMEOUT,
     )
     assert completed.returncode == 0, completed.stderr
     return Harness(json.loads(completed.stdout), workdir, run)
@@ -260,7 +267,7 @@ def test_a_numeric_id_in_a_snapshot_is_refused_not_coerced(tmp_path):
     )
     completed = subprocess.run(
         [NODE, str(tmp_path / "numeric.js"), str(tmp_path / "app.js")],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, timeout=NODE_TIMEOUT,
     )
     assert "must be a JSON string, not number" in completed.stdout
 
@@ -463,9 +470,9 @@ def test_import_reports_ids_this_run_no_longer_proposes(plain):
     ("case", "expected"),
     [
         ("wrongFingerprint", "different report run"),
-        ("wrongManifestSchema", "unsupported manifest schema_version 2"),
-        ("wrongSnapshotSchema", "targets snapshot schema 99"),
-        ("wrongRuleset", "ruleset 99"),
+        ("wrongManifestSchema", "manifest: schema_version 2 is not supported"),
+        ("wrongSnapshotSchema", "snapshot: schema_version 99 is not supported"),
+        ("wrongRuleset", "snapshot: ruleset_version 99 is not supported"),
         ("badVerdict", "must be 'approved' or 'vetoed'"),
         ("numericId", "'id' must be a string"),
         ("nonDigitId", "is not a DIM instance id"),
@@ -501,3 +508,215 @@ def test_unset_and_garbage_verdicts_read_as_unreviewed(plain):
     assert plain.results["verdictOf"] == {
         "unset": "", "garbageIgnored": "", "set": "vetoed"
     }
+
+
+# ------------------------------------------------------- validation parity
+#
+# The page validates a manifest and so does Python, and the two drifted apart
+# once already: the browser accepted unknown keys, missing display fields, and
+# over-long names that `parse_manifest` refuses, so an import could report
+# success on a file Python would later reject. Hand-maintained case lists on
+# each side are what let that happen, so parity is checked from ONE table of
+# payloads run through BOTH implementations.
+
+
+PARITY_HARNESS = r"""
+"use strict";
+var fs = require("fs");
+var path = require("path");
+var api = require(process.argv[2]);
+var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+var caseDir = process.argv[4];
+
+var items = api.itemsFromSnapshot(snapshot);
+var verdict = {};
+fs.readdirSync(caseDir).filter(function (name) {
+  return name.slice(-5) === ".json";
+}).forEach(function (name) {
+  var payload = JSON.parse(fs.readFileSync(path.join(caseDir, name), "utf8"));
+  var result = api.readManifest(snapshot, items, payload);
+  verdict[name.slice(0, -5)] = result.ok ? "accepted" : "refused";
+});
+process.stdout.write(JSON.stringify(verdict));
+"""
+
+
+def parity_cases(run) -> dict[str, object]:
+    """One payload per case, built against a live run.
+
+    Accept cases matter as much as refusals: they are what stops the browser
+    from becoming *stricter* than Python and rejecting good manifests.
+    """
+    decisions = proposals(run)
+    first, second = decisions[0], decisions[1]
+
+    def entry(decision, verdict="vetoed", **overrides):
+        base = {
+            "id": decision.id, "kind": decision.kind, "hash": decision.hash,
+            "name": decision.name, "action": decision.action,
+            "reason": decision.reason, "verdict": verdict,
+        }
+        base.update(overrides)
+        return base
+
+    def manifest(**overrides):
+        base = {
+            "schema_version": 1,
+            "generated_at": "2026-07-26T12:00:00Z",
+            "snapshot": {
+                "schema_version": 1, "ruleset_version": 1,
+                "fingerprint": run.fingerprint,
+            },
+            "decisions": [entry(first), entry(second, "approved")],
+        }
+        base.update(overrides)
+        return base
+
+    def snapshot_block(**overrides):
+        block = dict(manifest()["snapshot"])
+        block.update(overrides)
+        return block
+
+    cases: dict[str, object] = {
+        # -- must be accepted by both --------------------------------------
+        "ok_full": manifest(),
+        "ok_no_generated_at": {
+            key: value for key, value in manifest().items() if key != "generated_at"
+        },
+        "ok_no_decisions": manifest(decisions=[]),
+        "ok_empty_name": manifest(decisions=[entry(first, name="")]),
+        # 200 code points but 400 UTF-16 units: legal for Python's len(), and
+        # the case that fails if the browser counts `.length`.
+        "ok_name_200_astral": manifest(
+            decisions=[entry(first, name="\U0001f480" * 200)]
+        ),
+        # -- must be refused by both ---------------------------------------
+        "bad_root_unknown_key": manifest(input="../../etc/passwd"),
+        "bad_snapshot_unknown_key": manifest(
+            snapshot=snapshot_block(output_path="/etc/passwd")
+        ),
+        "bad_decision_unknown_key": manifest(decisions=[entry(first, tag="junk")]),
+        "bad_decision_only_id_and_verdict": manifest(
+            decisions=[{"id": first.id, "verdict": "vetoed"}]
+        ),
+        "bad_name_too_long": manifest(decisions=[entry(first, name="A" * 201)]),
+        "bad_name_201_astral": manifest(
+            decisions=[entry(first, name="\U0001f480" * 201)]
+        ),
+        "bad_kind_numeric": manifest(decisions=[entry(first, kind=7)]),
+        "bad_kind_empty": manifest(decisions=[entry(first, kind="")]),
+        "bad_hash_missing": manifest(
+            decisions=[{k: v for k, v in entry(first).items() if k != "hash"}]
+        ),
+        "bad_action_missing": manifest(
+            decisions=[{k: v for k, v in entry(first).items() if k != "action"}]
+        ),
+        "bad_reason_null": manifest(decisions=[entry(first, reason=None)]),
+        "bad_generated_at_empty": manifest(generated_at=""),
+        "bad_generated_at_numeric": manifest(generated_at=20260726),
+        "bad_generated_at_too_long": manifest(generated_at="z" * 201),
+        "bad_schema_version_bool": manifest(schema_version=True),
+        "bad_schema_version_string": manifest(schema_version="1"),
+        "bad_schema_version_two": manifest(schema_version=2),
+        "bad_schema_version_missing": {
+            key: value for key, value in manifest().items() if key != "schema_version"
+        },
+        "bad_snapshot_missing": {
+            key: value for key, value in manifest().items() if key != "snapshot"
+        },
+        "bad_snapshot_not_object": manifest(snapshot="nope"),
+        "bad_ruleset_version_wrong": manifest(snapshot=snapshot_block(ruleset_version=99)),
+        "bad_snapshot_schema_wrong": manifest(snapshot=snapshot_block(schema_version=99)),
+        "bad_fingerprint_missing": manifest(
+            snapshot={"schema_version": 1, "ruleset_version": 1}
+        ),
+        "bad_fingerprint_empty": manifest(snapshot=snapshot_block(fingerprint="")),
+        "bad_fingerprint_numeric": manifest(snapshot=snapshot_block(fingerprint=1)),
+        # Well-formed but for another run: parse_manifest alone accepts this,
+        # which is why the Python side of this test also runs
+        # check_manifest_matches.
+        "bad_fingerprint_other_run": manifest(
+            snapshot=snapshot_block(fingerprint="f" * 64)
+        ),
+        "bad_decisions_missing": {
+            key: value for key, value in manifest().items() if key != "decisions"
+        },
+        "bad_decisions_not_a_list": manifest(decisions="nope"),
+        "bad_decision_not_an_object": manifest(decisions=["nope"]),
+        "bad_id_numeric": manifest(decisions=[entry(first, id=3001)]),
+        "bad_id_not_digits": manifest(decisions=[entry(first, id="3001; DROP")]),
+        "bad_id_empty": manifest(decisions=[entry(first, id="")]),
+        "bad_id_duplicated": manifest(decisions=[entry(first), entry(first)]),
+        "bad_verdict_unknown": manifest(decisions=[entry(first, verdict="maybe")]),
+        "bad_verdict_missing": manifest(
+            decisions=[{k: v for k, v in entry(first).items() if k != "verdict"}]
+        ),
+        "bad_verdict_null": manifest(decisions=[entry(first, verdict=None)]),
+    }
+    return cases
+
+
+def python_verdict(path: Path, run) -> str:
+    """What Python does with this file, parse and identity check together."""
+    from vault_cleaner.review import ReviewError
+
+    try:
+        check_manifest_matches(parse_manifest(path), run)
+    except ReviewError:
+        return "refused"
+    return "accepted"
+
+
+@pytest.fixture(scope="module")
+def parity(tmp_path_factory):
+    workdir = tmp_path_factory.mktemp("parity")
+    run = build_report()
+    app = split_artifact(render_review_html(run))[2]
+    (workdir / "app.js").write_text(app, encoding="utf-8")
+    (workdir / "snapshot.json").write_text(snapshot_json(run), encoding="utf-8")
+    (workdir / "parity.js").write_text(PARITY_HARNESS, encoding="utf-8")
+
+    cases = parity_cases(run)
+    case_dir = workdir / "cases"
+    case_dir.mkdir()
+    for name, payload in cases.items():
+        (case_dir / f"{name}.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
+
+    completed = subprocess.run(
+        [
+            NODE, str(workdir / "parity.js"), str(workdir / "app.js"),
+            str(workdir / "snapshot.json"), str(case_dir),
+        ],
+        capture_output=True, text=True, check=False, timeout=NODE_TIMEOUT,
+    )
+    assert completed.returncode == 0, completed.stderr
+    browser = json.loads(completed.stdout)
+    python = {name: python_verdict(case_dir / f"{name}.json", run) for name in cases}
+    return {"browser": browser, "python": python, "names": sorted(cases)}
+
+
+def test_the_browser_and_python_agree_on_every_manifest(parity):
+    """The one assertion that keeps the two validators from drifting apart."""
+    disagreements = {
+        name: {"browser": parity["browser"][name], "python": parity["python"][name]}
+        for name in parity["names"]
+        if parity["browser"][name] != parity["python"][name]
+    }
+    assert not disagreements, (
+        "the review page and review.parse_manifest disagree — the page must "
+        f"refuse exactly what Python refuses: {json.dumps(disagreements, indent=2)}"
+    )
+
+
+def test_the_parity_table_covers_both_outcomes(parity):
+    """A table of all-refusals would pass vacuously while the page over-rejects."""
+    outcomes = parity["python"]
+    assert [n for n in parity["names"] if outcomes[n] == "accepted"], "no accept cases"
+    assert [n for n in parity["names"] if outcomes[n] == "refused"], "no refuse cases"
+    # Naming is load-bearing: an `ok_`/`bad_` prefix that disagrees with the
+    # actual outcome means the case does not test what it claims to.
+    for name in parity["names"]:
+        expected = "accepted" if name.startswith("ok_") else "refused"
+        assert outcomes[name] == expected, f"{name} is {outcomes[name]}"

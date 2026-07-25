@@ -124,10 +124,18 @@ def test_artifact_does_not_leak_local_paths(tmp_path):
 
 
 def test_no_source_blob_can_close_the_script_element():
-    # A literal closing script tag anywhere in the CSS, markup, or app script
-    # would end its element early and dump the rest of the file as text.
+    """A closing script tag in our own source truncates its element.
+
+    Case-insensitive, and without requiring the `>`: HTML matches the end tag
+    ASCII case-insensitively and terminates on whitespace or `/` as well, so
+    `</SCRIPT >` and `</script/` both end the element. Verified in Chromium —
+    a mixed-case tag inside a JS comment silently cut the shipped script in
+    half, which is the bug this test exists to prevent.
+    """
     for name, blob in (("APP_JS", APP_JS), ("CSS", CSS), ("BODY_HTML", BODY_HTML)):
-        assert "</script" not in blob, f"{name} would truncate its script element"
+        assert not re.search(r"</script", blob, re.IGNORECASE), (
+            f"{name} would truncate its script element"
+        )
         assert "<!--" not in blob and "-->" not in blob, f"{name} spells a comment"
 
 
