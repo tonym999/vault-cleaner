@@ -71,6 +71,10 @@ add any without a ticket saying so.
   contain only fake items. Regenerate the header from a fresh export if DIM's
   format changes; never paste real rows.
 - Rule thresholds live in `config.toml`, not in code.
+- Add every new rule-consumed config key to `report_run._decision_config` so
+  snapshots and fingerprints cover it. The recursive DEFAULTS coverage test
+  must fail until the key is projected; `paths`, `wishlists`, and `manifest`
+  are explicit exclusions because their external bytes have separate identities.
 - Bump `report_run.RULESET_VERSION` whenever rule ordering or decision
   semantics change. Do not bump it for snapshot-only schema or presentation
   changes.

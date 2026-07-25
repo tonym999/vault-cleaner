@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import report_run
-from vault_cleaner.config import ConfigError
+from vault_cleaner.config import DEFAULTS, ConfigError
 from vault_cleaner.pipeline import (
     ManifestIdentity,
     WeaponPipelineResult,
@@ -34,6 +34,17 @@ def build_report():
         ghosts_path=GHOSTS,
         no_wishlists=True,
     )
+
+
+def _leaf_paths(value, prefix=()):
+    if not isinstance(value, dict):
+        return {prefix}
+    if not value:
+        return {prefix}
+    paths = set()
+    for key, item in value.items():
+        paths.update(_leaf_paths(item, (*prefix, key)))
+    return paths
 
 
 def test_report_run_contains_sections_sources_decisions_and_config():
@@ -225,6 +236,18 @@ def test_fingerprint_ignores_paths_covered_by_content_identities():
     first = {"armor": {"score_floor": 65}, "paths": {"input_dir": "one"}}
     second = {"armor": {"score_floor": 65}, "paths": {"input_dir": "two"}}
     assert compute_fingerprint(sources, first) == compute_fingerprint(sources, second)
+
+
+def test_decision_config_allowlist_covers_non_external_defaults():
+    excluded = {"paths", "wishlists", "manifest"}
+    expected = {
+        section: values
+        for section, values in DEFAULTS.items()
+        if section not in excluded
+    }
+    projected = report_run._decision_config(DEFAULTS)
+    assert set(projected) == set(DEFAULTS) - excluded
+    assert _leaf_paths(projected) == _leaf_paths(expected)
 
 
 def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):

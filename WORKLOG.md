@@ -19,7 +19,8 @@ surprises the next agent should know about.
   the exact nested `rails` and `armor` keys consumed by rules. External content
   is covered separately by export, wishlist, and manifest identities, so a
   snapshot can reproduce its fingerprint from its own recorded inputs without
-  leaking free-form config.
+  leaking free-form config. A recursive DEFAULTS coverage test makes future
+  thresholds fail CI until they are added to the projection.
 - Reused one streaming file-digest helper, detected export changes across load,
   and fingerprinted the exact captured wishlist bytes that were parsed. Wishlist
   downloads now accept only HTTP(S), and source/wishlist races become domain
@@ -31,7 +32,8 @@ surprises the next agent should know about.
 - Pinned the CI dev tools after unbounded Ruff drift made local 0.15.22 pass
   while CI's 0.16.0 reported nine findings; updated those findings and added a
   checked-in schema-v1 golden snapshot, a documented regeneration command,
-  and focused regression coverage.
+  and focused regression coverage. Schema v1 remained intentionally fluid while
+  this PR was unmerged; the final golden pins the pre-merge contract.
 - The golden test exposed that `load_config` shallow-copied nested defaults,
   letting one caller contaminate later report runs; defaults are now deep-copied
   and an order-isolation regression test pins that behavior.
