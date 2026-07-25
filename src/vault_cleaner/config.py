@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import tomllib
+from copy import deepcopy
 from pathlib import Path
 
 from vault_cleaner.parse import ARMOR_STATS
@@ -131,7 +132,7 @@ def load_config(path: str | Path = "config.toml") -> dict:
         value = data.get(section, {})
         if not isinstance(value, dict):
             raise ConfigError(f"{path}: [{section}] must be a table, got {type(value).__name__}")
-        merged[section] = {**defaults, **value}
+        merged[section] = {**deepcopy(defaults), **value}
     for section, values in data.items():
         merged.setdefault(section, values)
     _validate_armor(merged)

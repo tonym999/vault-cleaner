@@ -20,6 +20,7 @@ import json
 import sys
 import time
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 MANIFEST_INDEX_URL = "https://www.bungie.net/Platform/Destiny2/Manifest/"
@@ -31,8 +32,21 @@ class ManifestError(Exception):
     """The perk map could not be produced (no download, no cache)."""
 
 
+@dataclass(frozen=True)
+class PerkMapData:
+    """The resolved map plus the Bungie manifest version that produced it.
+
+    Most callers only need ``names``; report snapshots also need ``version``
+    so a manifest refresh can invalidate a stale review even when the
+    resulting name map happens to be identical.
+    """
+
+    names: dict[str, frozenset[int]]
+    version: str
+
+
 def _get_json(url: str, timeout: int = 300) -> dict:
-    with urllib.request.urlopen(url, timeout=timeout) as r:  # noqa: S310 — fixed bungie.net URLs
+    with urllib.request.urlopen(url, timeout=timeout) as r:
         return json.load(r)
 
 
@@ -68,11 +82,19 @@ def _read_cache(cache: Path) -> dict | None:
     return data
 
 
-def load_perk_map(
+def _loaded(data: dict) -> PerkMapData:
+    return PerkMapData(
+        names={name: frozenset(hashes) for name, hashes in data["names"].items()},
+        version=data["version"],
+    )
+
+
+def load_perk_map_data(
     cache_dir: str | Path,
     max_age_days: float = 30,
     refresh: bool = False,
-) -> dict[str, frozenset[int]]:
+) -> PerkMapData:
+    """Load the perk map together with its source manifest version."""
     cache_dir = Path(cache_dir)
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +109,7 @@ def load_perk_map(
         except OSError:
             age_ok = False
         if age_ok:
-            return {n: frozenset(hs) for n, hs in cached["names"].items()}
+            return _loaded(cached)
 
     # Stale, missing, or forced: ask the (small) index what the current
     # version is before committing to the ~200MB definitions download.
@@ -100,7 +122,7 @@ def load_perk_map(
     except (OSError, ValueError, KeyError) as e:
         if cached is not None:
             print(f"warning: manifest index unavailable ({e}); using cached perk map", file=sys.stderr)
-            return {n: frozenset(hs) for n, hs in cached["names"].items()}
+            return _loaded(cached)
         raise ManifestError(f"manifest index unavailable and no cached perk map: {e}") from e
 
     if cached is not None and cached["version"] == version and not refresh:
@@ -108,7 +130,7 @@ def load_perk_map(
             cache.touch()  # same manifest — restart the freshness clock
         except OSError:
             pass  # worst case we re-check the index again next run
-        return {n: frozenset(hs) for n, hs in cached["names"].items()}
+        return _loaded(cached)
 
     print(f"downloading Bungie manifest {version} (~200MB, cached after this)...", file=sys.stderr)
     try:
@@ -116,7 +138,7 @@ def load_perk_map(
     except (OSError, ValueError) as e:
         if cached is not None:
             print(f"warning: manifest download failed ({e}); using cached perk map", file=sys.stderr)
-            return {n: frozenset(hs) for n, hs in cached["names"].items()}
+            return _loaded(cached)
         raise ManifestError(f"manifest download failed and no cached perk map: {e}") from e
 
     names = _extract_names(defs)
@@ -126,4 +148,16 @@ def load_perk_map(
         # The map is in hand — a failed cache write costs a re-download next
         # run, not this one.
         print(f"warning: could not write perk map cache {cache}: {e}", file=sys.stderr)
-    return {n: frozenset(hs) for n, hs in names.items()}
+    return PerkMapData(
+        names={name: frozenset(hashes) for name, hashes in names.items()},
+        version=version,
+    )
+
+
+def load_perk_map(
+    cache_dir: str | Path,
+    max_age_days: float = 30,
+    refresh: bool = False,
+) -> dict[str, frozenset[int]]:
+    """Compatibility wrapper for callers that only need the name map."""
+    return load_perk_map_data(cache_dir, max_age_days, refresh).names

@@ -5,8 +5,8 @@ from __future__ import annotations
 import csv
 import re
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Iterable, Mapping
 
 OUTPUT_COLUMNS = ["Id", "Hash", "Tag", "Notes"]
 

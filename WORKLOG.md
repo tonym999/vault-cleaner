@@ -3,6 +3,60 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-25 — M7 foundation review follow-up (#35 / PR #39)
+
+- Made effective TOML config recursively JSON-safe (date/time values use ISO
+  strings) before fingerprinting or snapshotting; this closes an uncaught
+  `TypeError` regression without accepting arbitrary object stringification.
+- Split snapshot schema v1 from ruleset v1 so presentation-only schema changes
+  do not invalidate persisted reviews, while decision-semantic changes do;
+  documented the required version bump beside the rule conventions.
+- Shareable snapshots reduce source and skipped-export paths to basenames and
+  omit configured directories plus unknown TOML sections, while the in-memory
+  `ReportRun` and CLI retain truthful full paths and effective config. Warnings
+  stay structured in the snapshot; only the CLI renders presentation text.
+- Fingerprints and snapshots share one allowlisted decision config, filtered to
+  the exact nested `rails` and `armor` keys consumed by rules. External content
+  is covered separately by export, wishlist, and manifest identities, so a
+  snapshot can reproduce its fingerprint from its own recorded inputs without
+  leaking free-form config. A recursive DEFAULTS coverage test makes future
+  thresholds fail CI until they are added to the projection.
+- Reused one streaming file-digest helper, detected export changes across load,
+  and fingerprinted the exact captured wishlist bytes that were parsed. Wishlist
+  downloads now accept only HTTP(S), and source/wishlist races become domain
+  errors rather than raw filesystem failures.
+- Made armor `set_bonus` consistently a JSON float, removed the misleading
+  frozen marker from evaluations containing mutable stats, and restored an
+  explicit manifest refresh as a forced rebuild while retaining normal
+  same-version cache reuse.
+- Pinned the CI dev tools after unbounded Ruff drift made local 0.15.22 pass
+  while CI's 0.16.0 reported nine findings; updated those findings and added a
+  checked-in schema-v1 golden snapshot, a documented regeneration command,
+  and focused regression coverage. Schema v1 remained intentionally fluid while
+  this PR was unmerged; the final golden pins the pre-merge contract.
+- The golden test exposed that `load_config` shallow-copied nested defaults,
+  letting one caller contaminate later report runs; defaults are now deep-copied
+  and an order-isolation regression test pins that behavior.
+
+## 2026-07-24 — M7 foundation: reusable report snapshot (#35)
+
+- Extracted ordered rule execution from `cli.py` into `pipeline.py`;
+  individual commands and the combined report now share the same public
+  weapons/armor pipeline results. The CLI remains the dry-run / explicit
+  `--write` presentation boundary, and its summary/CSV behaviour is unchanged.
+- Added `report_run.py`: available exports become a structured `ReportRun`
+  with per-section source metadata, original item state, decisions, conflicts,
+  effective config, armor score evaluations, and a deterministic JSON-safe
+  snapshot (schema v1). DIM instance ids and hashes stay opaque strings.
+- Snapshot fingerprints cover export bytes, the effective config, raw cached
+  wishlist files, and both the Bungie manifest version and the semantic perk
+  map digest. `manifest.load_perk_map_data` exposes version metadata while the
+  existing `load_perk_map` dict API remains compatible.
+- Armor scoring now records every scored legendary's raw base stats, base and
+  bonus score, class/slot rank, protection state, and source tag/notes for
+  the later static review/what-if tickets; rule decisions did not change.
+- Ruff clean; 186 tests pass (176 before this ticket).
+
 ## 2026-07-20 — v0.2.0 tagged; last-of-kind guard in the score pass (#30)
 
 - v0.2.0 tagged + released (M6). First real post-M6 import run surfaced

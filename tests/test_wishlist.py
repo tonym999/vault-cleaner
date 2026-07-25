@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import wishlist as wl_mod
-from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
+from vault_cleaner.config import load_config
+from vault_cleaner.wishlist import (
+    WishlistError,
+    fetch,
+    load_all_with_sources,
+    parse_wishlist,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "wishlist.txt"
 
@@ -103,6 +109,29 @@ def test_fetch_refresh_forces_download(tmp_path, monkeypatch):
     (tmp_path / "test.txt").write_text("old")
     monkeypatch.setattr(wl_mod, "_download", lambda url, timeout=30: "new")
     assert fetch("test", "https://x/w.txt", cache_dir=tmp_path, refresh=True).read_text() == "new"
+
+
+def test_download_rejects_non_http_scheme(monkeypatch):
+    monkeypatch.setattr(
+        wl_mod.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: pytest.fail("urlopen should not be called"),
+    )
+    with pytest.raises(ValueError, match="unsupported wishlist URL scheme"):
+        wl_mod._download("file:///etc/passwd")
+
+
+def test_load_all_returns_the_exact_bytes_it_parsed(tmp_path):
+    cfg = load_config("nonexistent.toml")
+    cfg["paths"]["wishlist_cache_dir"] = str(tmp_path)
+    cfg["wishlists"]["sources"] = {"test": "https://example.test/list"}
+    raw = b"dimwishlist:item=123&perks=10,20\n"
+    (tmp_path / "test.txt").write_bytes(raw)
+
+    merged, sources = load_all_with_sources(cfg)
+
+    assert merged.keep[123] == [frozenset({10, 20})]
+    assert sources[0].content == raw
 
 
 def _boom(url, timeout=30):

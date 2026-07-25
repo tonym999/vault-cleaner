@@ -1,6 +1,11 @@
 import pandas as pd
 
-from vault_cleaner.rules.weapons import keep_match_count, row_perk_hashes, run, trash_match
+from vault_cleaner.rules.weapons import (
+    keep_match_count,
+    row_perk_hashes,
+    run,
+    trash_match,
+)
 from vault_cleaner.wishlist import parse_wishlist
 
 PERK_MAP = {
@@ -10,13 +15,9 @@ PERK_MAP = {
 }
 
 WISHLIST = parse_wishlist(
-    "\n".join(
-        [
-            "dimwishlist:item=100&perks=1,2",  # keep roll for hash 100
-            "dimwishlist:item=-200&perks=",  # whole-item trash
-            "dimwishlist:item=-300&perks=3",  # roll-specific trash
-        ]
-    )
+    "dimwishlist:item=100&perks=1,2\n"  # keep roll for hash 100
+    "dimwishlist:item=-200&perks=\n"  # whole-item trash
+    "dimwishlist:item=-300&perks=3"  # roll-specific trash
 )
 
 

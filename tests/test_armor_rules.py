@@ -81,6 +81,12 @@ def test_padded_favored_set_perk_still_matches(cfg):
     assert "4008" not in decisions_by_id(cfg)
 
 
+def test_evaluation_set_bonus_is_always_float(cfg):
+    evaluations = result(cfg).evaluations
+    assert evaluations
+    assert all(isinstance(evaluation.set_bonus, float) for evaluation in evaluations)
+
+
 def test_scores_are_on_total_base_scale():
     # Uniform stats: every archetype scores exactly the Total (Base) value
     uniform = {s: 10 for s in ARMOR_STATS}
@@ -142,6 +148,19 @@ def test_classes_and_slots_group_independently(cfg):
 def test_exotics_never_scored(cfg):
     assert "4031" not in decisions_by_id(cfg)
     assert result(cfg).scored == 14  # 15 rows minus the exotic
+
+
+def test_result_exposes_every_score_evaluation(cfg):
+    scored = result(cfg)
+    assert len(scored.evaluations) == scored.scored
+    locked = next(item for item in scored.evaluations if item.id == "4006")
+    source = load_armor(FIXTURE).loc[lambda frame: frame["Id"] == "4006"].iloc[0]
+    assert locked.hash == source["Hash"]
+    assert locked.stats == base_stats(source)
+    assert locked.rank > cfg["armor"]["top_n_per_slot"]
+    assert locked.protection_level == "soft"
+    assert locked.protection_reason == "locked"
+    assert locked.original_notes == ""
 
 
 def test_last_of_kind_demoted_to_review(cfg):

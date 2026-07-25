@@ -1,7 +1,8 @@
 import csv
 from pathlib import Path
 
-from vault_cleaner import cli
+from vault_cleaner import cli, report_run
+from vault_cleaner.pipeline import WeaponPipelineResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = str(FIXTURES / "weapons_dupes.csv")
@@ -32,7 +33,7 @@ def test_report_missing_export_skipped_not_fatal(capsys, tmp_path):
     ])
     captured = capsys.readouterr()
     assert rc == 0
-    assert "skipping weapons" in captured.err
+    assert f"skipping weapons: {tmp_path / 'nope.csv'} not found" in captured.err
     assert "(weapons)" not in captured.out
     assert "JUNK ghost-unprotected-surplus (ghosts)" in captured.out
 
@@ -59,6 +60,10 @@ def test_report_write_emits_combined_csv(capsys, tmp_path):
 
 
 def test_report_prints_conflict_note(capsys, monkeypatch):
-    monkeypatch.setattr(cli, "_resolve_weapons", lambda weapons, cfg, nw: ([], 3, True))
+    monkeypatch.setattr(
+        report_run,
+        "resolve_weapons",
+        lambda weapons, cfg, nw: WeaponPipelineResult([], 3, True),
+    )
     assert run_report() == 0
     assert "3 weapon(s) matched both keep and trash lists" in capsys.readouterr().out

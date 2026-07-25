@@ -37,9 +37,34 @@ N_STATS = len(ARMOR_STATS)
 
 
 @dataclass
+class ArmorEvaluation:
+    """One legendary's score-pass inputs and deterministic ranking."""
+
+    id: str
+    hash: str
+    name: str
+    owner: str
+    original_tag: str
+    original_notes: str
+    equippable: str
+    slot: str
+    item_archetype: str
+    stats: dict[str, int]
+    base_score: float
+    set_bonus: float
+    score: float
+    best_archetype: str
+    rank: int
+    group_size: int
+    protection_level: str | None
+    protection_reason: str
+
+
+@dataclass
 class ArmorResult:
     decisions: list[Decision] = field(default_factory=list)
     scored: int = 0  # legendaries that went through scoring
+    evaluations: list[ArmorEvaluation] = field(default_factory=list)
 
 
 def base_stats(row: pd.Series) -> dict[str, int]:
@@ -108,17 +133,48 @@ def run(
     for (_, _), group in legendaries.groupby(["Equippable", "Type"], sort=False):
         scored_rows = []
         for _, row in group.iterrows():
-            score, archetype = best_score(base_stats(row), archetypes)
-            if has_favored_set_perk(row, acfg["favored_set_perks"]):
-                score += acfg["set_bonus"]
-            scored_rows.append((score, archetype, row))
+            stats = base_stats(row)
+            base, archetype = best_score(stats, archetypes)
+            bonus = (
+                float(acfg["set_bonus"])
+                if has_favored_set_perk(row, acfg["favored_set_perks"])
+                else 0.0
+            )
+            score = base + bonus
+            scored_rows.append((score, base, bonus, archetype, stats, row))
         scored_rows.sort(key=lambda t: t[0], reverse=True)
 
-        for rank, (score, archetype, row) in enumerate(scored_rows, start=1):
+        for rank, (score, base, bonus, archetype, stats, row) in enumerate(
+            scored_rows, start=1
+        ):
+            level, reason = rails.protection(
+                row, cfg["rails"]["crafted_level_protect"]
+            )
+            result.evaluations.append(
+                ArmorEvaluation(
+                    id=row["Id"],
+                    hash=row["Hash"],
+                    name=row["Name"],
+                    owner=row.get("Owner", ""),
+                    original_tag=row["Tag"],
+                    original_notes=row["Notes"],
+                    equippable=row["Equippable"],
+                    slot=row["Type"],
+                    item_archetype=row["Archetype"],
+                    stats=stats,
+                    base_score=base,
+                    set_bonus=bonus,
+                    score=score,
+                    best_archetype=archetype,
+                    rank=rank,
+                    group_size=len(scored_rows),
+                    protection_level=level,
+                    protection_reason=reason,
+                )
+            )
             if rank <= acfg["top_n_per_slot"] or score >= acfg["score_floor"]:
                 survivors[_combo(row)] += 1
                 continue
-            level, reason = rails.protection(row, cfg["rails"]["crafted_level_protect"])
             if level == rails.HARD:
                 survivors[_combo(row)] += 1
                 continue
