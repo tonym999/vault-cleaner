@@ -3,6 +3,33 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-25 — pytest imports the checkout under test (#40)
+
+- `pytest` run from a git worktree was exercising the **main checkout's**
+  source. The editable install is setuptools' static flavour: a single
+  absolute `src` path in `__editable__.vault_cleaner-0.1.0.pth`, injected
+  into every interpreter using the venv regardless of cwd. Nothing competed
+  with it — src layout, no `tests/__init__.py`, and `testpaths` was the only
+  pytest ini setting, so pytest prepended `tests/` (no importable package)
+  and the `.pth` won.
+- Surfaced during the #39 review rounds: a fault injected into a worktree
+  passed cleanly, and the real result only appeared after pinning
+  `PYTHONPATH`. Reproduced here before fixing — a worktree with
+  `write_import_csv`'s DIM quote re-wrapping deleted still reported
+  `201 passed`. With `pythonpath = ["src"]` the same worktree correctly
+  fails the two round-trip tests.
+- Branch skew is not required for this to bite. Uncommitted edits in either
+  tree, or `main` moving while a worktree review is in flight (#39 merged
+  mid-review), are enough. The failure is silent, which is what makes it
+  worth config rather than reviewer discipline.
+- `tests/conftest.py` now asserts the imported `vault_cleaner` sits under
+  pytest's own `rootpath/src`, raising `pytest.UsageError` with both
+  resolved paths. `pythonpath` fixes today's mechanism; the guard means any
+  future mechanism that reintroduces the skew fails loudly instead of
+  passing. Verified it refuses when `pythonpath` is disabled.
+- No escape hatch was added: there is no workflow here that deliberately
+  tests an out-of-tree install, and an opt-out would reopen the silent path.
+
 ## 2026-07-25 — M7 foundation review follow-up (#35 / PR #39)
 
 - Made effective TOML config recursively JSON-safe (date/time values use ISO

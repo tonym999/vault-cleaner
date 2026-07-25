@@ -25,3 +25,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Prepended to sys.path relative to pytest's rootdir, so a run from a git
+# worktree imports that worktree's source instead of the single absolute
+# path baked into the editable install's .pth. tests/conftest.py verifies it.
+pythonpath = ["src"]
