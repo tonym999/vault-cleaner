@@ -77,7 +77,14 @@ add any without a ticket saying so.
   are explicit exclusions because their external bytes have separate identities.
 - Bump `report_run.RULESET_VERSION` whenever rule ordering or decision
   semantics change. Do not bump it for snapshot-only schema or presentation
-  changes.
+  changes. It is baked into the fingerprint, so a bump correctly invalidates
+  every persisted review manifest.
+- "Manifest" means two unrelated things: `manifest.py` is Bungie's static
+  manifest (perk name→hash), `review.py` is the *review* manifest handed back
+  by the UI. Keep the distinction explicit in names and messages.
+- Review manifests and `data/overrides.json` are untrusted input. Validate
+  strictly (reject unknown keys, unknown versions, duplicate ids), never read
+  a filesystem path out of their content, and keep `Id`/`Hash` opaque strings.
 - Rules live in `src/vault_cleaner/rules/`, one module per pass
   (weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py,
   ghosts.py — a new pass gets a new module); ordering is defined in

@@ -36,6 +36,8 @@ DEFAULT_EXPORT_PATHS = {
     "armor": "data/in/destiny-armor.csv",
     "ghosts": "data/in/destiny-ghost.csv",
 }
+# The vocabulary of section kinds; run_report builds one section per entry.
+EXPORT_KINDS = frozenset(DEFAULT_EXPORT_PATHS)
 
 
 class NoExportsError(FileNotFoundError):
@@ -108,6 +110,11 @@ class ReportSection:
     kind: str
     source: SourceMetadata
     decisions: tuple[ReportDecision, ...]
+    # Every id the export carried, not just the decided ones. Review
+    # overrides need it to tell "this item is gone from the vault" apart
+    # from "the rules stopped proposing anything for it" (#36). Deliberately
+    # absent from the snapshot: it is run-local bookkeeping, not shareable.
+    item_ids: frozenset[str]
     armor: ArmorSectionDetails | None = None
 
 
@@ -441,6 +448,7 @@ def run_report(
                     items,
                     cfg["rails"]["crafted_level_protect"],
                 ),
+                item_ids=frozenset(items["Id"].astype(str)),
                 armor=armor_details,
             )
         )

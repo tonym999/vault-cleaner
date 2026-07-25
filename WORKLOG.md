@@ -3,6 +3,88 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-25 — persistent review overrides and reviewed export (#36)
+
+- New `review.py` owns the review manifest schema, `data/overrides.json`, and
+  the classification of saved vetoes against a fresh run. `report` is
+  unchanged and still shows raw proposals; it only prints a pointer line when
+  vetoes exist, so "what the rules propose" stays distinct from "what I
+  approved". One `review` command covers both inspection and application:
+  without `--manifest` it just reports override status.
+- Vetoes never reach the CSV writer as a second implementation — final rows
+  go through `write_import_csv()` unchanged, pinned by a test comparing the
+  reviewed CSV byte-for-byte against the same filtered rows through the
+  Python writer.
+- A veto only applies while it still describes the proposal the reviewer saw.
+  If the rules now propose something else for that id it goes **stale** and is
+  *not* applied. Chosen deliberately: the item resurfacing for review is the
+  safe direction to fail, and note-wording drift silently suppressing an
+  unreviewed decision is not.
+- `orphaned` (id gone from a loaded export) is kept distinct from `unchecked`
+  (that export was skipped this run). Collapsing them would make a missing
+  `data/in/destiny-ghost.csv` look like a vault full of dismantled ghosts.
+- Applying a manifest is additive: an `approved` verdict never removes an
+  existing veto. A UI that forgot a previous session must not be able to
+  resurrect junk the user already rejected; un-vetoing is an explicit file
+  edit, reported on stderr when it comes up.
+- Merges take display metadata from the *run*, not the manifest — only
+  identity crosses the boundary. Manifest parsing rejects unknown keys
+  outright (an `output_path` key is an error, not something ignored), unknown
+  schema/ruleset versions, non-string or non-DIM-shaped ids, and any id
+  appearing twice, whether the verdicts agree or conflict.
+- `ReportSection` gained `item_ids`, deliberately *not* in the snapshot: it is
+  run-local bookkeeping needed to tell orphaned from stale, and adding it to
+  the shareable snapshot would have churned schema v1 for no consumer.
+- `save_overrides` writes via same-directory temp file → fsync → `os.replace`
+  → directory fsync, with the temp file removed on any failure. Tested by
+  making `os.replace` and `json.dump` fail: the previous file survives
+  byte-identical and no `.tmp` is left behind. Directory fsync failure is
+  tolerated — the replace already happened by then.
+- `RULESET_VERSION` deliberately not bumped: no rule ordering or decision
+  semantics changed. The golden snapshot is untouched for the same reason.
+- Gap worth knowing: nothing generates a manifest yet — #37 is the producer.
+  The schema is documented in README so one can be hand-written meanwhile.
+- Review follow-up (PR #42), two findings, both accepted:
+  - `os.fsync` failure on the directory handle was tolerated but the `os.open`
+    that precedes it was not, and by then `os.replace` has already committed.
+    The raise escaped before `write_import_csv()`, so a *successful* write was
+    reported as a failure and left persisted vetoes with no reviewed CSV to
+    match them. Now one `_fsync_directory` helper where nothing past the
+    commit point may propagate. Windows refuses `O_RDONLY` directory handles
+    outright; `EMFILE`/`EACCES` reach the same place on Linux.
+  - Persisted `kind` was accepted as any non-empty text, but `classify` reads
+    it functionally. A hand-edited `"weapon"` could only ever land in
+    `unchecked` and be reported forever as "that export was not loaded" — the
+    exact lie the unchecked/orphaned split exists to prevent, reachable via
+    the README's own advice to edit the file to un-veto. Now validated against
+    `report_run.EXPORT_KINDS`, one vocabulary derived from
+    `DEFAULT_EXPORT_PATHS`.
+- Two non-changes, decided rather than overlooked. Manifest `kind` stays
+  unvalidated: `merge_manifest` discards it and re-reads kind from the run, so
+  there it is free-text display metadata beside `name`/`hash`/`action`/
+  `reason`, none of them enumerated. Overrides `action`/`reason` stay
+  unvalidated too — they are functional, but a typo degrades safely to
+  `stale`, which is truthful. `kind` is the only field whose bad value
+  produces a wrong explanation.
+- `OVERRIDES_SCHEMA_VERSION` not bumped: this rejects files that were always
+  malformed, it does not change the format.
+- Both fixes were confirmed by reverting each and watching the new tests fail.
+  The `os.open` fake has to be selective — `review.os` *is* the `os` module,
+  so a blanket patch breaks `tempfile.mkstemp`; match on `flags == os.O_RDONLY`
+  and delegate otherwise.
+- Second review round found the helper did not keep its own promise:
+  `os.close(dir_fd)` sat in a bare `finally` and could still propagate,
+  recreating the exact persisted-vetoes-without-CSV outcome. Restructured so
+  open/fsync share one tolerant block and close is separately swallowed, with
+  `dir_fd = None` guarding the case where the open itself failed. Three
+  targeted tests now pin open, fsync, and close; each was confirmed by
+  reverting the fix and watching it fail.
+- Still unresolved, not part of this PR: `save_overrides()` and
+  `write_import_csv()` are two files with no transaction between them, so a
+  failed CSV write leaves vetoes persisted without an export. The current
+  order is deliberate — overrides are the durable record of human decisions,
+  the CSV is derived and regenerable by re-running.
+
 ## 2026-07-25 — pytest imports the checkout under test (#40)
 
 - `pytest` run from a git worktree was exercising the **main checkout's**
