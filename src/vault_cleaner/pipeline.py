@@ -22,7 +22,7 @@ from vault_cleaner.rules import armor_close, armor_dupes, dupes
 from vault_cleaner.rules import weapons as weapons_rules
 from vault_cleaner.rules.armor import ArmorEvaluation
 from vault_cleaner.rules.dupes import Decision
-from vault_cleaner.wishlist import WishlistError, load_all
+from vault_cleaner.wishlist import WishlistSourceData, load_all_with_sources
 
 
 @dataclass(frozen=True)
@@ -101,19 +101,17 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _wishlist_identities(cfg: dict) -> tuple[WishlistSourceIdentity, ...]:
-    cache_dir = Path(cfg["paths"]["wishlist_cache_dir"])
-    identities = []
-    for name, url in sorted(cfg["wishlists"]["sources"].items()):
-        path = cache_dir / f"{name}.txt"
-        try:
-            digest = sha256_file(path)
-        except OSError as e:
-            raise WishlistError(
-                f"{name}: cached wishlist disappeared before it could be fingerprinted: {e}"
-            ) from e
-        identities.append(WishlistSourceIdentity(name=name, url=url, sha256=digest))
-    return tuple(identities)
+def _wishlist_identities(
+    sources: tuple[WishlistSourceData, ...],
+) -> tuple[WishlistSourceIdentity, ...]:
+    return tuple(
+        WishlistSourceIdentity(
+            name=source.name,
+            url=source.url,
+            sha256=hashlib.sha256(source.content).hexdigest(),
+        )
+        for source in sorted(sources, key=lambda item: item.name)
+    )
 
 
 def _manifest_identity(data: PerkMapData) -> ManifestIdentity:
@@ -141,7 +139,7 @@ def resolve_weapons(
             wishlists_used=False,
         )
 
-    wishlists = load_all(cfg)
+    wishlists, wishlist_sources = load_all_with_sources(cfg)
     perk_data = load_perk_map_data(
         cfg["paths"]["manifest_cache_dir"],
         cfg["manifest"]["max_age_days"],
@@ -151,7 +149,7 @@ def resolve_weapons(
         decisions=result.decisions,
         keep_trash_conflicts=result.keep_trash_conflicts,
         wishlists_used=True,
-        wishlist_sources=_wishlist_identities(cfg),
+        wishlist_sources=_wishlist_identities(wishlist_sources),
         manifest=_manifest_identity(perk_data),
     )
 

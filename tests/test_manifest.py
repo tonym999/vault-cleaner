@@ -78,20 +78,20 @@ def test_stale_cache_same_version_skips_big_download(tmp_path, monkeypatch):
     assert calls  # index was consulted
 
 
-def test_refresh_rechecks_index_but_reuses_matching_cache(tmp_path, monkeypatch):
+def test_refresh_forces_rebuild_even_when_version_matches(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "_get_json", fake_get())
     load_perk_map(tmp_path)
 
-    calls = []
-
-    def index_only(url, timeout=300):
-        calls.append(url)
-        assert "Platform" in url, "matching manifest was unnecessarily re-downloaded"
-        return INDEX
-
-    monkeypatch.setattr(mf, "_get_json", index_only)
-    assert load_perk_map(tmp_path, refresh=True)["perk a"] == frozenset({101, 102})
-    assert calls
+    refreshed_defs = {
+        "201": {
+            "plug": {"plugCategoryIdentifier": "frames"},
+            "displayProperties": {"name": "Perk B"},
+        }
+    }
+    monkeypatch.setattr(mf, "_get_json", fake_get(INDEX, refreshed_defs))
+    assert load_perk_map(tmp_path, refresh=True) == {
+        "perk b": frozenset({201})
+    }
 
 
 def test_new_version_rebuilds(tmp_path, monkeypatch):

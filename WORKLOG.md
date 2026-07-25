@@ -9,16 +9,23 @@ surprises the next agent should know about.
   strings) before fingerprinting or snapshotting; this closes an uncaught
   `TypeError` regression without accepting arbitrary object stringification.
 - Split snapshot schema v1 from ruleset v1 so presentation-only schema changes
-  do not invalidate persisted reviews, while decision-semantic changes do.
-- Snapshot source metadata, warnings, and configured directories now store
-  basenames only, so absolute user paths cannot leak into the later shareable
-  HTML report.
-- Reused one streaming file-digest helper, normalized source/wishlist race
-  failures to domain errors, made armor `set_bonus` consistently a JSON float,
-  and kept matching manifest caches even after an explicit index refresh.
+  do not invalidate persisted reviews, while decision-semantic changes do;
+  documented the required version bump beside the rule conventions.
+- Shareable snapshots reduce source metadata, missing-source warnings, and
+  configured directories to basenames, while the in-memory `ReportRun` and CLI
+  retain truthful full paths and effective config.
+- Reused one streaming file-digest helper, detected export changes across load,
+  and fingerprint the exact captured wishlist bytes that were parsed. Wishlist
+  downloads now accept only HTTP(S), and source/wishlist races become domain
+  errors rather than raw filesystem failures.
+- Made armor `set_bonus` consistently a JSON float, removed the misleading
+  frozen marker from evaluations containing mutable stats, and restored an
+  explicit manifest refresh as a forced rebuild while retaining normal
+  same-version cache reuse.
 - Pinned the CI dev tools after unbounded Ruff drift made local 0.15.22 pass
   while CI's 0.16.0 reported nine findings; updated those findings and added a
-  checked-in schema-v1 golden snapshot plus focused regression coverage.
+  checked-in schema-v1 golden snapshot, a documented regeneration command,
+  and focused regression coverage.
 - The golden test exposed that `load_config` shallow-copied nested defaults,
   letting one caller contaminate later report runs; defaults are now deep-copied
   and an order-isolation regression test pins that behavior.

@@ -13,6 +13,13 @@ python3 -m venv .venv                # if .venv doesn't already exist
 .venv/bin/vault-cleaner roundtrip --item "NAME"   # dry-run pipeline check
 ```
 
+Regenerate the fake-data report golden only when an intentional snapshot
+schema or fixture change requires it:
+
+```bash
+.venv/bin/python -c 'import json; from tests.test_report_run import build_report; from vault_cleaner.report_run import snapshot_dict; print(json.dumps(snapshot_dict(build_report()), indent=2, sort_keys=True))' > tests/fixtures/report_snapshot_v1.json
+```
+
 Python 3.12, pandas, `tomllib`, pytest. No other runtime deps for v1 — don't
 add any without a ticket saying so.
 
@@ -47,7 +54,8 @@ add any without a ticket saying so.
   total): spike/total scoring discriminates nothing; only build-alignment
   weights do. Armor scores are normalized to the `Total (Base)` scale.
 - Perk name→hash comes from Bungie's public static manifest, cached in
-  `data/cache/` and re-fetched only when the manifest version changes.
+  `data/cache/` and normally re-fetched only when the manifest version
+  changes; an explicit `refresh=True` forces a full rebuild.
   Names map to *all* hash variants (base + enhanced share display names).
 - DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
   parse the *last* one (`report.reason_slug` does).
@@ -63,6 +71,9 @@ add any without a ticket saying so.
   contain only fake items. Regenerate the header from a fresh export if DIM's
   format changes; never paste real rows.
 - Rule thresholds live in `config.toml`, not in code.
+- Bump `report_run.RULESET_VERSION` whenever rule ordering or decision
+  semantics change. Do not bump it for snapshot-only schema or presentation
+  changes.
 - Rules live in `src/vault_cleaner/rules/`, one module per pass
   (weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py,
   ghosts.py — a new pass gets a new module); ordering is defined in

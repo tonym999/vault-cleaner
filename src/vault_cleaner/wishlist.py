@@ -15,6 +15,7 @@ import time
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # DIM's "these perks on any weapon" sentinel item id. Wildcard entries are
 # skipped (v1 matches per-item only) but counted, so we know they exist.
@@ -56,6 +57,15 @@ class Wishlist:
         self.wildcards += other.wildcards
 
 
+@dataclass(frozen=True)
+class WishlistSourceData:
+    """The exact cached bytes parsed for one configured wishlist source."""
+
+    name: str
+    url: str
+    content: bytes
+
+
 def parse_wishlist(text: str, name: str = "") -> Wishlist:
     wl = Wishlist(name=name)
     for line in text.splitlines():
@@ -91,6 +101,9 @@ def parse_wishlist(text: str, name: str = "") -> Wishlist:
 
 
 def _download(url: str, timeout: int = 30) -> str:
+    scheme = urlsplit(url).scheme.casefold()
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"unsupported wishlist URL scheme {scheme!r}")
     with urllib.request.urlopen(url, timeout=timeout) as r:
         return r.read().decode("utf-8", errors="replace")
 
@@ -125,12 +138,16 @@ def fetch(
     return path
 
 
-def load_all(cfg: dict, refresh: bool = False) -> Wishlist:
-    """Fetch + parse every configured source into one merged Wishlist."""
+def load_all_with_sources(
+    cfg: dict,
+    refresh: bool = False,
+) -> tuple[Wishlist, tuple[WishlistSourceData, ...]]:
+    """Fetch each source, then parse and return the same captured bytes."""
     sources = cfg["wishlists"]["sources"]
     if not sources:
         raise WishlistError("no [wishlists.sources] configured in config.toml")
     merged = Wishlist(name="merged")
+    loaded = []
     for name, url in sources.items():
         path = fetch(
             name, url,
@@ -138,5 +155,16 @@ def load_all(cfg: dict, refresh: bool = False) -> Wishlist:
             max_age_days=cfg["wishlists"]["max_age_days"],
             refresh=refresh,
         )
-        merged.merge(parse_wishlist(path.read_text(encoding="utf-8"), name))
-    return merged
+        try:
+            content = path.read_bytes()
+            text = content.decode("utf-8")
+        except (OSError, UnicodeError) as e:
+            raise WishlistError(f"{name}: could not read cached wishlist {path}: {e}") from e
+        merged.merge(parse_wishlist(text, name))
+        loaded.append(WishlistSourceData(name=name, url=url, content=content))
+    return merged, tuple(loaded)
+
+
+def load_all(cfg: dict, refresh: bool = False) -> Wishlist:
+    """Compatibility wrapper returning the merged configured wishlists."""
+    return load_all_with_sources(cfg, refresh)[0]

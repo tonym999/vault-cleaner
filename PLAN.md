@@ -36,8 +36,8 @@ export CSVs ──► data/in/ ──► parse ──► rules engine ──► 
 loads available exports into a reusable structured result and produces a
 versioned, JSON-safe snapshot. The CLI is a presentation adapter over that
 API. Snapshot schema and ruleset versions advance independently, and source
-paths are reduced to non-sensitive basenames. Python remains the only
-authoritative rules engine and DIM CSV writer.
+paths are reduced to non-sensitive basenames within snapshots. Python remains
+the only authoritative rules engine and DIM CSV writer.
 
 ## Rules engine
 

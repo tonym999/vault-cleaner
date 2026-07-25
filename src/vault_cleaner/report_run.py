@@ -124,14 +124,20 @@ class ReportRun:
         ]
 
 
-def _snapshot_config(cfg: Mapping[str, object]) -> dict:
-    """Make config JSON-safe and redact directories from shareable output."""
+def _normalize_config(cfg: Mapping[str, object]) -> dict:
+    """Make effective config JSON-safe without changing its values."""
     try:
         normalized = json_safe(cfg)
     except (TypeError, ValueError) as e:
         raise ConfigError(f"effective config is not snapshot-safe: {e}") from e
     if not isinstance(normalized, dict):
-        raise TypeError("effective config must be a JSON object")
+        raise ConfigError("effective config must be a JSON object")
+    return normalized
+
+
+def _snapshot_config(cfg: Mapping[str, object]) -> dict:
+    """Return a JSON-safe config copy with directory values redacted."""
+    normalized = _normalize_config(cfg)
     paths = normalized.get("paths")
     if isinstance(paths, dict):
         normalized["paths"] = {
@@ -139,6 +145,21 @@ def _snapshot_config(cfg: Mapping[str, object]) -> dict:
             for key, value in paths.items()
         }
     return normalized
+
+
+def _snapshot_source(source: SourceMetadata) -> dict:
+    data = asdict(source)
+    data["path"] = Path(source.path).name
+    return data
+
+
+def _snapshot_warning(warning: str) -> str:
+    prefix, separator, detail = warning.partition(": ")
+    suffix = " not found"
+    if separator and prefix.startswith("skipping ") and detail.endswith(suffix):
+        path = detail.removesuffix(suffix)
+        return f"{prefix}: {Path(path).name}{suffix}"
+    return warning
 
 
 def compute_fingerprint(
@@ -223,7 +244,7 @@ def snapshot_dict(run: ReportRun) -> dict:
     for section in run.sections:
         section_data = {
             "kind": section.kind,
-            "source": asdict(section.source),
+            "source": _snapshot_source(section.source),
             "decisions": [asdict(decision) for decision in section.decisions],
         }
         if section.armor is not None:
@@ -250,8 +271,8 @@ def snapshot_dict(run: ReportRun) -> dict:
         "ruleset_version": RULESET_VERSION,
         "fingerprint": run.fingerprint,
         "inputs": {
-            "sources": [asdict(section.source) for section in run.sections],
-            "effective_config": json_safe(run.effective_config),
+            "sources": [_snapshot_source(section.source) for section in run.sections],
+            "effective_config": _snapshot_config(run.effective_config),
             "wishlists_used": run.wishlists_used,
             "wishlist_sources": [
                 asdict(source) for source in run.wishlist_sources
@@ -259,7 +280,7 @@ def snapshot_dict(run: ReportRun) -> dict:
             "manifest": asdict(run.manifest) if run.manifest else None,
         },
         "keep_trash_conflicts": run.keep_trash_conflicts,
-        "warnings": list(run.warnings),
+        "warnings": [_snapshot_warning(warning) for warning in run.warnings],
         "sections": sections,
     }
 
@@ -284,7 +305,7 @@ def run_report(
 ) -> ReportRun:
     """Load available exports and run every ordered rules pipeline."""
     cfg = load_config(config_path)
-    effective_config = _snapshot_config(cfg)
+    effective_config = _normalize_config(cfg)
     warnings = []
     sections = []
     conflicts = 0
@@ -299,10 +320,21 @@ def run_report(
     )
     for kind, path, loader in specs:
         try:
+            digest_before = sha256_file(path)
+        except FileNotFoundError:
+            warnings.append(f"skipping {kind}: {path} not found")
+            continue
+        except OSError as e:
+            raise SourceReadError(
+                f"could not fingerprint {kind} export {path}: {e}"
+            ) from e
+
+        try:
             items = loader(path)
         except FileNotFoundError:
-            warnings.append(f"skipping {kind}: {path.name} not found")
-            continue
+            raise SourceReadError(
+                f"{kind} export disappeared while being read: {path}"
+            ) from None
         except OSError as e:
             raise SourceReadError(f"could not read {kind} export {path}: {e}") from e
 
@@ -312,9 +344,11 @@ def run_report(
             raise SourceReadError(
                 f"{kind} export became unreadable while fingerprinting {path}: {e}"
             ) from e
+        if source_digest != digest_before:
+            raise SourceReadError(f"{kind} export changed while being read: {path}")
         source = SourceMetadata(
             kind=kind,
-            path=path.name,
+            path=str(path),
             item_count=len(items),
             sha256=source_digest,
         )

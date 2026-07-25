@@ -33,7 +33,7 @@ def test_report_missing_export_skipped_not_fatal(capsys, tmp_path):
     ])
     captured = capsys.readouterr()
     assert rc == 0
-    assert "skipping weapons" in captured.err
+    assert f"skipping weapons: {tmp_path / 'nope.csv'} not found" in captured.err
     assert "(weapons)" not in captured.out
     assert "JUNK ghost-unprotected-surplus (ghosts)" in captured.out
 

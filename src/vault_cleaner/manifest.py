@@ -125,7 +125,7 @@ def load_perk_map_data(
             return _loaded(cached)
         raise ManifestError(f"manifest index unavailable and no cached perk map: {e}") from e
 
-    if cached is not None and cached["version"] == version:
+    if cached is not None and cached["version"] == version and not refresh:
         try:
             cache.touch()  # same manifest — restart the freshness clock
         except OSError:

@@ -49,8 +49,13 @@ def test_report_run_contains_sections_sources_decisions_and_config():
     assert result.wishlist_sources == ()
     assert result.manifest is None
 
+    expected_paths = {
+        "weapons": str(WEAPONS),
+        "armor": str(ARMOR),
+        "ghosts": str(GHOSTS),
+    }
     for section in result.sections:
-        assert section.source.path == Path(section.source.path).name
+        assert section.source.path == expected_paths[section.kind]
         assert section.source.item_count > 0
         assert len(section.source.sha256) == 64
         assert all(isinstance(decision.id, str) for decision in section.decisions)
@@ -125,6 +130,7 @@ def test_large_instance_ids_remain_exact_json_strings(tmp_path):
     assert isinstance(decision["id"], str)
     assert isinstance(decision["hash"], str)
     assert document["inputs"]["sources"][0]["path"] == "large-ids.csv"
+    assert result.sections[0].source.path == str(large_ids)
     assert str(tmp_path) not in snapshot_json(result)
 
 
@@ -145,6 +151,8 @@ def test_toml_dates_are_normalized_for_fingerprint_and_snapshot(tmp_path):
     )
 
     document = json.loads(snapshot_json(result))
+    assert result.effective_config["paths"]["input_dir"] == "/home/example/private/in"
+    assert len(result.fingerprint) == 64
     assert document["inputs"]["effective_config"]["metadata"] == {
         "last_refreshed": "2026-07-01"
     }
@@ -202,10 +210,11 @@ def test_fingerprint_changes_for_every_input_category():
 
 
 def test_snapshot_schema_version_does_not_change_input_fingerprint(monkeypatch):
-    before = compute_fingerprint({"weapons": "export"}, {"armor": {}})
+    before = build_report()
     monkeypatch.setattr(report_run, "SNAPSHOT_SCHEMA_VERSION", 2)
-    after = compute_fingerprint({"weapons": "export"}, {"armor": {}})
-    assert after == before
+    after = build_report()
+    assert snapshot_dict(after)["schema_version"] == 2
+    assert after.fingerprint == before.fingerprint
 
 
 def test_external_identities_flow_into_snapshot(monkeypatch, tmp_path):
@@ -247,12 +256,26 @@ def test_library_errors_when_every_export_is_missing(tmp_path):
         )
 
 
-def test_export_hash_race_has_a_domain_error(monkeypatch, tmp_path):
+def test_export_hash_failure_has_a_domain_error(monkeypatch, tmp_path):
     def fail_hash(path):
         raise OSError("file disappeared")
 
     monkeypatch.setattr(report_run, "sha256_file", fail_hash)
-    with pytest.raises(SourceReadError, match="became unreadable"):
+    with pytest.raises(SourceReadError, match="could not fingerprint weapons export"):
+        run_report(
+            config_path="nonexistent.toml",
+            weapons_path=WEAPONS,
+            armor_path=tmp_path / "missing-armor.csv",
+            ghosts_path=tmp_path / "missing-ghosts.csv",
+            no_wishlists=True,
+        )
+
+
+def test_export_change_during_load_has_a_domain_error(monkeypatch, tmp_path):
+    digests = iter(["before", "after"])
+    monkeypatch.setattr(report_run, "sha256_file", lambda path: next(digests))
+
+    with pytest.raises(SourceReadError, match="changed while being read"):
         run_report(
             config_path="nonexistent.toml",
             weapons_path=WEAPONS,

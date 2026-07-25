@@ -36,7 +36,7 @@ from vault_cleaner.rules.dupes import Decision
 N_STATS = len(ARMOR_STATS)
 
 
-@dataclass(frozen=True)
+@dataclass
 class ArmorEvaluation:
     """One legendary's score-pass inputs and deterministic ranking."""
 
