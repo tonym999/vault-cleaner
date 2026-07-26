@@ -237,6 +237,28 @@ def test_missing_manifest_is_an_error(tmp_path):
         parse_manifest(tmp_path / "absent.json")
 
 
+def test_mis_encoded_manifest_is_an_error_not_a_decode_crash(tmp_path):
+    """`UnicodeDecodeError` is a `ValueError`, so it slipped past `except OSError`.
+
+    The bytes were always refused; they just escaped as an uncaught decode error
+    instead of something the CLI could report, which meant a traceback.
+    """
+    payload = json.dumps(manifest_payload(build_report())).encode("utf-8")
+    path = tmp_path / "mis-encoded.json"
+    path.write_bytes(payload.replace(b'"name"', b'"na\x80me"', 1))
+
+    with pytest.raises(ReviewManifestError, match="could not read review manifest"):
+        parse_manifest(path)
+
+
+def test_mis_encoded_overrides_file_is_an_error_too(tmp_path):
+    # load_overrides shares _load_json_object, so it had the same crash.
+    path = tmp_path / "overrides.json"
+    path.write_bytes(b'{"schema_version": 1, "updated_at": "x\x80", "vetoes": []}')
+    with pytest.raises(OverridesError, match="could not read overrides"):
+        load_overrides(path)
+
+
 # --- fingerprint gate -------------------------------------------------------
 
 

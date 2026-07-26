@@ -150,6 +150,25 @@ def test_malformed_manifest_is_a_clean_error(tmp_path, capsys):
     assert not (tmp_path / "reviewed.csv").exists()
 
 
+def test_mis_encoded_manifest_is_a_clean_error_not_a_traceback(tmp_path, capsys):
+    """A mis-encoded manifest used to crash with an uncaught UnicodeDecodeError.
+
+    `_load_json_object` caught `OSError`, but `UnicodeDecodeError` is a
+    `ValueError`, so it escaped `parse_manifest` and past the CLI's
+    `except ReviewError` — a stack trace where an `error:` line belongs.
+    """
+    bad = tmp_path / "mis-encoded.json"
+    payload = json.dumps(manifest_payload(build_report())).encode("utf-8")
+    bad.write_bytes(payload.replace(b'"name"', b'"na\x80me"', 1))
+
+    assert run_review(tmp_path, "--manifest", str(bad), "--write") == 1
+    captured = capsys.readouterr()
+    assert "error: could not read review manifest" in captured.err
+    assert "codec can't decode" in captured.err
+    assert "Traceback" not in captured.err
+    assert not (tmp_path / "reviewed.csv").exists()
+
+
 def test_malformed_overrides_are_a_clean_error(tmp_path, capsys):
     (tmp_path / "overrides.json").write_text('{"schema_version": 99}', encoding="utf-8")
     assert run_review(tmp_path) == 1

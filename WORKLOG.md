@@ -3,6 +3,213 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-25 — self-contained static HTML review UI (#37)
+
+- New `review_html.py` renders one portable file: inline CSS/JS, the #35
+  snapshot embedded as an inert `application/json` data block, and a
+  `default-src 'none'` CSP so the page physically cannot fetch or exfiltrate
+  anything. No runtime dependency, no asset file (the CSS/JS are Python string
+  constants, so packaging needed no `package-data` change).
+- Chose a **new `review-html` subcommand** over `review --output x.html`.
+  `review --output` already means "the reviewed CSV", and the issue's own
+  requirement is that the two write actions stay unambiguous. Each command now
+  owns exactly one output, and `report --write` is untouched.
+- **A literal `</script>` in the app source truncates its own script element.**
+  Found the hard way: an explanatory comment quoted a closing script tag as an
+  example of hostile input, which silently cut the shipped script in half — the
+  page still parsed, just missing most of its code. Now guarded by a test over
+  `APP_JS`/`CSS`/`BODY_HTML`. Snapshot *data* is safe by construction:
+  `embed_json` escapes `<`, `>`, `&`, U+2028, and U+2029 to `\uXXXX`, which is
+  value-identical JSON but cannot spell a tag or a comment delimiter.
+- The page's pure logic is exported under CommonJS when `module` exists and
+  only touches the DOM otherwise. That is what lets `test_review_html_js.py`
+  extract the script from a *generated artifact* and drive the real filtering,
+  grouping, counting, and manifest code under node — skipped when node is
+  absent, so nothing new is required to `pip install`.
+- Grouping is asserted equal to `report.summarize`'s group headers, string for
+  string and in order, so the page and the terminal cannot drift. That works
+  because the snapshot's `action`/`reason` are the same pair `reason_slug`
+  re-derives from `note`; a test pins that invariant too.
+- Ids and hashes never touch a JS number. `compareIds` orders decimal uint64
+  strings by length then lexicographically (a test shows `Number()` ties
+  2**64-1 and 2**64-2), and `itemsFromSnapshot` *throws* on a non-string id
+  rather than coercing one.
+- Data-keyed maps are all `Object.create(null)`. An item literally named
+  `__proto__` is in the hostile fixture: with a plain `{}` accumulator its
+  count assignment is a silent no-op and the whole group vanishes from the
+  filter dropdown, which is the failure a test now pins.
+- Exported `name` is clipped to 200 **code points** — `review.parse_manifest`
+  rejects longer strings, and slicing UTF-16 units could leave half a
+  surrogate pair. The 260-character fixture name proves the cap is needed.
+- Verified for real, not just in tests: headless Chromium opened the file over
+  `file://` with the CSP live, vetoed rows through the actual buttons, approved
+  one via the `a` key (focus survives, because a verdict change repaints the
+  row in place instead of rebuilding the table), exported, re-imported, and
+  `localStorage` worked under `file://`. That exported manifest then went
+  through `vault-cleaner review --manifest ... --write` and produced the
+  reviewed CSV with exactly the vetoed rows suppressed.
+- `SNAPSHOT_SCHEMA_VERSION`/`RULESET_VERSION` deliberately unchanged: no
+  decision semantics moved, and bumping the ruleset would invalidate every
+  persisted veto for a presentation-only feature.
+- Known gap, deliberate: `review-html` does not pre-mark items that already
+  have persisted vetoes in `data/overrides.json`, for the same reason `report`
+  does not apply them — the page shows what the rules propose. Re-vetoing is
+  harmless (merges are additive), but a future `--overrides` flag to seed the
+  page's verdicts would be a real ergonomic win.
+- Also left out: no browser-side threshold what-if controls. That is #38, and
+  every knob a user could turn there is inside the fingerprint, so a what-if
+  that changed decisions must not export a manifest against the original run.
+- Review follow-up (PR #44), four findings, all accepted:
+  - The browser's `readManifest` claimed parity with `parse_manifest` and did
+    not have it: **7 of 8** malformed manifests Python refuses, it accepted —
+    extra `snapshot.output_path`, extra root and decision keys, a decision of
+    only `{id, verdict}`, a 300-character `name`, a numeric `kind`, an empty
+    `generated_at`. Import then stored and autosaved the verdicts and reported
+    success, so the page said the review was restored and Python rejected the
+    same file later. Now mirrors `_check_keys`/`_require_text`/`_require_version`
+    in `parse_manifest`'s order, and validates structure *before* comparing
+    the fingerprint, so a malformed file says what is malformed.
+  - Text length is capped in **code points** (`Array.from(text).length`), not
+    UTF-16 units. Python's `len()` counts code points, so a 200-emoji name is
+    legal there and naive `.length` would have rejected it — the browser must
+    not be stricter than Python either. Both directions are pinned.
+  - Parity is now enforced by **one table of ~40 payloads run through both**
+    `readManifest` (under node) and `parse_manifest` + `check_manifest_matches`,
+    asserting they agree on accept/refuse. Hand-kept case lists on each side
+    are exactly how the gap appeared. Both Python calls are needed: a
+    well-formed manifest for another run is accepted by `parse_manifest` and
+    only refused by `check_manifest_matches`, while the browser does both at
+    once. Confirmed non-vacuous by re-running it against the old reader.
+  - The `</script>` source guard was case-sensitive. Chromium confirms a
+    mixed-case `</SCRIPT >` inside a comment terminates the element and the
+    rest of the script never runs — the exact bug the guard exists for, in a
+    casing it missed. Now `re.search(r"</script", blob, re.IGNORECASE)`;
+    deliberately not `</script\s*>`, since the end tag also terminates on
+    whitespace or `/`, so requiring the `>` would weaken it.
+  - Two sub-points skipped: making the `_SNAPSHOT_BLOCK`/`_APP_BLOCK`
+    *extraction* regexes case-insensitive buys nothing (they match our own
+    generated lowercase output), and the ast-grep ReDoS warning on that line
+    is a false positive — `APP_ELEMENT_ID` is a module constant, not input.
+  - `test_dry_run_does_not_write_to_the_default_path_either` asserted on the
+    relative default path, so a leftover artifact from any earlier `--write`
+    failed it even though the dry run wrote nothing. Runs from `tmp_path` now.
+  - Node subprocesses get `timeout=NODE_TIMEOUT`: an accidental infinite loop
+    in the shipped script should fail loudly, not hang the suite silently.
+- Review round 2 (PR #44), one more real parity hole:
+  - **`JSON.parse` erases number spelling.** `1`, `1.0`, and `1e0` all become
+    the same IEEE-754 double, so `Number.isInteger(1.0)` is `true` and no
+    post-parse check in JavaScript can tell them apart. Python's `json.loads`
+    keeps `1.0`/`1e0` as `float` and `_require_version` refuses non-`int`, so a
+    manifest with `"schema_version": 1.0` imported cleanly in the page and was
+    then rejected by `parse_manifest` — the same inconsistency round 1 set out
+    to close, one level lower down.
+  - Fixed on the **raw text**, not the parsed value, because that is the only
+    place the distinction still exists. `fractionalNumberError` returns the
+    first number token containing `.`, `e`, or `E`. Legitimate because a review
+    manifest has *no* fractional field: everything is a string except the three
+    integer versions. It is string-aware and escape-aware, so a `name` of
+    `"Price: 1.5 (v1.0)"` and the `e` in `true`/`false` are untouched —
+    over-rejecting here would break manifests Python accepts, which is a parity
+    bug in the other direction and is pinned by accept cases.
+  - **Never run that scan over the embedded snapshot.** Armor scores serialise
+    as `112.0`, so the snapshot legitimately contains floats; the rule is about
+    imported manifests only.
+  - New `readManifestText(snapshot, items, text)` is the single entry point —
+    bytes in, verdict out, the same contract as `parse_manifest(path)`. The
+    parity harness now feeds both sides identical *bytes* rather than a parsed
+    object, which is what makes spelling and unparseable text testable at all.
+    `importText` lost its duplicated `JSON.parse` branch to it.
+  - The deeper miss was the **table**, not the code: it had integer, boolean,
+    string, and missing versions but no integral-float *spelling*, so it passed
+    while the gap was open. Now 54 cases (8 accept, 46 refuse), including
+    `1.0`/`1e0` in all three version positions, `NaN`, `Infinity`, truncated
+    JSON, and non-object roots. Lesson: a parity table is only as good as the
+    axes it varies — type and presence were covered, spelling was not.
+  - Deliberately did **not** loosen Python to accept `1.0`. `_require_version`
+    is shared with `load_overrides`, so it guards persisted state too, and
+    AGENTS.md's rule for manifests is to validate strictly. Also rejected
+    `JSON.parse`'s reviver `context.source`: it gives exact token access and
+    works in node 22, but support is recent enough that strictness would vary
+    by browser, and an invariant that holds "depending on your browser" is not
+    an invariant.
+  - Line-length nit skipped as a rule but applied locally: there is no
+    `[tool.ruff]` section, `E501` is not in ruff's default rule set, and
+    existing tests run to 118 characters, so the 90-character signature was not
+    violating anything. Wrapped for consistency with the newer files only.
+- Review round 3 (PR #44), the decode boundary — one flagged divergence, two
+  more found while verifying it:
+  - **`FileReader.readAsText()` substitutes U+FFFD** for malformed UTF-8 rather
+    than failing, so a mis-encoded manifest imported and autosaved cleanly while
+    Python's `read_text(encoding="utf-8")` refused the same bytes. Confirmed in
+    Chromium: `"na\x80me"` came back as `"na�me"`.
+  - **`readAsText()` also strips a leading BOM** (checked: `EF BB BF 7B 7D`
+    decodes to `{}`), where Python keeps U+FEFF and `json` then refuses it. So
+    the naive fix makes things worse — `TextDecoder`'s default strips the BOM
+    too. `{ fatal: true, ignoreBOM: true }` is the only combination that agrees
+    with Python on all four inputs, and `ignoreBOM` is load-bearing rather than
+    decoration. A revert-check pins it: dropping it flips `bad_utf8_bom_prefix`
+    to browser-accepts/Python-refuses, trading one divergence for another.
+  - **Python was crashing, not refusing.** `_load_json_object` caught `OSError`,
+    but `UnicodeDecodeError` is a `ValueError`, so mis-encoded bytes escaped
+    `parse_manifest` uncaught and past the CLI's `except ReviewError` — a
+    traceback where an `error:` line belongs, and the class of bug #43 tracks.
+    Widened to `except (OSError, UnicodeDecodeError)`; `load_overrides` shares
+    the helper, so a mis-encoded `data/overrides.json` stopped crashing too.
+    Note this is not a reversal of round 2's "leave `review.py` alone": that ask
+    was to *loosen* what it accepts, whereas this changes no accept/reject
+    decision at all — the same bytes are refused either way — it only makes the
+    refusal sayable.
+  - The harness now compares **bytes in, verdict out** through the page's own
+    `readManifestBytes`, so it cannot model a decode the page does not perform.
+    It previously used node's `buffer.toString("utf8")`, which keeps a BOM where
+    the browser strips one — meaning the harness had never matched the real
+    page. 61 cases now (10 accept, 51 refuse).
+  - Follow-up nit, and a fair catch: the new BOM tests embedded **literal**
+    U+FEFF characters in Python string literals. Replaced with `\ufeff`
+    escapes. Embarrassing repeat — a literal U+2028 typed into `review_html.py`
+    earlier in the same work arrived as a NUL byte and made the module
+    unimportable, which is exactly why `embed_json` uses escapes. Now guarded:
+    `test_no_source_blob_contains_an_invisible_character` scans `APP_JS`/`CSS`/
+    `BODY_HTML` for Cf/Cc/Zl/Zp characters. A literal NUL needs no guard —
+    Python refuses to import the file at all; the guard is for the ones that
+    parse silently and leave no trace in a diff. A scan of `src/` and `tests/`
+    found no others.
+  - **The recurring lesson, three rounds running:** each time, the two
+    implementations were being compared one layer too high — objects, then text,
+    now bytes. The parity idea was right from the start; the *boundary* was
+    wrong. Compare at the outermost layer the real entry points use, and add
+    accept cases at each layer, since every fix here risked over-rejecting
+    (a `name` containing `1.5`, a name with emoji, an interior U+FEFF).
+- Review round 4 (PR #44), the same divergence on the **sibling path**:
+  - The paste handler called `.trim()` on the textarea value *before*
+    validating it. **JavaScript's `trim()` is not JSON whitespace:** it removes
+    U+FEFF, U+00A0, U+2028, and U+3000, none of which JSON accepts. So all four
+    prefixes were laundered into accepted manifests while Python refused the
+    same text — including the BOM case fixed on the *file* path one round
+    earlier. Passing the value untouched costs nothing, because `JSON.parse`
+    already allows ordinary leading and trailing JSON whitespace; `trim()` now
+    answers only the question it can, "is the box empty".
+  - **Why three rounds of parity work missed it:** the parity harness covered
+    `readManifestBytes` (the file input) and the paste path's normalisation sat
+    inline in an un-exported click handler inside `boot()`, unreachable by any
+    test. The UI had two import entry points and the table covered one. Both are
+    now exported and both are columns in the table — 65 cases, the paste column
+    covering the 61 whose bytes are valid UTF-8, with an assertion that the skip
+    set is exactly the undecodable ones so coverage cannot shrink quietly.
+  - Proven by revert: restoring the `trim()` leaves the **file** column green
+    and fails only the **paste** column, which is precisely why the old
+    single-column table could not have caught it.
+  - **The actual lesson, and it is not "check one more layer":** when a
+    divergence is found on one path, fix every sibling path in the same change.
+    Round 3 had the BOM bug in hand and closed it in one of the two places.
+    Normalisation hidden in UI code is where these survive, so anything that
+    touches input before validation belongs in the exported, tested layer.
+  - Also: typed literal U+00A0/U+2028/U+3000 into the new test cases while
+    writing them, one round after being told off for literal U+FEFF. The
+    existing guard only covers `APP_JS`/`CSS`/`BODY_HTML`, not test files. Caught
+    by scanning at the byte level — `str.splitlines()` splits on U+2028, so a
+    line-based scan cannot see the character it is looking for.
+
 ## 2026-07-25 — persistent review overrides and reviewed export (#36)
 
 - New `review.py` owns the review manifest schema, `data/overrides.json`, and

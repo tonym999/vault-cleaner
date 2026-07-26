@@ -61,6 +61,50 @@ add any without a ticket saying so.
   parse the *last* one (`report.reason_slug` does).
 - Python's `csv` module writes CRLF by default: generate fixtures with
   `lineterminator="\n"` or `git diff --check` will flag them.
+- In `review_html.py`, a literal `</script>` anywhere in `APP_JS`, `CSS`, or
+  `BODY_HTML` silently truncates its own script element — even inside a JS
+  comment, and **in any casing** (`</SCRIPT >` and `</script/` both end it,
+  because HTML matches the end tag case-insensitively and terminates on
+  whitespace or `/` too). Snapshot *data* is safe (`embed_json` escapes it);
+  source text is not. A case-insensitive test guards all three constants; don't
+  quote closing tags in comments.
+- The review page validates manifests **and** so does `review.parse_manifest`.
+  They must refuse exactly the same things, enforced by one payload table run
+  through both in `test_review_html_js.py` — add cases there, not to a
+  one-sided list, and vary *spelling* as well as type and presence. Note the
+  browser must not be *stricter* either: cap text at 200 **code points**
+  (`Array.from(text).length`), since Python's `len()` counts code points and
+  UTF-16 units would reject names Python accepts.
+- `JSON.parse` collapses `1`, `1.0`, and `1e0` into one double, so no
+  post-parse JavaScript check can tell a float-spelled version from an int —
+  but `json.loads` keeps `1.0` as a `float` and `_require_version` refuses it.
+  Manifests are therefore checked on the **raw text** (`readManifestText` →
+  `fractionalNumberError`), which is sound because a manifest has no fractional
+  field. Never run that scan over the embedded snapshot: armor scores really are
+  floats (`112.0`).
+- Manifests are compared **bytes in, verdict out** (`readManifestBytes` vs
+  `parse_manifest(path)`) because the decode itself diverged:
+  `FileReader.readAsText` substitutes U+FFFD for malformed UTF-8 *and* strips a
+  leading BOM, while `Path.read_text` does neither. Only
+  `TextDecoder("utf-8", {fatal: true, ignoreBOM: true})` agrees with Python —
+  `ignoreBOM: true` (meaning "keep the U+FEFF") is required, or the BOM
+  divergence simply replaces the U+FFFD one.
+- **Every** import entry point must be exported and in the parity table, not
+  just the deepest validator: the file input (`readManifestBytes`) and the paste
+  box (`readPastedManifest`). A divergence hid in the paste path for three rounds
+  purely because its normalisation sat in an un-exported click handler. Anything
+  that touches input before validation belongs in the exported layer.
+- **JS `trim()` is not JSON whitespace** — it removes U+FEFF, U+00A0, U+2028,
+  and U+3000, all of which `JSON.parse` and `json.loads` refuse. Never trim
+  before validating; trim only to test for emptiness.
+- Four rounds of review found the same bug at four places, because the two
+  validators were compared one layer too high (object, then text, then bytes)
+  and then on only one of two paths. Compare at the outermost layer the real
+  entry points use, cover *every* entry point, add *accept* cases at each layer
+  (each tightening risked over-rejecting names Python accepts), and when you fix
+  a divergence on one path, fix its siblings in the same change.
+- Scan for invisible characters at the **byte** level. `str.splitlines()` splits
+  on U+2028, so a line-based scan cannot see the character it is hunting for.
 - `pip install -e .` leaves a `build/` tree (gitignored). Check
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.
