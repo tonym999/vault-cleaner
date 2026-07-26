@@ -633,10 +633,9 @@ APP_JS = r"""
     return { ok: true, verdicts: kept, applied: applied, unknown: unknown };
   }
 
-  // Bytes in, verdict out: the same contract as review.parse_manifest(path),
-  // which is what makes the two comparable in the parity test. Everything that
-  // reads a manifest goes through here, so the number-spelling check cannot be
-  // skipped by forgetting to pass the raw text along.
+  // Text in, verdict out. The number-spelling check lives here rather than in
+  // readManifest because it needs the raw text, and routing every reader
+  // through this function is what stops it being skipped.
   function readManifestText(snapshot, items, text) {
     var fractional = fractionalNumberError(text);
     if (fractional) {
@@ -654,6 +653,33 @@ APP_JS = r"""
     return readManifest(snapshot, items, payload);
   }
 
+  // Both options exist to match Python's Path.read_text(encoding="utf-8"), not
+  // out of fussiness, and FileReader.readAsText gets both of them wrong:
+  //
+  //   fatal:      readAsText substitutes U+FFFD for a malformed sequence and
+  //               carries on, so a mis-encoded file imported cleanly here while
+  //               Python refused the same bytes.
+  //   ignoreBOM:  confusingly named -- true means "do not strip a leading
+  //               U+FEFF". readAsText and TextDecoder's default both strip it,
+  //               but Python keeps it and json then refuses it, so stripping
+  //               would just trade one divergence for another.
+  function decodeManifestBytes(bytes) {
+    try {
+      var decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+      return { ok: true, text: decoder.decode(bytes) };
+    } catch (e) {
+      return { ok: false, error: "not valid UTF-8 (" + e.message + ")" };
+    }
+  }
+
+  // Bytes in, verdict out: the same contract as review.parse_manifest(path),
+  // which is what makes the two comparable in the parity test.
+  function readManifestBytes(snapshot, items, bytes) {
+    var decoded = decodeManifestBytes(bytes);
+    if (!decoded.ok) return fail(decoded.error);
+    return readManifestText(snapshot, items, decoded.text);
+  }
+
   var api = {
     MANIFEST_SCHEMA_VERSION: MANIFEST_SCHEMA_VERSION,
     STORAGE_PREFIX: STORAGE_PREFIX,
@@ -663,8 +689,10 @@ APP_JS = r"""
     clip: clip,
     compareIds: compareIds,
     countBy: countBy,
+    decodeManifestBytes: decodeManifestBytes,
     filterItems: filterItems,
     fractionalNumberError: fractionalNumberError,
+    readManifestBytes: readManifestBytes,
     readManifestText: readManifestText,
     groupItems: groupItems,
     groupLabel: groupLabel,
@@ -1192,8 +1220,9 @@ APP_JS = r"""
                " verdict(s) — apply with: vault-cleaner review --manifest <file> --write");
     }
 
-    function importText(text, label) {
-      var result = readManifestText(snapshot, items, text);
+    // `result` comes from readManifestText (the pasted-in path, already a JS
+    // string) or readManifestBytes (the file path, decoded strictly).
+    function applyImport(result, label) {
       if (!result.ok) {
         announce("could not apply " + label + ": " + result.error, true);
         return;
@@ -1225,12 +1254,20 @@ APP_JS = r"""
               if (!chosen) return;
               var reader = new FileReader();
               reader.onload = function () {
-                importText(String(reader.result), chosen.name);
+                // Bytes, not readAsText: that would substitute U+FFFD for a
+                // malformed sequence and strip a BOM, either of which imports
+                // a file Python refuses.
+                applyImport(
+                  readManifestBytes(
+                    snapshot, items, new Uint8Array(reader.result)
+                  ),
+                  chosen.name
+                );
               };
               reader.onerror = function () {
                 announce("could not read that file", true);
               };
-              reader.readAsText(chosen);
+              reader.readAsArrayBuffer(chosen);
               event.target.value = "";
             }
           }
@@ -1251,7 +1288,11 @@ APP_JS = r"""
                   announce("paste a review manifest into the box first", true);
                   return;
                 }
-                importText(text, "the pasted manifest");
+                // Already a JS string, so there is nothing to decode.
+                applyImport(
+                  readManifestText(snapshot, items, text),
+                  "the pasted manifest"
+                );
               }
             }
           })

@@ -82,6 +82,18 @@ add any without a ticket saying so.
   `fractionalNumberError`), which is sound because a manifest has no fractional
   field. Never run that scan over the embedded snapshot: armor scores really are
   floats (`112.0`).
+- Manifests are compared **bytes in, verdict out** (`readManifestBytes` vs
+  `parse_manifest(path)`) because the decode itself diverged:
+  `FileReader.readAsText` substitutes U+FFFD for malformed UTF-8 *and* strips a
+  leading BOM, while `Path.read_text` does neither. Only
+  `TextDecoder("utf-8", {fatal: true, ignoreBOM: true})` agrees with Python —
+  `ignoreBOM: true` (meaning "keep the U+FEFF") is required, or the BOM
+  divergence simply replaces the U+FFFD one.
+- Three rounds of review found the same bug at three depths, because the two
+  validators were compared one layer too high each time: object, then text, now
+  bytes. Compare at the outermost layer the real entry points use, and add
+  *accept* cases at every layer — each tightening here risked over-rejecting
+  names that Python accepts.
 - `pip install -e .` leaves a `build/` tree (gitignored). Check
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.

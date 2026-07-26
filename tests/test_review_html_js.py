@@ -217,6 +217,30 @@ out.exportRoundTripsThroughText = (function () {
   return { ok: result.ok, error: result.error || "", applied: result.applied };
 })();
 
+// Strict UTF-8 decoding, which FileReader.readAsText does not do: it
+// substitutes U+FFFD for malformed sequences and strips a leading BOM.
+function decodes(bytes) {
+  var result = api.decodeManifestBytes(new Uint8Array(bytes));
+  return result.ok ? "ok:" + result.text : "refused";
+}
+out.decoding = {
+  ascii: decodes([0x7b, 0x7d]),
+  multibyte: decodes([0x22, 0xc3, 0x9c, 0x22]),
+  astral: decodes([0x22, 0xf0, 0x9f, 0x92, 0x80, 0x22]),
+  loneContinuation: decodes([0x22, 0x80, 0x22]),
+  truncatedSequence: decodes([0x22, 0xe2, 0x82, 0x22]),
+  overlongSlash: decodes([0x22, 0xc0, 0xaf, 0x22]),
+  loneSurrogate: decodes([0x22, 0xed, 0xa0, 0x80, 0x22]),
+  // ignoreBOM: true means the U+FEFF is kept, so JSON.parse refuses it the way
+  // Python's json does. Dropping that option would silently accept this.
+  bomIsKept: decodes([0xef, 0xbb, 0xbf, 0x7b, 0x7d]),
+  bomPrefixedManifestRefused:
+    api.readManifestBytes(snapshot, items,
+      new Uint8Array([0xef, 0xbb, 0xbf, 0x7b, 0x7d])).ok ? "accepted" : "refused",
+  ourOwnExport: api.readManifestBytes(
+    snapshot, items, new TextEncoder().encode(exported)).ok ? "accepted" : "refused"
+};
+
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -550,27 +574,32 @@ var api = require(process.argv[2]);
 var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 var caseDir = process.argv[4];
 
-// Raw bytes in, verdict out — the same contract as parse_manifest(path), so
-// number spelling and malformed text are inside what this compares.
+// Bytes in, verdict out — the same contract as parse_manifest(path), so
+// encoding, number spelling, and unparseable text are all inside what this
+// compares. Reading the file as a Buffer and handing it to the page's own
+// readManifestBytes matters: decoding here with node's lenient "utf8" would
+// model a decode the page does not perform (it strips no BOM, where the
+// browser's FileReader does).
 var items = api.itemsFromSnapshot(snapshot);
 var verdict = {};
 fs.readdirSync(caseDir).filter(function (name) {
   return name.slice(-5) === ".json";
 }).forEach(function (name) {
-  var text = fs.readFileSync(path.join(caseDir, name), "utf8");
-  var result = api.readManifestText(snapshot, items, text);
+  var bytes = fs.readFileSync(path.join(caseDir, name));
+  var result = api.readManifestBytes(snapshot, items, bytes);
   verdict[name.slice(0, -5)] = result.ok ? "accepted" : "refused";
 });
 process.stdout.write(JSON.stringify(verdict));
 """
 
 
-def parity_cases(run) -> dict[str, str]:
-    """One case per manifest, as the exact *file text* both sides will read.
+def parity_cases(run) -> dict[str, bytes]:
+    """One case per manifest, as the exact *file bytes* both sides will read.
 
-    Text rather than objects because number spelling matters: JSON.parse
-    collapses 1, 1.0, and 1e0 to the same double while Python keeps 1.0 as a
-    float, and `json.dumps` cannot express the `1e0` spelling at all.
+    Bytes rather than text, and text rather than objects, because each layer
+    hid a divergence: `JSON.parse` collapses 1, 1.0, and 1e0 to one double
+    while Python keeps 1.0 as a float, and `FileReader.readAsText` substitutes
+    U+FFFD for malformed sequences and strips BOMs where Python does neither.
 
     Accept cases matter as much as refusals: they are what stops the browser
     from becoming *stricter* than Python and rejecting good manifests.
@@ -728,22 +757,67 @@ def parity_cases(run) -> dict[str, str]:
         ),
     }
 
-    text = {name: json.dumps(payload, ensure_ascii=False) for name, payload in cases.items()}
-    overlap = set(text) & set(raw)
-    assert not overlap, f"case name reused between the object and raw tables: {overlap}"
-    text.update(raw)
+    # Multi-byte text that is *correctly* encoded must survive strict decoding —
+    # item names really do contain accents and emoji, and refusing them would
+    # be an over-rejection that breaks manifests Python accepts.
+    multibyte = json.dumps(
+        manifest(decisions=[entry(first, name="Ünïcödé \U0001f480 shell")]),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    # U+FEFF *inside* a string is an ordinary character, not a byte-order mark;
+    # Python accepts it, so the browser must too.
+    interior_bom = json.dumps(
+        manifest(decisions=[entry(first, name="zero﻿width")]), ensure_ascii=False
+    ).encode("utf-8")
+    valid = json.dumps(manifest(), ensure_ascii=False).encode("utf-8")
+
+    # Cases that only exist as *bytes*. FileReader.readAsText silently repaired
+    # every one of the malformed ones into a manifest that imported cleanly,
+    # while Python refused the same file.
+    raw_bytes: dict[str, bytes] = {
+        "ok_utf8_multibyte_name": multibyte,
+        "ok_utf8_interior_feff": interior_bom,
+        "bad_utf8_lone_continuation": multibyte.replace(b"shell", b"sh\x80ell"),
+        "bad_utf8_truncated_sequence": multibyte.replace(b"shell", b"sh\xe2\x82ell"),
+        "bad_utf8_overlong_slash": multibyte.replace(b"shell", b"sh\xc0\xafell"),
+        "bad_utf8_lone_surrogate": multibyte.replace(b"shell", b"sh\xed\xa0\x80ell"),
+        # A BOM is stripped by readAsText and by TextDecoder's default, but
+        # Python keeps it and json refuses it — so `ignoreBOM: true` is what
+        # keeps this case in agreement.
+        "bad_utf8_bom_prefix": b"\xef\xbb\xbf" + valid,
+    }
+
+    text = {
+        name: json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        for name, payload in cases.items()
+    }
+    raw_encoded = {name: body.encode("utf-8") for name, body in raw.items()}
+    for table in (raw_encoded, raw_bytes):
+        overlap = set(text) & set(table)
+        assert not overlap, f"case name reused between tables: {overlap}"
+        text.update(table)
+
+    for name, body in raw_bytes.items():
+        if name.startswith("bad_utf8_") and "bom" not in name:
+            assert body != multibyte, f"{name} substitution missed"
 
     # A replace() that silently matched nothing would leave a *valid* manifest
     # under a "bad_" name, and the naming check would then fail confusingly.
     for name in ("bad_version_float", "bad_version_exponent",
                  "bad_snapshot_version_float", "bad_ruleset_version_float",
                  "bad_json_nan", "bad_json_infinity"):
-        assert text[name] != json.dumps(manifest()), f"{name} substitution missed"
+        assert text[name] != json.dumps(manifest()).encode(), f"{name} missed"
     return text
 
 
 def python_verdict(path: Path, run) -> str:
-    """What Python does with this file, parse and identity check together."""
+    """What Python does with this file, parse and identity check together.
+
+    Only `ReviewError` counts as a refusal. Anything else propagating means
+    Python *crashed* on the file rather than rejecting it, which is a bug in
+    its own right — mis-encoded bytes used to reach here as an uncaught
+    `UnicodeDecodeError` — so let it fail the test loudly.
+    """
     from vault_cleaner.review import ReviewError
 
     try:
@@ -765,8 +839,9 @@ def parity(tmp_path_factory):
     cases = parity_cases(run)
     case_dir = workdir / "cases"
     case_dir.mkdir()
-    for name, text in cases.items():
-        (case_dir / f"{name}.json").write_text(text, encoding="utf-8")
+    for name, body in cases.items():
+        # write_bytes, so a deliberately mis-encoded case stays mis-encoded.
+        (case_dir / f"{name}.json").write_bytes(body)
 
     completed = subprocess.run(
         [
@@ -822,6 +897,39 @@ def test_the_page_can_always_reread_its_own_export(plain):
     assert plain.results["exportRoundTripsThroughText"] == {
         "ok": True, "error": "", "applied": 2
     }
+    assert plain.results["decoding"]["ourOwnExport"] == "accepted"
+
+
+def test_malformed_utf8_is_refused_rather_than_repaired(plain):
+    """`FileReader.readAsText` substitutes U+FFFD and imports the file happily.
+
+    Python's `read_text(encoding="utf-8")` refuses the same bytes, so the page
+    has to decode with `fatal: true` or the two disagree at the file boundary.
+    """
+    decoding = plain.results["decoding"]
+    for case in ("loneContinuation", "truncatedSequence", "overlongSlash",
+                 "loneSurrogate"):
+        assert decoding[case] == "refused", case
+
+
+def test_a_leading_bom_is_kept_so_json_refuses_it_like_python_does(plain):
+    """`ignoreBOM: true` is load-bearing, not decoration.
+
+    `readAsText` and `TextDecoder`'s default both strip a leading U+FEFF, but
+    Python keeps it and `json` then refuses it. Stripping would trade the
+    malformed-bytes divergence for a BOM one.
+    """
+    decoding = plain.results["decoding"]
+    assert decoding["bomIsKept"] == "ok:﻿{}"
+    assert decoding["bomPrefixedManifestRefused"] == "refused"
+
+
+def test_correctly_encoded_multibyte_text_still_decodes(plain):
+    """The over-rejection guard: real item names have accents and emoji."""
+    decoding = plain.results["decoding"]
+    assert decoding["ascii"] == "ok:{}"
+    assert decoding["multibyte"] == 'ok:"Ü"'
+    assert decoding["astral"] == 'ok:"\U0001f480"'
 
 
 def test_the_parity_table_covers_both_outcomes(parity):

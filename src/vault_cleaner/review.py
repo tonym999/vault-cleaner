@@ -163,7 +163,10 @@ def _reject_nan(value: str) -> float:
 def _load_json_object(path: Path, error: type[ReviewError], what: str) -> dict:
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as e:
+    # UnicodeDecodeError is a ValueError, not an OSError, so mis-encoded bytes
+    # used to escape as a traceback instead of a reportable refusal. The bytes
+    # are rejected either way; this only makes the rejection sayable.
+    except (OSError, UnicodeDecodeError) as e:
         raise error(f"could not read {what} {path}: {e}") from e
     try:
         data = json.loads(text, parse_constant=_reject_nan)

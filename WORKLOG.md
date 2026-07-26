@@ -136,6 +136,40 @@ surprises the next agent should know about.
     `[tool.ruff]` section, `E501` is not in ruff's default rule set, and
     existing tests run to 118 characters, so the 90-character signature was not
     violating anything. Wrapped for consistency with the newer files only.
+- Review round 3 (PR #44), the decode boundary — one flagged divergence, two
+  more found while verifying it:
+  - **`FileReader.readAsText()` substitutes U+FFFD** for malformed UTF-8 rather
+    than failing, so a mis-encoded manifest imported and autosaved cleanly while
+    Python's `read_text(encoding="utf-8")` refused the same bytes. Confirmed in
+    Chromium: `"na\x80me"` came back as `"na�me"`.
+  - **`readAsText()` also strips a leading BOM** (checked: `EF BB BF 7B 7D`
+    decodes to `{}`), where Python keeps U+FEFF and `json` then refuses it. So
+    the naive fix makes things worse — `TextDecoder`'s default strips the BOM
+    too. `{ fatal: true, ignoreBOM: true }` is the only combination that agrees
+    with Python on all four inputs, and `ignoreBOM` is load-bearing rather than
+    decoration. A revert-check pins it: dropping it flips `bad_utf8_bom_prefix`
+    to browser-accepts/Python-refuses, trading one divergence for another.
+  - **Python was crashing, not refusing.** `_load_json_object` caught `OSError`,
+    but `UnicodeDecodeError` is a `ValueError`, so mis-encoded bytes escaped
+    `parse_manifest` uncaught and past the CLI's `except ReviewError` — a
+    traceback where an `error:` line belongs, and the class of bug #43 tracks.
+    Widened to `except (OSError, UnicodeDecodeError)`; `load_overrides` shares
+    the helper, so a mis-encoded `data/overrides.json` stopped crashing too.
+    Note this is not a reversal of round 2's "leave `review.py` alone": that ask
+    was to *loosen* what it accepts, whereas this changes no accept/reject
+    decision at all — the same bytes are refused either way — it only makes the
+    refusal sayable.
+  - The harness now compares **bytes in, verdict out** through the page's own
+    `readManifestBytes`, so it cannot model a decode the page does not perform.
+    It previously used node's `buffer.toString("utf8")`, which keeps a BOM where
+    the browser strips one — meaning the harness had never matched the real
+    page. 61 cases now (10 accept, 51 refuse).
+  - **The recurring lesson, three rounds running:** each time, the two
+    implementations were being compared one layer too high — objects, then text,
+    now bytes. The parity idea was right from the start; the *boundary* was
+    wrong. Compare at the outermost layer the real entry points use, and add
+    accept cases at each layer, since every fix here risked over-rejecting
+    (a `name` containing `1.5`, a name with emoji, an interior U+FEFF).
 
 ## 2026-07-25 — persistent review overrides and reviewed export (#36)
 
