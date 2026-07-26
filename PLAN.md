@@ -86,7 +86,7 @@ Public repo; `data/` gitignored from the first commit.
 4. **M4 — Armor scoring:** Armor 3.0 archetype scorer, set-bonus handling, config-driven thresholds.
 5. **M5 — Polish:** dry-run summary report ("would junk 214 items: …"), per-item reasons, maybe a `--profile pvp|pve` switch.
 6. **M6 — Armor dupes:** measured exact-dupe cleanup, close-dupe review, and last-of-archetype score guard.
-7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review → validated armor threshold what-if controls (**precomputed in Python**; the browser switches among bounded server-produced variants and performs no scoring, ranking, or threshold comparison).
+7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review.
 8. **M8 — Local review server:** loopback-only authenticated HTTP server (Flask 3.1); the browser uploads exports and downloads the reviewed CSV, so no input/output filesystem paths are required. Python owns rules, validation, persistence, and CSV generation; the page renders server data and collects verdicts. After the server-only review path and static-page cleanup land, bounded armor threshold what-if variants are produced in Python as an M8 follow-up.
 
 ## Risks & mitigations

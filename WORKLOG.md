@@ -16,7 +16,9 @@ surprises the next agent should know about.
 - #48 decided **Option A**: the interactive static page retires once the
   server UI proves parity (#50), removed in #51. No deprecation period —
   `review-html` merged after the `v0.2.0` (M6) release and has never shipped
-  in a tag; no external usage exists to migrate.
+  in a tag. No *known* external usage was identified (public repo, zero
+  forks/stars/watchers) — that cannot prove nobody ran it from a clone, so
+  the decision rests on the provable fact: it never shipped in a release.
 - Framework decided on #49: **Flask 3.1**, the first runtime dependency beyond
   pandas. Recorded with the full cost stated — Flask brings Werkzeug, Jinja2,
   itsdangerous, click, blinker, MarkupSafe (~7 packages, not 2). The
