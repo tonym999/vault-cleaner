@@ -133,6 +133,25 @@ def test_fixture_bytes_are_checked_out_verbatim():
         )
 
 
+def test_regeneration_script_reproduces_the_committed_golden(tmp_path):
+    """The regen helper and the committed golden must agree byte-for-byte.
+
+    The script deliberately duplicates build_report's recipe instead of
+    importing this module; this comparison is what stops the two drifting.
+    Running on both CI platforms makes the golden's byte-stability a checked
+    invariant rather than a claim (#45, #53).
+    """
+    import importlib.util
+
+    script = Path(__file__).parent.parent / "scripts" / "regenerate_report_snapshot.py"
+    spec = importlib.util.spec_from_file_location("regenerate_report_snapshot", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    regenerated = module.write_golden(tmp_path / "regenerated.json")
+    assert regenerated.read_bytes() == GOLDEN.read_bytes()
+
+
 def test_snapshot_matches_schema_v1_golden():
     assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
 
@@ -267,24 +286,24 @@ def test_decision_config_allowlist_covers_non_external_defaults():
 
 def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):
     config = tmp_path / "private.toml"
-    private_input = tmp_path / "private" / "input"
-    private_note = tmp_path / "private" / "vault"
+    private_input = tmp_path / "pri'vate" / "input"
+    private_note = tmp_path / "pri'vate" / "vault"
     config.write_text(
         "[paths]\n"
-        f"input_dir = '{private_input}'\n"
+        f"input_dir = {json.dumps(str(private_input))}\n"
         "[notes]\n"
-        f"my_vault = '{private_note}'\n"
+        f"my_vault = {json.dumps(str(private_note))}\n"
         "[rails]\n"
-        f"private_path = '{private_note}'\n"
+        f"private_path = {json.dumps(str(private_note))}\n"
         "[armor]\n"
-        f"private_path = '{private_note}'\n"
+        f"private_path = {json.dumps(str(private_note))}\n"
         "[armor.close_dupes]\n"
         "max_stat_delta = 5\n"
         "max_total_delta = 12\n"
-        f"private_path = '{private_note}'\n"
+        f"private_path = {json.dumps(str(private_note))}\n"
         "[armor.archetypes.private]\n"
         "top_stats = 2\n"
-        f"private_path = '{private_note}'\n"
+        f"private_path = {json.dumps(str(private_note))}\n"
     )
     result = run_report(
         config_path=config,
