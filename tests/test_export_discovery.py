@@ -9,6 +9,7 @@ from vault_cleaner.export_discovery import (
     EXPORT_FILENAMES,
     EXPORT_PATTERNS,
     AmbiguousExportError,
+    ExportDiscoveryError,
     MissingExportError,
     discover_export,
     select_export,
@@ -50,10 +51,43 @@ def test_lookalike_names_do_not_match(tmp_path):
         "destiny-weapon (1).CSV",
         "destiny-weapon.csv.bak",
         "prefix-destiny-weapon.csv",
+        "destiny-weapon (٣).csv",
+        "DESTINY-WEAPON.CSV",
     ):
         (tmp_path / name).write_text("", encoding="utf-8")
 
     assert discover_export("weapons", tmp_path) == expected
+
+
+def test_matching_directory_is_ignored(tmp_path):
+    (tmp_path / "destiny-weapon.csv").mkdir()
+    candidate = tmp_path / "destiny-weapon (1).csv"
+    candidate.write_text("", encoding="utf-8")
+
+    assert discover_export("weapons", tmp_path) == candidate
+
+
+def test_zone_identifier_sidecar_is_ignored(tmp_path):
+    candidate = tmp_path / "destiny-armor (2).csv"
+    candidate.write_text("", encoding="utf-8")
+    (tmp_path / "destiny-armor (2).csv:Zone.Identifier").write_text(
+        "", encoding="utf-8"
+    )
+
+    assert discover_export("armor", tmp_path) == candidate
+
+
+def test_directory_scan_os_error_is_clean(tmp_path, monkeypatch):
+    def deny_access(self):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "iterdir", deny_access)
+
+    with pytest.raises(
+        ExportDiscoveryError,
+        match="could not search for weapons exports.*denied",
+    ):
+        discover_export("weapons", tmp_path)
 
 
 def test_zero_candidates_names_the_expected_file_and_pattern(tmp_path):
@@ -65,6 +99,9 @@ def test_zero_candidates_names_the_expected_file_and_pattern(tmp_path):
     assert EXPORT_PATTERNS["armor"].pattern in message
     assert str(tmp_path) in message
     assert str(tmp_path) not in raised.value.warning_reason
+    assert "browser-numbered copy" in raised.value.warning_reason
+    assert "destiny-armor (1).csv" in raised.value.warning_reason
+    assert EXPORT_PATTERNS["armor"].pattern not in raised.value.warning_reason
 
 
 def test_ambiguity_lists_every_filename_in_stable_order_with_guidance(tmp_path):
@@ -83,7 +120,7 @@ def test_ambiguity_lists_every_filename_in_stable_order_with_guidance(tmp_path):
     message = str(raised.value)
     assert all(name in message for name in names)
     assert "delete or move the stale copies" in message
-    assert "--input or --weapons" in message
+    assert "this command's explicit input-path option" in message
 
 
 def test_newer_candidate_never_wins(tmp_path):
@@ -111,6 +148,11 @@ def test_explicit_path_bypasses_discovery_entirely(tmp_path, monkeypatch):
         fail_discovery,
     )
     assert select_export("weapons", explicit, tmp_path / "ambiguous") == explicit
+
+
+def test_empty_explicit_path_is_rejected_cleanly(tmp_path):
+    with pytest.raises(ExportDiscoveryError, match="must not be empty"):
+        select_export("ghosts", "", tmp_path)
 
 
 def test_report_resolves_every_kind_before_reading_any_export(tmp_path, monkeypatch):
@@ -147,11 +189,15 @@ def test_report_uses_one_numbered_candidate_and_warns_for_missing_kinds(tmp_path
     assert result.sections[0].source.path == str(weapon)
     assert [warning.kind for warning in result.warnings] == ["armor", "ghosts"]
     assert "destiny-armor.csv" in result.warnings[0].reason
-    assert EXPORT_PATTERNS["armor"].pattern in result.warnings[0].reason
-    assert str(tmp_path) not in snapshot_json(result)
+    assert "browser-numbered copy" in result.warnings[0].reason
+    assert "destiny-armor (1).csv" in result.warnings[0].reason
+    assert EXPORT_PATTERNS["armor"].pattern not in result.warnings[0].reason
+    snapshot = snapshot_json(result)
+    assert str(tmp_path) not in snapshot
+    assert EXPORT_PATTERNS["armor"].pattern not in snapshot
 
 
-def test_report_with_no_candidates_reports_every_expected_pattern(tmp_path):
+def test_report_with_no_candidates_reports_every_expected_browser_name(tmp_path):
     with pytest.raises(NoExportsError) as raised:
         run_report(
             config_path="nonexistent.toml",
@@ -163,4 +209,7 @@ def test_report_with_no_candidates_reports_every_expected_pattern(tmp_path):
     for kind, filename in EXPORT_FILENAMES.items():
         assert kind in message
         assert filename in message
-        assert EXPORT_PATTERNS[kind].pattern in message
+        numbered_name = f"{Path(filename).stem} (1).csv"
+        assert numbered_name in message
+        assert "browser-numbered copy" in message
+        assert EXPORT_PATTERNS[kind].pattern not in message

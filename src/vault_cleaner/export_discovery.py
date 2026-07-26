@@ -15,13 +15,8 @@ EXPORT_FILENAMES = {
     for kind, base in EXPORT_BASE_NAMES.items()
 }
 EXPORT_PATTERNS = {
-    kind: re.compile(rf"^{base}( ?\(\d+\))?\.csv$")
+    kind: re.compile(rf"^{base}( ?\([0-9]+\))?\.csv$")
     for kind, base in EXPORT_BASE_NAMES.items()
-}
-EXPLICIT_FLAGS = {
-    "weapons": "--input or --weapons",
-    "armor": "--input or --armor",
-    "ghosts": "--input or --ghosts",
 }
 
 
@@ -45,8 +40,10 @@ class MissingExportError(ExportDiscoveryError):
     @property
     def warning_reason(self) -> str:
         """Snapshot-safe detail: the full directory lives in warning.path."""
+        numbered_example = f"{EXPORT_BASE_NAMES[self.kind]} (1).csv"
         return (
-            f"not found; expected {self.expected_name} or pattern {self.pattern}"
+            f"not found; expected {self.expected_name} or a browser-numbered "
+            f"copy such as {numbered_example}"
         )
 
 
@@ -61,8 +58,8 @@ class AmbiguousExportError(ExportDiscoveryError):
         super().__init__(
             f"multiple {kind} exports match {EXPORT_PATTERNS[kind].pattern} "
             f"in {input_dir}:\n{listed}\n"
-            "delete or move the stale copies, or pass the intended file "
-            f"explicitly with {EXPLICIT_FLAGS[kind]}"
+            "delete or move the stale copies, or pass the intended file using "
+            "this command's explicit input-path option"
         )
 
 
@@ -110,5 +107,9 @@ def select_export(
 ) -> Path:
     """Keep explicit paths out of discovery; discover only when omitted."""
     if explicit_path is not None:
+        if isinstance(explicit_path, str) and not explicit_path:
+            raise ExportDiscoveryError(
+                f"explicit {kind} export path must not be empty"
+            )
         return Path(explicit_path)
     return discover_export(kind, input_dir)

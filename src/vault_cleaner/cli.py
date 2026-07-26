@@ -17,7 +17,6 @@ from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapo
 from vault_cleaner.pipeline import resolve_armor, resolve_weapons
 from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
 from vault_cleaner.report_run import (
-    DEFAULT_EXPORT_PATHS,
     DEFAULT_INPUT_DIR,
     NoExportsError,
     ReportRun,
@@ -45,14 +44,14 @@ from vault_cleaner.rules import ghosts as ghost_rules
 from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
 LOADERS = {
-    "weapons": (load_weapons, DEFAULT_EXPORT_PATHS["weapons"]),
-    "ghosts": (load_ghosts, DEFAULT_EXPORT_PATHS["ghosts"]),
+    "weapons": load_weapons,
+    "ghosts": load_ghosts,
 }
 DEFAULT_OUTPUT = "data/out/dim-import.csv"
 
 
 def _cmd_roundtrip(args: argparse.Namespace) -> int:
-    loader, _ = LOADERS[args.kind]
+    loader = LOADERS[args.kind]
     try:
         input_path = select_export(args.kind, args.input, DEFAULT_INPUT_DIR)
         items = loader(input_path)

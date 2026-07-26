@@ -29,6 +29,19 @@ surprises the next agent should know about.
   numbered ambiguity, stable actionable errors, no newest-wins behaviour,
   explicit bypasses, partial/all-missing reports, clean CLI failures, and
   refusal before any loader or fingerprint read.
+- Review follow-up made filename matching ASCII-digit-only and kept it
+  deliberately case-sensitive. DIM documents these export names in lowercase,
+  and identical matching on case-sensitive and case-insensitive filesystems is
+  more predictable than inheriting platform-specific path semantics.
+- Empty explicit paths now fail with a clean CLI error instead of resolving to
+  the current directory and reaching a loader traceback. Partial-report
+  warnings use a readable browser-numbered example rather than exposing the
+  regular expression; direct missing/ambiguity diagnostics retain the exact
+  pattern for troubleshooting, with command-neutral explicit-path guidance.
+- Regression coverage now includes OS-native displayed paths for Windows,
+  matching-name directories, directory scan permission failures, Windows/WSL
+  `Zone.Identifier` sidecars, Unicode digits, case variants, empty explicit
+  paths, and the simplified single-command loader map.
 
 ## 2026-07-26 — Windows test suite fixes (#45)
 

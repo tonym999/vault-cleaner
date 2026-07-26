@@ -58,7 +58,7 @@ def test_single_kind_commands_discover_the_only_numbered_export(
 
     out = capsys.readouterr().out
     assert expected in out
-    assert f"data/in/{filename}" in out
+    assert str(Path("data/in") / filename) in out
 
 
 def test_combined_command_uses_numbered_export_and_warns_for_missing_kinds(
@@ -82,7 +82,8 @@ def test_combined_command_uses_numbered_export_and_warns_for_missing_kinds(
     assert "would junk" in captured.out
     assert "skipping armor" in captured.err
     assert "destiny-armor.csv" in captured.err
-    assert EXPORT_PATTERNS["armor"].pattern in captured.err
+    assert "browser-numbered copy" in captured.err
+    assert "destiny-armor (1).csv" in captured.err
     assert "skipping ghosts" in captured.err
 
 
@@ -99,11 +100,7 @@ def test_ambiguous_single_command_refuses_before_loader_is_called(
     def fail_loader(path):
         raise AssertionError(f"loaded ambiguous candidate {path}")
 
-    monkeypatch.setitem(
-        cli.LOADERS,
-        "weapons",
-        (fail_loader, "data/in/destiny-weapon.csv"),
-    )
+    monkeypatch.setitem(cli.LOADERS, "weapons", fail_loader)
     monkeypatch.chdir(tmp_path)
 
     assert cli.main(["roundtrip", "--item", "anything"]) == 1
@@ -112,7 +109,7 @@ def test_ambiguous_single_command_refuses_before_loader_is_called(
     assert exact.name in error
     assert numbered.name in error
     assert "delete or move the stale copies" in error
-    assert "--input or --weapons" in error
+    assert "this command's explicit input-path option" in error
 
 
 def test_single_command_explicit_input_bypasses_ambiguous_default_directory(
@@ -199,3 +196,11 @@ def test_single_command_zero_candidates_reports_expected_name_and_pattern(
     error = capsys.readouterr().err
     assert "destiny-ghost.csv" in error
     assert EXPORT_PATTERNS["ghosts"].pattern in error
+
+
+def test_empty_explicit_input_is_a_clean_error(capsys):
+    assert cli.main(["ghosts", "--input", ""]) == 1
+
+    error = capsys.readouterr().err
+    assert error.startswith("error: explicit ghosts export path must not be empty")
+    assert "Traceback" not in error
