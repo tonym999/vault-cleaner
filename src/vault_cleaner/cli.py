@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
-from vault_cleaner.config import ConfigError, load_config
+from vault_cleaner.config import ConfigError, load_config, load_paths_config
 from vault_cleaner.export_discovery import ExportDiscoveryError, select_export
 from vault_cleaner.manifest import ManifestError
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import resolve_armor, resolve_weapons
 from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
 from vault_cleaner.report_run import (
-    DEFAULT_INPUT_DIR,
     NoExportsError,
     ReportRun,
     SourceReadError,
@@ -48,12 +48,71 @@ LOADERS = {
     "ghosts": load_ghosts,
 }
 DEFAULT_OUTPUT = "data/out/dim-import.csv"
+IMPORT_OUTPUT_HELP = (
+    "import CSV to write (default: [paths].output_dir/dim-import.csv)"
+)
+KIND_INPUT_HELP = (
+    "DIM export CSV (default: [paths].input_dir/<kind export filename>)"
+)
+WEAPONS_INPUT_HELP = (
+    "DIM weapons export (default: [paths].input_dir/destiny-weapon.csv)"
+)
+ARMOR_INPUT_HELP = (
+    "DIM armor export (default: [paths].input_dir/destiny-armor.csv)"
+)
+GHOST_INPUT_HELP = (
+    "DIM ghost export (default: [paths].input_dir/destiny-ghost.csv)"
+)
+COMBINED_OUTPUT_HELP = (
+    "combined import CSV to write (default: [paths].output_dir/dim-import.csv)"
+)
+REVIEWED_OUTPUT_HELP = (
+    "reviewed import CSV to write (default: [paths].output_dir/dim-import.csv)"
+)
+REVIEW_HTML_OUTPUT_HELP = (
+    "review page to write (default: [paths].output_dir/vault-review.html)"
+)
+
+
+def _config_base(config_path: str) -> Path:
+    path = Path(config_path)
+    return path.parent if path.exists() else Path()
+
+
+def _resolve_config_dir(cfg: dict, config_path: str, key: str) -> Path:
+    path = Path(cfg["paths"][key])
+    if path.is_absolute():
+        return path
+    return _config_base(config_path) / path
+
+
+def _format_path(path: Path) -> str:
+    return str(path) if path.is_absolute() else path.as_posix()
+
+
+def _default_output_path(cfg: dict, config_path: str, default_path: str) -> str:
+    output_dir = _resolve_config_dir(cfg, config_path, "output_dir")
+    return _format_path(output_dir / Path(default_path).name)
+
+
+def _resolved_output_path(args: argparse.Namespace, default_path: str) -> str:
+    if args.output:
+        return args.output
+    paths_cfg = load_paths_config(args.config)
+    return _default_output_path(paths_cfg, args.config, default_path)
 
 
 def _cmd_roundtrip(args: argparse.Namespace) -> int:
     loader = LOADERS[args.kind]
     try:
-        input_path = select_export(args.kind, args.input, DEFAULT_INPUT_DIR)
+        paths_cfg = load_paths_config(args.config)
+        configured_input_dir = _resolve_config_dir(paths_cfg, args.config, "input_dir")
+        input_path = select_export(args.kind, args.input, configured_input_dir)
+        output_path = args.output or _default_output_path(paths_cfg, args.config, DEFAULT_OUTPUT)
+    except (ConfigError, ExportDiscoveryError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    try:
         items = loader(input_path)
     except (ExportDiscoveryError, FileNotFoundError, SchemaError) as e:
         print(f"error: {e}", file=sys.stderr)
@@ -82,8 +141,8 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
         print("dry run — pass --write to write the import CSV")
         return 0
 
-    n = write_import_csv(rows, args.output)
-    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    n = write_import_csv(rows, output_path)
+    print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
 
@@ -99,9 +158,11 @@ def _resolve_weapons(weapons, cfg, no_wishlists: bool):
 
 def _cmd_dupes(args: argparse.Namespace) -> int:
     try:
-        input_path = select_export("weapons", args.input, DEFAULT_INPUT_DIR)
-        weapons = load_weapons(input_path)
         cfg = load_config(args.config)
+        configured_input_dir = _resolve_config_dir(cfg, args.config, "input_dir")
+        input_path = select_export("weapons", args.input, configured_input_dir)
+        output_path = args.output or _default_output_path(cfg, args.config, DEFAULT_OUTPUT)
+        weapons = load_weapons(input_path)
     except (
         ExportDiscoveryError,
         FileNotFoundError,
@@ -137,8 +198,8 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
         return 0
 
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
-    n = write_import_csv(rows, args.output)
-    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    n = write_import_csv(rows, output_path)
+    print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
 
@@ -150,9 +211,11 @@ def _resolve_armor(armor, cfg):
 
 def _cmd_armor(args: argparse.Namespace) -> int:
     try:
-        input_path = select_export("armor", args.input, DEFAULT_INPUT_DIR)
-        armor = load_armor(input_path)
         cfg = load_config(args.config)
+        configured_input_dir = _resolve_config_dir(cfg, args.config, "input_dir")
+        input_path = select_export("armor", args.input, configured_input_dir)
+        output_path = args.output or _default_output_path(cfg, args.config, DEFAULT_OUTPUT)
+        armor = load_armor(input_path)
     except (
         ExportDiscoveryError,
         FileNotFoundError,
@@ -181,18 +244,21 @@ def _cmd_armor(args: argparse.Namespace) -> int:
         return 0
 
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
-    n = write_import_csv(rows, args.output)
-    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    n = write_import_csv(rows, output_path)
+    print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
 
 def _cmd_ghosts(args: argparse.Namespace) -> int:
-    # No config involvement at all: the ghost policy is purely
-    # protection-based, and an unrelated config error must not block it.
+    # Only [paths] is consulted here: the ghost policy is purely
+    # protection-based, and unrelated config errors must not block it.
     try:
-        input_path = select_export("ghosts", args.input, DEFAULT_INPUT_DIR)
+        paths_cfg = load_paths_config(args.config)
+        configured_input_dir = _resolve_config_dir(paths_cfg, args.config, "input_dir")
+        input_path = select_export("ghosts", args.input, configured_input_dir)
+        output_path = args.output or _default_output_path(paths_cfg, args.config, DEFAULT_OUTPUT)
         ghosts = load_ghosts(input_path)
-    except (ExportDiscoveryError, FileNotFoundError, SchemaError) as e:
+    except (ConfigError, ExportDiscoveryError, FileNotFoundError, SchemaError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -208,20 +274,22 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
         return 0
 
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
-    n = write_import_csv(rows, args.output)
-    print(f"wrote {n} row(s) to {args.output} — import via DIM Settings → Import tags/notes from CSV")
+    n = write_import_csv(rows, output_path)
+    print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
 
 def _build_report(args: argparse.Namespace) -> tuple[ReportRun | None, int]:
     """Run every pass, reporting the usual load failures as exit code 1."""
     try:
+        paths_cfg = load_paths_config(args.config)
+        configured_input_dir = _resolve_config_dir(paths_cfg, args.config, "input_dir")
         result = run_report(
             config_path=args.config,
             weapons_path=args.weapons,
             armor_path=args.armor,
             ghosts_path=args.ghosts,
-            input_dir=DEFAULT_INPUT_DIR,
+            input_dir=configured_input_dir,
             no_wishlists=args.no_wishlists,
         )
     except (
@@ -245,6 +313,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     result, rc = _build_report(args)
     if result is None:
         return rc
+    output_path = _resolved_output_path(args, DEFAULT_OUTPUT)
 
     for warning in result.warnings:
         print(warning.render(), file=sys.stderr)
@@ -277,9 +346,9 @@ def _cmd_report(args: argparse.Namespace) -> int:
         return 0
 
     rows = result.import_rows()
-    n = write_import_csv(rows, args.output)
+    n = write_import_csv(rows, output_path)
     print(
-        f"\nwrote {n} row(s) to {args.output} — "
+        f"\nwrote {n} row(s) to {output_path} — "
         "import via DIM Settings → Import tags/notes from CSV"
     )
     return 0
@@ -321,6 +390,7 @@ def _cmd_review(args: argparse.Namespace) -> int:
     result, rc = _build_report(args)
     if result is None:
         return rc
+    output_path = _resolved_output_path(args, DEFAULT_OUTPUT)
 
     for warning in result.warnings:
         print(warning.render(), file=sys.stderr)
@@ -388,7 +458,7 @@ def _cmd_review(args: argparse.Namespace) -> int:
             print(f"  {_describe(veto)}", file=sys.stderr)
 
     if not args.write:
-        print(f"\nwould write {args.output}")
+        print(f"\nwould write {output_path}")
         if merge is not None:
             print(f"would update {args.overrides}")
         print("dry run — nothing written; pass --write to persist vetoes and the CSV")
@@ -397,9 +467,9 @@ def _cmd_review(args: argparse.Namespace) -> int:
     if merge is not None:
         save_overrides(store, args.overrides)
         print(f"\nupdated {args.overrides}")
-    n = write_import_csv([d.import_row() for d in kept], args.output)
+    n = write_import_csv([d.import_row() for d in kept], output_path)
     print(
-        f"wrote {n} row(s) to {args.output} — "
+        f"wrote {n} row(s) to {output_path} — "
         "import via DIM Settings → Import tags/notes from CSV"
     )
     return 0
@@ -416,6 +486,7 @@ def _cmd_review_html(args: argparse.Namespace) -> int:
     result, rc = _build_report(args)
     if result is None:
         return rc
+    output_path = _resolved_output_path(args, DEFAULT_REVIEW_HTML)
 
     for warning in result.warnings:
         print(warning.render(), file=sys.stderr)
@@ -428,11 +499,11 @@ def _cmd_review_html(args: argparse.Namespace) -> int:
     # does not apply them: the page shows what the rules propose. Re-vetoing
     # in the page is harmless — merging a manifest never removes a veto.
     if not args.write:
-        print(f"would write {args.output}")
+        print(f"would write {output_path}")
         print("dry run — nothing written; pass --write to generate the review page")
         return 0
 
-    target = write_review_html(result, args.output)
+    target = write_review_html(result, output_path)
     size = target.stat().st_size
     print(
         f"wrote {target} ({size} bytes) — open it in a browser, review, export "
@@ -491,8 +562,9 @@ def main(argv: list[str] | None = None) -> int:
 
     rt = sub.add_parser("roundtrip", help="tag one item and write a DIM import CSV (M1 pipeline check)")
     rt.add_argument("--kind", default="weapons", choices=sorted(LOADERS), help="which DIM export to read (default weapons)")
-    rt.add_argument("--input", default=None, help="DIM export CSV (default: data/in/ path for --kind)")
-    rt.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    rt.add_argument("--input", default=None, help=KIND_INPUT_HELP)
+    rt.add_argument("--output", default=None, help=IMPORT_OUTPUT_HELP)
+    rt.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     pick = rt.add_mutually_exclusive_group(required=True)
     pick.add_argument("--item", help="item name to tag (case-insensitive; tags every copy)")
     pick.add_argument("--id", help="exact instance id to tag (disambiguates dupes)")
@@ -502,8 +574,8 @@ def main(argv: list[str] | None = None) -> int:
     rt.set_defaults(func=_cmd_roundtrip)
 
     dp = sub.add_parser("dupes", help="resolve weapon dupes: best copy per Hash survives, rest junk/review")
-    dp.add_argument("--input", default=None, help="DIM weapons export (default data/in/destiny-weapon.csv)")
-    dp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    dp.add_argument("--input", default=None, help=WEAPONS_INPUT_HELP)
+    dp.add_argument("--output", default=None, help=IMPORT_OUTPUT_HELP)
     dp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     dp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     dp.add_argument("--no-wishlists", action="store_true",
@@ -511,23 +583,24 @@ def main(argv: list[str] | None = None) -> int:
     dp.set_defaults(func=_cmd_dupes)
 
     ap = sub.add_parser("armor", help="armor pipeline: exact dupes then archetype scoring; junk with reasons")
-    ap.add_argument("--input", default=None, help="DIM armor export (default data/in/destiny-armor.csv)")
-    ap.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    ap.add_argument("--input", default=None, help=ARMOR_INPUT_HELP)
+    ap.add_argument("--output", default=None, help=IMPORT_OUTPUT_HELP)
     ap.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     ap.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     ap.set_defaults(func=_cmd_armor)
 
     gp = sub.add_parser("ghosts", help="junk every shell not equipped/locked/tagged/in a loadout")
-    gp.add_argument("--input", default=None, help="DIM ghost export (default data/in/destiny-ghost.csv)")
-    gp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"import CSV to write (default {DEFAULT_OUTPUT})")
+    gp.add_argument("--input", default=None, help=GHOST_INPUT_HELP)
+    gp.add_argument("--output", default=None, help=IMPORT_OUTPUT_HELP)
+    gp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     gp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     gp.set_defaults(func=_cmd_ghosts)
 
     rp = sub.add_parser("report", help="run all passes dry and print the aggregated would-junk summary")
-    rp.add_argument("--weapons", default=None, help="weapons export (default data/in/destiny-weapon.csv)")
-    rp.add_argument("--armor", default=None, help="armor export (default data/in/destiny-armor.csv)")
-    rp.add_argument("--ghosts", default=None, help="ghost export (default data/in/destiny-ghost.csv)")
-    rp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"combined import CSV to write (default {DEFAULT_OUTPUT})")
+    rp.add_argument("--weapons", default=None, help=WEAPONS_INPUT_HELP)
+    rp.add_argument("--armor", default=None, help=ARMOR_INPUT_HELP)
+    rp.add_argument("--ghosts", default=None, help=GHOST_INPUT_HELP)
+    rp.add_argument("--output", default=None, help=COMBINED_OUTPUT_HELP)
     rp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     rp.add_argument("--no-wishlists", action="store_true", help="skip the wishlist pass for weapons")
     rp.add_argument("--overrides", default=DEFAULT_OVERRIDES_PATH,
@@ -540,10 +613,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="review manifest JSON to validate and apply (omit to only report override status)")
     vp.add_argument("--overrides", default=DEFAULT_OVERRIDES_PATH,
                     help=f"persistent veto store (default {DEFAULT_OVERRIDES_PATH})")
-    vp.add_argument("--weapons", default=None, help="weapons export (default data/in/destiny-weapon.csv)")
-    vp.add_argument("--armor", default=None, help="armor export (default data/in/destiny-armor.csv)")
-    vp.add_argument("--ghosts", default=None, help="ghost export (default data/in/destiny-ghost.csv)")
-    vp.add_argument("--output", default=DEFAULT_OUTPUT, help=f"reviewed import CSV to write (default {DEFAULT_OUTPUT})")
+    vp.add_argument("--weapons", default=None, help=WEAPONS_INPUT_HELP)
+    vp.add_argument("--armor", default=None, help=ARMOR_INPUT_HELP)
+    vp.add_argument("--ghosts", default=None, help=GHOST_INPUT_HELP)
+    vp.add_argument("--output", default=None, help=REVIEWED_OUTPUT_HELP)
     vp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     vp.add_argument("--no-wishlists", action="store_true", help="skip the wishlist pass for weapons")
     vp.add_argument("--write", action="store_true",
@@ -552,11 +625,10 @@ def main(argv: list[str] | None = None) -> int:
 
     hp = sub.add_parser("review-html",
                         help="generate the self-contained static HTML review page")
-    hp.add_argument("--weapons", default=None, help="weapons export (default data/in/destiny-weapon.csv)")
-    hp.add_argument("--armor", default=None, help="armor export (default data/in/destiny-armor.csv)")
-    hp.add_argument("--ghosts", default=None, help="ghost export (default data/in/destiny-ghost.csv)")
-    hp.add_argument("--output", default=DEFAULT_REVIEW_HTML,
-                    help=f"review page to write (default {DEFAULT_REVIEW_HTML})")
+    hp.add_argument("--weapons", default=None, help=WEAPONS_INPUT_HELP)
+    hp.add_argument("--armor", default=None, help=ARMOR_INPUT_HELP)
+    hp.add_argument("--ghosts", default=None, help=GHOST_INPUT_HELP)
+    hp.add_argument("--output", default=None, help=REVIEW_HTML_OUTPUT_HELP)
     hp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     hp.add_argument("--no-wishlists", action="store_true", help="skip the wishlist pass for weapons")
     hp.add_argument("--write", action="store_true",

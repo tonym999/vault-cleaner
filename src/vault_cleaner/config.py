@@ -137,3 +137,26 @@ def load_config(path: str | Path = "config.toml") -> dict:
         merged.setdefault(section, values)
     _validate_armor(merged)
     return merged
+
+
+def load_paths_config(path: str | Path = "config.toml") -> dict:
+    """Load only [paths], without validating unrelated config sections."""
+    path = Path(path)
+    data: dict = {}
+    if path.exists():
+        try:
+            with path.open("rb") as f:
+                data = tomllib.load(f)
+        except (tomllib.TOMLDecodeError, OSError) as e:
+            raise ConfigError(f"{path}: {e}") from e
+
+    paths = data.get("paths", {})
+    if not isinstance(paths, dict):
+        raise ConfigError(f"{path}: [paths] must be a table, got {type(paths).__name__}")
+
+    merged = {**deepcopy(DEFAULTS["paths"]), **paths}
+    for key, value in merged.items():
+        if not isinstance(value, str):
+            raise ConfigError(f"{path}: paths.{key} must be a string")
+
+    return {"paths": merged}

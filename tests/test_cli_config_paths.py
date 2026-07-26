@@ -44,6 +44,45 @@ def test_report_uses_configured_input_and_output_dirs(tmp_path, capsys):
     assert target.exists()
 
 
+def test_configured_input_dir_uses_export_discovery(tmp_path, capsys):
+    project = tmp_path / "project"
+    exports = project / "exports"
+    exports.mkdir(parents=True)
+    copyfile(FIXTURES / "weapons_dupes.csv", exports / "destiny-weapon (2).csv")
+    config = _write_config(project)
+
+    assert cli.main([
+        "roundtrip",
+        "--config", str(config),
+        "--item", "Dupe Rifle",
+    ]) == 0
+
+    out = capsys.readouterr().out
+    assert f"parsed 17 weapons from {exports / 'destiny-weapon (2).csv'}" in out
+
+
+def test_configured_input_dir_refuses_ambiguous_exports(tmp_path, capsys):
+    project = tmp_path / "project"
+    exports = project / "exports"
+    exports.mkdir(parents=True)
+    (exports / "destiny-weapon.csv").write_text("stale", encoding="utf-8")
+    (exports / "destiny-weapon (1).csv").write_text("current", encoding="utf-8")
+    copyfile(FIXTURES / "armor.csv", exports / "destiny-armor.csv")
+    copyfile(FIXTURES / "ghosts_cleanup.csv", exports / "destiny-ghost.csv")
+    config = _write_config(project)
+
+    assert cli.main([
+        "report",
+        "--config", str(config),
+        "--no-wishlists",
+    ]) == 1
+
+    error = capsys.readouterr().err
+    assert "multiple weapons exports" in error
+    assert "destiny-weapon.csv" in error
+    assert "destiny-weapon (1).csv" in error
+
+
 def test_cli_input_path_overrides_configured_input_dir(tmp_path, capsys):
     project = tmp_path / "project"
     config = _write_config(project, input_dir="missing")
@@ -83,7 +122,6 @@ def test_roundtrip_explicit_paths_do_not_validate_config(tmp_path, capsys):
         "roundtrip",
         "--config", str(bad_config),
         "--input", str(FIXTURES / "weapons_dupes.csv"),
-        "--output", str(tmp_path / "dim-import.csv"),
         "--item", "Dupe Rifle",
     ]) == 0
 
@@ -112,7 +150,46 @@ def test_ghosts_explicit_paths_do_not_validate_config(tmp_path, capsys):
         "ghosts",
         "--config", str(bad_config),
         "--input", str(FIXTURES / "ghosts_cleanup.csv"),
-        "--output", str(tmp_path / "dim-import.csv"),
     ]) == 0
 
     assert "parsed 7 ghosts" in capsys.readouterr().out
+
+
+def test_roundtrip_rejects_malformed_paths_config(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("[paths\ninput_dir = \"exports\"\n", encoding="utf-8")
+
+    assert cli.main([
+        "roundtrip",
+        "--config", str(bad_config),
+        "--item", "Dupe Rifle",
+    ]) == 1
+
+    assert "error:" in capsys.readouterr().err
+
+
+def test_ghosts_rejects_invalid_paths_table(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("paths = true\n", encoding="utf-8")
+
+    assert cli.main([
+        "ghosts",
+        "--config", str(bad_config),
+        "--input", str(FIXTURES / "ghosts_cleanup.csv"),
+    ]) == 1
+
+    assert "[paths] must be a table" in capsys.readouterr().err
+
+
+def test_roundtrip_rejects_non_string_paths_value(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("[paths]\noutput_dir = 123\n", encoding="utf-8")
+
+    assert cli.main([
+        "roundtrip",
+        "--config", str(bad_config),
+        "--input", str(FIXTURES / "weapons_dupes.csv"),
+        "--item", "Dupe Rifle",
+    ]) == 1
+
+    assert "paths.output_dir must be a string" in capsys.readouterr().err
