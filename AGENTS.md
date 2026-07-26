@@ -20,8 +20,7 @@ schema or fixture change requires it:
 .venv/bin/python -c 'import json; from tests.test_report_run import build_report; from vault_cleaner.report_run import snapshot_dict; print(json.dumps(snapshot_dict(build_report()), indent=2, sort_keys=True))' > tests/fixtures/report_snapshot_v1.json
 ```
 
-Python 3.12, pandas, `tomllib`, pytest. No other runtime deps for v1 — don't
-add any without a ticket saying so.
+Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, added by #49) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
 
 ## Hard rules
 

@@ -12,7 +12,7 @@ A CLI tool that ingests DIM CSV exports, tags weapons and armor as keep/junk/inf
 
 - No authenticated Bungie API access: no API keys, OAuth, or live inventory/account reads. (Unauthenticated static content — the public manifest definitions — is explicitly in scope; decided in PR #13.)
 - No automatic deletion or item moves.
-- No GUI — CLI first; a local web UI is a possible later phase.
+- No hosted, multi-user, or packaged desktop GUI. A loopback-only local web UI is in scope from M8; it binds `127.0.0.1`, is started and stopped by the user, and serves one authenticated session.
 
 ## Architecture
 
@@ -34,8 +34,8 @@ export CSVs ──► data/in/ ──► parse ──► rules engine ──► 
 
 **M7 boundary:** `pipeline.py` owns ordered rule execution; `report_run.py`
 loads available exports into a reusable structured result and produces a
-versioned, JSON-safe snapshot. The CLI is a presentation adapter over that
-API. Snapshot schema and ruleset versions advance independently, and source
+versioned, JSON-safe snapshot. The CLI and the local review server are
+presentation adapters over that API. Snapshot schema and ruleset versions advance independently, and source
 paths are reduced to non-sensitive basenames within snapshots. Python remains
 the only authoritative rules engine and DIM CSV writer.
 
@@ -55,7 +55,7 @@ All thresholds (top-N, score floors, archetype weights, set bonuses to favor) li
 
 ## Tech stack
 
-Python 3.12, pandas for CSV handling, `tomllib` for config, `pytest` for tests. No other runtime dependencies for v1.
+Python 3.12, pandas for CSV handling, `tomllib` for config, `pytest` for tests. Runtime dependencies are pandas and (from M8, added by the server ticket) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
 
 ## Repo layout
 
@@ -86,7 +86,8 @@ Public repo; `data/` gitignored from the first commit.
 4. **M4 — Armor scoring:** Armor 3.0 archetype scorer, set-bonus handling, config-driven thresholds.
 5. **M5 — Polish:** dry-run summary report ("would junk 214 items: …"), per-item reasons, maybe a `--profile pvp|pve` switch.
 6. **M6 — Armor dupes:** measured exact-dupe cleanup, close-dupe review, and last-of-archetype score guard.
-7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review → validated armor threshold what-if controls.
+7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review.
+8. **M8 — Local review server:** loopback-only authenticated HTTP server (Flask 3.1); the browser uploads exports and downloads the reviewed CSV, so no input/output filesystem paths are required. Python owns rules, validation, persistence, and CSV generation; the page renders server data and collects verdicts. After the server-only review path and static-page cleanup land, bounded armor threshold what-if variants are produced in Python as an M8 follow-up.
 
 ## Risks & mitigations
 
@@ -94,9 +95,11 @@ Public repo; `data/` gitignored from the first commit.
 - **Wishlist format edge cases** — the format is informal; parse defensively, log-and-skip malformed lines rather than crash.
 - **Over-aggressive junking** — safety rails first, tool never deletes, dry-run mode default until `--write` is passed.
 - **Stat column changes (Armor 3.0 naming)** — map stat names through one lookup table so a rename is a one-line fix.
+- **The review server creates a new local network attack surface** — constrain it deliberately: loopback-only binding, authenticated session bootstrap, exact `Host` validation, same-origin enforcement for state-changing requests, no-store/no-referrer responses, strict and bounded upload validation, no request-supplied filesystem paths, and cleanup of session state and temporary files. Nothing is intentionally exposed off-machine, but this is a narrower risk than "no network code", not an unchanged posture.
+- **The browser/server boundary still needs a contract** — the server removes the duplicated manifest parser, but upload, report, verdict, session, and download schemas remain cross-runtime boundaries. Specify them before implementation and bind mutations to the exact report revision/fingerprint.
+- **Two interactive review surfaces would recreate the maintenance problem** — the static review page (never released; decided on #48) is retained only as a temporary fallback while the server lands; after the server UI proves parity, it and its browser-side validator/parity suite are removed.
 
 ## Later ideas (explicitly out of scope for now)
 
 - Bungie API mode for live data (read-only).
-- Ephemeral localhost bridge only if the dependency-free static M7 review workflow proves too awkward.
 - Generating a personal wishlist file from kept rolls (hosted as a public Gist for DIM to subscribe to).
