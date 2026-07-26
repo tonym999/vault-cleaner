@@ -164,6 +164,16 @@ surprises the next agent should know about.
     It previously used node's `buffer.toString("utf8")`, which keeps a BOM where
     the browser strips one — meaning the harness had never matched the real
     page. 61 cases now (10 accept, 51 refuse).
+  - Follow-up nit, and a fair catch: the new BOM tests embedded **literal**
+    U+FEFF characters in Python string literals. Replaced with `\ufeff`
+    escapes. Embarrassing repeat — a literal U+2028 typed into `review_html.py`
+    earlier in the same work arrived as a NUL byte and made the module
+    unimportable, which is exactly why `embed_json` uses escapes. Now guarded:
+    `test_no_source_blob_contains_an_invisible_character` scans `APP_JS`/`CSS`/
+    `BODY_HTML` for Cf/Cc/Zl/Zp characters. A literal NUL needs no guard —
+    Python refuses to import the file at all; the guard is for the ones that
+    parse silently and leave no trace in a diff. A scan of `src/` and `tests/`
+    found no others.
   - **The recurring lesson, three rounds running:** each time, the two
     implementations were being compared one layer too high — objects, then text,
     now bytes. The parity idea was right from the start; the *boundary* was

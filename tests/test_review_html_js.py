@@ -767,7 +767,7 @@ def parity_cases(run) -> dict[str, bytes]:
     # U+FEFF *inside* a string is an ordinary character, not a byte-order mark;
     # Python accepts it, so the browser must too.
     interior_bom = json.dumps(
-        manifest(decisions=[entry(first, name="zero﻿width")]), ensure_ascii=False
+        manifest(decisions=[entry(first, name="zero\ufeffwidth")]), ensure_ascii=False
     ).encode("utf-8")
     valid = json.dumps(manifest(), ensure_ascii=False).encode("utf-8")
 
@@ -920,7 +920,7 @@ def test_a_leading_bom_is_kept_so_json_refuses_it_like_python_does(plain):
     malformed-bytes divergence for a BOM one.
     """
     decoding = plain.results["decoding"]
-    assert decoding["bomIsKept"] == "ok:﻿{}"
+    assert decoding["bomIsKept"] == "ok:\ufeff{}"
     assert decoding["bomPrefixedManifestRefused"] == "refused"
 
 

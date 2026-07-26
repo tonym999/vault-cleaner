@@ -7,6 +7,7 @@ what must never come back out of it as executable markup.
 
 import json
 import re
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -137,6 +138,36 @@ def test_no_source_blob_can_close_the_script_element():
             f"{name} would truncate its script element"
         )
         assert "<!--" not in blob and "-->" not in blob, f"{name} spells a comment"
+
+
+def test_no_source_blob_contains_an_invisible_character():
+    """Invisible characters in source do not survive editing reliably.
+
+    A U+2028 typed into this module once arrived as a NUL byte instead, and a
+    U+2028 that *does* survive would end a JavaScript line mid-statement inside
+    `APP_JS`. Write `\\u2028`-style escapes: ordinary ASCII in the source, same
+    resulting string.
+
+    A literal NUL is Python's problem, not this test's — it makes the module
+    unimportable outright. This guard is for the ones that parse silently and
+    are invisible in a diff.
+    """
+    invisible = {
+        "Cf",  # format: BOM/U+FEFF, zero-width joiners, bidi overrides
+        "Cc",  # C0/C1 controls, including NUL
+        "Zl",  # U+2028 line separator
+        "Zp",  # U+2029 paragraph separator
+    }
+    for name, blob in (("APP_JS", APP_JS), ("CSS", CSS), ("BODY_HTML", BODY_HTML)):
+        for index, char in enumerate(blob):
+            if char in "\n\t":
+                continue
+            category = unicodedata.category(char)
+            assert category not in invisible, (
+                f"{name} contains {unicodedata.name(char, 'an unnamed character')} "
+                f"(U+{ord(char):04X}, {category}) at offset {index} — "
+                "use an escape sequence instead of a literal"
+            )
 
 
 def test_embed_json_escapes_without_changing_any_value():
