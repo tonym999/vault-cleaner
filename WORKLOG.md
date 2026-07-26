@@ -3,6 +3,42 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-26 — M8 adopted: loopback review server (PLAN amendment, #46)
+
+- PLAN.md now plans the localhost bridge instead of listing it as a fallback
+  risk. The evidence for the pivot is PR #44: the static artifact makes the
+  browser a second implementation of the review-manifest contract, and five
+  review rounds were spent closing divergences between it and
+  `review.parse_manifest` — object shape, number spelling, UTF-8/BOM decoding,
+  then `trim()` on the paste path. A server removes the duplicated manifest
+  parser outright; upload/session/verdict/download become explicit,
+  Python-owned contracts instead.
+- #48 decided **Option A**: the interactive static page retires once the
+  server UI proves parity (#50), removed in #51. No deprecation period —
+  `review-html` merged after the `v0.2.0` (M6) release and has never shipped
+  in a tag; no external usage exists to migrate.
+- Framework decided on #49: **Flask 3.1**, the first runtime dependency beyond
+  pandas. Recorded with the full cost stated — Flask brings Werkzeug, Jinja2,
+  itsdangerous, click, blinker, MarkupSafe (~7 packages, not 2). The
+  dependency rule in PLAN.md and AGENTS.md is amended to "pandas and Flask
+  3.1, exactly"; `pyproject.toml` changes land with the server code in #49,
+  not this docs change. The security-critical work (bootstrap token exchange,
+  exact Host/Origin validation, revision checks, atomic finalize) is
+  application code under any framework — Flask replaces plumbing, not
+  protocol.
+- Browser testing decided on #50: **Playwright, dev/test-only**, separate
+  Ubuntu CI job, skip-when-absent, no retries to hide flakes. The runtime set
+  is untouched by test tooling.
+- #38 amended in place: armor what-if variants are **precomputed in Python**;
+  the browser switches among bounded server-produced variants. Recomputing
+  scores client-side would re-implement `rules/armor.py` in JavaScript — the
+  #44 failure mode on far harder logic.
+- Measured on real DIM downloads for #47: no save-as dialog; the browser
+  writes the expected fixed filename and appends a number when it exists. So
+  the ambiguous case (stale exact name beside newer numbered copy) is the
+  normal result of exporting twice, which validates refusing ambiguity even
+  when the exact name is present.
+
 ## 2026-07-25 — self-contained static HTML review UI (#37)
 
 - New `review_html.py` renders one portable file: inline CSS/JS, the #35

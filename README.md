@@ -174,6 +174,7 @@ to hand-write from a report run if you would rather script it.
 - ✅ M5 — polish: ghost cleanup pass (`vault-cleaner ghosts` — junks every shell not equipped/locked/tagged/in a loadout) and the all-passes dry-run summary (`vault-cleaner report`)
 - ✅ M6 — armor dupes: exact-dupe pass, review-only close-dupe pass, and the last-of-archetype score guard
 - 🚧 M7 — review UI: reusable report snapshot ✅, persistent vetoes + reviewed export (`vault-cleaner review`) ✅, static HTML review UI (`vault-cleaner review-html`) ✅, armor threshold what-if controls
+- 🔜 M8 — local review server (planned; [#46](https://github.com/tonym999/vault-cleaner/issues/46)): loopback-only Flask server, browser upload/review/download with no filesystem paths; the static `review-html` page (never released) retires once the server UI reaches parity, and the armor what-if controls land as Python-precomputed variants
 
 See the [issue board](https://github.com/tonym999/vault-cleaner/issues) for
 ticket-level detail.
