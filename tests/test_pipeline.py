@@ -26,7 +26,9 @@ def test_weapon_pipeline_captures_actual_external_input_identities(
     cache = Path(cfg["paths"]["wishlist_cache_dir"])
     cache.mkdir()
     raw = "title changed but parsed rolls did not\n"
-    (cache / "test.txt").write_text(raw)
+    # newline="" so the bytes on disk are the bytes being hashed below —
+    # text mode would write \r\n on Windows and break the digest.
+    (cache / "test.txt").write_text(raw, encoding="utf-8", newline="")
 
     monkeypatch.setattr(
         pipeline,

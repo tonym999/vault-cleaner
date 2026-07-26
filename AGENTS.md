@@ -8,7 +8,7 @@ Read this before touching the repo. [PLAN.md](PLAN.md) is the spec;
 ```bash
 python3 -m venv .venv                # if .venv doesn't already exist
 .venv/bin/pip install -e ".[dev]"    # dev extra = the exact toolchain CI gates on
-.venv/bin/ruff check src tests       # must pass before every commit
+.venv/bin/ruff check src tests scripts   # must pass before every commit
 .venv/bin/pytest -q                  # must pass before every commit
 .venv/bin/vault-cleaner roundtrip --item "NAME"   # dry-run pipeline check
 ```
@@ -17,8 +17,13 @@ Regenerate the fake-data report golden only when an intentional snapshot
 schema or fixture change requires it:
 
 ```bash
-.venv/bin/python -c 'import json; from tests.test_report_run import build_report; from vault_cleaner.report_run import snapshot_dict; print(json.dumps(snapshot_dict(build_report()), indent=2, sort_keys=True))' > tests/fixtures/report_snapshot_v1.json
+python scripts/regenerate_report_snapshot.py
 ```
+
+(Any interpreter with the project installed works — `.venv/bin/python` on
+POSIX, `.venv\Scripts\python` on Windows. The script writes the file itself
+with UTF-8 bytes and LF endings; shell redirection was the old failure mode,
+since PowerShell's `>` re-encodes and re-terminates lines — #45.)
 
 Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, added by #49) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
 

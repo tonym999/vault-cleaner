@@ -1,0 +1,5 @@
+# Test fixtures are byte-exact inputs: source digests, the run fingerprint,
+# and the golden snapshot are all sha256 over these exact bytes. Never let
+# the checkout translate their line endings (#45 — core.autocrlf=true turned
+# every fixture CRLF on Windows and broke every digest comparison).
+tests/fixtures/** -text

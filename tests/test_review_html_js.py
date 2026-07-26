@@ -292,7 +292,7 @@ def drive(workdir: Path, run) -> Harness:
             NODE, str(workdir / "harness.js"),
             str(workdir / "app.js"), str(workdir / "snapshot.json"), str(workdir),
         ],
-        capture_output=True, text=True, check=False, timeout=NODE_TIMEOUT,
+        capture_output=True, encoding="utf-8", check=False, timeout=NODE_TIMEOUT,
     )
     assert completed.returncode == 0, completed.stderr
     return Harness(json.loads(completed.stdout), workdir, run)
@@ -337,7 +337,7 @@ def test_a_numeric_id_in_a_snapshot_is_refused_not_coerced(tmp_path):
     )
     completed = subprocess.run(
         [NODE, str(tmp_path / "numeric.js"), str(tmp_path / "app.js")],
-        capture_output=True, text=True, check=True, timeout=NODE_TIMEOUT,
+        capture_output=True, encoding="utf-8", check=True, timeout=NODE_TIMEOUT,
     )
     assert "must be a JSON string, not number" in completed.stdout
 
@@ -892,7 +892,7 @@ def parity(tmp_path_factory):
             NODE, str(workdir / "parity.js"), str(workdir / "app.js"),
             str(workdir / "snapshot.json"), str(case_dir),
         ],
-        capture_output=True, text=True, check=False, timeout=NODE_TIMEOUT,
+        capture_output=True, encoding="utf-8", check=False, timeout=NODE_TIMEOUT,
     )
     assert completed.returncode == 0, completed.stderr
     browser = json.loads(completed.stdout)

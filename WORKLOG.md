@@ -3,6 +3,53 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-26 — Windows test suite fixes (#45)
+
+- All four causes confirmed before coding, three of them invisible on Linux:
+  - `subprocess.run(text=True)` decodes node's UTF-8 output with the *locale*
+    encoding (cp1252 on the reporter's machine) — the `Ãœ`/`ï»¿` mojibake in
+    the failure output pins cp1252 specifically. Fixed with
+    `encoding="utf-8"` on all three harness calls; a regression from #44 that
+    Linux's UTF-8 default masked.
+  - `Path.write_text()` translates `\n` → `\r\n` on Windows, so a test
+    hashed bytes it never wrote. Both digests reproduced exactly (LF hash =
+    asserted, CRLF hash = observed). Fixed with `newline=""` on the one
+    digest-sensitive write.
+  - Windows temp paths inside TOML *basic* strings hit `\U` as an escape and
+    fail to parse. First fixed with TOML *literal* (single-quoted) strings,
+    which review caught as correct-but-narrow: a literal string cannot contain
+    an apostrophe, so `C:\Users\O'Brien\...` would have broken the same way
+    `\U` did. Now encoded with `json.dumps(str(path))` — JSON string escaping
+    *is* valid TOML basic-string escaping, and `ensure_ascii` keeps the
+    generated config ASCII-safe for non-ASCII profile names. The test's
+    directory is named `pri'vate` so the Windows leg exercises apostrophe and
+    backslash together, with no extra test.
+  - `core.autocrlf=true` checkout translated fixture bytes (`i/lf w/crlf`,
+    measured by the maintainer), so every sha256-of-bytes comparison failed.
+    Fixed with `.gitattributes` pinning `tests/fixtures/** -text`. Existing
+    Windows clones re-materialise with `git checkout HEAD -- tests/fixtures`.
+- New meta-test fails a translated checkout with the actual cause and the fix
+  command, instead of an opaque hash mismatch; revert-checked by CRLF-ing a
+  fixture copy.
+- Golden regeneration is now `python scripts/regenerate_report_snapshot.py`.
+  The old documented one-liner was POSIX-only twice over: `.venv/bin/python`
+  does not exist on Windows, and PowerShell's `>` re-encodes and re-terminates
+  redirected output, which would have corrupted the golden's bytes. Review
+  caught that this PR *claimed* a portable regen path while shipping a command
+  its own target platform cannot run — the same overclaim shape as the #52
+  WORKLOG fix. The script writes via `write_bytes` so no platform can
+  translate the endings, and deliberately does not import
+  `tests.test_report_run`: a maintenance command should not depend on a test
+  module. `test_regeneration_script_reproduces_the_committed_golden` pins the
+  duplicated recipe against the committed bytes on both CI platforms, so
+  byte-stability is a checked invariant rather than a claim.
+- `scripts/` is in the ruff scope (AGENTS.md and CI) so the helper is linted
+  like everything else.
+- CI now runs the suite on `windows-latest` and `ubuntu-latest`
+  (`fail-fast: false`). Three of the four causes could recur silently without
+  the Windows leg; node is preinstalled on both runner images so the JS tests
+  run everywhere.
+
 ## 2026-07-26 — M8 adopted: loopback review server (PLAN amendment, #46)
 
 - PLAN.md now plans the localhost bridge instead of listing it as a fallback
