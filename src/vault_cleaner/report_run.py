@@ -10,6 +10,12 @@ from pathlib import Path
 import pandas as pd
 
 from vault_cleaner.config import ConfigError, load_config
+from vault_cleaner.export_discovery import (
+    EXPORT_FILENAMES,
+    MissingExportError,
+    expected_export_path,
+    select_export,
+)
 from vault_cleaner.parse import ARMOR_STATS, load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import (
     ArmorPipelineResult,
@@ -31,10 +37,10 @@ SNAPSHOT_SCHEMA_VERSION = 1
 # Bump only when decision semantics change. Snapshot presentation/schema
 # changes are deliberately independent so they do not invalidate reviews.
 RULESET_VERSION = 1
+DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
-    "weapons": "data/in/destiny-weapon.csv",
-    "armor": "data/in/destiny-armor.csv",
-    "ghosts": "data/in/destiny-ghost.csv",
+    kind: str(Path(DEFAULT_INPUT_DIR) / filename)
+    for kind, filename in EXPORT_FILENAMES.items()
 }
 # The vocabulary of section kinds; run_report builds one section per entry.
 EXPORT_KINDS = frozenset(DEFAULT_EXPORT_PATHS)
@@ -358,12 +364,13 @@ def snapshot_json(run: ReportRun) -> str:
 def run_report(
     *,
     config_path: str | Path = "config.toml",
-    weapons_path: str | Path = DEFAULT_EXPORT_PATHS["weapons"],
-    armor_path: str | Path = DEFAULT_EXPORT_PATHS["armor"],
-    ghosts_path: str | Path = DEFAULT_EXPORT_PATHS["ghosts"],
+    weapons_path: str | Path | None = None,
+    armor_path: str | Path | None = None,
+    ghosts_path: str | Path | None = None,
+    input_dir: str | Path = DEFAULT_INPUT_DIR,
     no_wishlists: bool = False,
 ) -> ReportRun:
-    """Load available exports and run every ordered rules pipeline."""
+    """Discover omitted exports, then run every ordered rules pipeline."""
     cfg = load_config(config_path)
     effective_config = _normalize_config(cfg)
     warnings = []
@@ -373,11 +380,29 @@ def run_report(
     wishlist_sources: tuple[WishlistSourceIdentity, ...] = ()
     manifest = None
 
-    specs = (
-        ("weapons", Path(weapons_path), load_weapons),
-        ("armor", Path(armor_path), load_armor),
-        ("ghosts", Path(ghosts_path), load_ghosts),
+    requested = (
+        ("weapons", weapons_path, load_weapons),
+        ("armor", armor_path, load_armor),
+        ("ghosts", ghosts_path, load_ghosts),
     )
+    # Resolve every omitted path before fingerprinting or loading any export.
+    # An ambiguity in a later kind must refuse the whole run without first
+    # reading an earlier kind.
+    specs = []
+    for kind, explicit_path, loader in requested:
+        try:
+            path = select_export(kind, explicit_path, input_dir)
+        except MissingExportError as e:
+            warnings.append(
+                SkippedExportWarning(
+                    kind=kind,
+                    path=str(expected_export_path(kind, input_dir)),
+                    reason=e.warning_reason,
+                )
+            )
+            continue
+        specs.append((kind, path, loader))
+
     for kind, path, loader in specs:
         try:
             digest_before = sha256_file(path)
@@ -454,7 +479,14 @@ def run_report(
         )
 
     if not sections:
-        raise NoExportsError("no exports found in data/in/ — nothing to report on")
+        details = "; ".join(
+            f"{warning.kind}: {warning.path} {warning.reason}"
+            for warning in warnings
+        )
+        suffix = f" ({details})" if details else ""
+        raise NoExportsError(
+            f"no exports found — nothing to report on{suffix}"
+        )
 
     fingerprint = compute_fingerprint(
         {section.kind: section.source.sha256 for section in sections},

@@ -11,12 +11,14 @@ import argparse
 import sys
 
 from vault_cleaner.config import ConfigError, load_config
+from vault_cleaner.export_discovery import ExportDiscoveryError, select_export
 from vault_cleaner.manifest import ManifestError
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import resolve_armor, resolve_weapons
 from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
 from vault_cleaner.report_run import (
     DEFAULT_EXPORT_PATHS,
+    DEFAULT_INPUT_DIR,
     NoExportsError,
     ReportRun,
     SourceReadError,
@@ -50,11 +52,11 @@ DEFAULT_OUTPUT = "data/out/dim-import.csv"
 
 
 def _cmd_roundtrip(args: argparse.Namespace) -> int:
-    loader, default_input = LOADERS[args.kind]
-    input_path = args.input or default_input
+    loader, _ = LOADERS[args.kind]
     try:
+        input_path = select_export(args.kind, args.input, DEFAULT_INPUT_DIR)
         items = loader(input_path)
-    except (FileNotFoundError, SchemaError) as e:
+    except (ExportDiscoveryError, FileNotFoundError, SchemaError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -97,11 +99,16 @@ def _resolve_weapons(weapons, cfg, no_wishlists: bool):
 
 
 def _cmd_dupes(args: argparse.Namespace) -> int:
-    input_path = args.input or LOADERS["weapons"][1]
     try:
+        input_path = select_export("weapons", args.input, DEFAULT_INPUT_DIR)
         weapons = load_weapons(input_path)
         cfg = load_config(args.config)
-    except (FileNotFoundError, SchemaError, ConfigError) as e:
+    except (
+        ExportDiscoveryError,
+        FileNotFoundError,
+        SchemaError,
+        ConfigError,
+    ) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     try:
@@ -143,11 +150,16 @@ def _resolve_armor(armor, cfg):
 
 
 def _cmd_armor(args: argparse.Namespace) -> int:
-    input_path = args.input or DEFAULT_EXPORT_PATHS["armor"]
     try:
+        input_path = select_export("armor", args.input, DEFAULT_INPUT_DIR)
         armor = load_armor(input_path)
         cfg = load_config(args.config)
-    except (FileNotFoundError, SchemaError, ConfigError) as e:
+    except (
+        ExportDiscoveryError,
+        FileNotFoundError,
+        SchemaError,
+        ConfigError,
+    ) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -178,10 +190,10 @@ def _cmd_armor(args: argparse.Namespace) -> int:
 def _cmd_ghosts(args: argparse.Namespace) -> int:
     # No config involvement at all: the ghost policy is purely
     # protection-based, and an unrelated config error must not block it.
-    input_path = args.input or LOADERS["ghosts"][1]
     try:
+        input_path = select_export("ghosts", args.input, DEFAULT_INPUT_DIR)
         ghosts = load_ghosts(input_path)
-    except (FileNotFoundError, SchemaError) as e:
+    except (ExportDiscoveryError, FileNotFoundError, SchemaError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -207,12 +219,19 @@ def _build_report(args: argparse.Namespace) -> tuple[ReportRun | None, int]:
     try:
         result = run_report(
             config_path=args.config,
-            weapons_path=args.weapons or DEFAULT_EXPORT_PATHS["weapons"],
-            armor_path=args.armor or DEFAULT_EXPORT_PATHS["armor"],
-            ghosts_path=args.ghosts or DEFAULT_EXPORT_PATHS["ghosts"],
+            weapons_path=args.weapons,
+            armor_path=args.armor,
+            ghosts_path=args.ghosts,
+            input_dir=DEFAULT_INPUT_DIR,
             no_wishlists=args.no_wishlists,
         )
-    except (ConfigError, SchemaError, NoExportsError, SourceReadError) as e:
+    except (
+        ConfigError,
+        ExportDiscoveryError,
+        SchemaError,
+        NoExportsError,
+        SourceReadError,
+    ) as e:
         print(f"error: {e}", file=sys.stderr)
         return None, 1
     except (WishlistError, ManifestError) as e:

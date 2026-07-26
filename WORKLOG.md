@@ -3,6 +3,33 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-26 — deterministic DIM export discovery (#56)
+
+- Added one discovery boundary for all three DIM export kinds. Omitted inputs
+  accept the exact filename or either browser-numbered spelling only when it
+  is the sole match; multiple matches refuse with every filename and tell the
+  user to move/delete stale copies or pass the intended file explicitly.
+  Candidates are sorted by filename and timestamps are never inspected.
+- Explicit single-command `--input` and combined `--weapons` / `--armor` /
+  `--ghosts` paths bypass discovery entirely. For PR #54's later rebase, the
+  discovery directory is a separate `run_report` argument: its configured
+  `input_dir` must be passed there rather than collapsed into an exact path,
+  or the configured default would be mistaken for an explicit input.
+- Combined runs resolve every omitted kind before hashing or loading any CSV,
+  so an ambiguity in a later kind cannot produce a partial read first. Zero
+  matches retain the partial-report contract with an expected-name/pattern
+  warning; ambiguity is always fatal, and all-zero errors report every
+  expected name and pattern.
+- Snapshot warnings keep the full directory in the path field, where snapshot
+  sanitisation already reduces it to a basename; their reason text contains
+  only the filename/pattern. Fingerprints, the golden snapshot, snapshot
+  schema, and ruleset version are unchanged because selected source bytes
+  already carry the decision identity.
+- Regression tests cover every kind, both numbered spellings, exact-plus-
+  numbered ambiguity, stable actionable errors, no newest-wins behaviour,
+  explicit bypasses, partial/all-missing reports, clean CLI failures, and
+  refusal before any loader or fingerprint read.
+
 ## 2026-07-26 — Windows test suite fixes (#45)
 
 - All four causes confirmed before coding, three of them invisible on Linux:
