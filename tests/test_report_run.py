@@ -118,6 +118,21 @@ def test_snapshot_serialization_is_deterministic():
     assert document["fingerprint"] == first.fingerprint
 
 
+def test_fixture_bytes_are_checked_out_verbatim():
+    """Digests, fingerprints, and the golden are sha256 over exact fixture bytes.
+
+    On a checkout where `core.autocrlf` translated line endings (before the
+    `.gitattributes` pin, #45), every digest comparison failed with an opaque
+    hash mismatch. Fail here with the actual cause instead.
+    """
+    for path in sorted(FIXTURES.iterdir()):
+        assert b"\r" not in path.read_bytes(), (
+            f"{path.name} contains CR bytes — the checkout translated line "
+            "endings. Re-materialise the pinned bytes with: "
+            "git checkout HEAD -- tests/fixtures"
+        )
+
+
 def test_snapshot_matches_schema_v1_golden():
     assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
 
@@ -256,20 +271,20 @@ def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):
     private_note = tmp_path / "private" / "vault"
     config.write_text(
         "[paths]\n"
-        f'input_dir = "{private_input}"\n'
+        f"input_dir = '{private_input}'\n"
         "[notes]\n"
-        f'my_vault = "{private_note}"\n'
+        f"my_vault = '{private_note}'\n"
         "[rails]\n"
-        f'private_path = "{private_note}"\n'
+        f"private_path = '{private_note}'\n"
         "[armor]\n"
-        f'private_path = "{private_note}"\n'
+        f"private_path = '{private_note}'\n"
         "[armor.close_dupes]\n"
         "max_stat_delta = 5\n"
         "max_total_delta = 12\n"
-        f'private_path = "{private_note}"\n'
+        f"private_path = '{private_note}'\n"
         "[armor.archetypes.private]\n"
         "top_stats = 2\n"
-        f'private_path = "{private_note}"\n'
+        f"private_path = '{private_note}'\n"
     )
     result = run_report(
         config_path=config,

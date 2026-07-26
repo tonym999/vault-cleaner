@@ -3,6 +3,37 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-07-26 — Windows test suite fixes (#45)
+
+- All four causes confirmed before coding, three of them invisible on Linux:
+  - `subprocess.run(text=True)` decodes node's UTF-8 output with the *locale*
+    encoding (cp1252 on the reporter's machine) — the `Ãœ`/`ï»¿` mojibake in
+    the failure output pins cp1252 specifically. Fixed with
+    `encoding="utf-8"` on all three harness calls; a regression from #44 that
+    Linux's UTF-8 default masked.
+  - `Path.write_text()` translates `\n` → `\r\n` on Windows, so a test
+    hashed bytes it never wrote. Both digests reproduced exactly (LF hash =
+    asserted, CRLF hash = observed). Fixed with `newline=""` on the one
+    digest-sensitive write.
+  - Windows temp paths inside TOML *basic* strings hit `\U` as an escape and
+    fail to parse. Fixed by interpolating into TOML *literal* (single-quoted)
+    strings.
+  - `core.autocrlf=true` checkout translated fixture bytes (`i/lf w/crlf`,
+    measured by the maintainer), so every sha256-of-bytes comparison failed.
+    Fixed with `.gitattributes` pinning `tests/fixtures/** -text`. Existing
+    Windows clones re-materialise with `git checkout HEAD -- tests/fixtures`.
+- New meta-test fails a translated checkout with the actual cause and the fix
+  command, instead of an opaque hash mismatch; revert-checked by CRLF-ing a
+  fixture copy.
+- The golden regen command in AGENTS.md now writes the file from Python
+  (`newline="\n"`, utf-8) instead of shell redirection — PowerShell's `>`
+  re-encodes and re-terminates lines, which would have corrupted the golden
+  on Windows. Verified byte-identical against the committed golden.
+- CI now runs the suite on `windows-latest` and `ubuntu-latest`
+  (`fail-fast: false`). Three of the four causes could recur silently without
+  the Windows leg; node is preinstalled on both runner images so the JS tests
+  run everywhere.
+
 ## 2026-07-25 — self-contained static HTML review UI (#37)
 
 - New `review_html.py` renders one portable file: inline CSS/JS, the #35

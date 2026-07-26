@@ -17,8 +17,12 @@ Regenerate the fake-data report golden only when an intentional snapshot
 schema or fixture change requires it:
 
 ```bash
-.venv/bin/python -c 'import json; from tests.test_report_run import build_report; from vault_cleaner.report_run import snapshot_dict; print(json.dumps(snapshot_dict(build_report()), indent=2, sort_keys=True))' > tests/fixtures/report_snapshot_v1.json
+.venv/bin/python -c 'import json; from tests.test_report_run import build_report; from vault_cleaner.report_run import snapshot_dict; open("tests/fixtures/report_snapshot_v1.json", "w", encoding="utf-8", newline="\n").write(json.dumps(snapshot_dict(build_report()), indent=2, sort_keys=True) + "\n")'
 ```
+
+(The command writes the file itself rather than shell-redirecting stdout:
+PowerShell's `>` re-encodes and re-terminates lines, which would corrupt the
+golden's bytes on Windows — #45.)
 
 Python 3.12, pandas, `tomllib`, pytest. No other runtime deps for v1 — don't
 add any without a ticket saying so.
