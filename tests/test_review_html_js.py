@@ -195,6 +195,28 @@ out.verdictOf = {
   set: api.verdictOf(verdictMap([["1", "vetoed"]]), "1")
 };
 
+// The raw-text number scan, which exists because JSON.parse erases the
+// difference between 1, 1.0, and 1e0. "" means the text is acceptable.
+var exported = JSON.stringify(manifest, null, 2) + "\n";
+out.numberSpelling = {
+  integer: api.fractionalNumberError('{"v": 1}'),
+  float: api.fractionalNumberError('{"v": 1.0}'),
+  exponent: api.fractionalNumberError('{"v": 1e0}'),
+  negativeFraction: api.fractionalNumberError('{"v": -2.5}'),
+  fractionInsideAString: api.fractionalNumberError('{"name": "Price: 1.5 (v1.0)"}'),
+  escapedQuoteThenFraction: api.fractionalNumberError('{"name": "say \\" then 1.5"}'),
+  literalsContainingE: api.fractionalNumberError('{"a": true, "b": false, "c": null}'),
+  bigIdAsString: api.fractionalNumberError('{"id": "18446744073709551615"}'),
+  bareBigInteger: api.fractionalNumberError('{"n": 18446744073709551615}'),
+  ourOwnExport: api.fractionalNumberError(exported)
+};
+
+// The page must always be able to re-read what it just wrote.
+out.exportRoundTripsThroughText = (function () {
+  var result = api.readManifestText(snapshot, items, exported);
+  return { ok: result.ok, error: result.error || "", applied: result.applied };
+})();
+
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -528,26 +550,33 @@ var api = require(process.argv[2]);
 var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 var caseDir = process.argv[4];
 
+// Raw bytes in, verdict out — the same contract as parse_manifest(path), so
+// number spelling and malformed text are inside what this compares.
 var items = api.itemsFromSnapshot(snapshot);
 var verdict = {};
 fs.readdirSync(caseDir).filter(function (name) {
   return name.slice(-5) === ".json";
 }).forEach(function (name) {
-  var payload = JSON.parse(fs.readFileSync(path.join(caseDir, name), "utf8"));
-  var result = api.readManifest(snapshot, items, payload);
+  var text = fs.readFileSync(path.join(caseDir, name), "utf8");
+  var result = api.readManifestText(snapshot, items, text);
   verdict[name.slice(0, -5)] = result.ok ? "accepted" : "refused";
 });
 process.stdout.write(JSON.stringify(verdict));
 """
 
 
-def parity_cases(run) -> dict[str, object]:
-    """One payload per case, built against a live run.
+def parity_cases(run) -> dict[str, str]:
+    """One case per manifest, as the exact *file text* both sides will read.
+
+    Text rather than objects because number spelling matters: JSON.parse
+    collapses 1, 1.0, and 1e0 to the same double while Python keeps 1.0 as a
+    float, and `json.dumps` cannot express the `1e0` spelling at all.
 
     Accept cases matter as much as refusals: they are what stops the browser
     from becoming *stricter* than Python and rejecting good manifests.
     """
     decisions = proposals(run)
+    assert len(decisions) >= 2, "parity table needs at least two proposals"
     first, second = decisions[0], decisions[1]
 
     def entry(decision, verdict="vetoed", **overrides):
@@ -653,7 +682,64 @@ def parity_cases(run) -> dict[str, object]:
         ),
         "bad_verdict_null": manifest(decisions=[entry(first, verdict=None)]),
     }
-    return cases
+
+    # Everything above is a JSON-serialisable object; below are cases that only
+    # exist as *text*, because the bug that prompted them is about spelling and
+    # about input that never parses at all.
+    raw: dict[str, str] = {
+        # A `name` whose text contains fractions. Python accepts it (it is just
+        # a string), so the browser's raw-text scan must not trip on it — this
+        # is the over-rejection guard for the whole approach.
+        "ok_fraction_inside_a_name": json.dumps(
+            manifest(decisions=[entry(first, name="Price: 1.5 credits (v1.0)")]),
+            ensure_ascii=False,
+        ),
+        "ok_escaped_quote_then_fraction": json.dumps(
+            manifest(decisions=[entry(first, name='say " then 1.5')]),
+            ensure_ascii=False,
+        ),
+        "ok_pretty_printed": json.dumps(manifest(), indent=2, ensure_ascii=False),
+        # JSON.parse collapses all three of these to the same double; Python
+        # keeps the latter two as floats and _require_version refuses them.
+        "bad_version_float": json.dumps(manifest()).replace(
+            '"schema_version": 1,', '"schema_version": 1.0,', 1
+        ),
+        "bad_version_exponent": json.dumps(manifest()).replace(
+            '"schema_version": 1,', '"schema_version": 1e0,', 1
+        ),
+        "bad_snapshot_version_float": json.dumps(manifest()).replace(
+            '"schema_version": 1, "ruleset_version"',
+            '"schema_version": 1.0, "ruleset_version"',
+            1,
+        ),
+        "bad_ruleset_version_float": json.dumps(manifest()).replace(
+            '"ruleset_version": 1', '"ruleset_version": 1.0', 1
+        ),
+        # Reachable only through the text entry point.
+        "bad_not_json_at_all": "{not json",
+        "bad_json_truncated": json.dumps(manifest())[:-5],
+        "bad_json_root_array": "[]",
+        "bad_json_root_string": '"a manifest"',
+        "bad_json_nan": json.dumps(manifest()).replace(
+            '"schema_version": 1,', '"schema_version": NaN,', 1
+        ),
+        "bad_json_infinity": json.dumps(manifest()).replace(
+            '"schema_version": 1,', '"schema_version": Infinity,', 1
+        ),
+    }
+
+    text = {name: json.dumps(payload, ensure_ascii=False) for name, payload in cases.items()}
+    overlap = set(text) & set(raw)
+    assert not overlap, f"case name reused between the object and raw tables: {overlap}"
+    text.update(raw)
+
+    # A replace() that silently matched nothing would leave a *valid* manifest
+    # under a "bad_" name, and the naming check would then fail confusingly.
+    for name in ("bad_version_float", "bad_version_exponent",
+                 "bad_snapshot_version_float", "bad_ruleset_version_float",
+                 "bad_json_nan", "bad_json_infinity"):
+        assert text[name] != json.dumps(manifest()), f"{name} substitution missed"
+    return text
 
 
 def python_verdict(path: Path, run) -> str:
@@ -679,10 +765,8 @@ def parity(tmp_path_factory):
     cases = parity_cases(run)
     case_dir = workdir / "cases"
     case_dir.mkdir()
-    for name, payload in cases.items():
-        (case_dir / f"{name}.json").write_text(
-            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
-        )
+    for name, text in cases.items():
+        (case_dir / f"{name}.json").write_text(text, encoding="utf-8")
 
     completed = subprocess.run(
         [
@@ -708,6 +792,36 @@ def test_the_browser_and_python_agree_on_every_manifest(parity):
         "the review page and review.parse_manifest disagree — the page must "
         f"refuse exactly what Python refuses: {json.dumps(disagreements, indent=2)}"
     )
+
+
+def test_number_spelling_is_judged_on_the_raw_text(plain):
+    """`Number.isInteger` cannot see the difference; only the text can.
+
+    `JSON.parse` collapses 1, 1.0, and 1e0 to the same double, while Python's
+    `json.loads` keeps the latter two as floats that `_require_version` refuses.
+    """
+    spelling = plain.results["numberSpelling"]
+    assert spelling["float"] == "1.0"
+    assert spelling["exponent"] == "1e0"
+    assert spelling["negativeFraction"] == "-2.5"
+
+
+def test_the_scan_does_not_trip_on_fractions_that_are_only_text(plain):
+    """The over-rejection guard: refusing these would break good manifests."""
+    spelling = plain.results["numberSpelling"]
+    assert spelling["integer"] == ""
+    assert spelling["fractionInsideAString"] == "", "a name may contain '1.5'"
+    assert spelling["escapedQuoteThenFraction"] == "", "escapes must be tracked"
+    assert spelling["literalsContainingE"] == "", "the 'e' in true is not an exponent"
+    assert spelling["bigIdAsString"] == ""
+    assert spelling["bareBigInteger"] == ""
+
+
+def test_the_page_can_always_reread_its_own_export(plain):
+    assert plain.results["numberSpelling"]["ourOwnExport"] == ""
+    assert plain.results["exportRoundTripsThroughText"] == {
+        "ok": True, "error": "", "applied": 2
+    }
 
 
 def test_the_parity_table_covers_both_outcomes(parity):

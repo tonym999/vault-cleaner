@@ -71,9 +71,17 @@ add any without a ticket saying so.
 - The review page validates manifests **and** so does `review.parse_manifest`.
   They must refuse exactly the same things, enforced by one payload table run
   through both in `test_review_html_js.py` — add cases there, not to a
-  one-sided list. Note the browser must not be *stricter* either: cap text at
-  200 **code points** (`Array.from(text).length`), since Python's `len()` counts
-  code points and UTF-16 units would reject names Python accepts.
+  one-sided list, and vary *spelling* as well as type and presence. Note the
+  browser must not be *stricter* either: cap text at 200 **code points**
+  (`Array.from(text).length`), since Python's `len()` counts code points and
+  UTF-16 units would reject names Python accepts.
+- `JSON.parse` collapses `1`, `1.0`, and `1e0` into one double, so no
+  post-parse JavaScript check can tell a float-spelled version from an int —
+  but `json.loads` keeps `1.0` as a `float` and `_require_version` refuses it.
+  Manifests are therefore checked on the **raw text** (`readManifestText` →
+  `fractionalNumberError`), which is sound because a manifest has no fractional
+  field. Never run that scan over the embedded snapshot: armor scores really are
+  floats (`112.0`).
 - `pip install -e .` leaves a `build/` tree (gitignored). Check
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.

@@ -64,7 +64,9 @@ def test_default_output_stays_under_the_gitignored_data_dir():
     assert DEFAULT_REVIEW_HTML == "data/out/vault-review.html"
 
 
-def test_dry_run_does_not_write_to_the_default_path_either(tmp_path, capsys, monkeypatch):
+def test_dry_run_does_not_write_to_the_default_path_either(
+    tmp_path, capsys, monkeypatch
+):
     """Belt and braces on the rule that matters most: no --write, no files.
 
     Run from `tmp_path`, because `DEFAULT_REVIEW_HTML` is relative: an artifact

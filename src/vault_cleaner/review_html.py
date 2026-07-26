@@ -468,6 +468,46 @@ APP_JS = r"""
     return { ok: false, error: message };
   }
 
+  // Return the first number token that is not written as a plain integer, or
+  // "" if there is none. This has to work on the raw text: JSON.parse collapses
+  // 1, 1.0, and 1e0 to the same IEEE-754 double, so by the time versionError
+  // sees the value Number.isInteger(1.0) is true and the spelling is gone --
+  // while Python's json.loads keeps 1.0 as a float and _require_version
+  // refuses it. Legal to reject the whole class here because a review manifest
+  // has no fractional field at all: every value is a string except the three
+  // integer versions.
+  //
+  // Only ever run this over an imported manifest. The embedded report snapshot
+  // legitimately contains floats (armor scores serialise as 112.0).
+  function fractionalNumberError(text) {
+    var body = String(text);
+    var inString = false;
+    var escaped = false;
+    for (var i = 0; i < body.length; i++) {
+      var ch = body.charAt(i);
+      if (inString) {
+        // Track escapes so a \" inside a name cannot end the string early and
+        // let a fraction in the *text* be read as a fraction in the *data*.
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === "\"") inString = false;
+        continue;
+      }
+      if (ch === "\"") { inString = true; continue; }
+      if (ch !== "-" && (ch < "0" || ch > "9")) continue;
+      // Consume the whole number token before judging it, so the "e" in true
+      // and false is never mistaken for an exponent.
+      var end = i;
+      while (end < body.length && "+-0123456789.eE".indexOf(body.charAt(end)) !== -1) {
+        end++;
+      }
+      var token = body.slice(i, end);
+      if (/[.eE]/.test(token)) return token;
+      i = end - 1;
+    }
+    return "";
+  }
+
   // The three checks below mirror review.py's _check_keys, _require_text, and
   // _require_version. Each returns an error string, or "" when the value is
   // acceptable. Parity is enforced by a test that runs one table of payloads
@@ -593,6 +633,27 @@ APP_JS = r"""
     return { ok: true, verdicts: kept, applied: applied, unknown: unknown };
   }
 
+  // Bytes in, verdict out: the same contract as review.parse_manifest(path),
+  // which is what makes the two comparable in the parity test. Everything that
+  // reads a manifest goes through here, so the number-spelling check cannot be
+  // skipped by forgetting to pass the raw text along.
+  function readManifestText(snapshot, items, text) {
+    var fractional = fractionalNumberError(text);
+    if (fractional) {
+      return fail("number " + fractional + " must be written as a plain " +
+                  "integer — a review manifest has no fractional fields, and " +
+                  "Python reads " + fractional + " as a float rather than a " +
+                  "version");
+    }
+    var payload;
+    try {
+      payload = JSON.parse(text);
+    } catch (e) {
+      return fail("not valid JSON (" + e.message + ")");
+    }
+    return readManifest(snapshot, items, payload);
+  }
+
   var api = {
     MANIFEST_SCHEMA_VERSION: MANIFEST_SCHEMA_VERSION,
     STORAGE_PREFIX: STORAGE_PREFIX,
@@ -603,6 +664,8 @@ APP_JS = r"""
     compareIds: compareIds,
     countBy: countBy,
     filterItems: filterItems,
+    fractionalNumberError: fractionalNumberError,
+    readManifestText: readManifestText,
     groupItems: groupItems,
     groupLabel: groupLabel,
     itemsFromSnapshot: itemsFromSnapshot,
@@ -1130,14 +1193,7 @@ APP_JS = r"""
     }
 
     function importText(text, label) {
-      var payload;
-      try {
-        payload = JSON.parse(text);
-      } catch (e) {
-        announce("could not read " + label + ": not valid JSON (" + e.message + ")", true);
-        return;
-      }
-      var result = readManifest(snapshot, items, payload);
+      var result = readManifestText(snapshot, items, text);
       if (!result.ok) {
         announce("could not apply " + label + ": " + result.error, true);
         return;

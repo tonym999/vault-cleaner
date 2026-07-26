@@ -68,7 +68,7 @@ surprises the next agent should know about.
     success, so the page said the review was restored and Python rejected the
     same file later. Now mirrors `_check_keys`/`_require_text`/`_require_version`
     in `parse_manifest`'s order, and validates structure *before* comparing
-    the fingerprint so a malformed file says what is malformed.
+    the fingerprint, so a malformed file says what is malformed.
   - Text length is capped in **code points** (`Array.from(text).length`), not
     UTF-16 units. Python's `len()` counts code points, so a 200-emoji name is
     legal there and naive `.length` would have rejected it — the browser must
@@ -95,6 +95,47 @@ surprises the next agent should know about.
     failed it even though the dry run wrote nothing. Runs from `tmp_path` now.
   - Node subprocesses get `timeout=NODE_TIMEOUT`: an accidental infinite loop
     in the shipped script should fail loudly, not hang the suite silently.
+- Review round 2 (PR #44), one more real parity hole:
+  - **`JSON.parse` erases number spelling.** `1`, `1.0`, and `1e0` all become
+    the same IEEE-754 double, so `Number.isInteger(1.0)` is `true` and no
+    post-parse check in JavaScript can tell them apart. Python's `json.loads`
+    keeps `1.0`/`1e0` as `float` and `_require_version` refuses non-`int`, so a
+    manifest with `"schema_version": 1.0` imported cleanly in the page and was
+    then rejected by `parse_manifest` — the same inconsistency round 1 set out
+    to close, one level lower down.
+  - Fixed on the **raw text**, not the parsed value, because that is the only
+    place the distinction still exists. `fractionalNumberError` returns the
+    first number token containing `.`, `e`, or `E`. Legitimate because a review
+    manifest has *no* fractional field: everything is a string except the three
+    integer versions. It is string-aware and escape-aware, so a `name` of
+    `"Price: 1.5 (v1.0)"` and the `e` in `true`/`false` are untouched —
+    over-rejecting here would break manifests Python accepts, which is a parity
+    bug in the other direction and is pinned by accept cases.
+  - **Never run that scan over the embedded snapshot.** Armor scores serialise
+    as `112.0`, so the snapshot legitimately contains floats; the rule is about
+    imported manifests only.
+  - New `readManifestText(snapshot, items, text)` is the single entry point —
+    bytes in, verdict out, the same contract as `parse_manifest(path)`. The
+    parity harness now feeds both sides identical *bytes* rather than a parsed
+    object, which is what makes spelling and unparseable text testable at all.
+    `importText` lost its duplicated `JSON.parse` branch to it.
+  - The deeper miss was the **table**, not the code: it had integer, boolean,
+    string, and missing versions but no integral-float *spelling*, so it passed
+    while the gap was open. Now 54 cases (8 accept, 46 refuse), including
+    `1.0`/`1e0` in all three version positions, `NaN`, `Infinity`, truncated
+    JSON, and non-object roots. Lesson: a parity table is only as good as the
+    axes it varies — type and presence were covered, spelling was not.
+  - Deliberately did **not** loosen Python to accept `1.0`. `_require_version`
+    is shared with `load_overrides`, so it guards persisted state too, and
+    AGENTS.md's rule for manifests is to validate strictly. Also rejected
+    `JSON.parse`'s reviver `context.source`: it gives exact token access and
+    works in node 22, but support is recent enough that strictness would vary
+    by browser, and an invariant that holds "depending on your browser" is not
+    an invariant.
+  - Line-length nit skipped as a rule but applied locally: there is no
+    `[tool.ruff]` section, `E501` is not in ruff's default rule set, and
+    existing tests run to 118 characters, so the 90-character signature was not
+    violating anything. Wrapped for consistency with the newer files only.
 
 ## 2026-07-25 — persistent review overrides and reviewed export (#36)
 
