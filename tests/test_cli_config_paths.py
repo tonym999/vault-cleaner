@@ -75,6 +75,21 @@ def test_roundtrip_accepts_configured_input_dir(tmp_path, capsys):
     assert f"parsed 17 weapons from {project / 'exports' / 'destiny-weapon.csv'}" in out
 
 
+def test_roundtrip_explicit_paths_do_not_validate_config(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("[armor]\ntop_n_per_slot = -1\n", encoding="utf-8")
+
+    assert cli.main([
+        "roundtrip",
+        "--config", str(bad_config),
+        "--input", str(FIXTURES / "weapons_dupes.csv"),
+        "--output", str(tmp_path / "dim-import.csv"),
+        "--item", "Dupe Rifle",
+    ]) == 0
+
+    assert "parsed 17 weapons" in capsys.readouterr().out
+
+
 def test_ghosts_accepts_configured_input_dir(tmp_path, capsys):
     project = tmp_path / "project"
     _copy_exports(project / "exports")
@@ -87,3 +102,17 @@ def test_ghosts_accepts_configured_input_dir(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert f"parsed 7 ghosts from {project / 'exports' / 'destiny-ghost.csv'}" in out
+
+
+def test_ghosts_explicit_paths_do_not_validate_config(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("[armor]\ntop_n_per_slot = -1\n", encoding="utf-8")
+
+    assert cli.main([
+        "ghosts",
+        "--config", str(bad_config),
+        "--input", str(FIXTURES / "ghosts_cleanup.csv"),
+        "--output", str(tmp_path / "dim-import.csv"),
+    ]) == 0
+
+    assert "parsed 7 ghosts" in capsys.readouterr().out
