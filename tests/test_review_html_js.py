@@ -241,6 +241,30 @@ out.decoding = {
     snapshot, items, new TextEncoder().encode(exported)).ok ? "accepted" : "refused"
 };
 
+// The paste entry point. JS trim() counts U+FEFF, U+00A0, U+2028, and U+3000 as
+// whitespace and JSON does not, so trimming before validating laundered all
+// four into accepted manifests.
+function pasted(value) {
+  var result = api.readPastedManifest(snapshot, items, value);
+  if (result.empty) return "empty";
+  return result.ok ? "accepted" : "refused";
+}
+out.pasting = {
+  plain: pasted(exported),
+  surroundingJsonWhitespace: pasted("\n\t  " + exported + "  \n\n"),
+  bom: pasted("\ufeff" + exported),
+  nbsp: pasted("\u00a0" + exported),
+  lineSeparator: pasted("\u2028" + exported),
+  ideographicSpace: pasted("\u3000" + exported),
+  trailingBom: pasted(exported + "\ufeff"),
+  emptyString: pasted(""),
+  whitespaceOnly: pasted("   \n\t  "),
+  nullish: pasted(null),
+  // trim() would have made every one of these look like the plain case.
+  trimWouldHaveAccepted: ["\ufeff", "\u00a0", "\u2028", "\u3000"].map(
+    function (prefix) { return (prefix + exported).trim() === exported.trim(); })
+};
+
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -580,16 +604,27 @@ var caseDir = process.argv[4];
 // readManifestBytes matters: decoding here with node's lenient "utf8" would
 // model a decode the page does not perform (it strips no BOM, where the
 // browser's FileReader does).
+// Both import entry points, because the UI has two and a divergence hid in the
+// one that was not covered: the file input (bytes) and the paste box (text).
 var items = api.itemsFromSnapshot(snapshot);
-var verdict = {};
+var byFile = {};
+var byPaste = {};
 fs.readdirSync(caseDir).filter(function (name) {
   return name.slice(-5) === ".json";
 }).forEach(function (name) {
+  var key = name.slice(0, -5);
   var bytes = fs.readFileSync(path.join(caseDir, name));
-  var result = api.readManifestBytes(snapshot, items, bytes);
-  verdict[name.slice(0, -5)] = result.ok ? "accepted" : "refused";
+  byFile[key] = api.readManifestBytes(snapshot, items, bytes).ok
+    ? "accepted" : "refused";
+  // Bytes that are not text cannot be pasted, so those cases have no paste
+  // equivalent. Everything else must agree on both paths.
+  var decoded = api.decodeManifestBytes(bytes);
+  if (decoded.ok) {
+    byPaste[key] = api.readPastedManifest(snapshot, items, decoded.text).ok
+      ? "accepted" : "refused";
+  }
 });
-process.stdout.write(JSON.stringify(verdict));
+process.stdout.write(JSON.stringify({ file: byFile, paste: byPaste }));
 """
 
 
@@ -785,6 +820,15 @@ def parity_cases(run) -> dict[str, bytes]:
         # Python keeps it and json refuses it — so `ignoreBOM: true` is what
         # keeps this case in agreement.
         "bad_utf8_bom_prefix": b"\xef\xbb\xbf" + valid,
+        # Prefixes JavaScript's trim() treats as whitespace and JSON does not.
+        # Valid UTF-8, so these reach the paste path too — which is where they
+        # were being laundered into accepted manifests.
+        "bad_leading_nbsp": "\u00a0".encode() + valid,
+        "bad_leading_line_separator": "\u2028".encode() + valid,
+        "bad_leading_ideographic_space": "\u3000".encode() + valid,
+        # The row that makes dropping trim() safe: ordinary JSON whitespace is
+        # still fine, on both paths and in Python.
+        "ok_surrounding_json_whitespace": b"\n  " + valid + b"\n\n",
     }
 
     text = {
@@ -853,20 +897,54 @@ def parity(tmp_path_factory):
     assert completed.returncode == 0, completed.stderr
     browser = json.loads(completed.stdout)
     python = {name: python_verdict(case_dir / f"{name}.json", run) for name in cases}
-    return {"browser": browser, "python": python, "names": sorted(cases)}
+    undecodable = set()
+    for name, body in cases.items():
+        try:
+            body.decode("utf-8")
+        except UnicodeDecodeError:
+            undecodable.add(name)
+    return {
+        "file": browser["file"],
+        "paste": browser["paste"],
+        "python": python,
+        "names": sorted(cases),
+        "undecodable": undecodable,
+    }
 
 
-def test_the_browser_and_python_agree_on_every_manifest(parity):
-    """The one assertion that keeps the two validators from drifting apart."""
+@pytest.mark.parametrize("entry_point", ["file", "paste"])
+def test_the_browser_and_python_agree_on_every_manifest(parity, entry_point):
+    """The assertion that keeps the two validators from drifting apart.
+
+    Run for *both* import entry points. The paste path was missing from this
+    table for three review rounds, and a divergence lived there the whole time.
+    """
+    browser = parity[entry_point]
     disagreements = {
-        name: {"browser": parity["browser"][name], "python": parity["python"][name]}
+        name: {"browser": browser[name], "python": parity["python"][name]}
         for name in parity["names"]
-        if parity["browser"][name] != parity["python"][name]
+        if name in browser and browser[name] != parity["python"][name]
     }
     assert not disagreements, (
-        "the review page and review.parse_manifest disagree — the page must "
-        f"refuse exactly what Python refuses: {json.dumps(disagreements, indent=2)}"
+        f"the review page's {entry_point} import and review.parse_manifest "
+        "disagree — the page must refuse exactly what Python refuses: "
+        f"{json.dumps(disagreements, indent=2)}"
     )
+
+
+def test_the_paste_path_covers_every_case_that_can_be_pasted(parity):
+    """Guard the skip list, or coverage can shrink without anyone noticing.
+
+    Bytes that are not valid UTF-8 have no paste equivalent — a clipboard holds
+    text — so those cases are file-path only. Everything else must appear in
+    both columns.
+    """
+    expected = set(parity["names"]) - parity["undecodable"]
+    assert set(parity["paste"]) == expected, (
+        "the paste column skipped cases that can be pasted: "
+        f"{sorted(expected - set(parity['paste']))}"
+    )
+    assert parity["undecodable"], "the table should still cover undecodable bytes"
 
 
 def test_number_spelling_is_judged_on_the_raw_text(plain):
@@ -930,6 +1008,42 @@ def test_correctly_encoded_multibyte_text_still_decodes(plain):
     assert decoding["ascii"] == "ok:{}"
     assert decoding["multibyte"] == 'ok:"Ü"'
     assert decoding["astral"] == 'ok:"\U0001f480"'
+
+
+def test_pasting_does_not_trim_before_validating(plain):
+    """JS `trim()` is not JSON whitespace, so it must not run first.
+
+    It removes U+FEFF, U+00A0, U+2028, and U+3000 — none of which JSON accepts —
+    so trimming before validation laundered four prefixes into manifests Python
+    refuses. Exactly the divergence `ignoreBOM: true` closes on the file path,
+    left open on this one for three rounds because the trim lived in an
+    un-exported click handler.
+    """
+    pasting = plain.results["pasting"]
+    for case in ("bom", "nbsp", "lineSeparator", "ideographicSpace", "trailingBom"):
+        assert pasting[case] == "refused", case
+    # And the reason it was easy to miss: trim() makes all four indistinguishable
+    # from a clean paste.
+    assert pasting["trimWouldHaveAccepted"] == [True, True, True, True]
+
+
+def test_pasting_still_accepts_ordinary_whitespace(plain):
+    """The row that makes dropping `trim()` safe.
+
+    `JSON.parse` already allows leading and trailing JSON whitespace, so nothing
+    is lost by handing the value over untouched.
+    """
+    pasting = plain.results["pasting"]
+    assert pasting["plain"] == "accepted"
+    assert pasting["surroundingJsonWhitespace"] == "accepted"
+
+
+def test_an_empty_paste_is_reported_separately_from_a_bad_one(plain):
+    """`trim()` still answers the one question it can: is the box empty."""
+    pasting = plain.results["pasting"]
+    assert pasting["emptyString"] == "empty"
+    assert pasting["whitespaceOnly"] == "empty"
+    assert pasting["nullish"] == "empty"
 
 
 def test_the_parity_table_covers_both_outcomes(parity):

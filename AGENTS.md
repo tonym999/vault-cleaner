@@ -89,11 +89,22 @@ add any without a ticket saying so.
   `TextDecoder("utf-8", {fatal: true, ignoreBOM: true})` agrees with Python —
   `ignoreBOM: true` (meaning "keep the U+FEFF") is required, or the BOM
   divergence simply replaces the U+FFFD one.
-- Three rounds of review found the same bug at three depths, because the two
-  validators were compared one layer too high each time: object, then text, now
-  bytes. Compare at the outermost layer the real entry points use, and add
-  *accept* cases at every layer — each tightening here risked over-rejecting
-  names that Python accepts.
+- **Every** import entry point must be exported and in the parity table, not
+  just the deepest validator: the file input (`readManifestBytes`) and the paste
+  box (`readPastedManifest`). A divergence hid in the paste path for three rounds
+  purely because its normalisation sat in an un-exported click handler. Anything
+  that touches input before validation belongs in the exported layer.
+- **JS `trim()` is not JSON whitespace** — it removes U+FEFF, U+00A0, U+2028,
+  and U+3000, all of which `JSON.parse` and `json.loads` refuse. Never trim
+  before validating; trim only to test for emptiness.
+- Four rounds of review found the same bug at four places, because the two
+  validators were compared one layer too high (object, then text, then bytes)
+  and then on only one of two paths. Compare at the outermost layer the real
+  entry points use, cover *every* entry point, add *accept* cases at each layer
+  (each tightening risked over-rejecting names Python accepts), and when you fix
+  a divergence on one path, fix its siblings in the same change.
+- Scan for invisible characters at the **byte** level. `str.splitlines()` splits
+  on U+2028, so a line-based scan cannot see the character it is hunting for.
 - `pip install -e .` leaves a `build/` tree (gitignored). Check
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.

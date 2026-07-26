@@ -180,6 +180,35 @@ surprises the next agent should know about.
     wrong. Compare at the outermost layer the real entry points use, and add
     accept cases at each layer, since every fix here risked over-rejecting
     (a `name` containing `1.5`, a name with emoji, an interior U+FEFF).
+- Review round 4 (PR #44), the same divergence on the **sibling path**:
+  - The paste handler called `.trim()` on the textarea value *before*
+    validating it. **JavaScript's `trim()` is not JSON whitespace:** it removes
+    U+FEFF, U+00A0, U+2028, and U+3000, none of which JSON accepts. So all four
+    prefixes were laundered into accepted manifests while Python refused the
+    same text — including the BOM case fixed on the *file* path one round
+    earlier. Passing the value untouched costs nothing, because `JSON.parse`
+    already allows ordinary leading and trailing JSON whitespace; `trim()` now
+    answers only the question it can, "is the box empty".
+  - **Why three rounds of parity work missed it:** the parity harness covered
+    `readManifestBytes` (the file input) and the paste path's normalisation sat
+    inline in an un-exported click handler inside `boot()`, unreachable by any
+    test. The UI had two import entry points and the table covered one. Both are
+    now exported and both are columns in the table — 65 cases, the paste column
+    covering the 61 whose bytes are valid UTF-8, with an assertion that the skip
+    set is exactly the undecodable ones so coverage cannot shrink quietly.
+  - Proven by revert: restoring the `trim()` leaves the **file** column green
+    and fails only the **paste** column, which is precisely why the old
+    single-column table could not have caught it.
+  - **The actual lesson, and it is not "check one more layer":** when a
+    divergence is found on one path, fix every sibling path in the same change.
+    Round 3 had the BOM bug in hand and closed it in one of the two places.
+    Normalisation hidden in UI code is where these survive, so anything that
+    touches input before validation belongs in the exported, tested layer.
+  - Also: typed literal U+00A0/U+2028/U+3000 into the new test cases while
+    writing them, one round after being told off for literal U+FEFF. The
+    existing guard only covers `APP_JS`/`CSS`/`BODY_HTML`, not test files. Caught
+    by scanning at the byte level — `str.splitlines()` splits on U+2028, so a
+    line-based scan cannot see the character it is looking for.
 
 ## 2026-07-25 — persistent review overrides and reviewed export (#36)
 

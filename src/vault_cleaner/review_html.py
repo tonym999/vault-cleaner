@@ -680,6 +680,30 @@ APP_JS = r"""
     return readManifestText(snapshot, items, decoded.text);
   }
 
+  // The other import entry point: a textarea value, already a JS string.
+  //
+  // trim() answers exactly one question here -- "is the box empty" -- and must
+  // not touch the value that gets validated. JavaScript's trim() removes U+FEFF,
+  // U+00A0, U+2028, and U+3000, none of which JSON accepts, so trimming first
+  // laundered four prefixes into manifests Python refuses. That is the same
+  // divergence `ignoreBOM: true` closes on the file path, and passing the value
+  // through untouched costs nothing: JSON.parse already allows ordinary leading
+  // and trailing JSON whitespace.
+  //
+  // Exported rather than left inline in the click handler because normalisation
+  // hidden in UI code is precisely where this bug survived three review rounds.
+  function readPastedManifest(snapshot, items, value) {
+    var text = value === null || value === undefined ? "" : String(value);
+    if (!text.trim()) {
+      return {
+        ok: false,
+        empty: true,
+        error: "paste a review manifest into the box first"
+      };
+    }
+    return readManifestText(snapshot, items, text);
+  }
+
   var api = {
     MANIFEST_SCHEMA_VERSION: MANIFEST_SCHEMA_VERSION,
     STORAGE_PREFIX: STORAGE_PREFIX,
@@ -692,13 +716,14 @@ APP_JS = r"""
     decodeManifestBytes: decodeManifestBytes,
     filterItems: filterItems,
     fractionalNumberError: fractionalNumberError,
-    readManifestBytes: readManifestBytes,
-    readManifestText: readManifestText,
     groupItems: groupItems,
     groupLabel: groupLabel,
     itemsFromSnapshot: itemsFromSnapshot,
     keptItems: keptItems,
     readManifest: readManifest,
+    readManifestBytes: readManifestBytes,
+    readManifestText: readManifestText,
+    readPastedManifest: readPastedManifest,
     reviewCounts: reviewCounts,
     sortItems: sortItems,
     verdictOf: verdictOf
@@ -1283,16 +1308,16 @@ APP_JS = r"""
             type: "button", text: "Import from the box below",
             on: {
               click: function () {
-                var text = byId("vc-export-json").value.trim();
-                if (!text) {
-                  announce("paste a review manifest into the box first", true);
+                // No validation or normalisation inline: readPastedManifest
+                // owns both, so a test can reach them.
+                var result = readPastedManifest(
+                  snapshot, items, byId("vc-export-json").value
+                );
+                if (result.empty) {
+                  announce(result.error, true);
                   return;
                 }
-                // Already a JS string, so there is nothing to decode.
-                applyImport(
-                  readManifestText(snapshot, items, text),
-                  "the pasted manifest"
-                );
+                applyImport(result, "the pasted manifest");
               }
             }
           })
