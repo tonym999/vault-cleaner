@@ -75,8 +75,7 @@ REVIEW_HTML_OUTPUT_HELP = (
 
 
 def _config_base(config_path: str) -> Path:
-    path = Path(config_path)
-    return path.parent if path.exists() else Path()
+    return Path(config_path).parent
 
 
 def _resolve_config_dir(cfg: dict, config_path: str, key: str) -> Path:

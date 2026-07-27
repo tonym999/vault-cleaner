@@ -44,6 +44,24 @@ def test_report_uses_configured_input_and_output_dirs(tmp_path, capsys):
     assert target.exists()
 
 
+def test_missing_nested_config_resolves_defaults_from_config_parent(tmp_path, capsys):
+    project = tmp_path / "project"
+    _copy_exports(project / "data" / "in")
+    config = project / "config.toml"
+
+    assert cli.main([
+        "report",
+        "--config", str(config),
+        "--no-wishlists",
+        "--write",
+    ]) == 0
+
+    out = capsys.readouterr().out
+    target = project / "data" / "out" / "dim-import.csv"
+    assert str(target) in out
+    assert target.exists()
+
+
 def test_configured_input_dir_uses_export_discovery(tmp_path, capsys):
     project = tmp_path / "project"
     exports = project / "exports"

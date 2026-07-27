@@ -135,8 +135,8 @@ surprises the next agent should know about.
   current behaviour.
 - Added `--config` to `roundtrip` and `ghosts` so those commands can use the
   same path defaults as the rest of the CLI.
-- This does not implement automatic DIM export discovery or ambiguity
-  handling; it is a smaller path-default step toward #47.
+- Configured input directories still go through the existing export discovery
+  path, preserving ambiguity refusal for omitted inputs.
 
 ## 2026-07-25 — self-contained static HTML review UI (#37)
 
