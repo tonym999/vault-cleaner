@@ -44,10 +44,11 @@ def test_report_uses_configured_input_and_output_dirs(tmp_path, capsys):
     assert target.exists()
 
 
-def test_missing_nested_config_resolves_defaults_from_config_parent(tmp_path, capsys):
+def test_missing_nested_config_keeps_cwd_defaults(tmp_path, monkeypatch, capsys):
     project = tmp_path / "project"
-    _copy_exports(project / "data" / "in")
+    _copy_exports(tmp_path / "data" / "in")
     config = project / "config.toml"
+    monkeypatch.chdir(tmp_path)
 
     assert cli.main([
         "report",
@@ -57,8 +58,8 @@ def test_missing_nested_config_resolves_defaults_from_config_parent(tmp_path, ca
     ]) == 0
 
     out = capsys.readouterr().out
-    target = project / "data" / "out" / "dim-import.csv"
-    assert str(target) in out
+    target = tmp_path / "data" / "out" / "dim-import.csv"
+    assert "data/out/dim-import.csv" in out
     assert target.exists()
 
 
@@ -211,3 +212,34 @@ def test_roundtrip_rejects_non_string_paths_value(tmp_path, capsys):
     ]) == 1
 
     assert "paths.output_dir must be a string" in capsys.readouterr().err
+
+
+def test_dupes_rejects_non_string_paths_value_cleanly(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("[paths]\ninput_dir = 123\n", encoding="utf-8")
+
+    assert cli.main([
+        "dupes",
+        "--config", str(bad_config),
+        "--input", str(FIXTURES / "weapons_dupes.csv"),
+        "--no-wishlists",
+    ]) == 1
+
+    err = capsys.readouterr().err
+    assert "paths.input_dir must be a string" in err
+    assert "Traceback" not in err
+
+
+def test_armor_rejects_non_string_paths_value_cleanly(tmp_path, capsys):
+    bad_config = tmp_path / "config.toml"
+    bad_config.write_text("[paths]\ninput_dir = 123\n", encoding="utf-8")
+
+    assert cli.main([
+        "armor",
+        "--config", str(bad_config),
+        "--input", str(FIXTURES / "armor.csv"),
+    ]) == 1
+
+    err = capsys.readouterr().err
+    assert "paths.input_dir must be a string" in err
+    assert "Traceback" not in err
