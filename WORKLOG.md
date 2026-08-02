@@ -7,8 +7,8 @@ surprises the next agent should know about.
 
 - Documented the deliberate path-base split from #55: when the requested
   config is missing, built-in relative paths retain their historical
-  current-working-directory meaning; relative paths read from an existing
-  config resolve against that file's parent.
+  current-working-directory meaning; relative paths resolve against the config
+  file's parent whenever that file exists — built-in defaults included.
 - Both `load_config` and the paths-only `load_paths_config` reject non-string
   `[paths]` values cleanly. The paths-only accessor remains intentional so
   `roundtrip` and `ghosts` are not blocked by unrelated armor validation.
