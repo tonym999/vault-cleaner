@@ -1,6 +1,8 @@
 from pathlib import Path
 from shutil import copyfile
 
+import pytest
+
 from vault_cleaner import cli
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -60,6 +62,28 @@ def test_missing_nested_config_keeps_cwd_defaults(tmp_path, monkeypatch, capsys)
     out = capsys.readouterr().out
     target = tmp_path / "data" / "out" / "dim-import.csv"
     assert "data/out/dim-import.csv" in out
+    assert target.exists()
+
+
+def test_existing_config_without_paths_bases_defaults_at_config_parent(
+    tmp_path, monkeypatch, capsys,
+):
+    project = tmp_path / "project"
+    _copy_exports(project / "data" / "in")
+    config = project / "config.toml"
+    config.write_text("[armor]\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert cli.main([
+        "report",
+        "--config", str(config),
+        "--no-wishlists",
+        "--write",
+    ]) == 0
+
+    out = capsys.readouterr().out
+    target = project / "data" / "out" / "dim-import.csv"
+    assert str(target) in out
     assert target.exists()
 
 
@@ -133,7 +157,7 @@ def test_roundtrip_accepts_configured_input_dir(tmp_path, capsys):
     assert f"parsed 17 weapons from {project / 'exports' / 'destiny-weapon.csv'}" in out
 
 
-def test_roundtrip_explicit_paths_do_not_validate_config(tmp_path, capsys):
+def test_roundtrip_ignores_unrelated_armor_config_errors(tmp_path, capsys):
     bad_config = tmp_path / "config.toml"
     bad_config.write_text("[armor]\ntop_n_per_slot = -1\n", encoding="utf-8")
 
@@ -161,7 +185,7 @@ def test_ghosts_accepts_configured_input_dir(tmp_path, capsys):
     assert f"parsed 7 ghosts from {project / 'exports' / 'destiny-ghost.csv'}" in out
 
 
-def test_ghosts_explicit_paths_do_not_validate_config(tmp_path, capsys):
+def test_ghosts_ignores_unrelated_armor_config_errors(tmp_path, capsys):
     bad_config = tmp_path / "config.toml"
     bad_config.write_text("[armor]\ntop_n_per_slot = -1\n", encoding="utf-8")
 
@@ -172,6 +196,30 @@ def test_ghosts_explicit_paths_do_not_validate_config(tmp_path, capsys):
     ]) == 0
 
     assert "parsed 7 ghosts" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("command", ["report", "review", "review-html"])
+def test_combined_command_reads_paths_config_once(command, tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    _copy_exports(project / "exports")
+    config = _write_config(project)
+    monkeypatch.chdir(project)
+    original = cli.load_paths_config
+    calls = 0
+
+    def counted_load_paths_config(path):
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(cli, "load_paths_config", counted_load_paths_config)
+
+    assert cli.main([
+        command,
+        "--config", str(config),
+        "--no-wishlists",
+    ]) == 0
+    assert calls == 1
 
 
 def test_roundtrip_rejects_malformed_paths_config(tmp_path, capsys):
