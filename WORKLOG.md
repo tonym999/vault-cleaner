@@ -127,6 +127,16 @@ surprises the next agent should know about.
   the ambiguous case (stale exact name beside newer numbered copy) is the
   normal result of exporting twice, which validates refusing ambiguity even
   when the exact name is present.
+## 2026-07-26 — configured CLI input/output paths (#47)
+
+- Taught the existing CLI defaults to respect `[paths].input_dir` for known
+  DIM export filenames and `[paths].output_dir` for generated import/review
+  artifacts. Explicit CLI paths still win, so scripted invocations keep their
+  current behaviour.
+- Added `--config` to `roundtrip` and `ghosts` so those commands can use the
+  same path defaults as the rest of the CLI.
+- Configured input directories still go through the existing export discovery
+  path, preserving ambiguity refusal for omitted inputs.
 
 ## 2026-07-25 — self-contained static HTML review UI (#37)
 

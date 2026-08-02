@@ -118,6 +118,12 @@ def _validate_armor(cfg: dict) -> None:
             raise ConfigError(f"{where}.weights needs at least one positive weight")
 
 
+def _validate_paths(paths: dict, path: Path) -> None:
+    for key, value in paths.items():
+        if not isinstance(value, str):
+            raise ConfigError(f"{path}: paths.{key} must be a string")
+
+
 def load_config(path: str | Path = "config.toml") -> dict:
     path = Path(path)
     data: dict = {}
@@ -135,5 +141,27 @@ def load_config(path: str | Path = "config.toml") -> dict:
         merged[section] = {**deepcopy(defaults), **value}
     for section, values in data.items():
         merged.setdefault(section, values)
+    _validate_paths(merged["paths"], path)
     _validate_armor(merged)
     return merged
+
+
+def load_paths_config(path: str | Path = "config.toml") -> dict:
+    """Load only [paths], without validating unrelated config sections."""
+    path = Path(path)
+    data: dict = {}
+    if path.exists():
+        try:
+            with path.open("rb") as f:
+                data = tomllib.load(f)
+        except (tomllib.TOMLDecodeError, OSError) as e:
+            raise ConfigError(f"{path}: {e}") from e
+
+    paths = data.get("paths", {})
+    if not isinstance(paths, dict):
+        raise ConfigError(f"{path}: [paths] must be a table, got {type(paths).__name__}")
+
+    merged = {**deepcopy(DEFAULTS["paths"]), **paths}
+    _validate_paths(merged, path)
+
+    return {"paths": merged}

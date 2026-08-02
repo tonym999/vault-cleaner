@@ -22,6 +22,26 @@ manual, in-game step via a `tag:junk` search in DIM.
 
 `data/` is personal vault data and is gitignored — it never leaves your machine.
 
+If your DIM exports land somewhere else, set the default input and output
+directories in `config.toml`:
+
+```toml
+[paths]
+input_dir = "data/in"
+output_dir = "data/out"
+```
+
+For a WSL workflow that reads directly from your Windows Downloads folder, use
+the mounted path:
+
+```toml
+[paths]
+input_dir = "/mnt/c/Users/<you>/Downloads"
+output_dir = "data/out"
+```
+
+Explicit command-line paths still take precedence over these defaults.
+
 ## Quickstart
 
 ```bash
