@@ -3,6 +3,19 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-02 — configured-path maintenance follow-up (#58)
+
+- Documented the deliberate path-base split from #55: when the requested
+  config is missing, built-in relative paths retain their historical
+  current-working-directory meaning; relative paths read from an existing
+  config resolve against that file's parent.
+- Both `load_config` and the paths-only `load_paths_config` reject non-string
+  `[paths]` values cleanly. The paths-only accessor remains intentional so
+  `roundtrip` and `ghosts` are not blocked by unrelated armor validation.
+- Combined `report`, `review`, and `review-html` runs now reuse the paths
+  configuration already loaded for input discovery when resolving their
+  output, avoiding a third read of the same config file.
+
 ## 2026-07-26 — deterministic DIM export discovery (#56)
 
 - Added one discovery boundary for all three DIM export kinds. Omitted inputs
@@ -127,6 +140,7 @@ surprises the next agent should know about.
   the ambiguous case (stale exact name beside newer numbered copy) is the
   normal result of exporting twice, which validates refusing ambiguity even
   when the exact name is present.
+
 ## 2026-07-26 — configured CLI input/output paths (#47)
 
 - Taught the existing CLI defaults to respect `[paths].input_dir` for known

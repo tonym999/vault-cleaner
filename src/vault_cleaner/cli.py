@@ -76,6 +76,9 @@ REVIEW_HTML_OUTPUT_HELP = (
 
 def _config_base(config_path: str) -> Path:
     path = Path(config_path)
+    # An absent config uses built-in relative defaults, which intentionally
+    # retain their historical cwd-relative meaning. Only configured relative
+    # paths from an existing file are based at that file's parent (#55).
     return path.parent if path.exists() else Path()
 
 
@@ -95,10 +98,9 @@ def _default_output_path(cfg: dict, config_path: str, default_path: str) -> str:
     return _format_path(output_dir / Path(default_path).name)
 
 
-def _resolved_output_path(args: argparse.Namespace, default_path: str) -> str:
+def _resolved_output_path(args: argparse.Namespace, paths_cfg: dict, default_path: str) -> str:
     if args.output:
         return args.output
-    paths_cfg = load_paths_config(args.config)
     return _default_output_path(paths_cfg, args.config, default_path)
 
 
@@ -279,7 +281,7 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
     return 0
 
 
-def _build_report(args: argparse.Namespace) -> tuple[ReportRun | None, int]:
+def _build_report(args: argparse.Namespace) -> tuple[ReportRun | None, dict | None, int]:
     """Run every pass, reporting the usual load failures as exit code 1."""
     try:
         paths_cfg = load_paths_config(args.config)
@@ -300,20 +302,20 @@ def _build_report(args: argparse.Namespace) -> tuple[ReportRun | None, int]:
         SourceReadError,
     ) as e:
         print(f"error: {e}", file=sys.stderr)
-        return None, 1
+        return None, None, 1
     except (WishlistError, ManifestError) as e:
         print(f"error: {e}", file=sys.stderr)
         print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
-        return None, 1
-    return result, 0
+        return None, None, 1
+    return result, paths_cfg, 0
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
     """Run every pass and print the aggregated would-junk summary (#9)."""
-    result, rc = _build_report(args)
-    if result is None:
+    result, paths_cfg, rc = _build_report(args)
+    if result is None or paths_cfg is None:
         return rc
-    output_path = _resolved_output_path(args, DEFAULT_OUTPUT)
+    output_path = _resolved_output_path(args, paths_cfg, DEFAULT_OUTPUT)
 
     for warning in result.warnings:
         print(warning.render(), file=sys.stderr)
@@ -387,10 +389,10 @@ def _cmd_review(args: argparse.Namespace) -> int:
     fresh run. With one, the manifest is validated against that run's
     fingerprint before a single veto is persisted.
     """
-    result, rc = _build_report(args)
-    if result is None:
+    result, paths_cfg, rc = _build_report(args)
+    if result is None or paths_cfg is None:
         return rc
-    output_path = _resolved_output_path(args, DEFAULT_OUTPUT)
+    output_path = _resolved_output_path(args, paths_cfg, DEFAULT_OUTPUT)
 
     for warning in result.warnings:
         print(warning.render(), file=sys.stderr)
@@ -483,10 +485,10 @@ def _cmd_review_html(args: argparse.Namespace) -> int:
     writes the reviewed one. This command only ever produces the review page,
     and the page only ever produces a manifest for `review` to re-validate.
     """
-    result, rc = _build_report(args)
-    if result is None:
+    result, paths_cfg, rc = _build_report(args)
+    if result is None or paths_cfg is None:
         return rc
-    output_path = _resolved_output_path(args, DEFAULT_REVIEW_HTML)
+    output_path = _resolved_output_path(args, paths_cfg, DEFAULT_REVIEW_HTML)
 
     for warning in result.warnings:
         print(warning.render(), file=sys.stderr)
