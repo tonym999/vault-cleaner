@@ -65,6 +65,28 @@ def test_missing_nested_config_keeps_cwd_defaults(tmp_path, monkeypatch, capsys)
     assert target.exists()
 
 
+def test_existing_config_without_paths_bases_defaults_at_config_parent(
+    tmp_path, monkeypatch, capsys,
+):
+    project = tmp_path / "project"
+    _copy_exports(project / "data" / "in")
+    config = project / "config.toml"
+    config.write_text("[armor]\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert cli.main([
+        "report",
+        "--config", str(config),
+        "--no-wishlists",
+        "--write",
+    ]) == 0
+
+    out = capsys.readouterr().out
+    target = project / "data" / "out" / "dim-import.csv"
+    assert str(target) in out
+    assert target.exists()
+
+
 def test_configured_input_dir_uses_export_discovery(tmp_path, capsys):
     project = tmp_path / "project"
     exports = project / "exports"
@@ -181,6 +203,7 @@ def test_combined_command_reads_paths_config_once(command, tmp_path, monkeypatch
     project = tmp_path / "project"
     _copy_exports(project / "exports")
     config = _write_config(project)
+    monkeypatch.chdir(project)
     original = cli.load_paths_config
     calls = 0
 

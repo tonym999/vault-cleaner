@@ -76,9 +76,10 @@ REVIEW_HTML_OUTPUT_HELP = (
 
 def _config_base(config_path: str) -> Path:
     path = Path(config_path)
-    # An absent config uses built-in relative defaults, which intentionally
-    # retain their historical cwd-relative meaning. Only configured relative
-    # paths from an existing file are based at that file's parent (#55).
+    # Relative paths are anchored at the config file's parent whenever that
+    # file exists — built-in defaults included. With no config file there is
+    # no parent to anchor to, so defaults retain their historical
+    # cwd-relative meaning (#55).
     return path.parent if path.exists() else Path()
 
 
