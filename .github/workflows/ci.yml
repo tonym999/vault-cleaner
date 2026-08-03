@@ -6,6 +6,30 @@ on:
   pull_request:
 
 jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No tracked files under data/
+        run: |
+          if git ls-files data/ | grep -q .; then
+            echo "error: tracked file(s) under data/ — this repo is public"
+            git ls-files data/
+            exit 1
+          fi
+      - name: Whitespace and line endings
+        if: github.event_name == 'pull_request'
+        run: git diff --check origin/main...HEAD
+      - name: WORKLOG entry present
+        if: github.event_name == 'pull_request'
+        run: |
+          if ! git diff --name-only origin/main...HEAD | grep -qx WORKLOG.md; then
+            echo "error: WORKLOG.md is absent from the PR diff — see AGENTS.md workflow step 3"
+            exit 1
+          fi
+
   test:
     # Both platforms, because three of #45's four causes were invisible on
     # Linux: locale-encoded subprocess output, text-mode newline translation,

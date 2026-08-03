@@ -13,6 +13,11 @@ python3 -m venv .venv                # if .venv doesn't already exist
 .venv/bin/vault-cleaner roundtrip --item "NAME"   # dry-run pipeline check
 ```
 
+CI also rejects tracked files under `data/`, whitespace or line-ending errors
+reported by `git diff --check`, and pull requests without a `WORKLOG.md` entry.
+The worklog requirement has no escape hatch: every pull request records what
+changed, including CI-only changes and reverts.
+
 Regenerate the fake-data report golden only when an intentional snapshot
 schema or fixture change requires it:
 
