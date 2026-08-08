@@ -3,6 +3,20 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-08 — deterministic zero-age cache bypass (#70)
+
+- Made `max_age_days=0` unconditionally bypass the fresh-cache fast path for
+  both the Bungie manifest perk map and wishlist downloads, even when
+  filesystem timestamp precision leaves a newly written cache mtime slightly
+  ahead of the current clock. Positive limits retain their existing freshness
+  behavior, and both contracts are documented at their loader boundaries.
+- Pinned the Windows failure with actual future-dated cache mtimes rather than
+  a process-wide clock fake. Separate tests retain the ordinary stale-cache
+  fallback coverage; failed forced requests still return cached content with
+  the existing warning.
+- `RULESET_VERSION` is unchanged: this fixes cache refresh control flow and
+  does not change rule ordering or decision semantics.
+
 ## 2026-08-03 — CI repository hygiene gates (#60)
 
 - Added a platform-independent `hygiene` job that rejects tracked files under
