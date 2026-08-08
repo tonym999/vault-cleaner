@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from vault_cleaner.config import ConfigError, load_config, load_paths_config
@@ -72,6 +73,16 @@ REVIEWED_OUTPUT_HELP = (
 REVIEW_HTML_OUTPUT_HELP = (
     "review page to write (default: [paths].output_dir/vault-review.html)"
 )
+
+def _write_or_error[T](
+    write: Callable[[], T], failure: str
+) -> tuple[bool, T | None]:
+    """Run one filesystem write and turn ordinary OS failures into CLI errors."""
+    try:
+        return True, write()
+    except OSError as e:
+        print(f"error: {failure}: {e}", file=sys.stderr)
+        return False, None
 
 
 def _config_base(config_path: str) -> Path:
@@ -144,7 +155,12 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
         print("dry run — pass --write to write the import CSV")
         return 0
 
-    n = write_import_csv(rows, output_path)
+    written, n = _write_or_error(
+        lambda: write_import_csv(rows, output_path),
+        f"CSV not written to {output_path}",
+    )
+    if not written:
+        return 1
     print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
@@ -201,7 +217,12 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
         return 0
 
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
-    n = write_import_csv(rows, output_path)
+    written, n = _write_or_error(
+        lambda: write_import_csv(rows, output_path),
+        f"CSV not written to {output_path}",
+    )
+    if not written:
+        return 1
     print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
@@ -247,7 +268,12 @@ def _cmd_armor(args: argparse.Namespace) -> int:
         return 0
 
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
-    n = write_import_csv(rows, output_path)
+    written, n = _write_or_error(
+        lambda: write_import_csv(rows, output_path),
+        f"CSV not written to {output_path}",
+    )
+    if not written:
+        return 1
     print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
@@ -277,7 +303,12 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
         return 0
 
     rows = [{"Id": d.id, "Hash": d.hash, "Tag": d.tag, "Notes": d.note} for d in decisions]
-    n = write_import_csv(rows, output_path)
+    written, n = _write_or_error(
+        lambda: write_import_csv(rows, output_path),
+        f"CSV not written to {output_path}",
+    )
+    if not written:
+        return 1
     print(f"wrote {n} row(s) to {output_path} — import via DIM Settings → Import tags/notes from CSV")
     return 0
 
@@ -349,7 +380,12 @@ def _cmd_report(args: argparse.Namespace) -> int:
         return 0
 
     rows = result.import_rows()
-    n = write_import_csv(rows, output_path)
+    written, n = _write_or_error(
+        lambda: write_import_csv(rows, output_path),
+        f"CSV not written to {output_path}",
+    )
+    if not written:
+        return 1
     print(
         f"\nwrote {n} row(s) to {output_path} — "
         "import via DIM Settings → Import tags/notes from CSV"
@@ -468,9 +504,24 @@ def _cmd_review(args: argparse.Namespace) -> int:
         return 0
 
     if merge is not None:
-        save_overrides(store, args.overrides)
+        saved, _ = _write_or_error(
+            lambda: save_overrides(store, args.overrides),
+            f"nothing written — overrides not saved to {args.overrides}",
+        )
+        if not saved:
+            return 1
         print(f"\nupdated {args.overrides}")
-    n = write_import_csv([d.import_row() for d in kept], output_path)
+    csv_failure = (
+        f"overrides saved to {args.overrides}, but CSV not written to {output_path}"
+        if merge is not None
+        else f"nothing written — CSV not written to {output_path}"
+    )
+    written, n = _write_or_error(
+        lambda: write_import_csv([d.import_row() for d in kept], output_path),
+        csv_failure,
+    )
+    if not written:
+        return 1
     print(
         f"wrote {n} row(s) to {output_path} — "
         "import via DIM Settings → Import tags/notes from CSV"
@@ -506,7 +557,12 @@ def _cmd_review_html(args: argparse.Namespace) -> int:
         print("dry run — nothing written; pass --write to generate the review page")
         return 0
 
-    target = write_review_html(result, output_path)
+    written, target = _write_or_error(
+        lambda: write_review_html(result, output_path),
+        f"review page not written to {output_path}",
+    )
+    if not written:
+        return 1
     size = target.stat().st_size
     print(
         f"wrote {target} ({size} bytes) — open it in a browser, review, export "

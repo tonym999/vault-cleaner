@@ -45,6 +45,21 @@ surprises the next agent should know about.
   with no worklog change each failed with the expected offending path. A
   scratch commit containing this implementation passed all three checks.
 
+## 2026-08-02 — clean write-side filesystem errors (#43)
+
+- Added one CLI write boundary that converts ordinary `OSError` failures into
+  the existing `error: <message>` convention and exit code 1. All CSV-writing
+  commands now use it, as does `review-html`, so an unwritable destination no
+  longer produces a traceback from any `--write` surface.
+- Preserved review's deliberate write order: overrides are saved before the
+  derived CSV. A failed override save reports that nothing was written; a CSV
+  failure after a successful save reports that the overrides are durable and
+  only the CSV must be regenerated. A review run without a manifest has no
+  override write and reports that nothing was written when its CSV fails.
+- Regression coverage injects filesystem failures into every command shape
+  and separately pins both review outcomes, including the persisted override
+  file in the partial-write case.
+
 ## 2026-08-02 — configured-path maintenance follow-up (#58)
 
 - Documented the deliberate path-base split from #55: when the requested
