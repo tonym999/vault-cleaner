@@ -3,6 +3,18 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-08 — CI hygiene review follow-up (#60)
+
+- Tightened the worklog gate from “the path changed” to “the PR added a dated
+  entry,” so deleting, reformatting, or otherwise touching `WORKLOG.md` no
+  longer satisfies the audit-trail requirement. Both PR-diff checks now use
+  the event's base branch instead of assuming every PR targets `main`.
+- Made the workflow's read-only token permission explicit and stopped both
+  checkouts from persisting credentials that neither job uses.
+- Documented the narrow `.gitattributes` escape valve for a deliberately
+  whitespace-sensitive fixture; exceptions belong on exact paths and in the
+  worklog rather than weakening the repository-wide check.
+
 ## 2026-08-08 — deterministic zero-age cache bypass (#70)
 
 - Made `max_age_days=0` unconditionally bypass the fresh-cache fast path for
