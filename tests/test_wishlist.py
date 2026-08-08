@@ -147,6 +147,16 @@ def test_fetch_failure_falls_back_to_stale_cache(tmp_path, monkeypatch, capsys):
     assert "stale cache" in capsys.readouterr().err
 
 
+def test_fetch_zero_age_falls_back_to_future_dated_cache(tmp_path, monkeypatch, capsys):
+    p = tmp_path / "test.txt"
+    p.write_text("stale")
+    future = time.time() + 60
+    os.utime(p, (future, future))
+    monkeypatch.setattr(wl_mod, "_download", _boom)
+    assert fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=0).read_text() == "stale"
+    assert "stale cache" in capsys.readouterr().err
+
+
 def test_fetch_failure_without_cache_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(wl_mod, "_download", _boom)
     with pytest.raises(WishlistError, match="no cached copy"):

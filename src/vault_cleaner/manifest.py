@@ -94,7 +94,11 @@ def load_perk_map_data(
     max_age_days: float = 30,
     refresh: bool = False,
 ) -> PerkMapData:
-    """Load the perk map together with its source manifest version."""
+    """Load the perk map together with its source manifest version.
+
+    A non-positive ``max_age_days`` always revalidates against the manifest
+    index instead of accepting a cached map as fresh.
+    """
     cache_dir = Path(cache_dir)
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -105,9 +109,8 @@ def load_perk_map_data(
     cached = _read_cache(cache)
     if cached is not None and not refresh:
         try:
-            age_ok = max_age_days > 0 and (
-                time.time() - cache.stat().st_mtime
-            ) < max_age_days * 86400
+            age = time.time() - cache.stat().st_mtime
+            age_ok = max_age_days > 0 and age < max_age_days * 86400
         except OSError:
             age_ok = False
         if age_ok:
