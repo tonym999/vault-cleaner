@@ -3,6 +3,15 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-09 — DIM CSV BOM regression coverage (#47)
+
+- Pinned the existing weapons-loader behaviour for both ordinary UTF-8 DIM
+  exports and exports with a leading UTF-8 BOM. The regression uses the same
+  fake DIM fixture in both cases and verifies that header parsing, row loading,
+  and quoted instance-id normalisation remain identical.
+- No runtime behaviour or decision semantics changed; this closes the final
+  test-coverage acceptance criterion on the #47 umbrella.
+
 ## 2026-08-08 — CI hygiene review follow-up (#60)
 
 - Tightened the worklog gate from “the path changed” to “the PR added a dated

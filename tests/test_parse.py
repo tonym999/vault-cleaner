@@ -15,6 +15,22 @@ def test_load_weapons_by_header_name():
     assert df.loc[2, "Rarity"] == "Exotic"
 
 
+@pytest.mark.parametrize(
+    "prefix",
+    [b"", b"\xef\xbb\xbf"],
+    ids=["plain-utf8", "utf8-bom"],
+)
+def test_load_weapons_accepts_utf8_with_or_without_bom(tmp_path, prefix):
+    export = tmp_path / "destiny-weapon.csv"
+    export.write_bytes(prefix + FIXTURE.read_bytes())
+
+    df = load_weapons(export)
+
+    assert len(df) == 3
+    assert df.loc[0, "Name"] == "Fake Auto Rifle"
+    assert df.loc[0, "Id"] == "1000000000000000001"
+
+
 def test_ids_are_unwrapped_from_dim_quoting():
     df = load_weapons(FIXTURE)
     assert df["Id"].tolist() == [
