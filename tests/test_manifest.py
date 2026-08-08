@@ -138,9 +138,12 @@ def _down(url, timeout=300):
     raise OSError("bungie down")
 
 
-def test_index_down_falls_back_to_cache(tmp_path, monkeypatch, capsys):
+def test_index_down_falls_back_to_future_dated_cache(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(mf, "_get_json", fake_get())
     load_perk_map(tmp_path)
+    cache = tmp_path / mf.CACHE_FILENAME
+    now = cache.stat().st_mtime - 1
+    monkeypatch.setattr(mf.time, "time", lambda: now)
     monkeypatch.setattr(mf, "_get_json", _down)
     assert load_perk_map(tmp_path, max_age_days=0)["perk a"] == frozenset({101, 102})
     assert "cached perk map" in capsys.readouterr().err

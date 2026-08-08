@@ -3,6 +3,19 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-08 — deterministic zero-age manifest cache bypass (#70)
+
+- Made `max_age_days=0` unconditionally bypass the fresh-cache fast path,
+  even when filesystem timestamp precision leaves a newly written cache mtime
+  slightly ahead of the current clock. Positive limits retain their existing
+  freshness behavior.
+- Pinned the Windows failure deterministically by running the index-down
+  fallback test with the loader clock one second behind the cache mtime. The
+  stale cached perk map is still returned with its existing warning when the
+  forced index request fails.
+- `RULESET_VERSION` is unchanged: this fixes cache refresh control flow and
+  does not change rule ordering or decision semantics.
+
 ## 2026-08-02 — configured-path maintenance follow-up (#58)
 
 - Documented the deliberate path-base split from #55: when the requested

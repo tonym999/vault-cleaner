@@ -105,7 +105,9 @@ def load_perk_map_data(
     cached = _read_cache(cache)
     if cached is not None and not refresh:
         try:
-            age_ok = (time.time() - cache.stat().st_mtime) < max_age_days * 86400
+            age_ok = max_age_days > 0 and (
+                time.time() - cache.stat().st_mtime
+            ) < max_age_days * 86400
         except OSError:
             age_ok = False
         if age_ok:
