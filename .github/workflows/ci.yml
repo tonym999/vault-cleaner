@@ -5,7 +5,40 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: No tracked files under data/
+        run: |
+          if git ls-files data/ | grep -q .; then
+            echo "error: tracked file(s) under data/ — this repo is public"
+            git ls-files data/
+            exit 1
+          fi
+      - name: Whitespace and line endings
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: git diff --check "origin/$BASE...HEAD"
+      - name: WORKLOG entry present
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          worklog_patch="$(git diff --unified=0 "origin/$BASE...HEAD" -- WORKLOG.md)"
+          if ! grep -Eq '^\+## [0-9]{4}-[0-9]{2}-[0-9]{2} — .+' <<<"$worklog_patch"; then
+            echo "error: PR must add a dated WORKLOG.md entry — see AGENTS.md workflow step 3"
+            exit 1
+          fi
+
   test:
     # Both platforms, because three of #45's four causes were invisible on
     # Linux: locale-encoded subprocess output, text-mode newline translation,
@@ -17,6 +50,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

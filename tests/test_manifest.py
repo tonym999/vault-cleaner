@@ -1,4 +1,6 @@
 import json
+import os
+import time
 
 import pytest
 
@@ -141,6 +143,20 @@ def _down(url, timeout=300):
 def test_index_down_falls_back_to_cache(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(mf, "_get_json", fake_get())
     load_perk_map(tmp_path)
+    cache = tmp_path / mf.CACHE_FILENAME
+    past = time.time() - 60
+    os.utime(cache, (past, past))
+    monkeypatch.setattr(mf, "_get_json", _down)
+    assert load_perk_map(tmp_path, max_age_days=0)["perk a"] == frozenset({101, 102})
+    assert "cached perk map" in capsys.readouterr().err
+
+
+def test_index_down_falls_back_to_future_dated_cache(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(mf, "_get_json", fake_get())
+    load_perk_map(tmp_path)
+    cache = tmp_path / mf.CACHE_FILENAME
+    future = time.time() + 60
+    os.utime(cache, (future, future))
     monkeypatch.setattr(mf, "_get_json", _down)
     assert load_perk_map(tmp_path, max_age_days=0)["perk a"] == frozenset({101, 102})
     assert "cached perk map" in capsys.readouterr().err
