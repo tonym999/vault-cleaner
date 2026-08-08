@@ -3,6 +3,18 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-08 — CI hygiene review follow-up (#60)
+
+- Tightened the worklog gate from “the path changed” to “the PR added a dated
+  entry,” so deleting, reformatting, or otherwise touching `WORKLOG.md` no
+  longer satisfies the audit-trail requirement. Both PR-diff checks now use
+  the event's base branch instead of assuming every PR targets `main`.
+- Made the workflow's read-only token permission explicit and stopped both
+  checkouts from persisting credentials that neither job uses.
+- Documented the narrow `.gitattributes` escape valve for a deliberately
+  whitespace-sensitive fixture; exceptions belong on exact paths and in the
+  worklog rather than weakening the repository-wide check.
+
 ## 2026-08-08 — deterministic zero-age cache bypass (#70)
 
 - Made `max_age_days=0` unconditionally bypass the fresh-cache fast path for
@@ -16,6 +28,22 @@ surprises the next agent should know about.
   the existing warning.
 - `RULESET_VERSION` is unchanged: this fixes cache refresh control flow and
   does not change rule ordering or decision semantics.
+
+## 2026-08-03 — CI repository hygiene gates (#60)
+
+- Added a platform-independent `hygiene` job that rejects tracked files under
+  `data/` on both CI triggers and checks pull-request diffs for whitespace,
+  line-ending errors, and a `WORKLOG.md` change.
+- The job checks the full PR range from its merge base, so checkout fetches the
+  complete history. Each failure identifies the offending path or the missing
+  `WORKLOG.md` file without requiring a local reproduction.
+- Kept the worklog gate unconditional. CI-only changes and reverts still need
+  a short audit-trail entry, so a bypass label would weaken the stated workflow
+  without a current use case.
+- Proved all three failure paths in scratch commits that did not land: a
+  force-added `data/private-vault.csv`, a two-line CRLF fixture, and a clean PR
+  with no worklog change each failed with the expected offending path. A
+  scratch commit containing this implementation passed all three checks.
 
 ## 2026-08-02 — configured-path maintenance follow-up (#58)
 
