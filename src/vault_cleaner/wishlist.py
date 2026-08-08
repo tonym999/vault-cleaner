@@ -117,12 +117,17 @@ def fetch(
 ) -> Path:
     """Return a path to a local copy of the wishlist, downloading if the
     cache is missing or stale. A failed download falls back to a stale cache
-    with a warning; with no cache at all it raises WishlistError."""
+    with a warning; with no cache at all it raises WishlistError. A
+    non-positive ``max_age_days`` always attempts a download instead of
+    accepting the cache as fresh."""
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = cache_dir / f"{name}.txt"
 
-    fresh = path.exists() and (time.time() - path.stat().st_mtime) < max_age_days * 86400
+    fresh = False
+    if path.exists() and max_age_days > 0:
+        age = time.time() - path.stat().st_mtime
+        fresh = age < max_age_days * 86400
     if fresh and not refresh:
         return path
 
