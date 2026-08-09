@@ -108,6 +108,16 @@ def _download(url: str, timeout: int = 30) -> str:
         return r.read().decode("utf-8", errors="replace")
 
 
+def _is_fresh_cache(path: Path, max_age_days: float) -> bool:
+    if max_age_days <= 0:
+        return False
+    try:
+        age = time.time() - path.stat().st_mtime
+    except OSError:
+        return False
+    return age < max_age_days * 86400
+
+
 def fetch(
     name: str,
     url: str,
@@ -124,11 +134,7 @@ def fetch(
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = cache_dir / f"{name}.txt"
 
-    fresh = False
-    if path.exists() and max_age_days > 0:
-        age = time.time() - path.stat().st_mtime
-        fresh = age < max_age_days * 86400
-    if fresh and not refresh:
+    if _is_fresh_cache(path, max_age_days) and not refresh:
         return path
 
     try:

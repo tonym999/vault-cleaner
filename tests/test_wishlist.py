@@ -105,6 +105,37 @@ def test_fetch_stale_cache_redownloads(tmp_path, monkeypatch):
     assert fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=7).read_text() == "new"
 
 
+def test_fetch_stat_failure_redownloads(tmp_path, monkeypatch):
+    p = tmp_path / "test.txt"
+    p.write_text("old")
+    real_stat = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == p:
+            raise OSError("cache metadata unavailable")
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(wl_mod, "_download", lambda url, timeout=30: "new")
+
+    assert fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=7).read_text() == "new"
+
+
+def test_fetch_stat_failure_without_download_keeps_clean_error(tmp_path, monkeypatch):
+    real_stat = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == tmp_path / "test.txt":
+            raise OSError("cache metadata unavailable")
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(wl_mod, "_download", _boom)
+
+    with pytest.raises(WishlistError, match="no cached copy"):
+        fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=7)
+
+
 def test_fetch_refresh_forces_download(tmp_path, monkeypatch):
     (tmp_path / "test.txt").write_text("old")
     monkeypatch.setattr(wl_mod, "_download", lambda url, timeout=30: "new")
