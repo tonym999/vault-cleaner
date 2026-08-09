@@ -118,6 +118,14 @@ def _is_fresh_cache(path: Path, max_age_days: float) -> bool:
     return age < max_age_days * 86400
 
 
+def _has_readable_cache(path: Path) -> bool:
+    try:
+        with path.open("rb"):
+            return True
+    except OSError:
+        return False
+
+
 def fetch(
     name: str,
     url: str,
@@ -140,7 +148,7 @@ def fetch(
     try:
         text = _download(url)
     except (OSError, ValueError) as e:  # ValueError: malformed/unsupported URL
-        if path.exists():
+        if _has_readable_cache(path):
             print(f"warning: {name}: download failed ({e}); using stale cache {path}", file=sys.stderr)
             return path
         raise WishlistError(f"{name}: download failed and no cached copy exists: {e}") from e
