@@ -42,6 +42,7 @@ from vault_cleaner.review_html import (
     write_review_html,
 )
 from vault_cleaner.rules import ghosts as ghost_rules
+from vault_cleaner.server import run_server
 from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
 LOADERS = {
@@ -615,6 +616,31 @@ def _cmd_wishlists(args: argparse.Namespace) -> int:
     return 0
 
 
+def _port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError("port must be an integer in 0..65535") from e
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError("port must be an integer in 0..65535")
+    return port
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        return run_server(
+            config_path=args.config,
+            overrides_path=args.overrides,
+            no_wishlists=args.no_wishlists,
+            port=args.port,
+        )
+    except (ConfigError, WishlistError, ManifestError, OSError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        if isinstance(e, (WishlistError, ManifestError)):
+            print("(pass --no-wishlists to start without wishlist data)", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vault-cleaner")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -698,6 +724,16 @@ def main(argv: list[str] | None = None) -> int:
     wp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     wp.add_argument("--refresh", action="store_true", help="re-download even if the cache is fresh")
     wp.set_defaults(func=_cmd_wishlists)
+
+    sp = sub.add_parser("serve", help="start the authenticated loopback review server")
+    sp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
+    sp.add_argument("--overrides", default=DEFAULT_OVERRIDES_PATH,
+                    help=f"persistent veto store (default {DEFAULT_OVERRIDES_PATH})")
+    sp.add_argument("--no-wishlists", action="store_true",
+                    help="skip wishlist and Bungie manifest pre-warming")
+    sp.add_argument("--port", default=0, type=_port,
+                    help="loopback port (default 0: choose an available port)")
+    sp.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -3,6 +3,35 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-09 — M8 server transport and security envelope (#64)
+
+- Added Flask 3.1 as the second and only other runtime dependency and added
+  `vault-cleaner serve`: it pre-warms configured wishlist and Bungie manifest
+  caches before binding, listens only on `127.0.0.1` with an OS-selected port
+  by default, prints a one-time bootstrap URL, and runs Werkzeug threaded
+  behind one session mutation lock.
+- Established `server/` primitives for the later M8 children: named request
+  limits, one registered JSON error contract, the idle session metadata
+  builder, a `@serialized` check-and-apply decorator, and an idempotent
+  `Session.close()` lifecycle seam. Upload, verdict, reset, and finalize routes
+  are present but remain idle-state placeholders for #65–#67; there is no
+  manifest endpoint and no report logic in this ticket.
+- The bootstrap credential is separate from the session credential, expires
+  after five minutes, is compared in constant time and consumed once, then
+  exchanged for a host-only `HttpOnly; SameSite=Strict; Path=/` cookie before
+  a 303 redirect to the clean root URL. Every request validates the exact
+  bound Host, every POST validates the exact Origin, every response is
+  `no-store`/`no-referrer`, and none carries CORS allow headers.
+- Assets are registered as exact allowlisted URL rules backed by byte
+  providers; the placeholder page is an inline Python constant, so there is
+  no catch-all path or filesystem mapping to traverse. A custom Werkzeug
+  handler redacts the complete bootstrap query from request logs.
+- Coverage includes the Flask client security matrix and error schemas plus a
+  real threaded loopback exchange proving actual-port bootstrap, log
+  redaction, response-before-shutdown ordering, and clean server exit. Runtime
+  dependency and console-script metadata are pinned. `RULESET_VERSION` and
+  report snapshots are unchanged because no decision semantics changed.
+
 ## 2026-08-09 — DIM CSV BOM regression coverage (#47)
 
 - Pinned the existing weapons-loader behaviour for both ordinary UTF-8 DIM
