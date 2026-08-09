@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from vault_cleaner.parse import SchemaError, load_ghosts, load_weapons
@@ -13,6 +14,21 @@ def test_load_weapons_by_header_name():
     assert len(df) == 3
     assert df.loc[0, "Name"] == "Fake Auto Rifle"
     assert df.loc[2, "Rarity"] == "Exotic"
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [b"", b"\xef\xbb\xbf"],
+    ids=["plain-utf8", "utf8-bom"],
+)
+def test_load_weapons_accepts_utf8_with_or_without_bom(tmp_path, prefix):
+    export = tmp_path / "destiny-weapon.csv"
+    export.write_bytes(prefix + FIXTURE.read_bytes())
+
+    # pandas strips the UTF-8 BOM; parse.py deliberately delegates that decoding.
+    df = load_weapons(export)
+
+    pd.testing.assert_frame_equal(df, load_weapons(FIXTURE))
 
 
 def test_ids_are_unwrapped_from_dim_quoting():
