@@ -5,14 +5,26 @@ from __future__ import annotations
 import secrets
 import time
 from collections.abc import Callable
+from copy import deepcopy
 from functools import wraps
 from threading import RLock
-from typing import Any
+from typing import Any, Literal
 
 from flask import current_app
 
 BOOTSTRAP_TTL_SECONDS = 5 * 60
 SESSION_EXTENSION_KEY = "vault_cleaner_session"
+BootstrapResult = Literal["ok", "invalid", "expired"]
+
+
+def _constant_time_equals(candidate: str | None, secret: str) -> bool:
+    """Compare UTF-8 credentials without letting unusual text raise."""
+    if not isinstance(candidate, str):
+        return False
+    try:
+        return secrets.compare_digest(candidate.encode(), secret.encode())
+    except UnicodeEncodeError:
+        return False
 
 
 class Session:
@@ -51,6 +63,8 @@ class Session:
     def expected_host(self) -> str:
         if self.bound_port is None:
             raise RuntimeError("session has not been bound to a port")
+        if self.bound_port == 80:
+            return "127.0.0.1"
         return f"127.0.0.1:{self.bound_port}"
 
     @property
@@ -62,7 +76,7 @@ class Session:
             raise RuntimeError("session port is already configured")
         self.bound_port = port
 
-    def exchange_bootstrap(self, candidate: str) -> str:
+    def exchange_bootstrap(self, candidate: str) -> BootstrapResult:
         """Consume the bootstrap credential atomically.
 
         Returns ``ok``, ``invalid``, or ``expired``. The comparison remains
@@ -71,7 +85,7 @@ class Session:
         """
         with self.mutation_lock:
             token = self.bootstrap_token
-            if token is None or not secrets.compare_digest(candidate, token):
+            if token is None or not _constant_time_equals(candidate, token):
                 return "invalid"
             if self.clock() - self.bootstrap_issued_at >= BOOTSTRAP_TTL_SECONDS:
                 return "expired"
@@ -79,9 +93,7 @@ class Session:
             return "ok"
 
     def authenticated(self, candidate: str | None) -> bool:
-        return candidate is not None and secrets.compare_digest(
-            candidate, self.session_token
-        )
+        return _constant_time_equals(candidate, self.session_token)
 
     def request_shutdown(self) -> None:
         callback = self.shutdown_callback
@@ -99,16 +111,17 @@ class Session:
 
 def session_metadata(session: Session) -> dict[str, Any]:
     """Build the sole schema-version-1 session response envelope."""
-    return {
-        "schema_version": 1,
-        "state": session.state,
-        "report_revision": session.report_revision,
-        "verdict_revision": session.verdict_revision,
-        "fingerprint": session.fingerprint,
-        "snapshot": session.snapshot,
-        "verdicts": list(session.verdicts),
-        "override_status": list(session.override_status),
-    }
+    with session.mutation_lock:
+        return {
+            "schema_version": 1,
+            "state": session.state,
+            "report_revision": session.report_revision,
+            "verdict_revision": session.verdict_revision,
+            "fingerprint": session.fingerprint,
+            "snapshot": deepcopy(session.snapshot),
+            "verdicts": deepcopy(session.verdicts),
+            "override_status": deepcopy(session.override_status),
+        }
 
 
 def serialized[**P, R](func: Callable[P, R]) -> Callable[P, R]:

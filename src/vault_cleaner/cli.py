@@ -42,7 +42,6 @@ from vault_cleaner.review_html import (
     write_review_html,
 )
 from vault_cleaner.rules import ghosts as ghost_rules
-from vault_cleaner.server import run_server
 from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
 LOADERS = {
@@ -627,8 +626,11 @@ def _port(value: str) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
+    # Keep Flask/Werkzeug out of non-server CLI startup paths.
+    from vault_cleaner.server import app as server_app
+
     try:
-        return run_server(
+        return server_app.run_server(
             config_path=args.config,
             overrides_path=args.overrides,
             no_wishlists=args.no_wishlists,

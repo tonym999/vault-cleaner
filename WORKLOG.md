@@ -31,6 +31,14 @@ surprises the next agent should know about.
   redaction, response-before-shutdown ordering, and clean server exit. Runtime
   dependency and console-script metadata are pinned. `RULESET_VERSION` and
   report snapshots are unchanged because no decision semantics changed.
+- Review follow-up made credential comparison safe for arbitrary Unicode,
+  rejects a present noncanonical Origin on every method, snapshots session
+  metadata under the mutation lock, canonicalizes port 80, reserves server
+  routes against asset collisions, and adds `nosniff`, framing, and CSP
+  headers. Server imports are lazy for non-server CLI commands and tests now
+  cover those boundaries with isolated config paths and deep state snapshots.
+  Werkzeug remains Flask's transitive implementation detail, preserving the
+  ticket's exact two-dependency runtime contract; no ruleset bump was needed.
 
 ## 2026-08-09 — DIM CSV BOM regression coverage (#47)
 

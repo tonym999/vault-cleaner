@@ -60,10 +60,6 @@ class RedactingRequestHandler(WSGIRequestHandler):
         self.log("info", '"%s" %s %s', request_line, code, size)
 
 
-def _api_error(code: str, status: int, message: str) -> ApiError:
-    return ApiError(code, status, message)
-
-
 def create_app(
     session: Session,
     *,
@@ -78,7 +74,7 @@ def create_app(
     @app.before_request
     def enforce_request_envelope() -> None:
         if request.headers.get("Host") != session.expected_host:
-            raise _api_error(
+            raise ApiError(
                 "invalid_host",
                 400,
                 f"Host must be exactly {session.expected_host}",
@@ -90,17 +86,21 @@ def create_app(
         if not is_bootstrap_exchange:
             supplied = request.cookies.get(SESSION_COOKIE_NAME)
             if not session.authenticated(supplied):
-                raise _api_error(
+                raise ApiError(
                     "authentication_required",
                     401,
                     "authentication required; restart vault-cleaner serve and open its URL",
                 )
 
-        if (
-            request.method == "POST"
-            and request.headers.get("Origin") != session.expected_origin
-        ):
-            raise _api_error(
+        origin = request.headers.get("Origin")
+        if origin is not None and origin != session.expected_origin:
+            raise ApiError(
+                "invalid_origin",
+                403,
+                f"Origin must be exactly {session.expected_origin}",
+            )
+        if request.method == "POST" and origin is None:
+            raise ApiError(
                 "invalid_origin",
                 403,
                 f"Origin must be exactly {session.expected_origin}",
@@ -110,6 +110,12 @@ def create_app(
     def secure_response(response: Response) -> Response:
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; object-src 'none'; base-uri 'none'; "
+            "frame-ancestors 'none'"
+        )
         return response
 
     @app.errorhandler(ApiError)
@@ -139,10 +145,12 @@ def create_app(
 
     @app.get("/bootstrap", endpoint="bootstrap")
     def bootstrap() -> Response:
+        # Flask implicitly adds HEAD to GET routes. Keep this check so an
+        # authenticated HEAD cannot consume or probe the bootstrap credential.
         if request.method != "GET":
-            raise _api_error("not_found", 404, "route or asset not found")
+            raise ApiError("not_found", 404, "route or asset not found")
         if set(request.args) != {"token"} or len(request.args.getlist("token")) != 1:
-            raise _api_error(
+            raise ApiError(
                 "bad_request",
                 400,
                 "bootstrap requires exactly one token query parameter",
@@ -150,13 +158,13 @@ def create_app(
         candidate = request.args["token"]
         result = session.exchange_bootstrap(candidate)
         if result == "expired":
-            raise _api_error(
+            raise ApiError(
                 "expired_bootstrap",
                 401,
                 "bootstrap token expired; restart vault-cleaner serve and open its new URL",
             )
         if result != "ok":
-            raise _api_error(
+            raise ApiError(
                 "invalid_bootstrap",
                 401,
                 "bootstrap token is invalid or has already been used",
@@ -174,6 +182,8 @@ def create_app(
     def add_asset(path: str, content_type: str, provider: AssetProvider, index: int) -> None:
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError(f"asset path must be absolute and host-local: {path!r}")
+        if path == "/bootstrap" or path == "/api" or path.startswith("/api/"):
+            raise ValueError(f"asset path uses a reserved server route: {path!r}")
 
         def serve_asset() -> Response:
             return Response(provider(), content_type=content_type)
@@ -185,17 +195,12 @@ def create_app(
             methods=["GET"],
         )
 
-    for asset_index, (asset_path, (content_type, provider)) in enumerate(
-        asset_map.items()
-    ):
-        add_asset(asset_path, content_type, provider, asset_index)
-
     @app.get("/api/report")
     def report() -> Response:
         return jsonify(session_metadata(session))
 
     def unavailable() -> None:
-        raise _api_error(
+        raise ApiError(
             "illegal_state",
             409,
             "operation is not available in the idle session",
@@ -228,10 +233,15 @@ def create_app(
     @serialized
     def shutdown() -> Response:
         if request.get_data(cache=False):
-            raise _api_error("bad_request", 400, "shutdown request body must be empty")
+            raise ApiError("bad_request", 400, "shutdown request body must be empty")
         response = jsonify(session_metadata(session))
         response.call_on_close(session.request_shutdown)
         return response
+
+    for asset_index, (asset_path, (content_type, provider)) in enumerate(
+        asset_map.items()
+    ):
+        add_asset(asset_path, content_type, provider, asset_index)
 
     return app
 

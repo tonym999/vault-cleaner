@@ -12,6 +12,7 @@ import pytest
 
 from vault_cleaner.server import app as server_app
 from vault_cleaner.server.app import (
+    SESSION_COOKIE_NAME,
     AssetSpec,
     build_server,
     create_app,
@@ -23,7 +24,11 @@ from vault_cleaner.server.limits import (
     MAX_REQUEST_BODY_BYTES,
     MAX_TOTAL_EXPORT_BYTES,
 )
-from vault_cleaner.server.session import BOOTSTRAP_TTL_SECONDS, Session
+from vault_cleaner.server.session import (
+    BOOTSTRAP_TTL_SECONDS,
+    Session,
+    session_metadata,
+)
 
 TEST_PORT = 43123
 TEST_HOST = f"127.0.0.1:{TEST_PORT}"
@@ -65,9 +70,27 @@ def bootstrap(client, token: str = BOOTSTRAP_TOKEN):
     return client.get(f"/bootstrap?token={token}", base_url=TEST_ORIGIN)
 
 
+def session_state(session: Session) -> dict:
+    """Capture comparable session state without retaining mutable aliases."""
+    return {
+        "bootstrap_token": session.bootstrap_token,
+        "session_token": session.session_token,
+        "bootstrap_issued_at": session.bootstrap_issued_at,
+        "bound_port": session.bound_port,
+        "shutdown_callback": session.shutdown_callback,
+        "metadata": session_metadata(session),
+    }
+
+
 def assert_security_headers(response) -> None:
     assert response.headers["Cache-Control"] == "no-store"
     assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Content-Security-Policy"] == (
+        "default-src 'self'; object-src 'none'; base-uri 'none'; "
+        "frame-ancestors 'none'"
+    )
     assert not any(
         name.casefold().startswith("access-control-")
         for name, _value in response.headers
@@ -122,6 +145,15 @@ def test_bootstrap_rejects_bad_query_shapes_without_consuming_token():
         assert session.bootstrap_token == BOOTSTRAP_TOKEN
 
 
+def test_non_ascii_bootstrap_credential_is_a_normal_auth_failure():
+    client, session, _app = build_client()
+
+    response = bootstrap(client, "café")
+
+    assert_error(response, 401, "invalid_bootstrap")
+    assert session.bootstrap_token == BOOTSTRAP_TOKEN
+
+
 @pytest.mark.parametrize("method", ["head", "options"])
 def test_only_get_bootstrap_is_exempt_from_authentication(method):
     client, session, _app = build_client()
@@ -140,6 +172,25 @@ def test_only_get_bootstrap_is_exempt_from_authentication(method):
     assert session.bootstrap_token == BOOTSTRAP_TOKEN
 
 
+def test_authenticated_head_cannot_consume_the_bootstrap_token():
+    client, session, _app = build_client()
+    client.set_cookie(
+        SESSION_COOKIE_NAME,
+        SESSION_TOKEN,
+        domain="127.0.0.1",
+    )
+
+    response = client.head(
+        f"/bootstrap?token={BOOTSTRAP_TOKEN}",
+        base_url=TEST_ORIGIN,
+    )
+
+    assert response.status_code == 404
+    assert response.data == b""
+    assert_security_headers(response)
+    assert session.bootstrap_token == BOOTSTRAP_TOKEN
+
+
 def test_expired_bootstrap_gives_restart_hint_and_does_not_exit():
     now = [1000.0]
     client, session, _app = build_client(clock=lambda: now[0])
@@ -154,7 +205,7 @@ def test_expired_bootstrap_gives_restart_hint_and_does_not_exit():
 
 def test_unauthenticated_routes_are_refused_without_state_change():
     client, session, _app = build_client()
-    before = vars(session).copy()
+    before = session_state(session)
 
     for method, path in (("get", "/"), ("get", "/api/report"), ("post", "/api/shutdown")):
         response = getattr(client, method)(
@@ -164,18 +215,31 @@ def test_unauthenticated_routes_are_refused_without_state_change():
         )
         assert_error(response, 401, "authentication_required")
 
-    assert vars(session) == before
+    assert session_state(session) == before
+
+
+def test_non_ascii_session_cookie_is_a_normal_auth_failure():
+    client, _session, _app = build_client()
+    client.set_cookie(
+        SESSION_COOKIE_NAME,
+        "café",
+        domain="127.0.0.1",
+    )
+
+    response = client.get("/api/report", base_url=TEST_ORIGIN)
+
+    assert_error(response, 401, "authentication_required")
 
 
 @pytest.mark.parametrize("path", ["/bootstrap?token=bootstrap-secret", "/api/report"])
 def test_wrong_host_is_rejected_before_authentication_and_changes_nothing(path):
     client, session, _app = build_client()
-    before = vars(session).copy()
+    before = session_state(session)
 
     response = client.get(path, base_url="http://localhost:43123")
 
     assert_error(response, 400, "invalid_host")
-    assert vars(session) == before
+    assert session_state(session) == before
 
 
 def test_missing_host_is_rejected_without_consuming_bootstrap():
@@ -207,13 +271,29 @@ def test_missing_host_is_rejected_without_consuming_bootstrap():
 def test_every_post_requires_the_exact_origin_without_changing_state(path, origin):
     client, session, _app = build_client()
     assert bootstrap(client).status_code == 303
-    before = vars(session).copy()
+    before = session_state(session)
     headers = {} if origin is None else {"Origin": origin}
 
     response = client.post(path, base_url=TEST_ORIGIN, headers=headers)
 
     assert_error(response, 403, "invalid_origin")
-    assert vars(session) == before
+    assert session_state(session) == before
+
+
+@pytest.mark.parametrize("origin", ["http://localhost:43123", "null"])
+def test_get_rejects_a_present_noncanonical_origin(origin):
+    client, session, _app = build_client()
+    assert bootstrap(client).status_code == 303
+    before = session_state(session)
+
+    response = client.get(
+        "/api/report",
+        base_url=TEST_ORIGIN,
+        headers={"Origin": origin},
+    )
+
+    assert_error(response, 403, "invalid_origin")
+    assert session_state(session) == before
 
 
 def test_authenticated_root_and_idle_report():
@@ -294,6 +374,17 @@ def test_route_table_is_exact_and_has_no_manifest_endpoint():
         "/api/shutdown",
     }
     assert all("manifest" not in rule for rule in rules)
+
+
+@pytest.mark.parametrize(
+    "path", ["/bootstrap", "/api", "/api/report", "/api/future"]
+)
+def test_assets_cannot_shadow_reserved_server_routes(path):
+    session = Session(overrides_path="overrides.json")
+    session.configure_bound_port(TEST_PORT)
+
+    with pytest.raises(ValueError, match="reserved server route"):
+        create_app(session, assets={path: ("text/plain", lambda: b"shadow")})
 
 
 def test_shutdown_is_serialized_and_runs_only_when_response_closes():
@@ -399,6 +490,31 @@ def test_production_tokens_are_distinct_and_high_entropy():
     assert len(session.session_token) >= 32
 
 
+def test_port_80_uses_the_browser_canonical_host_and_origin():
+    session = Session(overrides_path="overrides.json")
+
+    session.configure_bound_port(80)
+
+    assert session.expected_host == "127.0.0.1"
+    assert session.expected_origin == "http://127.0.0.1"
+
+
+def test_session_metadata_is_a_deep_copy_of_mutable_state():
+    session = Session(overrides_path="overrides.json")
+    session.snapshot = {"groups": [{"name": "original"}]}
+    session.verdicts = [{"id": "one", "verdict": "keep"}]
+    session.override_status = [{"id": "one", "status": "active"}]
+
+    metadata = session_metadata(session)
+    metadata["snapshot"]["groups"][0]["name"] = "changed"
+    metadata["verdicts"][0]["verdict"] = "junk"
+    metadata["override_status"][0]["status"] = "changed"
+
+    assert session.snapshot == {"groups": [{"name": "original"}]}
+    assert session.verdicts == [{"id": "one", "verdict": "keep"}]
+    assert session.override_status == [{"id": "one", "status": "active"}]
+
+
 def test_sanitized_500_logs_locally_but_leaks_no_path(caplog):
     private_path = "/private/session/staging/export.csv"
 
@@ -472,7 +588,7 @@ def test_real_server_binds_loopback_redacts_log_and_stops_after_ack(caplog):
         server.server_close()
 
 
-def test_run_server_prints_a_bootstrap_url_that_works(monkeypatch):
+def test_run_server_prints_a_bootstrap_url_that_works(monkeypatch, tmp_path):
     servers = []
     original_build_server = server_app.build_server
 
@@ -499,12 +615,14 @@ def test_run_server_prints_a_bootstrap_url_that_works(monkeypatch):
             return "".join(self.parts).strip()
 
     monkeypatch.setattr(server_app, "build_server", capture_server)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("", encoding="utf-8")
     output = SignalledOutput()
     result = []
     thread = threading.Thread(
         target=lambda: result.append(
             server_app.run_server(
-                config_path="nonexistent.toml",
+                config_path=str(config_path),
                 no_wishlists=True,
                 port=0,
                 stdout=output,

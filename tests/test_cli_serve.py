@@ -9,7 +9,9 @@ from vault_cleaner.wishlist import WishlistError
 
 def test_serve_cli_passes_options_and_defaults(monkeypatch):
     calls = []
-    monkeypatch.setattr(cli, "run_server", lambda **kwargs: calls.append(kwargs) or 0)
+    monkeypatch.setattr(
+        server_app, "run_server", lambda **kwargs: calls.append(kwargs) or 0
+    )
 
     assert cli.main(["serve", "--no-wishlists"]) == 0
     assert calls == [
@@ -24,7 +26,9 @@ def test_serve_cli_passes_options_and_defaults(monkeypatch):
 
 def test_serve_cli_passes_explicit_options(monkeypatch):
     calls = []
-    monkeypatch.setattr(cli, "run_server", lambda **kwargs: calls.append(kwargs) or 0)
+    monkeypatch.setattr(
+        server_app, "run_server", lambda **kwargs: calls.append(kwargs) or 0
+    )
 
     assert cli.main([
         "serve",
@@ -75,6 +79,23 @@ def test_prewarm_loads_wishlists_then_manifest(monkeypatch):
     ]
 
 
+def test_prewarm_skips_external_loaders_when_sources_are_empty(monkeypatch):
+    cfg = {"wishlists": {"sources": {}}}
+    monkeypatch.setattr(server_app, "load_config", lambda _path: cfg)
+    monkeypatch.setattr(
+        server_app,
+        "load_all_with_sources",
+        lambda _cfg: pytest.fail("empty wishlist sources were loaded"),
+    )
+    monkeypatch.setattr(
+        server_app,
+        "load_perk_map_data",
+        lambda *_args: pytest.fail("manifest was loaded for empty wishlist sources"),
+    )
+
+    assert server_app.prewarm("chosen.toml") is cfg
+
+
 def test_prewarm_failure_happens_before_binding(monkeypatch):
     monkeypatch.setattr(
         server_app,
@@ -97,7 +118,7 @@ def test_prewarm_failure_happens_before_binding(monkeypatch):
 
 def test_serve_cli_turns_prewarm_failure_into_clean_exit(monkeypatch, capsys):
     monkeypatch.setattr(
-        cli,
+        server_app,
         "run_server",
         lambda **_kwargs: (_ for _ in ()).throw(WishlistError("offline")),
     )

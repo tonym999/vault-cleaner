@@ -10,9 +10,9 @@ class ErrorSpec:
     status: int
 
 
-# This is the complete vocabulary reserved by the #49 server protocol. Some
-# entries are raised only by later children, but defining them here keeps every
-# endpoint on one contract from the start.
+# This is the complete vocabulary reserved by the umbrella #49 server protocol,
+# first implemented by #64. Some entries are raised only by later children, but
+# defining them here keeps every endpoint on one contract from the start.
 ERROR_REGISTRY = {
     "bad_request": ErrorSpec(400),
     "invalid_host": ErrorSpec(400),
@@ -45,6 +45,8 @@ class ApiError(Exception):
             raise ValueError(
                 f"API error {code!r} is registered as {spec.status}, not {status}"
             )
+        # Type annotations do not protect this runtime boundary. Validate it so
+        # even a malformed internal caller cannot corrupt the public schema.
         if not isinstance(message, str) or not message:
             raise ValueError("API error message must be a non-empty string")
         super().__init__(message)

@@ -3,7 +3,8 @@ from pathlib import Path
 
 
 def test_runtime_dependencies_and_console_script_are_pinned():
-    metadata = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    project_file = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    metadata = tomllib.loads(project_file.read_text(encoding="utf-8"))
 
     assert metadata["project"]["dependencies"] == [
         "pandas>=3.0,<4",
