@@ -135,7 +135,7 @@ def fetch(
 ) -> Path:
     """Return a path to a local copy of the wishlist, downloading if the
     cache is missing or stale. A failed download falls back to a stale cache
-    with a warning; with no cache at all it raises WishlistError. A
+    with a warning; with no usable cache at all it raises WishlistError. A
     non-positive ``max_age_days`` always attempts a download instead of
     accepting the cache as fresh."""
     cache_dir = Path(cache_dir)
@@ -151,7 +151,7 @@ def fetch(
         if _has_readable_cache(path):
             print(f"warning: {name}: download failed ({e}); using stale cache {path}", file=sys.stderr)
             return path
-        raise WishlistError(f"{name}: download failed and no cached copy exists: {e}") from e
+        raise WishlistError(f"{name}: download failed and no usable cached copy exists: {e}") from e
 
     path.write_text(text, encoding="utf-8")
     return path

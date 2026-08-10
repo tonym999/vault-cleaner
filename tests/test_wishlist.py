@@ -132,8 +132,46 @@ def test_fetch_stat_failure_without_download_keeps_clean_error(tmp_path, monkeyp
     monkeypatch.setattr(Path, "stat", stat)
     monkeypatch.setattr(wl_mod, "_download", _boom)
 
-    with pytest.raises(WishlistError, match="no cached copy"):
+    with pytest.raises(WishlistError, match="no usable cached copy"):
         fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=7)
+
+
+def test_fetch_stat_failure_and_download_failure_uses_readable_cache(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    p = tmp_path / "test.txt"
+    p.write_text("stale")
+    real_stat = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == p:
+            raise OSError("cache metadata unavailable")
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(wl_mod, "_download", _boom)
+
+    assert fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=7).read_text() == "stale"
+    assert "stale cache" in capsys.readouterr().err
+
+
+def test_fetch_unreadable_cache_raises_clean_error(tmp_path, monkeypatch):
+    p = tmp_path / "test.txt"
+    p.write_text("stale")
+    real_open = Path.open
+
+    def open(path, *args, **kwargs):
+        if path == p:
+            raise OSError("cache unreadable")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open)
+    monkeypatch.setattr(wl_mod, "_download", _boom)
+
+    with pytest.raises(WishlistError, match="no usable cached copy"):
+        fetch("test", "https://x/w.txt", cache_dir=tmp_path, max_age_days=0)
 
 
 def test_fetch_refresh_forces_download(tmp_path, monkeypatch):
@@ -190,7 +228,7 @@ def test_fetch_zero_age_falls_back_to_future_dated_cache(tmp_path, monkeypatch, 
 
 def test_fetch_failure_without_cache_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(wl_mod, "_download", _boom)
-    with pytest.raises(WishlistError, match="no cached copy"):
+    with pytest.raises(WishlistError, match="no usable cached copy"):
         fetch("test", "https://x/w.txt", cache_dir=tmp_path)
 
 
@@ -200,7 +238,7 @@ def _boom_url(url, timeout=30):
 
 def test_malformed_url_uses_stale_cache_or_clean_error(tmp_path, monkeypatch):
     monkeypatch.setattr(wl_mod, "_download", _boom_url)
-    with pytest.raises(WishlistError, match="no cached copy"):
+    with pytest.raises(WishlistError, match="no usable cached copy"):
         fetch("test", "htp://typo/w.txt", cache_dir=tmp_path)
     p = tmp_path / "test.txt"
     p.write_text("stale")
