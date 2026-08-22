@@ -36,6 +36,7 @@ from vault_cleaner.report_run import (
 )
 from vault_cleaner.review_session import (
     OVERRIDES_SCHEMA_VERSION,
+    VERDICTS,
     ManifestDecision,
     MergeResult,
     OverrideStore,
@@ -47,8 +48,6 @@ from vault_cleaner.review_session import (
 
 MANIFEST_SCHEMA_VERSION = 1
 DEFAULT_OVERRIDES_PATH = "data/overrides.json"
-
-VERDICTS = frozenset({"approved", "vetoed"})
 
 # DIM instance ids are decimal uint64 (20 digits covers 2**64-1). Validated
 # for shape only — never parsed as a number, since the value must survive

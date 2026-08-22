@@ -24,6 +24,9 @@ surprises the next agent should know about.
 - Removed the obsolete private validator aliases, centralized veto ordering
   and UTC timestamp formatting, tightened source-level consumer coverage, and
   kept the adapter's legacy diagnostic payloads at its boundary.
+- Final follow-up: verdict mappings now require exactly `approved` or
+  `vetoed`, including for retention, and the pure core accepts only mapping
+  entries while `merge_manifest` continues to restore legacy diagnostics.
 
 ## 2026-08-22 — in-memory CSV rendering and DIM export byte loaders (#62)
 

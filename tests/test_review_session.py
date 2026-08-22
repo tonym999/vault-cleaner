@@ -8,6 +8,7 @@ import pytest
 from vault_cleaner import review
 from vault_cleaner.report_run import run_report
 from vault_cleaner.review_session import (
+    VERDICTS,
     ManifestDecision,
     merge_verdicts,
     retain_verdicts,
@@ -324,6 +325,65 @@ def test_merge_verdicts_accepts_a_single_server_verdict_entry():
     assert result.store.by_id()[decision.id].recorded_at == "2026-08-22T12:00:00Z"
 
 
+@pytest.mark.parametrize(
+    "fields, error",
+    [
+        pytest.param({}, "must contain", id="missing"),
+        pytest.param({"verdictt": "vetoed"}, "must contain", id="misspelled"),
+        pytest.param({"verdict": None}, "exactly", id="null"),
+        pytest.param({"verdict": "deferred"}, "exactly", id="unknown"),
+    ],
+)
+def test_verdict_entries_require_a_known_verdict(fields, error):
+    run = build_report()
+    decision = proposals(run)[0]
+    entry = {"id": decision.id, **fields}
+
+    for verdicts in (entry, [entry]):
+        with pytest.raises((TypeError, ValueError), match=error):
+            retain_verdicts(verdicts, run, run)
+        with pytest.raises((TypeError, ValueError), match=error):
+            merge_verdicts(
+                review.empty_store(),
+                verdicts,
+                run,
+                recorded_at="2026-08-22T12:00:00Z",
+            )
+
+    if "verdict" in fields:
+        with pytest.raises(ValueError, match="exactly"):
+            merge_verdicts(
+                review.empty_store(),
+                {decision.id: fields["verdict"]},
+                run,
+                recorded_at="2026-08-22T12:00:00Z",
+            )
+
+
+@pytest.mark.parametrize("shape", ["id-map", "single", "list"])
+def test_retention_and_merge_accept_all_supported_mapping_shapes(shape):
+    run = build_report()
+    decision = proposals(run)[0]
+    if shape == "id-map":
+        verdicts = {decision.id: "vetoed"}
+    elif shape == "single":
+        verdicts = {"id": decision.id, "verdict": "vetoed"}
+    else:
+        verdicts = [{"id": decision.id, "verdict": "vetoed"}]
+
+    retained = retain_verdicts(verdicts, run, run)
+    merged = merge_verdicts(
+        review.empty_store(),
+        verdicts,
+        run,
+        recorded_at="2026-08-22T12:00:00Z",
+    )
+
+    assert retained.retained_ids == (decision.id,)
+    assert retained.discarded_ids == ()
+    assert [veto.id for veto in merged.added] == [decision.id]
+
+
 def test_merge_verdicts_rejects_non_string_mapping_ids():
     run = build_report()
     with pytest.raises(TypeError, match="verdict id must be a string"):
@@ -422,6 +482,7 @@ def test_only_retention_consumes_same_proposal():
 
 
 def test_strict_review_primitives_are_public():
+    assert review.VERDICTS is VERDICTS
     assert review.MAX_TEXT == 200
     assert review.ID_RE.fullmatch("18446744073709551615")
     assert callable(review.check_keys)

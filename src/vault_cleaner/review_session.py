@@ -35,8 +35,10 @@ class ManifestDecision:
     verdict: str
 
 
-type VerdictEntry = Mapping[str, object] | ManifestDecision
+type VerdictEntry = Mapping[str, object]
 type VerdictInput = Mapping[str, object] | Iterable[VerdictEntry]
+
+VERDICTS = frozenset({"approved", "vetoed"})
 
 
 @dataclass(frozen=True)
@@ -199,6 +201,7 @@ def retain_verdicts(
     discarded: list[str] = []
 
     for entry in _verdict_entries(verdicts):
+        _entry_verdict(entry)
         item_id = _verdict_id(entry)
         old_proposal = old_proposals.get(item_id)
         new_proposal = new_proposals.get(item_id)
@@ -212,19 +215,13 @@ def retain_verdicts(
     return RetentionResult(retained=tuple(retained), discarded=tuple(discarded))
 
 
-def _entry_verdict(entry: VerdictEntry) -> object:
-    if isinstance(entry, Mapping):
-        return entry.get("verdict")
-    if isinstance(entry, ManifestDecision):
-        return entry.verdict
-    return getattr(entry, "verdict", entry)
-
-
-def _entry_for_id(entry: VerdictEntry, item_id: str) -> str | ManifestDecision:
-    """Return metadata-bearing entries for adapter diagnostics when present."""
-    if isinstance(entry, ManifestDecision):
-        return entry
-    return item_id
+def _entry_verdict(entry: VerdictEntry) -> str:
+    if "verdict" not in entry:
+        raise TypeError("verdict entry must contain a 'verdict' field")
+    verdict = entry["verdict"]
+    if not isinstance(verdict, str) or verdict not in VERDICTS:
+        raise ValueError("verdict must be exactly 'approved' or 'vetoed'")
+    return verdict
 
 
 def ordered_vetoes(vetoes: Iterable[Veto]) -> tuple[Veto, ...]:
@@ -246,10 +243,9 @@ def merge_verdicts(
 ) -> MergeResult:
     """Merge a validated id-to-verdict collection without a manifest.
 
-    The report run is authoritative for every persisted veto field.  A
-    ``ManifestDecision`` value is also accepted for adapter use so unknown
-    and already-vetoed diagnostics retain their old display metadata; plain
-    session verdicts use their id as the diagnostic value.
+    The report run is authoritative for every persisted veto field.  Unknown
+    and already-vetoed diagnostics are reported by opaque id; the
+    ``review.merge_manifest`` adapter restores its legacy display payloads.
     """
     proposals = _run_proposals(run)
     entries = tuple(
@@ -261,14 +257,14 @@ def merge_verdicts(
     added: list[Veto] = []
     updated: list[Veto] = []
     unchanged: list[Veto] = []
-    unknown: list[str | ManifestDecision] = []
+    unknown: list[str] = []
 
     for item_id, entry in entries:
         verdict = _entry_verdict(entry)
         if verdict != "vetoed":
             continue
         if item_id not in proposals:
-            unknown.append(_entry_for_id(entry, item_id))
+            unknown.append(item_id)
             continue
 
         decision = proposals[item_id]
@@ -294,7 +290,7 @@ def merge_verdicts(
         existing[veto.id] = veto
 
     approved_but_vetoed = tuple(
-        _entry_for_id(entry, item_id)
+        item_id
         for item_id, entry in entries
         if _entry_verdict(entry) == "approved" and item_id in pre_merge_ids
     )
@@ -315,6 +311,7 @@ def merge_verdicts(
 
 __all__ = [
     "OVERRIDES_SCHEMA_VERSION",
+    "VERDICTS",
     "ManifestDecision",
     "MergeResult",
     "OverrideStore",
