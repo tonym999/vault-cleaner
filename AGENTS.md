@@ -166,7 +166,8 @@ When creating a repository issue:
 2. Assign an existing relevant milestone when one exists. Do not create a
    one-off milestone. If the issue depends on other work, state the dependency
    in its body (for example, `Depends on #49`) and add the corresponding
-   GitHub issue dependency link where the repository/project UI supports it.
+   GitHub issue dependency link where the repository/project UI supports it;
+   verify both the dependency text and link before treating the issue as ready.
 3. Add the new issue to the project board and set its Status to `Todo`.
    Repository auto-add is enabled as a backstop, not a substitute for this
    explicit step.
