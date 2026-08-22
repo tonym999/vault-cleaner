@@ -18,6 +18,12 @@ surprises the next agent should know about.
   `(action, reason)`.
 - No ruleset or snapshot change: `RULESET_VERSION` remains 1 and the report
   golden remains byte-identical. Ruff and the full test suite pass.
+- Follow-up: made proposal identity access fail loudly for missing fields,
+  unified verdict-entry normalization for retention and merge (including a
+  single server entry), and rejected non-string ids without coercion.
+- Removed the obsolete private validator aliases, centralized veto ordering
+  and UTC timestamp formatting, tightened source-level consumer coverage, and
+  kept the adapter's legacy diagnostic payloads at its boundary.
 
 ## 2026-08-22 — in-memory CSV rendering and DIM export byte loaders (#62)
 

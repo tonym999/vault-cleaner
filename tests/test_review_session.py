@@ -1,6 +1,7 @@
 import ast
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -59,6 +60,39 @@ def test_same_proposal_ignores_display_metadata_but_compares_all_identity_fields
     for field in ("kind", "hash", "action", "reason"):
         changed = replace(decision, **{field: f"changed-{field}"})
         assert not same_proposal(decision, changed)
+
+
+def test_same_proposal_compares_a_valid_mapping_and_requires_all_fields():
+    run = build_report()
+    decision = proposals(run)[0]
+    snapshot = {
+        field: getattr(decision, field)
+        for field in ("id", "kind", "hash", "action", "reason")
+    }
+
+    assert same_proposal(decision, snapshot)
+    assert same_proposal(snapshot, decision)
+
+    partial_objects = (
+        {},
+        {"id": decision.id, "hash": decision.hash},
+        SimpleNamespace(id=decision.id, hash=decision.hash),
+    )
+    for partial in partial_objects:
+        with pytest.raises(TypeError, match="missing required field"):
+            same_proposal(partial, partial)
+
+
+def test_same_proposal_returns_false_when_id_changes():
+    run = build_report()
+    decision = proposals(run)[0]
+    changed = {
+        field: getattr(decision, field)
+        for field in ("id", "kind", "hash", "action", "reason")
+    }
+    changed["id"] = "different-id"
+
+    assert not same_proposal(decision, changed)
 
 
 @pytest.mark.parametrize("field", ["kind", "hash", "action", "reason"])
@@ -276,10 +310,29 @@ def test_manifest_adapter_and_core_cover_categories_and_diagnostics():
     assert adapter.already_vetoed_but_approved == (entries[3],)
 
 
+def test_merge_verdicts_accepts_a_single_server_verdict_entry():
+    run = build_report()
+    decision = proposals(run)[0]
+    result = merge_verdicts(
+        review.empty_store(),
+        {"id": decision.id, "verdict": "vetoed"},
+        run,
+        recorded_at="2026-08-22T12:00:00Z",
+    )
+
+    assert [veto.id for veto in result.added] == [decision.id]
+    assert result.store.by_id()[decision.id].recorded_at == "2026-08-22T12:00:00Z"
+
+
 def test_merge_verdicts_rejects_non_string_mapping_ids():
     run = build_report()
     with pytest.raises(TypeError, match="verdict id must be a string"):
-        merge_verdicts(review.empty_store(), {123: "vetoed"}, run)
+        merge_verdicts(
+            review.empty_store(),
+            {123: "vetoed"},
+            run,
+            recorded_at="2026-08-22T12:00:00Z",
+        )
 
 
 def test_only_retention_consumes_same_proposal():
@@ -287,9 +340,39 @@ def test_only_retention_consumes_same_proposal():
     calls = []
 
     class SameProposalCallVisitor(ast.NodeVisitor):
-        def __init__(self):
+        def __init__(self, tree):
             self.function_stack = []
             self.calls = []
+            self.same_proposal_names = {"same_proposal"}
+            self.review_session_modules = set()
+            for imported in ast.walk(tree):
+                if isinstance(imported, ast.ImportFrom):
+                    if imported.module == "vault_cleaner.review_session":
+                        for alias in imported.names:
+                            if alias.name == "same_proposal":
+                                self.same_proposal_names.add(
+                                    alias.asname or alias.name
+                                )
+                            elif alias.name == "review_session":
+                                self.review_session_modules.add(
+                                    alias.asname or alias.name
+                                )
+                    elif imported.module == "vault_cleaner":
+                        for alias in imported.names:
+                            if alias.name == "review_session":
+                                self.review_session_modules.add(
+                                    alias.asname or alias.name
+                                )
+                elif isinstance(imported, ast.Import):
+                    for alias in imported.names:
+                        if alias.name == "vault_cleaner":
+                            self.review_session_modules.add(
+                                alias.asname or alias.name
+                            )
+                        elif alias.name == "vault_cleaner.review_session":
+                            self.review_session_modules.add(
+                                alias.asname or alias.name.split(".")[0]
+                            )
 
         def visit_FunctionDef(self, node):
             self.function_stack.append(node.name)
@@ -302,18 +385,35 @@ def test_only_retention_consumes_same_proposal():
             self.function_stack.pop()
 
         def visit_Call(self, node):
-            called_name = None
-            if isinstance(node.func, ast.Name):
-                called_name = node.func.id
-            elif isinstance(node.func, ast.Attribute):
-                called_name = node.func.attr
-            if called_name == "same_proposal":
+            self.generic_visit(node)
+
+        def visit_Name(self, node):
+            if isinstance(node.ctx, ast.Load) and node.id in self.same_proposal_names:
                 self.calls.append((node.lineno, tuple(self.function_stack)))
             self.generic_visit(node)
 
+        def visit_Attribute(self, node):
+            if node.attr == "same_proposal" and self._module_qualified(node.value):
+                self.calls.append((node.lineno, tuple(self.function_stack)))
+            self.generic_visit(node)
+
+        def _module_qualified(self, node):
+            parts = []
+            while isinstance(node, ast.Attribute):
+                parts.append(node.attr)
+                node = node.value
+            if not isinstance(node, ast.Name):
+                return False
+            parts.append(node.id)
+            dotted = ".".join(reversed(parts))
+            return any(
+                dotted == module or dotted.startswith(module + ".")
+                for module in self.review_session_modules
+            )
+
     for path in source_root.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        visitor = SameProposalCallVisitor()
+        visitor = SameProposalCallVisitor(tree)
         visitor.visit(tree)
         calls.extend((path, lineno, stack) for lineno, stack in visitor.calls)
     assert len(calls) == 1

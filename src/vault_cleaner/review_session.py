@@ -16,7 +16,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
 
 from vault_cleaner.report_run import ReportDecision, ReportRun
 
@@ -34,6 +33,10 @@ class ManifestDecision:
     action: str
     reason: str
     verdict: str
+
+
+type VerdictEntry = Mapping[str, object] | ManifestDecision
+type VerdictInput = Mapping[str, object] | Iterable[VerdictEntry]
 
 
 @dataclass(frozen=True)
@@ -81,8 +84,8 @@ class MergeResult:
     added: tuple[Veto, ...]
     updated: tuple[Veto, ...]
     unchanged: tuple[Veto, ...]
-    already_vetoed_but_approved: tuple[Any, ...]
-    unknown_ids: tuple[Any, ...]
+    already_vetoed_but_approved: tuple[str | ManifestDecision, ...]
+    unknown_ids: tuple[str | ManifestDecision, ...]
 
 
 @dataclass(frozen=True)
@@ -95,7 +98,7 @@ class RetentionResult:
     convenient for callers that store verdicts separately from their ids.
     """
 
-    retained: tuple[Any, ...]
+    retained: tuple[VerdictEntry, ...]
     discarded: tuple[str, ...]
 
     @property
@@ -107,23 +110,34 @@ class RetentionResult:
         return self.discarded
 
 
-def _field(value: object, name: str) -> object:
-    """Read a proposal field from a dataclass or a snapshot-style mapping."""
+_IDENTITY_FIELDS = ("id", "kind", "hash", "action", "reason")
+
+
+def _required_field(value: object, name: str) -> object:
+    """Read a required proposal or verdict-entry field.
+
+    A missing field is a malformed input, not a value that can participate in
+    an equality comparison.  In particular, treating two absent fields as
+    ``None`` would make a partial object look like a stable proposal.
+    """
     if isinstance(value, Mapping):
-        return value.get(name)
-    return getattr(value, name, None)
+        if name not in value:
+            raise TypeError(f"proposal is missing required field {name!r}")
+        return value[name]
+    try:
+        return getattr(value, name)
+    except AttributeError as error:
+        raise TypeError(f"proposal is missing required field {name!r}") from error
 
 
-def _verdict_id(value: object) -> str:
-    if isinstance(value, str):
-        return value
-    item_id = _field(value, "id")
+def _verdict_id(value: VerdictEntry) -> str:
+    item_id = _required_field(value, "id")
     if not isinstance(item_id, str):
         raise TypeError("verdict id must be a string")
     return item_id
 
 
-def _verdict_entries(verdicts: object) -> tuple[object, ...]:
+def _verdict_entries(verdicts: VerdictInput) -> tuple[VerdictEntry, ...]:
     """Normalise the two session-friendly verdict representations.
 
     The server protocol stores an array of ``{"id", "verdict"}`` objects,
@@ -138,11 +152,13 @@ def _verdict_entries(verdicts: object) -> tuple[object, ...]:
         # receives the same id validation below.
         if "id" in verdicts or "verdict" in verdicts:
             return (verdicts,)
-        return tuple(
-            {"id": item_id, "verdict": verdict}
-            for item_id, verdict in verdicts.items()
-        )
-    return tuple(verdicts)  # type: ignore[arg-type]
+        entries: list[VerdictEntry] = []
+        for item_id, verdict in verdicts.items():
+            if not isinstance(item_id, str):
+                raise TypeError("verdict id must be a string")
+            entries.append({"id": item_id, "verdict": verdict})
+        return tuple(entries)
+    return tuple(verdicts)
 
 
 def same_proposal(a: object, b: object) -> bool:
@@ -152,18 +168,8 @@ def same_proposal(a: object, b: object) -> bool:
     compared.  Display metadata such as ``name`` and ``owner`` deliberately
     does not participate.
     """
-    return (
-        _field(a, "id"),
-        _field(a, "kind"),
-        _field(a, "hash"),
-        _field(a, "action"),
-        _field(a, "reason"),
-    ) == (
-        _field(b, "id"),
-        _field(b, "kind"),
-        _field(b, "hash"),
-        _field(b, "action"),
-        _field(b, "reason"),
+    return tuple(_required_field(a, field) for field in _IDENTITY_FIELDS) == tuple(
+        _required_field(b, field) for field in _IDENTITY_FIELDS
     )
 
 
@@ -176,7 +182,7 @@ def _run_proposals(run: ReportRun) -> dict[str, ReportDecision]:
 
 
 def retain_verdicts(
-    verdicts: object,
+    verdicts: VerdictInput,
     old_run: ReportRun,
     new_run: ReportRun,
 ) -> RetentionResult:
@@ -189,7 +195,7 @@ def retain_verdicts(
     """
     old_proposals = _run_proposals(old_run)
     new_proposals = _run_proposals(new_run)
-    retained: list[object] = []
+    retained: list[VerdictEntry] = []
     discarded: list[str] = []
 
     for entry in _verdict_entries(verdicts):
@@ -206,7 +212,7 @@ def retain_verdicts(
     return RetentionResult(retained=tuple(retained), discarded=tuple(discarded))
 
 
-def _entry_verdict(entry: object) -> object:
+def _entry_verdict(entry: VerdictEntry) -> object:
     if isinstance(entry, Mapping):
         return entry.get("verdict")
     if isinstance(entry, ManifestDecision):
@@ -214,29 +220,29 @@ def _entry_verdict(entry: object) -> object:
     return getattr(entry, "verdict", entry)
 
 
-def _entry_for_id(entry: object, item_id: str) -> object:
+def _entry_for_id(entry: VerdictEntry, item_id: str) -> str | ManifestDecision:
     """Return metadata-bearing entries for adapter diagnostics when present."""
     if isinstance(entry, ManifestDecision):
-        return entry
-    if isinstance(entry, Mapping) and "id" in entry:
         return entry
     return item_id
 
 
-def _ordered(vetoes: Iterable[Veto]) -> tuple[Veto, ...]:
+def ordered_vetoes(vetoes: Iterable[Veto]) -> tuple[Veto, ...]:
+    """Return vetoes in the canonical durable order."""
     return tuple(sorted(vetoes, key=lambda veto: (veto.kind, veto.id)))
 
 
-def _now() -> str:
+def utc_now() -> str:
+    """Return the UTC timestamp format used by persisted review state."""
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def merge_verdicts(
     store: OverrideStore,
-    id_to_verdict: Mapping[str, object] | Iterable[object],
+    id_to_verdict: VerdictInput,
     run: ReportRun,
     *,
-    recorded_at: str | None = None,
+    recorded_at: str,
 ) -> MergeResult:
     """Merge a validated id-to-verdict collection without a manifest.
 
@@ -245,24 +251,17 @@ def merge_verdicts(
     and already-vetoed diagnostics retain their old display metadata; plain
     session verdicts use their id as the diagnostic value.
     """
-    recorded_at = recorded_at or _now()
     proposals = _run_proposals(run)
-    if isinstance(id_to_verdict, Mapping):
-        entries = []
-        for item_id, entry in id_to_verdict.items():
-            if not isinstance(item_id, str):
-                raise TypeError("verdict id must be a string")
-            entries.append((item_id, entry))
-        entries = tuple(entries)
-    else:
-        entries = tuple((_verdict_id(entry), entry) for entry in id_to_verdict)
+    entries = tuple(
+        (_verdict_id(entry), entry) for entry in _verdict_entries(id_to_verdict)
+    )
 
     existing = store.by_id()
-    original_ids = store.by_id()
+    pre_merge_ids = frozenset(existing)
     added: list[Veto] = []
     updated: list[Veto] = []
     unchanged: list[Veto] = []
-    unknown: list[object] = []
+    unknown: list[str | ManifestDecision] = []
 
     for item_id, entry in entries:
         verdict = _entry_verdict(entry)
@@ -297,12 +296,12 @@ def merge_verdicts(
     approved_but_vetoed = tuple(
         _entry_for_id(entry, item_id)
         for item_id, entry in entries
-        if _entry_verdict(entry) == "approved" and item_id in original_ids
+        if _entry_verdict(entry) == "approved" and item_id in pre_merge_ids
     )
 
     merged = OverrideStore(
         schema_version=OVERRIDES_SCHEMA_VERSION,
-        vetoes=_ordered(existing.values()),
+        vetoes=ordered_vetoes(existing.values()),
     )
     return MergeResult(
         store=merged,
@@ -322,6 +321,8 @@ __all__ = [
     "RetentionResult",
     "Veto",
     "merge_verdicts",
+    "ordered_vetoes",
     "retain_verdicts",
     "same_proposal",
+    "utc_now",
 ]

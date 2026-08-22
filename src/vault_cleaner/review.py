@@ -25,7 +25,6 @@ import re
 import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
 from pathlib import Path
 
 from vault_cleaner.report_run import (
@@ -42,6 +41,8 @@ from vault_cleaner.review_session import (
     OverrideStore,
     Veto,
     merge_verdicts,
+    ordered_vetoes,
+    utc_now,
 )
 
 MANIFEST_SCHEMA_VERSION = 1
@@ -53,10 +54,6 @@ VERDICTS = frozenset({"approved", "vetoed"})
 # for shape only — never parsed as a number, since the value must survive
 # round trips that Python ints and spreadsheets both mangle.
 ID_RE = re.compile(r"[0-9]{1,20}")
-# Private aliases are retained for callers that used the old implementation
-# names; new validators should import the public primitives below.
-_ID_RE = ID_RE
-
 _MANIFEST_KEYS = frozenset({"schema_version", "snapshot", "decisions", "generated_at"})
 _SNAPSHOT_KEYS = frozenset({"schema_version", "ruleset_version", "fingerprint"})
 _DECISION_KEYS = frozenset({"id", "kind", "hash", "name", "action", "reason", "verdict"})
@@ -66,7 +63,6 @@ _VETO_KEYS = frozenset(
 )
 
 MAX_TEXT = 200
-_MAX_TEXT = MAX_TEXT
 
 
 class ReviewError(ValueError):
@@ -210,14 +206,6 @@ def require_kind(data: Mapping[str, object], error: type[ReviewError], where: st
             f"({', '.join(sorted(EXPORT_KINDS))})"
         )
     return value
-
-
-# Keep the old private spellings as compatibility aliases while exposing the
-# same validation behavior to the later session/API validators.
-_check_keys = check_keys
-_require_text = require_text
-_require_id = require_id
-_require_kind = require_kind
 
 
 def _require_version(
@@ -386,13 +374,8 @@ def load_overrides(path: str | Path) -> OverrideStore:
 
     return OverrideStore(
         schema_version=OVERRIDES_SCHEMA_VERSION,
-        vetoes=_ordered(vetoes),
+        vetoes=ordered_vetoes(vetoes),
     )
-
-
-def _ordered(vetoes: Iterable[Veto]) -> tuple[Veto, ...]:
-    """One canonical order, so the file only changes when the vetoes do."""
-    return tuple(sorted(vetoes, key=lambda veto: (veto.kind, veto.id)))
 
 
 def store_dict(store: OverrideStore, *, updated_at: str) -> dict:
@@ -410,7 +393,7 @@ def store_dict(store: OverrideStore, *, updated_at: str) -> dict:
                 "fingerprint": veto.fingerprint,
                 "recorded_at": veto.recorded_at,
             }
-            for veto in _ordered(store.vetoes)
+            for veto in ordered_vetoes(store.vetoes)
         ],
     }
 
@@ -428,7 +411,7 @@ def save_overrides(
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = store_dict(store, updated_at=updated_at or _now())
+    payload = store_dict(store, updated_at=updated_at or utc_now())
 
     fd, tmp_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
@@ -471,10 +454,6 @@ def _fsync_directory(directory: Path) -> None:
                 os.close(dir_fd)
             except OSError:
                 pass
-
-
-def _now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def classify(store: OverrideStore, run: ReportRun) -> OverrideStatus:
@@ -564,7 +543,7 @@ def merge_manifest(
         store,
         id_to_verdict,
         run,
-        recorded_at=recorded_at or _now(),
+        recorded_at=recorded_at or utc_now(),
     )
     # Keep the old diagnostic payloads (names and kinds are useful on the CLI)
     # at this adapter boundary; the manifest-free core can only report ids.
