@@ -3,6 +3,47 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-23 — final Project #3 workflow verification (#61)
+
+- Verified live Project #3 workflows through GraphQL: `Auto-add to project`,
+  `Item added to project`, and `Auto-archive items` are enabled. The UI-configured
+  filters are repository auto-add for `is:issue` with default `Todo`, and
+  completed-item archive after 30 days (`is:closed reason:completed
+  updated:<@today-1m`); workflow configuration details are not exposed by the
+  available GraphQL schema.
+- Created temporary maintenance issue #80 and verified it automatically
+  appeared in Project #3 with Status `Todo` before closing it with an explanatory
+  comment. This proves the repository auto-add and Item added behavior
+  end-to-end without leaving test work open.
+- Re-audited the four views, exact `Todo`/`In Progress`/`Done` statuses, the
+  `enhancement` label on feature #38, `maintenance` on #51/#61, M8 assignments
+  (#38/#47/#49/#50/#51), dependency links #49 → #50 → #51, and superseded #25.
+
+## 2026-08-22 — issue and project workflow guidance (#61)
+
+- Updated `AGENTS.md` to link the actual vault-cleaner project board and added
+  the complete issue-creation checklist: specific type/maintenance labels,
+  `icebox` only for explicitly out-of-scope PLAN work, existing milestones,
+  dependency text and project dependency links, explicit `Todo` membership,
+  and post-creation verification.
+- Audited the public repository state before external changes: the existing
+  `M8 — Local review server` milestone is already assigned to #38, #47, #49,
+  #50, and #51; feature #38 retains `enhancement`, while #51 and #61 use
+  `maintenance`.
+- Repository issue metadata is now applied through the authenticated GitHub
+  connector: `enhancement` remains on feature issue #38, `maintenance` is on
+  #51 and #61 (replacing #61's `enhancement`), #25 is closed as superseded
+  with a linking comment, and the M8 milestone assignments remain intact.
+- Project v2 views and dependency links are now configured through the
+  authenticated GraphQL API: `All items`, `Board`, `Active`, and `Icebox`;
+  #50 is blocked by #49 and #51 is blocked by #50. Status remains exactly
+  `Todo`, `In Progress`, and `Done`. The Board is still a board layout with
+  Status visible; the available schema exposes no explicit grouping mutation,
+  so its existing/default Status grouping is preserved for UI verification.
+- At the time of this entry, the remaining project steps were the UI-only
+  repository auto-add/default `Todo` and 30-day completed-item archive controls;
+  the final verification is recorded in the dated entry above.
+
 ## 2026-08-22 — shared proposal retention and manifest-free verdict merge (#63)
 
 - Added pure `review_session.py` primitives: `same_proposal` compares only
