@@ -40,6 +40,18 @@ surprises the next agent should know about.
   Werkzeug remains Flask's transitive implementation detail, preserving the
   ticket's exact two-dependency runtime contract; no ruleset bump was needed.
 
+## 2026-08-09 — wishlist cache stat errors (#72)
+
+- `wishlist.fetch` now treats `OSError` while reading cache metadata as a
+  stale/unavailable cache and continues to the existing download path instead
+  of leaking the raw filesystem error.
+- Regression tests cover a cache whose `stat()` fails before a successful
+  redownload, and the no-cache case still raises the existing clean
+  `WishlistError` when the download also fails.
+- Review follow-up covers `stat()` failure followed by download failure falling
+  back to a readable stale cache, and an unreadable cache raising the clean
+  "no usable cached copy" error.
+
 ## 2026-08-09 — DIM CSV BOM regression coverage (#47)
 
 - Pinned the existing weapons-loader behaviour for both ordinary UTF-8 DIM

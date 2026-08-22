@@ -108,6 +108,24 @@ def _download(url: str, timeout: int = 30) -> str:
         return r.read().decode("utf-8", errors="replace")
 
 
+def _is_fresh_cache(path: Path, max_age_days: float) -> bool:
+    if max_age_days <= 0:
+        return False
+    try:
+        age = time.time() - path.stat().st_mtime
+    except OSError:
+        return False
+    return age < max_age_days * 86400
+
+
+def _has_readable_cache(path: Path) -> bool:
+    try:
+        with path.open("rb"):
+            return True
+    except OSError:
+        return False
+
+
 def fetch(
     name: str,
     url: str,
@@ -117,27 +135,23 @@ def fetch(
 ) -> Path:
     """Return a path to a local copy of the wishlist, downloading if the
     cache is missing or stale. A failed download falls back to a stale cache
-    with a warning; with no cache at all it raises WishlistError. A
+    with a warning; with no usable cache at all it raises WishlistError. A
     non-positive ``max_age_days`` always attempts a download instead of
     accepting the cache as fresh."""
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = cache_dir / f"{name}.txt"
 
-    fresh = False
-    if path.exists() and max_age_days > 0:
-        age = time.time() - path.stat().st_mtime
-        fresh = age < max_age_days * 86400
-    if fresh and not refresh:
+    if _is_fresh_cache(path, max_age_days) and not refresh:
         return path
 
     try:
         text = _download(url)
     except (OSError, ValueError) as e:  # ValueError: malformed/unsupported URL
-        if path.exists():
+        if _has_readable_cache(path):
             print(f"warning: {name}: download failed ({e}); using stale cache {path}", file=sys.stderr)
             return path
-        raise WishlistError(f"{name}: download failed and no cached copy exists: {e}") from e
+        raise WishlistError(f"{name}: download failed and no usable cached copy exists: {e}") from e
 
     path.write_text(text, encoding="utf-8")
     return path
