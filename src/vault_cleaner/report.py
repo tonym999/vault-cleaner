@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
@@ -62,25 +63,38 @@ def summarize(sections: Iterable[tuple[str, list]]) -> str:
     return "\n".join(lines)
 
 
+def render_import_csv(rows: Iterable[Mapping[str, str]]) -> bytes:
+    """Render rows of ``{Id, Hash, Tag, Notes}`` in DIM's import format.
+
+    Ids are re-wrapped in literal quotes to match DIM's own export style
+    (spreadsheet-proofing the 64-bit id). The returned UTF-8 bytes use the
+    CRLF line endings emitted by DIM's CSV writer.
+    """
+    output = io.StringIO(newline="")
+    # The csv module's default dialect uses CRLF, which is the byte format DIM
+    # currently emits and imports.
+    writer = csv.DictWriter(output, fieldnames=OUTPUT_COLUMNS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        tag = row.get("Tag", "")
+        if tag and tag not in VALID_TAGS:
+            raise ValueError(f"invalid DIM tag {tag!r} for id {row.get('Id')}")
+        out = dict(row)
+        out["Id"] = '"' + str(row["Id"]).strip('"') + '"'
+        writer.writerow(out)
+    return output.getvalue().encode("utf-8")
+
+
 def write_import_csv(rows: Iterable[Mapping[str, str]], path: str | Path) -> int:
     """Write rows of {Id, Hash, Tag, Notes} in the format DIM imports.
 
     Returns the number of rows written. Ids are re-wrapped in literal quotes
     to match DIM's own export style (spreadsheet-proofing the 64-bit id).
+    Rows are rendered completely in memory before the destination is opened.
     """
     path = Path(path)
+    materialized_rows = list(rows)
+    content = render_import_csv(materialized_rows)
     path.parent.mkdir(parents=True, exist_ok=True)
-
-    count = 0
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            tag = row.get("Tag", "")
-            if tag and tag not in VALID_TAGS:
-                raise ValueError(f"invalid DIM tag {tag!r} for id {row.get('Id')}")
-            out = dict(row)
-            out["Id"] = '"' + str(row["Id"]).strip('"') + '"'
-            writer.writerow(out)
-            count += 1
-    return count
+    path.write_bytes(content)
+    return len(materialized_rows)

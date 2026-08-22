@@ -3,6 +3,20 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-22 — in-memory CSV rendering and DIM export byte loaders (#62)
+
+- Added `render_import_csv`, sharing validation, DIM Id quoting, column
+  filtering, UTF-8 encoding, and CRLF serialization with `write_import_csv`.
+  The writer now renders completely before opening its destination while
+  retaining its existing signature and row-count return.
+- Added strict UTF-8 byte loaders for weapons, armor, and ghosts, with a
+  separate `ExportDecodeError` and fixed non-path source labels. Shared
+  schema and armor-field validation keeps path diagnostics unchanged and
+  prevents uploaded-schema errors from exposing staging paths.
+- Added renderer byte-parity and parser path/bytes parity coverage for plain
+  and BOM exports, schema/duplicate failures, malformed armor fields, and
+  undecodable bytes.
+
 ## 2026-08-09 — M8 server transport and security envelope (#64)
 
 - Added Flask 3.1 as the second and only other runtime dependency and added
