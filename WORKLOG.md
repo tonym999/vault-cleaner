@@ -3,6 +3,31 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-22 — issue and project workflow guidance (#61)
+
+- Updated `AGENTS.md` to link the actual vault-cleaner project board and added
+  the complete issue-creation checklist: specific type/maintenance labels,
+  `icebox` only for explicitly out-of-scope PLAN work, existing milestones,
+  dependency text and project dependency links, explicit `Todo` membership,
+  and post-creation verification.
+- Audited the public repository state before external changes: the existing
+  `M8 — Local review server` milestone is already assigned to #38, #47, #49,
+  #50, and #51; #38 and #51 need the `maintenance` label, while #61 needs
+  `maintenance` instead of `enhancement`.
+- Repository issue metadata is now applied through the authenticated GitHub
+  connector: `enhancement` remains on feature issue #38, `maintenance` is on
+  #51 and #61 (replacing #61's `enhancement`), #25 is closed as superseded
+  with a linking comment, and the M8 milestone assignments remain intact.
+- Project v2 views and dependency links are now configured through the
+  authenticated GraphQL API: `All items`, `Board`, `Active`, and `Icebox`;
+  #50 is blocked by #49 and #51 is blocked by #50. Status remains exactly
+  `Todo`, `In Progress`, and `Done`. The Board is still a board layout with
+  Status visible; the available schema exposes no explicit grouping mutation,
+  so its existing/default Status grouping is preserved for UI verification.
+- The only remaining project steps are UI-only workflows: repository
+  auto-add with default `Todo`, and automatic archive of completed items
+  after 30 days. No browser session was available for those controls.
+
 ## 2026-08-22 — shared proposal retention and manifest-free verdict merge (#63)
 
 - Added pure `review_session.py` primitives: `same_proposal` compares only

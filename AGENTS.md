@@ -147,8 +147,29 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 
 ## Workflow
 
-1. Pick a ticket from the [issue board](https://github.com/tonym999/vault-cleaner/issues);
-   milestones M2–M5 are ordered — respect dependencies noted in each issue.
+1. Pick a ticket from the [vault-cleaner project board](https://github.com/users/tonym999/projects/3);
+   milestones in PLAN.md are ordered — respect dependencies noted in each issue.
 2. Branch from `main`, keep `pytest` green, PR referencing the issue.
 3. Append a dated entry to [WORKLOG.md](WORKLOG.md) in the same PR: what was
    done, decisions made, anything surprising the next agent should know.
+
+## Creating issues
+
+When creating a repository issue:
+
+1. Check the [vault-cleaner project board](https://github.com/users/tonym999/projects/3)
+   and [PLAN.md](PLAN.md) first. Apply the most specific existing type label:
+   `bug`, `enhancement`, `documentation`, or `question`. Use `maintenance`
+   for CI, cleanup, dependency, or internal-quality work that does not fit
+   those types. Use `icebox` only when the work is explicitly out of scope in
+   `PLAN.md`; do not invent a one-off label.
+2. Assign an existing relevant milestone when one exists. Do not create a
+   one-off milestone. If the issue depends on other work, state the dependency
+   in its body (for example, `Depends on #49`) and add the corresponding
+   GitHub issue dependency link where the repository/project UI supports it.
+3. Add the new issue to the project board and set its Status to `Todo`.
+   Repository auto-add is enabled as a backstop, not a substitute for this
+   explicit step.
+4. Verify both project membership and the `Todo` status after creation before
+   treating the issue as complete. Recheck the type/scope label and milestone
+   at the same time.
