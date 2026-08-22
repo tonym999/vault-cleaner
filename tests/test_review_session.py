@@ -384,6 +384,34 @@ def test_retention_and_merge_accept_all_supported_mapping_shapes(shape):
     assert [veto.id for veto in merged.added] == [decision.id]
 
 
+def test_verdict_cores_reject_non_mapping_iterable_entries():
+    run = build_report()
+    decision = proposals(run)[0]
+    non_mapping_entries = (
+        ManifestDecision(
+            id=decision.id,
+            kind=decision.kind,
+            hash=decision.hash,
+            name=decision.name,
+            action=decision.action,
+            reason=decision.reason,
+            verdict="vetoed",
+        ),
+        SimpleNamespace(id=decision.id, verdict="vetoed"),
+    )
+
+    for entry in non_mapping_entries:
+        with pytest.raises(TypeError, match="^verdict entry must be a mapping$"):
+            retain_verdicts([entry], run, run)
+        with pytest.raises(TypeError, match="^verdict entry must be a mapping$"):
+            merge_verdicts(
+                review.empty_store(),
+                [entry],
+                run,
+                recorded_at="2026-08-22T12:00:00Z",
+            )
+
+
 def test_merge_verdicts_rejects_non_string_mapping_ids():
     run = build_report()
     with pytest.raises(TypeError, match="verdict id must be a string"):

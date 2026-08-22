@@ -160,7 +160,12 @@ def _verdict_entries(verdicts: VerdictInput) -> tuple[VerdictEntry, ...]:
                 raise TypeError("verdict id must be a string")
             entries.append({"id": item_id, "verdict": verdict})
         return tuple(entries)
-    return tuple(verdicts)
+    entries: list[VerdictEntry] = []
+    for entry in verdicts:
+        if not isinstance(entry, Mapping):
+            raise TypeError("verdict entry must be a mapping")
+        entries.append(entry)
+    return tuple(entries)
 
 
 def same_proposal(a: object, b: object) -> bool:
@@ -201,6 +206,7 @@ def retain_verdicts(
     discarded: list[str] = []
 
     for entry in _verdict_entries(verdicts):
+        # Validate every entry, including one that will later be discarded.
         _entry_verdict(entry)
         item_id = _verdict_id(entry)
         old_proposal = old_proposals.get(item_id)

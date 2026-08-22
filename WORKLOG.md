@@ -27,6 +27,8 @@ surprises the next agent should know about.
 - Final follow-up: verdict mappings now require exactly `approved` or
   `vetoed`, including for retention, and the pure core accepts only mapping
   entries while `merge_manifest` continues to restore legacy diagnostics.
+- Final input-shape guard rejects non-mapping iterable entries with a stable
+  project-owned `TypeError`.
 
 ## 2026-08-22 — in-memory CSV rendering and DIM export byte loaders (#62)
 
