@@ -508,7 +508,7 @@ APP_JS = r"""
     return "";
   }
 
-  // The three checks below mirror review.py's _check_keys, _require_text, and
+  // The three checks below mirror review.py's check_keys, require_text, and
   // _require_version. Each returns an error string, or "" when the value is
   // acceptable. Parity is enforced by a test that runs one table of payloads
   // through both this reader and parse_manifest.

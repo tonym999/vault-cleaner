@@ -3,6 +3,33 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-22 — shared proposal retention and manifest-free verdict merge (#63)
+
+- Added pure `review_session.py` primitives: `same_proposal` compares only
+  `id`, `kind`, `hash`, `action`, and `reason`; `retain_verdicts` keeps only
+  unchanged full identities and reports changed or missing ids as discarded.
+- Added the manifest-free `merge_verdicts` core. `review.merge_manifest` is a
+  thin adapter that preserves additive vetoes, run-owned metadata, unchanged
+  timestamps, and the existing CLI diagnostics.
+- Promoted the strict review-input helpers/constants (`check_keys`,
+  `require_text`, `require_id`, `require_kind`, `MAX_TEXT`, `ID_RE`) while
+  retaining their validation behavior. The five-field identity rule remains
+  cross-fingerprint retention only; `classify` and merge still compare
+  `(action, reason)`.
+- No ruleset or snapshot change: `RULESET_VERSION` remains 1 and the report
+  golden remains byte-identical. Ruff and the full test suite pass.
+- Follow-up: made proposal identity access fail loudly for missing fields,
+  unified verdict-entry normalization for retention and merge (including a
+  single server entry), and rejected non-string ids without coercion.
+- Removed the obsolete private validator aliases, centralized veto ordering
+  and UTC timestamp formatting, tightened source-level consumer coverage, and
+  kept the adapter's legacy diagnostic payloads at its boundary.
+- Final follow-up: verdict mappings now require exactly `approved` or
+  `vetoed`, including for retention, and the pure core accepts only mapping
+  entries while `merge_manifest` continues to restore legacy diagnostics.
+- Final input-shape guard rejects non-mapping iterable entries with a stable
+  project-owned `TypeError`.
+
 ## 2026-08-22 — in-memory CSV rendering and DIM export byte loaders (#62)
 
 - Added `render_import_csv`, sharing validation, DIM Id quoting, column

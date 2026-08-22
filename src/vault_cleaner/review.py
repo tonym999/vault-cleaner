@@ -24,8 +24,7 @@ import os
 import re
 import tempfile
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from vault_cleaner.report_run import (
@@ -35,18 +34,25 @@ from vault_cleaner.report_run import (
     ReportDecision,
     ReportRun,
 )
+from vault_cleaner.review_session import (
+    OVERRIDES_SCHEMA_VERSION,
+    VERDICTS,
+    ManifestDecision,
+    MergeResult,
+    OverrideStore,
+    Veto,
+    merge_verdicts,
+    ordered_vetoes,
+    utc_now,
+)
 
 MANIFEST_SCHEMA_VERSION = 1
-OVERRIDES_SCHEMA_VERSION = 1
 DEFAULT_OVERRIDES_PATH = "data/overrides.json"
-
-VERDICTS = frozenset({"approved", "vetoed"})
 
 # DIM instance ids are decimal uint64 (20 digits covers 2**64-1). Validated
 # for shape only — never parsed as a number, since the value must survive
 # round trips that Python ints and spreadsheets both mangle.
-_ID_RE = re.compile(r"[0-9]{1,20}")
-
+ID_RE = re.compile(r"[0-9]{1,20}")
 _MANIFEST_KEYS = frozenset({"schema_version", "snapshot", "decisions", "generated_at"})
 _SNAPSHOT_KEYS = frozenset({"schema_version", "ruleset_version", "fingerprint"})
 _DECISION_KEYS = frozenset({"id", "kind", "hash", "name", "action", "reason", "verdict"})
@@ -55,7 +61,7 @@ _VETO_KEYS = frozenset(
     {"id", "kind", "hash", "name", "action", "reason", "fingerprint", "recorded_at"}
 )
 
-_MAX_TEXT = 200
+MAX_TEXT = 200
 
 
 class ReviewError(ValueError):
@@ -75,19 +81,6 @@ class OverridesError(ReviewError):
 
 
 @dataclass(frozen=True)
-class ManifestDecision:
-    """One reviewed proposal, as recorded by the review UI."""
-
-    id: str
-    kind: str
-    hash: str
-    name: str
-    action: str
-    reason: str
-    verdict: str
-
-
-@dataclass(frozen=True)
 class ReviewManifest:
     schema_version: int
     snapshot_schema_version: int
@@ -102,34 +95,6 @@ class ReviewManifest:
     @property
     def approved(self) -> tuple[ManifestDecision, ...]:
         return tuple(d for d in self.decisions if d.verdict == "approved")
-
-
-@dataclass(frozen=True)
-class Veto:
-    """A persisted veto, with enough metadata to explain itself later.
-
-    The display fields describe the proposal as it stood when the veto was
-    recorded. They exist to make a stale or orphaned entry readable months
-    later; identity is `id` alone.
-    """
-
-    id: str
-    kind: str
-    hash: str
-    name: str
-    action: str
-    reason: str
-    fingerprint: str
-    recorded_at: str
-
-
-@dataclass(frozen=True)
-class OverrideStore:
-    schema_version: int
-    vetoes: tuple[Veto, ...]
-
-    def by_id(self) -> dict[str, Veto]:
-        return {veto.id: veto for veto in self.vetoes}
 
 
 @dataclass(frozen=True)
@@ -177,7 +142,7 @@ def _load_json_object(path: Path, error: type[ReviewError], what: str) -> dict:
     return data
 
 
-def _check_keys(
+def check_keys(
     data: Mapping[str, object],
     allowed: frozenset[str],
     error: type[ReviewError],
@@ -194,7 +159,7 @@ def _check_keys(
         raise error(f"{where}: unknown key(s) {unknown} — expected {sorted(allowed)}")
 
 
-def _require_text(
+def require_text(
     data: Mapping[str, object],
     key: str,
     error: type[ReviewError],
@@ -207,16 +172,16 @@ def _require_text(
         raise error(f"{where}: {key!r} must be a string")
     if not allow_empty and not value:
         raise error(f"{where}: {key!r} must not be empty")
-    if len(value) > _MAX_TEXT:
-        raise error(f"{where}: {key!r} is longer than {_MAX_TEXT} characters")
+    if len(value) > MAX_TEXT:
+        raise error(f"{where}: {key!r} is longer than {MAX_TEXT} characters")
     return value
 
 
-def _require_id(data: Mapping[str, object], error: type[ReviewError], where: str) -> str:
+def require_id(data: Mapping[str, object], error: type[ReviewError], where: str) -> str:
     value = data.get("id")
     if not isinstance(value, str):
         raise error(f"{where}: 'id' must be a string, not {type(value).__name__}")
-    if not _ID_RE.fullmatch(value):
+    if not ID_RE.fullmatch(value):
         raise error(
             f"{where}: 'id' {value!r} is not a DIM instance id "
             "(1-20 decimal digits, unquoted)"
@@ -224,7 +189,7 @@ def _require_id(data: Mapping[str, object], error: type[ReviewError], where: str
     return value
 
 
-def _require_kind(data: Mapping[str, object], error: type[ReviewError], where: str) -> str:
+def require_kind(data: Mapping[str, object], error: type[ReviewError], where: str) -> str:
     """Validate a persisted veto's export kind.
 
     Unlike the rest of a veto's metadata, `kind` is load-bearing: `classify`
@@ -233,7 +198,7 @@ def _require_kind(data: Mapping[str, object], error: type[ReviewError], where: s
     `unchecked` bucket, so a hand-edited typo would be reported forever as
     "that export was not loaded" — a false explanation for a malformed file.
     """
-    value = _require_text(data, "kind", error, where)
+    value = require_text(data, "kind", error, where)
     if value not in EXPORT_KINDS:
         raise error(
             f"{where}: kind {value!r} is not a known export kind "
@@ -271,17 +236,17 @@ def parse_manifest(path: str | Path) -> ReviewManifest:
     path = Path(path)
     data = _load_json_object(path, ReviewManifestError, "review manifest")
     where = str(path)
-    _check_keys(data, _MANIFEST_KEYS, ReviewManifestError, where)
+    check_keys(data, _MANIFEST_KEYS, ReviewManifestError, where)
     _require_version(
         data, "schema_version", MANIFEST_SCHEMA_VERSION, ReviewManifestError, where
     )
     if "generated_at" in data:
-        _require_text(data, "generated_at", ReviewManifestError, where)
+        require_text(data, "generated_at", ReviewManifestError, where)
 
     snapshot = data.get("snapshot")
     if not isinstance(snapshot, dict):
         raise ReviewManifestError(f"{where}: 'snapshot' must be an object")
-    _check_keys(snapshot, _SNAPSHOT_KEYS, ReviewManifestError, f"{where}: snapshot")
+    check_keys(snapshot, _SNAPSHOT_KEYS, ReviewManifestError, f"{where}: snapshot")
     snapshot_version = _require_version(
         snapshot,
         "schema_version",
@@ -296,7 +261,7 @@ def parse_manifest(path: str | Path) -> ReviewManifest:
         ReviewManifestError,
         f"{where}: snapshot",
     )
-    fingerprint = _require_text(
+    fingerprint = require_text(
         snapshot, "fingerprint", ReviewManifestError, f"{where}: snapshot"
     )
 
@@ -310,9 +275,9 @@ def parse_manifest(path: str | Path) -> ReviewManifest:
         at = f"{where}: decisions[{index}]"
         if not isinstance(entry, dict):
             raise ReviewManifestError(f"{at}: must be an object")
-        _check_keys(entry, _DECISION_KEYS, ReviewManifestError, at)
-        item_id = _require_id(entry, ReviewManifestError, at)
-        verdict = _require_text(entry, "verdict", ReviewManifestError, at)
+        check_keys(entry, _DECISION_KEYS, ReviewManifestError, at)
+        item_id = require_id(entry, ReviewManifestError, at)
+        verdict = require_text(entry, "verdict", ReviewManifestError, at)
         if verdict not in VERDICTS:
             raise ReviewManifestError(
                 f"{at}: verdict {verdict!r} must be one of {sorted(VERDICTS)}"
@@ -328,13 +293,13 @@ def parse_manifest(path: str | Path) -> ReviewManifest:
         decisions.append(
             ManifestDecision(
                 id=item_id,
-                kind=_require_text(entry, "kind", ReviewManifestError, at),
-                hash=_require_text(entry, "hash", ReviewManifestError, at),
-                name=_require_text(
+                kind=require_text(entry, "kind", ReviewManifestError, at),
+                hash=require_text(entry, "hash", ReviewManifestError, at),
+                name=require_text(
                     entry, "name", ReviewManifestError, at, allow_empty=True
                 ),
-                action=_require_text(entry, "action", ReviewManifestError, at),
-                reason=_require_text(entry, "reason", ReviewManifestError, at),
+                action=require_text(entry, "action", ReviewManifestError, at),
+                reason=require_text(entry, "reason", ReviewManifestError, at),
                 verdict=verdict,
             )
         )
@@ -373,7 +338,7 @@ def load_overrides(path: str | Path) -> OverrideStore:
         return empty_store()
     data = _load_json_object(path, OverridesError, "overrides file")
     where = str(path)
-    _check_keys(data, _OVERRIDES_KEYS, OverridesError, where)
+    check_keys(data, _OVERRIDES_KEYS, OverridesError, where)
     _require_version(
         data, "schema_version", OVERRIDES_SCHEMA_VERSION, OverridesError, where
     )
@@ -388,33 +353,28 @@ def load_overrides(path: str | Path) -> OverrideStore:
         at = f"{where}: vetoes[{index}]"
         if not isinstance(entry, dict):
             raise OverridesError(f"{at}: must be an object")
-        _check_keys(entry, _VETO_KEYS, OverridesError, at)
-        item_id = _require_id(entry, OverridesError, at)
+        check_keys(entry, _VETO_KEYS, OverridesError, at)
+        item_id = require_id(entry, OverridesError, at)
         if item_id in seen:
             raise OverridesError(f"{at}: id {item_id} appears twice")
         seen.add(item_id)
         vetoes.append(
             Veto(
                 id=item_id,
-                kind=_require_kind(entry, OverridesError, at),
-                hash=_require_text(entry, "hash", OverridesError, at),
-                name=_require_text(entry, "name", OverridesError, at, allow_empty=True),
-                action=_require_text(entry, "action", OverridesError, at),
-                reason=_require_text(entry, "reason", OverridesError, at),
-                fingerprint=_require_text(entry, "fingerprint", OverridesError, at),
-                recorded_at=_require_text(entry, "recorded_at", OverridesError, at),
+                kind=require_kind(entry, OverridesError, at),
+                hash=require_text(entry, "hash", OverridesError, at),
+                name=require_text(entry, "name", OverridesError, at, allow_empty=True),
+                action=require_text(entry, "action", OverridesError, at),
+                reason=require_text(entry, "reason", OverridesError, at),
+                fingerprint=require_text(entry, "fingerprint", OverridesError, at),
+                recorded_at=require_text(entry, "recorded_at", OverridesError, at),
             )
         )
 
     return OverrideStore(
         schema_version=OVERRIDES_SCHEMA_VERSION,
-        vetoes=_ordered(vetoes),
+        vetoes=ordered_vetoes(vetoes),
     )
-
-
-def _ordered(vetoes: Iterable[Veto]) -> tuple[Veto, ...]:
-    """One canonical order, so the file only changes when the vetoes do."""
-    return tuple(sorted(vetoes, key=lambda veto: (veto.kind, veto.id)))
 
 
 def store_dict(store: OverrideStore, *, updated_at: str) -> dict:
@@ -432,7 +392,7 @@ def store_dict(store: OverrideStore, *, updated_at: str) -> dict:
                 "fingerprint": veto.fingerprint,
                 "recorded_at": veto.recorded_at,
             }
-            for veto in _ordered(store.vetoes)
+            for veto in ordered_vetoes(store.vetoes)
         ],
     }
 
@@ -450,7 +410,7 @@ def save_overrides(
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = store_dict(store, updated_at=updated_at or _now())
+    payload = store_dict(store, updated_at=updated_at or utc_now())
 
     fd, tmp_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
@@ -493,10 +453,6 @@ def _fsync_directory(directory: Path) -> None:
                 os.close(dir_fd)
             except OSError:
                 pass
-
-
-def _now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def classify(store: OverrideStore, run: ReportRun) -> OverrideStatus:
@@ -565,16 +521,6 @@ def apply_vetoes(run: ReportRun, vetoed_ids: Iterable[str]) -> list[ReportDecisi
     ]
 
 
-@dataclass(frozen=True)
-class MergeResult:
-    store: OverrideStore
-    added: tuple[Veto, ...]
-    updated: tuple[Veto, ...]
-    unchanged: tuple[Veto, ...]
-    already_vetoed_but_approved: tuple[ManifestDecision, ...]
-    unknown_ids: tuple[ManifestDecision, ...]
-
-
 def merge_manifest(
     store: OverrideStore,
     manifest: ReviewManifest,
@@ -589,58 +535,26 @@ def merge_manifest(
     must not be able to resurrect junk decisions the user already rejected.
     Un-vetoing is an explicit edit of the overrides file.
     """
-    recorded_at = recorded_at or _now()
-    proposals = {
-        decision.id: decision
-        for section in run.sections
-        for decision in section.decisions
-    }
-    existing = store.by_id()
-
-    added, updated, unchanged, unknown = [], [], [], []
-    for entry in manifest.vetoed:
-        if entry.id not in proposals:
-            unknown.append(entry)
-            continue
-        decision = proposals[entry.id]
-        # Trust the run, not the manifest, for what was actually proposed:
-        # the display metadata is the UI's copy and only identity is shared.
-        veto = Veto(
-            id=decision.id,
-            kind=decision.kind,
-            hash=decision.hash,
-            name=decision.name,
-            action=decision.action,
-            reason=decision.reason,
-            fingerprint=run.fingerprint,
-            recorded_at=recorded_at,
-        )
-        previous = existing.get(veto.id)
-        if previous is None:
-            added.append(veto)
-        elif (previous.action, previous.reason) == (veto.action, veto.reason):
-            # Keep the original recorded_at: nothing about the veto changed.
-            veto = previous
-            unchanged.append(veto)
-        else:
-            updated.append(veto)
-        existing[veto.id] = veto
-
-    approved_but_vetoed = tuple(
-        entry for entry in manifest.approved if entry.id in store.by_id()
+    # The core deliberately sees only id -> verdict.  The manifest's display
+    # copy is untrusted and must not influence persisted Veto metadata.
+    id_to_verdict = {entry.id: entry.verdict for entry in manifest.decisions}
+    merged = merge_verdicts(
+        store,
+        id_to_verdict,
+        run,
+        recorded_at=recorded_at or utc_now(),
     )
-
-    merged = OverrideStore(
-        schema_version=OVERRIDES_SCHEMA_VERSION,
-        vetoes=_ordered(existing.values()),
-    )
-    return MergeResult(
-        store=merged,
-        added=tuple(added),
-        updated=tuple(updated),
-        unchanged=tuple(unchanged),
-        already_vetoed_but_approved=approved_but_vetoed,
-        unknown_ids=tuple(unknown),
+    # Keep the old diagnostic payloads (names and kinds are useful on the CLI)
+    # at this adapter boundary; the manifest-free core can only report ids.
+    unknown = {entry.id: entry for entry in manifest.vetoed}
+    approved = {entry.id: entry for entry in manifest.approved}
+    return replace(
+        merged,
+        unknown_ids=tuple(unknown.get(item_id, item_id) for item_id in merged.unknown_ids),
+        already_vetoed_but_approved=tuple(
+            approved.get(item_id, item_id)
+            for item_id in merged.already_vetoed_but_approved
+        ),
     )
 
 
