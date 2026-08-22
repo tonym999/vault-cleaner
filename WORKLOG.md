@@ -8,7 +8,9 @@ surprises the next agent should know about.
 - Added `render_import_csv`, sharing validation, DIM Id quoting, column
   filtering, UTF-8 encoding, and CRLF serialization with `write_import_csv`.
   The writer now renders completely before opening its destination while
-  retaining its existing signature and row-count return.
+  retaining its existing signature and row-count return; a regression pins
+  existing outputs byte-identical and fresh nested destinations untouched when
+  a later row is invalid.
 - Added strict UTF-8 byte loaders for weapons, armor, and ghosts, with a
   separate `ExportDecodeError` and fixed non-path source labels. Shared
   schema and armor-field validation keeps path diagnostics unchanged and
