@@ -7,6 +7,7 @@ a column we depend on has vanished.
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -14,6 +15,15 @@ import pandas as pd
 
 class SchemaError(ValueError):
     """The CSV doesn't look like the DIM export we expect."""
+
+
+class ExportDecodeError(ValueError):
+    """A byte-backed DIM export is not valid UTF-8.
+
+    Byte loaders decode strictly before handing content to pandas. A separate
+    exception lets upload callers report malformed bytes independently from a
+    validly decoded export with an invalid schema.
+    """
 
 
 # The minimal set of columns the pipeline relies on. Everything else in the
@@ -64,48 +74,89 @@ def _strip_dim_id_quotes(series: pd.Series) -> pd.Series:
     return series.str.strip('"')
 
 
-def _load_dim_csv(path: str | Path, required: frozenset[str], kind: str) -> pd.DataFrame:
-    path = Path(path)
-    df = pd.read_csv(path, dtype=str, keep_default_na=False)
-
+def _validate_dim_csv(
+    df: pd.DataFrame,
+    required: frozenset[str],
+    kind: str,
+    display_label: str,
+) -> pd.DataFrame:
     missing = required - set(df.columns)
     if missing:
         raise SchemaError(
-            f"{path}: missing expected DIM columns {sorted(missing)} — "
+            f"{display_label}: missing expected DIM columns {sorted(missing)} — "
             f"the export format may have changed, or this isn't a {kind} export."
         )
 
     df["Id"] = _strip_dim_id_quotes(df["Id"])
     if df["Id"].duplicated().any():
         dupes = df.loc[df["Id"].duplicated(), "Id"].tolist()
-        raise SchemaError(f"{path}: duplicate instance ids {dupes[:5]} — corrupt export?")
+        raise SchemaError(
+            f"{display_label}: duplicate instance ids {dupes[:5]} — corrupt export?"
+        )
     return df
+
+
+def _load_dim_csv(
+    source: str | Path | StringIO,
+    required: frozenset[str],
+    kind: str,
+    display_label: str,
+) -> pd.DataFrame:
+    df = pd.read_csv(source, dtype=str, keep_default_na=False)
+    return _validate_dim_csv(df, required, kind, display_label)
+
+
+def _decode_export_bytes(content: bytes, display_label: str) -> StringIO:
+    try:
+        # Keep a leading BOM in the decoded text. pandas accepts it at the
+        # start of the first header, matching the path loader's behavior.
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ExportDecodeError(f"{display_label}: invalid UTF-8") from exc
+    return StringIO(text)
+
+
+def _load_dim_bytes(
+    content: bytes,
+    required: frozenset[str],
+    kind: str,
+    display_label: str,
+) -> pd.DataFrame:
+    source = _decode_export_bytes(content, display_label)
+    return _load_dim_csv(source, required, kind, display_label)
 
 
 def load_weapons(path: str | Path) -> pd.DataFrame:
     """Load a DIM weapons export. All columns come back as strings; empty
     cells are empty strings, not NaN."""
-    return _load_dim_csv(path, REQUIRED_WEAPON_COLUMNS, "weapons")
+    path = Path(path)
+    return _load_dim_csv(path, REQUIRED_WEAPON_COLUMNS, "weapons", str(path))
+
+
+def load_weapons_bytes(content: bytes) -> pd.DataFrame:
+    """Load a DIM weapons export from strict UTF-8 bytes."""
+    return _load_dim_bytes(content, REQUIRED_WEAPON_COLUMNS, "weapons", "weapons export")
 
 
 def load_ghosts(path: str | Path) -> pd.DataFrame:
     """Load a DIM ghost export. Same string/empty-cell semantics as weapons."""
-    return _load_dim_csv(path, REQUIRED_GHOST_COLUMNS, "ghost")
+    path = Path(path)
+    return _load_dim_csv(path, REQUIRED_GHOST_COLUMNS, "ghost", str(path))
 
 
-def load_armor(path: str | Path) -> pd.DataFrame:
-    """Load a DIM armor export. Same string/empty-cell semantics as weapons.
+def load_ghosts_bytes(content: bytes) -> pd.DataFrame:
+    """Load a DIM ghost export from strict UTF-8 bytes."""
+    return _load_dim_bytes(content, REQUIRED_GHOST_COLUMNS, "ghost", "ghosts export")
 
-    Stat cells are validated here: scoring junks pieces by these numbers, so
-    a malformed cell silently becoming 0 could junk a best-in-slot piece.
-    Fail loudly instead (PLAN.md risks)."""
-    df = _load_dim_csv(path, REQUIRED_ARMOR_COLUMNS, "armor")
+
+def _validate_armor(df: pd.DataFrame, display_label: str) -> pd.DataFrame:
+    """Validate armor stats and ranking fields using a source display label."""
     for col in ARMOR_STATS.values():
         bad = ~df[col].str.strip().str.fullmatch(r"\d+")  # non-negative integers only
         if bad.any():
             offender = df.loc[bad].iloc[0]
             raise SchemaError(
-                f"{path}: non-numeric {col!r} value {offender[col]!r} on "
+                f"{display_label}: non-numeric {col!r} value {offender[col]!r} on "
                 f"{offender['Name']} (id {offender['Id']}) — refusing to score "
                 f"armor with malformed stats."
             )
@@ -118,8 +169,30 @@ def load_armor(path: str | Path) -> pd.DataFrame:
         if bad.any():
             offender = df.loc[bad].iloc[0]
             raise SchemaError(
-                f"{path}: malformed {col!r} value {offender[col]!r} on "
+                f"{display_label}: malformed {col!r} value {offender[col]!r} on "
                 f"{offender['Name']} (id {offender['Id']}) — refusing to rank "
                 f"dupe survivors on corrupt data."
             )
     return df
+
+
+def load_armor(path: str | Path) -> pd.DataFrame:
+    """Load a DIM armor export. Same string/empty-cell semantics as weapons.
+
+    Stat cells are validated here: scoring junks pieces by these numbers, so
+    a malformed cell silently becoming 0 could junk a best-in-slot piece.
+    Fail loudly instead (PLAN.md risks)."""
+    path = Path(path)
+    return _validate_armor(
+        _load_dim_csv(path, REQUIRED_ARMOR_COLUMNS, "armor", str(path)),
+        str(path),
+    )
+
+
+def load_armor_bytes(content: bytes) -> pd.DataFrame:
+    """Load a DIM armor export from strict UTF-8 bytes."""
+    label = "armor export"
+    return _validate_armor(
+        _load_dim_bytes(content, REQUIRED_ARMOR_COLUMNS, "armor", label),
+        label,
+    )

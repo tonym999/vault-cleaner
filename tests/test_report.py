@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner.parse import load_weapons
-from vault_cleaner.report import reason_slug, summarize, write_import_csv
+from vault_cleaner.report import (
+    reason_slug,
+    render_import_csv,
+    summarize,
+    write_import_csv,
+)
 from vault_cleaner.rules.dupes import Decision
 
 FIXTURE = Path(__file__).parent / "fixtures" / "weapons.csv"
@@ -34,6 +39,74 @@ def test_ids_are_rewrapped_in_dim_style_quotes(tmp_path):
 def test_invalid_tag_rejected(tmp_path):
     with pytest.raises(ValueError, match="invalid DIM tag"):
         write_import_csv([{"Id": "1", "Hash": "2", "Tag": "trash", "Notes": ""}], tmp_path / "out.csv")
+
+
+def test_renderer_matches_writer_bytes_and_preserves_dim_crlf(tmp_path):
+    rows = [
+        {
+            "Id": '"1000000000000000001"',
+            "Hash": "111111",
+            "Tag": "junk",
+            "Notes": "café",
+            "Ignored": "not emitted",
+        },
+        {"Id": "1000000000000000002", "Hash": "222222", "Tag": "keep", "Notes": ""},
+    ]
+
+    rendered = render_import_csv(rows)
+    out = tmp_path / "out.csv"
+    assert write_import_csv(rows, out) == 2
+    assert rendered == out.read_bytes()
+    assert b"\r\n" in rendered
+    assert b"\n" not in rendered.replace(b"\r\n", b"")
+    assert b'"""1000000000000000001"""' in rendered
+    assert b"Ignored" not in rendered
+
+
+def test_renderer_and_writer_validate_tags_for_generators(tmp_path):
+    def rows():
+        yield {"Id": "1", "Hash": "2", "Tag": "junk", "Notes": ""}
+        yield {"Id": "3", "Hash": "4", "Tag": "trash", "Notes": ""}
+
+    with pytest.raises(ValueError, match="invalid DIM tag"):
+        render_import_csv(rows())
+    with pytest.raises(ValueError, match="invalid DIM tag"):
+        write_import_csv(rows(), tmp_path / "out.csv")
+
+
+def test_writer_does_not_partially_write_when_a_later_row_is_invalid(tmp_path):
+    def rows():
+        yield {"Id": "1", "Hash": "2", "Tag": "keep", "Notes": ""}
+        yield {"Id": "3", "Hash": "4", "Tag": "trash", "Notes": ""}
+
+    existing = tmp_path / "existing.csv"
+    previous = b"previous good export\r\n"
+    existing.write_bytes(previous)
+    with pytest.raises(ValueError, match="invalid DIM tag"):
+        write_import_csv(rows(), existing)
+    assert existing.read_bytes() == previous
+
+    fresh = tmp_path / "not-yet-created" / "nested" / "out.csv"
+    with pytest.raises(ValueError, match="invalid DIM tag"):
+        write_import_csv(rows(), fresh)
+    assert not fresh.exists()
+    assert not fresh.parent.exists()
+
+
+def test_writer_consumes_a_successful_generator_once_and_returns_count(tmp_path):
+    expected = [
+        {"Id": "1", "Hash": "2", "Tag": "junk", "Notes": ""},
+        {"Id": "3", "Hash": "4", "Tag": "keep", "Notes": ""},
+    ]
+    yielded = []
+
+    def rows():
+        for row in expected:
+            yielded.append(row)
+            yield row
+
+    assert write_import_csv(rows(), tmp_path / "out.csv") == len(expected)
+    assert yielded == expected
 
 
 @pytest.mark.parametrize(
