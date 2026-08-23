@@ -213,6 +213,38 @@ def test_run_server_closes_session_when_binding_fails(monkeypatch, tmp_path):
     assert events == ["session-closed"]
 
 
+def test_run_server_closes_server_when_session_close_fails(monkeypatch):
+    events = []
+
+    class FakeServer:
+        def serve_forever(self):
+            events.append("served")
+
+        def server_close(self):
+            events.append("server-closed")
+
+    def fake_build(session, port):
+        session.configure_bound_port(54321)
+        return FakeServer()
+
+    def fail_close(_self):
+        events.append("session-close-failed")
+        raise RuntimeError("session cleanup failed")
+
+    monkeypatch.setattr(server_app, "load_config", lambda _path: {})
+    monkeypatch.setattr(server_app, "build_server", fake_build)
+    monkeypatch.setattr(server_app.Session, "close", fail_close)
+
+    with pytest.raises(RuntimeError, match="session cleanup failed"):
+        server_app.run_server(
+            config_path="config.toml",
+            no_wishlists=True,
+            port=0,
+        )
+
+    assert events == ["served", "session-close-failed", "server-closed"]
+
+
 def test_run_server_rejects_invalid_overrides_before_binding(monkeypatch, tmp_path):
     overrides = tmp_path / "overrides.json"
     overrides.write_bytes(b"\xff")

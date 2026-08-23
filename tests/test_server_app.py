@@ -406,6 +406,29 @@ def test_shutdown_is_serialized_and_runs_only_when_response_closes():
     )
 
 
+def test_shutdown_callback_runs_when_close_raises(monkeypatch):
+    client, session, _app = build_client()
+    events = []
+    session.shutdown_callback = lambda: events.append("callback")
+
+    def fail_close():
+        events.append("close")
+        raise RuntimeError("cleanup failed")
+
+    monkeypatch.setattr(session, "close", fail_close)
+    assert bootstrap(client).status_code == 303
+
+    response = client.post(
+        "/api/shutdown",
+        base_url=TEST_ORIGIN,
+        headers={"Origin": TEST_ORIGIN},
+    )
+
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        response.close()
+    assert events == ["close", "callback"]
+
+
 def test_shutdown_rejects_a_nonempty_body_without_calling_shutdown():
     client, session, _app = build_client()
     called = []

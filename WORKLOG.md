@@ -3,6 +3,20 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-23 — upload lifecycle review follow-up, round 3 (#65)
+
+- Preserved the session's prior state plus monotonic `report_revision` and
+  `verdict_revision` counters across close while still invalidating the live
+  report, export metadata, verdict data, and staging pointer. Failed cleanup
+  paths remain private retry state.
+- Authenticated `GET /api/report` now returns the registered 409
+  `illegal_state` error after shutdown, rather than exposing a reset-looking
+  idle envelope. Shutdown still builds its response metadata before the close
+  callback runs.
+- Wrapped both shutdown callback and server socket cleanup in `finally` paths;
+  regressions prove each cleanup callback runs when session close raises. The
+  full suite passes all 602 tests, including the two real loopback checks.
+
 ## 2026-08-23 — upload lifecycle review follow-up (#65)
 
 - Made the lock-protected session closed flag authoritative for uploads and

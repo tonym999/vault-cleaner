@@ -147,10 +147,12 @@ class Session:
         # Mark the session closed before handing control to the server.  A
         # concurrent upload therefore observes the same lock-protected
         # shutdown boundary as an explicit ``close()`` call.
-        self.close()
         callback = self.shutdown_callback
-        if callback is not None:
-            callback()
+        try:
+            self.close()
+        finally:
+            if callback is not None:
+                callback()
 
     def close(self) -> None:
         """Invalidate the run and release every upload directory.
@@ -167,9 +169,6 @@ class Session:
             if self.staging_dir is not None:
                 retired.add(self.staging_dir)
 
-            self.state = "idle"
-            self.report_revision = 0
-            self.verdict_revision = 0
             self.report = None
             self.export_digests = {}
             self.export_sizes = {}
@@ -179,6 +178,11 @@ class Session:
             self.override_status = []
             self.staging_dir = None
 
+            # Register every path before attempting cleanup.  If an
+            # unexpected exception escapes the cleanup seam, the path remains
+            # private session state for a later close() retry.
+            self._candidate_staging_dirs.update(candidates)
+            self._retired_staging_dirs.update(retired)
             for directory in candidates:
                 self.cleanup_directory(directory, candidate=True)
             for directory in retired:

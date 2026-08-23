@@ -257,7 +257,14 @@ def create_app(
 
     @app.get("/api/report")
     def report() -> Response:
-        return jsonify(session_metadata(session))
+        with session.mutation_lock:
+            if session.closed:
+                raise ApiError(
+                    "illegal_state",
+                    409,
+                    "report is not available after session shutdown",
+                )
+            return jsonify(session_metadata(session))
 
     def unavailable() -> None:
         raise ApiError(
@@ -523,7 +530,11 @@ def run_server(
             pass
     finally:
         if session is not None:
-            session.close()
-        if server is not None:
+            try:
+                session.close()
+            finally:
+                if server is not None:
+                    server.server_close()
+        elif server is not None:
             server.server_close()
     return 0

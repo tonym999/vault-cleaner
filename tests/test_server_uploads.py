@@ -328,13 +328,16 @@ def test_close_invalidates_all_accepted_export_state(tmp_path):
         session.verdicts = [{"id": "6917", "verdict": "vetoed"}]
         staging = session.staging_dir
         assert staging is not None
+        before_state = session.state
+        before_report_revision = session.report_revision
+        before_verdict_revision = session.verdict_revision
 
         session.close()
 
         assert session.closed
-        assert session.state == "idle"
-        assert session.report_revision == 0
-        assert session.verdict_revision == 0
+        assert session.state == before_state
+        assert session.report_revision == before_report_revision
+        assert session.verdict_revision == before_verdict_revision
         assert session.report is None
         assert session.export_digests == {}
         assert session.export_sizes == {}
@@ -344,16 +347,12 @@ def test_close_invalidates_all_accepted_export_state(tmp_path):
         assert session.override_status == []
         assert session.staging_dir is None
         assert not staging.exists()
-        assert client.get("/api/report", base_url=ORIGIN).json == {
-            "schema_version": 1,
-            "state": "idle",
-            "report_revision": 0,
-            "verdict_revision": 0,
-            "fingerprint": None,
-            "snapshot": None,
-            "verdicts": [],
-            "override_status": [],
-        }
+        report = client.get("/api/report", base_url=ORIGIN)
+        assert report.status_code == 409
+        assert report.json["error"]["code"] == "illegal_state"
+        assert str(tmp_path) not in report.get_data(as_text=True)
+        assert not session._candidate_staging_dirs
+        assert not session._retired_staging_dirs
 
 
 def test_override_digest_is_of_the_exact_loaded_bytes(tmp_path):
