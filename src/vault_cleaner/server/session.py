@@ -52,7 +52,6 @@ class Session:
         clock: Callable[[], float] = time.monotonic,
         bootstrap_token: str | None = None,
         session_token: str | None = None,
-        max_total_export_bytes: int | None = None,
     ) -> None:
         self.overrides_path = overrides_path
         self.config_path = config_path
@@ -61,7 +60,6 @@ class Session:
         self.bootstrap_token = bootstrap_token or secrets.token_urlsafe(32)
         self.session_token = session_token or secrets.token_urlsafe(32)
         self.bootstrap_issued_at = clock()
-        self.max_total_export_bytes = max_total_export_bytes
         self.bound_port: int | None = None
         self.mutation_lock = RLock()
         self.shutdown_callback: Callable[[], None] | None = None
@@ -139,23 +137,92 @@ class Session:
     def authenticated(self, candidate: str | None) -> bool:
         return _constant_time_equals(candidate, self.session_token)
 
+    @property
+    def closed(self) -> bool:
+        """Return whether shutdown has started, under the mutation lock."""
+        with self.mutation_lock:
+            return self._closed
+
     def request_shutdown(self) -> None:
+        # Mark the session closed before handing control to the server.  A
+        # concurrent upload therefore observes the same lock-protected
+        # shutdown boundary as an explicit ``close()`` call.
+        self.close()
         callback = self.shutdown_callback
         if callback is not None:
             callback()
 
     def close(self) -> None:
-        """Release every upload directory; safe to call more than once."""
+        """Invalidate the run and release every upload directory.
+
+        The report fields are cleared before any filesystem work begins.  A
+        failed removal therefore leaves only an opaque, session-owned retry
+        path; it cannot leave the API pointing at an accepted export after
+        close.
+        """
         with self.mutation_lock:
             self._closed = True
             candidates = set(self._candidate_staging_dirs)
             retired = set(self._retired_staging_dirs)
             if self.staging_dir is not None:
                 retired.add(self.staging_dir)
+
+            self.state = "idle"
+            self.report_revision = 0
+            self.verdict_revision = 0
+            self.report = None
+            self.export_digests = {}
+            self.export_sizes = {}
+            self.fingerprint = None
+            self.snapshot = None
+            self.verdicts = []
+            self.override_status = []
+            self.staging_dir = None
+
             for directory in candidates:
                 self.cleanup_directory(directory, candidate=True)
             for directory in retired:
                 self.cleanup_directory(directory)
+
+    def track_candidate(self, directory: Path) -> None:
+        """Register a newly-created candidate directory for cleanup."""
+        directory = Path(directory)
+        with self.mutation_lock:
+            if self._closed:
+                raise RuntimeError("session is closed")
+            self._candidate_staging_dirs.add(directory)
+
+    def adopt_candidate(self, directory: Path) -> Path | None:
+        """Promote a tracked candidate and return the previously live path."""
+        directory = Path(directory)
+        with self.mutation_lock:
+            if self._closed:
+                raise RuntimeError("session is closed")
+            if directory not in self._candidate_staging_dirs:
+                raise RuntimeError("candidate directory is not tracked")
+            previous = self.staging_dir
+            self._candidate_staging_dirs.discard(directory)
+            self.staging_dir = directory
+            return previous
+
+    def track_retired(self, directory: Path) -> None:
+        """Retain an old directory for a later best-effort cleanup retry."""
+        directory = Path(directory)
+        with self.mutation_lock:
+            self._retired_staging_dirs.add(directory)
+
+    def retire_directory(self, directory: Path) -> bool:
+        """Retire an old live directory without failing the committed upload."""
+        directory = Path(directory)
+        with self.mutation_lock:
+            self._retired_staging_dirs.add(directory)
+            try:
+                return self.cleanup_directory(directory)
+            except RuntimeError:
+                # Adoption is the commit boundary.  Cleanup is best effort;
+                # retain the opaque path for ``close()`` to retry.
+                self._retired_staging_dirs.add(directory)
+                return False
 
     def cleanup_directory(self, directory: Path, *, candidate: bool = False) -> bool:
         """Try to remove a server-owned directory and retain failures.

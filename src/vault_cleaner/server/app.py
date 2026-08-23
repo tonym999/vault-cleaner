@@ -284,21 +284,38 @@ def create_app(
 
     def _construct_upload(kind: str, body: bytes) -> None:
         """Build a report in a private candidate directory, then commit it."""
+        if session.closed:
+            raise ApiError(
+                "illegal_state",
+                409,
+                "export upload is not available after session shutdown",
+            )
         digest = hashlib.sha256(body).hexdigest()
         size = len(body)
         if session.export_digests.get(kind) == digest:
             return
 
-        total_limit = session.max_total_export_bytes
-        if total_limit is None:
-            total_limit = MAX_TOTAL_EXPORT_BYTES
         candidate_sizes = _validate_total_export_size(
-            session.export_sizes, kind, size, total_limit
+            session.export_sizes, kind, size, MAX_TOTAL_EXPORT_BYTES
         )
         candidate = Path(
             tempfile.mkdtemp(prefix="vault-cleaner-uploads-")
         )
-        session._candidate_staging_dirs.add(candidate)
+        try:
+            session.track_candidate(candidate)
+        except RuntimeError:
+            # A close cannot race the serialized upload, but keep this guard
+            # beside allocation so a future caller cannot leak a candidate.
+            session.cleanup_directory(candidate, candidate=True)
+            raise ApiError(
+                "illegal_state",
+                409,
+                "export upload is not available after session shutdown",
+            ) from None
+
+        # Everything through snapshot construction is pre-commit work.  Once
+        # adopt_candidate succeeds, the candidate is live and must never be
+        # removed by rollback handling.
         try:
             candidate_digests = dict(session.export_digests)
             candidate_digests[kind] = digest
@@ -334,27 +351,39 @@ def create_app(
             # on the candidate side preserves the transaction if that
             # presentation step ever gains a new failure mode.
             candidate_snapshot = snapshot_dict(candidate_report)
-            previous = session.staging_dir
-            session.staging_dir = candidate
-            session.report = candidate_report
-            session.export_digests = candidate_digests
-            session.export_sizes = candidate_sizes
-            session.report_revision += 1
-            if session.state == "idle":
-                session.state = "exports-loaded"
-            session.fingerprint = candidate_report.fingerprint
-            # Keep the compatibility fields coherent without making them the
-            # source of truth; /api/report derives from the ReportRun.
-            session.snapshot = candidate_snapshot
-            session._candidate_staging_dirs.discard(candidate)
-            if previous is not None:
-                session._retired_staging_dirs.add(previous)
-                session.cleanup_directory(previous)
         except BaseException:
             session.cleanup_directory(candidate, candidate=True)
             raise
 
+        previous = session.adopt_candidate(candidate)
+        session.report = candidate_report
+        session.export_digests = candidate_digests
+        session.export_sizes = candidate_sizes
+        session.report_revision += 1
+        if session.state == "idle":
+            session.state = "exports-loaded"
+        session.fingerprint = candidate_report.fingerprint
+        # Keep the compatibility fields coherent without making them the
+        # source of truth; /api/report derives from the ReportRun.
+        session.snapshot = candidate_snapshot
+
+        if previous is not None:
+            # Retirement is post-commit housekeeping.  It is deliberately
+            # outside the rollback span so an injected cleanup failure cannot
+            # delete the newly adopted directory or corrupt live metadata.
+            try:
+                session.retire_directory(previous)
+            except Exception:
+                current_app.logger.exception("retiring the previous upload directory failed")
+                session.track_retired(previous)
+
     def upload(kind: str) -> Response:
+        if session.closed:
+            raise ApiError(
+                "illegal_state",
+                409,
+                "export upload is not available after session shutdown",
+            )
         if session.state not in UPLOAD_STATES:
             raise ApiError(
                 "illegal_state",

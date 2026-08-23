@@ -3,6 +3,28 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-23 — upload lifecycle review follow-up (#65)
+
+- Made the lock-protected session closed flag authoritative for uploads and
+  shutdown: closed sessions return the registered 409 illegal-state error
+  before reading or staging a body. Close now invalidates the report, export
+  digests/sizes, fingerprint/snapshot, verdicts, revisions, state, and live
+  staging pointer before cleanup; failed deletions remain only in private
+  retry tracking.
+- Encapsulated candidate tracking, adoption, and retirement in `Session`.
+  Candidate rollback ends before adoption, while prior-directory retirement is
+  post-commit best effort so cleanup failures cannot remove the new live run.
+- Kept `MAX_EXPORT_BYTES=32 MiB` and `MAX_TOTAL_EXPORT_BYTES=96 MiB` and
+  removed the production-only aggregate-limit seam. With exactly three shipped
+  export kinds, each capped at 32 MiB, the reject side is mathematically
+  unreachable under those constants; the aggregate guard remains defensive
+  for future kinds or limit changes. Integration rejection coverage injects a
+  lower module cap instead.
+- Converted upload-test client setup to unconditional `Session.close()`
+  teardown and added close-before-upload, close-state invalidation, and
+  post-commit retirement-failure regressions. The full suite passes all 600
+  tests, including the two real loopback checks.
+
 ## 2026-08-23 — server uploads and transactional report staging (#65)
 
 - Added strict raw-byte upload handling for weapons, armor, and ghost exports:
