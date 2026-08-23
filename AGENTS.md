@@ -43,7 +43,11 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   format drifts between releases. Schema checks in `parse.py` must fail
   loudly, not silently coerce.
 - **Dry-run is the default.** Nothing writes to `data/out/` without an
-  explicit `--write`. The tool never deletes anything, anywhere.
+  explicit `--write`. The tool never deletes user-owned inputs, exports,
+  durable overrides, or output. The local review server may remove only
+  server-owned temporary staging, candidate, or retired directories that it
+  created itself; request content can never provide cleanup paths, and this
+  exception authorizes no broader deletion.
 - **Every junk decision needs a reason** in `Notes` (e.g.
   `#vc-junk: dupe-lower`), searchable as a hashtag in DIM.
 

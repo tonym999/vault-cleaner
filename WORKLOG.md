@@ -3,6 +3,22 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-23 — final upload lifecycle review follow-up (#65)
+
+- Lifecycle tests now pass isolated overrides paths under `tmp_path` and never
+  read personal `data/` overrides; the one default-path forwarding test remains
+  explicit about `DEFAULT_OVERRIDES_PATH`.
+- Clarified the narrow deletion exception: the local review server may remove
+  only its own temporary staging/candidate/retired directories, and request
+  content can never supply cleanup paths.
+- `override_digest` remains internal session state for #67 lost-update/finalize
+  drift detection and is deliberately absent from schema-version-1
+  `/api/report` responses.
+- Repeat `/api/shutdown` metadata coherence requires a terminal closed protocol
+  state and is deferred to #66/parent state-machine work; #65 API behavior is
+  unchanged.
+- Ruff and the full test suite pass: 602 tests collected and passed.
+
 ## 2026-08-23 — upload lifecycle review follow-up, round 3 (#65)
 
 - Preserved the session's prior state plus monotonic `report_revision` and

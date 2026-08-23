@@ -643,6 +643,7 @@ def test_run_server_prints_a_bootstrap_url_that_works(monkeypatch, tmp_path):
         target=lambda: result.append(
             server_app.run_server(
                 config_path=str(config_path),
+                overrides_path=str(tmp_path / "overrides.json"),
                 no_wishlists=True,
                 port=0,
                 stdout=output,

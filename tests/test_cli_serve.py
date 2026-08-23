@@ -147,7 +147,7 @@ def test_serve_cli_turns_overrides_startup_failure_into_clean_exit(
     assert captured.err == f"error: {message}\n"
 
 
-def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch):
+def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch, tmp_path):
     events = []
     output = StringIO()
 
@@ -161,7 +161,7 @@ def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch):
     def fake_build(session, port):
         assert port == 0
         assert session.config_path == "config.toml"
-        assert session.overrides_path == "data/overrides.json"
+        assert session.overrides_path == str(tmp_path / "overrides.json")
         assert session.no_wishlists is True
         session.configure_bound_port(54321)
         events.append("bound")
@@ -177,6 +177,7 @@ def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch):
 
     assert server_app.run_server(
         config_path="config.toml",
+        overrides_path=str(tmp_path / "overrides.json"),
         no_wishlists=True,
         port=0,
         stdout=output,
@@ -213,7 +214,7 @@ def test_run_server_closes_session_when_binding_fails(monkeypatch, tmp_path):
     assert events == ["session-closed"]
 
 
-def test_run_server_closes_server_when_session_close_fails(monkeypatch):
+def test_run_server_closes_server_when_session_close_fails(monkeypatch, tmp_path):
     events = []
 
     class FakeServer:
@@ -238,6 +239,7 @@ def test_run_server_closes_server_when_session_close_fails(monkeypatch):
     with pytest.raises(RuntimeError, match="session cleanup failed"):
         server_app.run_server(
             config_path="config.toml",
+            overrides_path=str(tmp_path / "overrides.json"),
             no_wishlists=True,
             port=0,
         )

@@ -72,6 +72,8 @@ class Session:
         self.export_digests: dict[str, str] = {}
         self.export_sizes: dict[str, int] = {}
         self.override_store: OverrideStore
+        # Internal state for #67 finalize drift detection; deliberately absent
+        # from the schema-version-1 report response.
         self.override_digest: str | None
         self._retired_staging_dirs: set[Path] = set()
         self._candidate_staging_dirs: set[Path] = set()
