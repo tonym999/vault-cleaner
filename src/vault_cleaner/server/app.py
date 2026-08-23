@@ -2,20 +2,37 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+import shutil
 import sys
+import tempfile
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any, TextIO
 
-from flask import Flask, Response, jsonify, redirect, request
+import pandas as pd
+from flask import Flask, Response, current_app, jsonify, redirect, request
 from werkzeug.exceptions import BadRequest, HTTPException, RequestEntityTooLarge
 from werkzeug.serving import BaseWSGIServer, WSGIRequestHandler, make_server
 
 from vault_cleaner.config import load_config
+from vault_cleaner.export_discovery import EXPORT_FILENAMES
 from vault_cleaner.manifest import load_perk_map_data
+from vault_cleaner.parse import (
+    ExportDecodeError,
+    load_armor_bytes,
+    load_ghosts_bytes,
+    load_weapons_bytes,
+)
+from vault_cleaner.report_run import run_report, snapshot_dict
 from vault_cleaner.review import DEFAULT_OVERRIDES_PATH
 from vault_cleaner.server.errors import ApiError, error_payload
-from vault_cleaner.server.limits import MAX_REQUEST_BODY_BYTES
+from vault_cleaner.server.limits import (
+    MAX_EXPORT_BYTES,
+    MAX_REQUEST_BODY_BYTES,
+    MAX_TOTAL_EXPORT_BYTES,
+)
 from vault_cleaner.server.session import (
     SESSION_EXTENSION_KEY,
     Session,
@@ -45,9 +62,52 @@ PLACEHOLDER_HTML = """<!doctype html>
 
 AssetProvider = Callable[[], bytes]
 AssetSpec = tuple[str, AssetProvider]
+UPLOAD_LOADERS = {
+    "weapons": load_weapons_bytes,
+    "armor": load_armor_bytes,
+    "ghosts": load_ghosts_bytes,
+}
+UPLOAD_STATES = frozenset({"idle", "exports-loaded", "reviewing"})
 DEFAULT_ASSETS: Mapping[str, AssetSpec] = {
     "/": ("text/html; charset=utf-8", lambda: PLACEHOLDER_HTML.encode("utf-8")),
 }
+
+
+def _validate_upload_content_length(raw_length: str | None) -> int:
+    """Validate an upload length without reading or allocating its body."""
+    if (
+        raw_length is None
+        or not raw_length.isascii()
+        or not raw_length.isdigit()
+    ):
+        raise ApiError(
+            "length_required",
+            411,
+            "upload requires a numeric Content-Length",
+        )
+    content_length = int(raw_length)
+    if content_length > MAX_EXPORT_BYTES:
+        raise ApiError(
+            "payload_too_large",
+            413,
+            "export exceeds the allowed size",
+        )
+    return content_length
+
+
+def _validate_total_export_size(
+    sizes: Mapping[str, int], kind: str, size: int, limit: int
+) -> dict[str, int]:
+    """Return candidate per-kind sizes or reject the aggregate cap."""
+    candidate_sizes = dict(sizes)
+    candidate_sizes[kind] = size
+    if sum(candidate_sizes.values()) > limit:
+        raise ApiError(
+            "payload_too_large",
+            413,
+            "combined exports exceed the allowed size",
+        )
+    return candidate_sizes
 
 
 class RedactingRequestHandler(WSGIRequestHandler):
@@ -206,11 +266,131 @@ def create_app(
             "operation is not available in the idle session",
         )
 
+    def _reject_upload_transport() -> bytes:
+        """Read exactly one bounded request body with an explicit length."""
+        if "Transfer-Encoding" in request.headers:
+            raise ApiError(
+                "length_required",
+                411,
+                "chunked transfer encoding is not supported; send Content-Length",
+            )
+        content_length = _validate_upload_content_length(
+            request.headers.get("Content-Length")
+        )
+        body = request.get_data(cache=False, as_text=False)
+        if len(body) != content_length:
+            raise ApiError("bad_request", 400, "upload body length does not match Content-Length")
+        return body
+
+    def _construct_upload(kind: str, body: bytes) -> None:
+        """Build a report in a private candidate directory, then commit it."""
+        digest = hashlib.sha256(body).hexdigest()
+        size = len(body)
+        if session.export_digests.get(kind) == digest:
+            return
+
+        total_limit = session.max_total_export_bytes
+        if total_limit is None:
+            total_limit = MAX_TOTAL_EXPORT_BYTES
+        candidate_sizes = _validate_total_export_size(
+            session.export_sizes, kind, size, total_limit
+        )
+        candidate = Path(
+            tempfile.mkdtemp(prefix="vault-cleaner-uploads-")
+        )
+        session._candidate_staging_dirs.add(candidate)
+        try:
+            candidate_digests = dict(session.export_digests)
+            candidate_digests[kind] = digest
+
+            for existing_kind in session.export_digests:
+                if existing_kind == kind:
+                    continue
+                source = session.staging_dir
+                if source is None:
+                    raise RuntimeError("accepted export has no staging directory")
+                shutil.copyfile(
+                    source / EXPORT_FILENAMES[existing_kind],
+                    candidate / EXPORT_FILENAMES[existing_kind],
+                )
+            (candidate / EXPORT_FILENAMES[kind]).write_bytes(body)
+
+            try:
+                candidate_report = run_report(
+                    input_dir=candidate,
+                    config_path=session.config_path,
+                    no_wishlists=session.no_wishlists,
+                )
+            except Exception:
+                current_app.logger.exception("report construction failed for uploaded %s export", kind)
+                raise ApiError(
+                    "report_failed",
+                    500,
+                    "could not construct a report from the uploaded exports",
+                ) from None
+
+            # Finish all candidate-derived computation before changing any
+            # live session field. The normal snapshot is pure, but keeping it
+            # on the candidate side preserves the transaction if that
+            # presentation step ever gains a new failure mode.
+            candidate_snapshot = snapshot_dict(candidate_report)
+            previous = session.staging_dir
+            session.staging_dir = candidate
+            session.report = candidate_report
+            session.export_digests = candidate_digests
+            session.export_sizes = candidate_sizes
+            session.report_revision += 1
+            if session.state == "idle":
+                session.state = "exports-loaded"
+            session.fingerprint = candidate_report.fingerprint
+            # Keep the compatibility fields coherent without making them the
+            # source of truth; /api/report derives from the ReportRun.
+            session.snapshot = candidate_snapshot
+            session._candidate_staging_dirs.discard(candidate)
+            if previous is not None:
+                session._retired_staging_dirs.add(previous)
+                session.cleanup_directory(previous)
+        except BaseException:
+            session.cleanup_directory(candidate, candidate=True)
+            raise
+
+    def upload(kind: str) -> Response:
+        if session.state not in UPLOAD_STATES:
+            raise ApiError(
+                "illegal_state",
+                409,
+                "export upload is not available in the current session state",
+            )
+        content_type = request.mimetype
+        if content_type not in {"text/csv", "application/octet-stream"}:
+            raise ApiError(
+                "unsupported_media_type",
+                415,
+                "export Content-Type must be text/csv or application/octet-stream",
+            )
+        body = _reject_upload_transport()
+        try:
+            UPLOAD_LOADERS[kind](body)
+        except ExportDecodeError:
+            raise ApiError("bad_request", 400, "export is not valid UTF-8") from None
+        except (ValueError, pd.errors.ParserError):
+            raise ApiError("invalid_export", 422, "export CSV or schema is invalid") from None
+        _construct_upload(kind, body)
+        return jsonify(session_metadata(session))
+
+    def serialized_upload(kind: str) -> Callable[[], Response]:
+        @serialized
+        def handler() -> Response:
+            return upload(kind)
+
+        return handler
+
     for kind in ("weapons", "armor", "ghosts"):
+        handler = serialized_upload(kind)
         app.add_url_rule(
             f"/api/exports/{kind}",
             endpoint=f"upload_{kind}",
-            view_func=unavailable,
+            view_func=handler,
             methods=["POST"],
         )
     app.add_url_rule(
@@ -294,13 +474,14 @@ def run_server(
         load_config(config_path)
 
     output = stdout if stdout is not None else sys.stdout
-    session = Session(
-        overrides_path=overrides_path,
-        config_path=config_path,
-        no_wishlists=no_wishlists,
-    )
+    session: Session | None = None
     server: BaseWSGIServer | None = None
     try:
+        session = Session(
+            overrides_path=overrides_path,
+            config_path=config_path,
+            no_wishlists=no_wishlists,
+        )
         server = build_server(session, port)
         print(
             f"http://{session.expected_host}/bootstrap?token={session.bootstrap_token}",
@@ -312,7 +493,8 @@ def run_server(
         except KeyboardInterrupt:
             pass
     finally:
-        session.close()
+        if session is not None:
+            session.close()
         if server is not None:
             server.server_close()
     return 0

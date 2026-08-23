@@ -3,6 +3,29 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-23 — server uploads and transactional report staging (#65)
+
+- Added strict raw-byte upload handling for weapons, armor, and ghost exports:
+  explicit lengths, transfer-encoding rejection, named per-kind/aggregate
+  limits, media-type checks, strict UTF-8 decoding, and sanitized schema/error
+  responses.
+- Uploads now build a complete canonical temporary export set and run the
+  existing `run_report` engine before swapping session state. Identical bytes
+  are idempotent; changed uploads advance `report_revision`; failed builds and
+  invalid replacements leave the live report untouched and remove candidates.
+- Sessions now retain the current `ReportRun`, source digests/sizes, exact
+  override-store bytes digest (with missing-file distinction), and clean live,
+  retired, and candidate directories idempotently on shutdown or startup
+  failure. `/api/report` derives its snapshot and override status from the
+  committed run.
+- Added focused upload, rollback, transport, canonical-path, limit, and
+  lifecycle coverage. Full suite passes (597 tests); no ruleset or snapshot
+  version changed and no files under `data/` are tracked.
+- Follow-up: centralized temporary-directory deletion in `Session`, retaining
+  paths when a filesystem removal transiently fails so repeated `close()` calls
+  retry them. Candidate rollback now uses the same seam; focused tests cover
+  failed deletion and later cleanup. Full suite now collects 597 tests.
+
 ## 2026-08-23 — final Project #3 workflow verification (#61)
 
 - Verified live Project #3 workflows through GraphQL: `Auto-add to project`,

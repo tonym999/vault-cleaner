@@ -315,9 +315,6 @@ def test_authenticated_root_and_idle_report():
 @pytest.mark.parametrize(
     "method,path",
     [
-        ("post", "/api/exports/weapons"),
-        ("post", "/api/exports/armor"),
-        ("post", "/api/exports/ghosts"),
         ("post", "/api/verdicts"),
         ("post", "/api/finalize"),
         ("get", "/api/finalized.csv"),

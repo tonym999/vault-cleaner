@@ -3,6 +3,7 @@ from io import StringIO
 import pytest
 
 from vault_cleaner import cli
+from vault_cleaner.review import OverridesError
 from vault_cleaner.server import app as server_app
 from vault_cleaner.wishlist import WishlistError
 
@@ -130,6 +131,22 @@ def test_serve_cli_turns_prewarm_failure_into_clean_exit(monkeypatch, capsys):
     assert "--no-wishlists" in captured.err
 
 
+@pytest.mark.parametrize("message", ["not valid JSON", "invalid UTF-8"])
+def test_serve_cli_turns_overrides_startup_failure_into_clean_exit(
+    monkeypatch, capsys, message
+):
+    monkeypatch.setattr(
+        server_app,
+        "run_server",
+        lambda **_kwargs: (_ for _ in ()).throw(OverridesError(message)),
+    )
+
+    assert cli.main(["serve", "--no-wishlists"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"error: {message}\n"
+
+
 def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch):
     events = []
     output = StringIO()
@@ -169,3 +186,81 @@ def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch):
     assert url.startswith("http://127.0.0.1:54321/bootstrap?token=")
     assert len(url.rsplit("=", 1)[1]) >= 32
     assert events == ["bound", "served", "session-closed", "server-closed"]
+
+
+def test_run_server_closes_session_when_binding_fails(monkeypatch, tmp_path):
+    events = []
+    monkeypatch.setattr(server_app, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        server_app,
+        "build_server",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("bind failed")),
+    )
+    monkeypatch.setattr(
+        server_app.Session,
+        "close",
+        lambda _self: events.append("session-closed"),
+    )
+
+    with pytest.raises(RuntimeError, match="bind failed"):
+        server_app.run_server(
+            config_path="config.toml",
+            overrides_path=str(tmp_path / "overrides.json"),
+            no_wishlists=True,
+            port=0,
+        )
+
+    assert events == ["session-closed"]
+
+
+def test_run_server_rejects_invalid_overrides_before_binding(monkeypatch, tmp_path):
+    overrides = tmp_path / "overrides.json"
+    overrides.write_bytes(b"\xff")
+    monkeypatch.setattr(server_app, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        server_app,
+        "build_server",
+        lambda *_args, **_kwargs: pytest.fail("socket was bound before overrides validation"),
+    )
+
+    with pytest.raises(OverridesError, match="invalid UTF-8"):
+        server_app.run_server(
+            config_path="config.toml",
+            overrides_path=str(overrides),
+            no_wishlists=True,
+            port=0,
+        )
+
+
+def test_run_server_cleans_up_after_ctrl_c(monkeypatch, tmp_path):
+    events = []
+    output = StringIO()
+
+    class KeyboardInterruptServer:
+        def serve_forever(self):
+            events.append("served")
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            events.append("server-closed")
+
+    def fake_build(session, port):
+        session.configure_bound_port(54321)
+        return KeyboardInterruptServer()
+
+    monkeypatch.setattr(server_app, "load_config", lambda _path: {})
+    monkeypatch.setattr(server_app, "build_server", fake_build)
+    monkeypatch.setattr(
+        server_app.Session,
+        "close",
+        lambda _self: events.append("session-closed"),
+    )
+
+    assert server_app.run_server(
+        config_path="config.toml",
+        overrides_path=str(tmp_path / "overrides.json"),
+        no_wishlists=True,
+        port=0,
+        stdout=output,
+    ) == 0
+    assert events == ["served", "session-closed", "server-closed"]
