@@ -3,6 +3,14 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-24 — isolate server-app test overrides (#65)
+
+- Replaced every repo-relative `overrides.json` path used by
+  `tests/test_server_app.py` sessions with an absolute, deliberately absent
+  test-owned fixture path. The `run_server` integration test continues to use
+  its own `tmp_path` override path, so a real repository override file cannot
+  influence the server-app tests.
+
 ## 2026-08-23 — final upload lifecycle review follow-up (#65)
 
 - Lifecycle tests now pass isolated overrides paths under `tmp_path` and never

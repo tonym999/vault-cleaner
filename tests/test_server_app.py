@@ -6,6 +6,7 @@ import http.client
 import json
 import threading
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -35,6 +36,11 @@ TEST_HOST = f"127.0.0.1:{TEST_PORT}"
 TEST_ORIGIN = f"http://{TEST_HOST}"
 BOOTSTRAP_TOKEN = "bootstrap-secret"
 SESSION_TOKEN = "session-secret"
+TEST_OVERRIDES_PATH = str(
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "server-app-overrides-do-not-exist.json"
+)
 
 IDLE_METADATA = {
     "schema_version": 1,
@@ -55,7 +61,7 @@ def build_client(
 ):
     """Return the reusable Flask client seam imported by later server tests."""
     session = Session(
-        overrides_path="overrides.json",
+        overrides_path=TEST_OVERRIDES_PATH,
         clock=clock,
         bootstrap_token=BOOTSTRAP_TOKEN,
         session_token=SESSION_TOKEN,
@@ -377,7 +383,7 @@ def test_route_table_is_exact_and_has_no_manifest_endpoint():
     "path", ["/bootstrap", "/api", "/api/report", "/api/future"]
 )
 def test_assets_cannot_shadow_reserved_server_routes(path):
-    session = Session(overrides_path="overrides.json")
+    session = Session(overrides_path=TEST_OVERRIDES_PATH)
     session.configure_bound_port(TEST_PORT)
 
     with pytest.raises(ValueError, match="reserved server route"):
@@ -503,7 +509,7 @@ def test_named_limits_and_flask_wide_body_cap_are_pinned():
 
 
 def test_production_tokens_are_distinct_and_high_entropy():
-    session = Session(overrides_path="overrides.json")
+    session = Session(overrides_path=TEST_OVERRIDES_PATH)
 
     assert session.bootstrap_token != session.session_token
     assert len(session.bootstrap_token) >= 32
@@ -511,7 +517,7 @@ def test_production_tokens_are_distinct_and_high_entropy():
 
 
 def test_port_80_uses_the_browser_canonical_host_and_origin():
-    session = Session(overrides_path="overrides.json")
+    session = Session(overrides_path=TEST_OVERRIDES_PATH)
 
     session.configure_bound_port(80)
 
@@ -520,7 +526,7 @@ def test_port_80_uses_the_browser_canonical_host_and_origin():
 
 
 def test_session_metadata_is_a_deep_copy_of_mutable_state():
-    session = Session(overrides_path="overrides.json")
+    session = Session(overrides_path=TEST_OVERRIDES_PATH)
     session.snapshot = {"groups": [{"name": "original"}]}
     session.verdicts = [{"id": "one", "verdict": "keep"}]
     session.override_status = [{"id": "one", "status": "active"}]
@@ -555,7 +561,7 @@ def test_sanitized_500_logs_locally_but_leaks_no_path(caplog):
 
 def test_real_server_binds_loopback_redacts_log_and_stops_after_ack(caplog):
     session = Session(
-        overrides_path="overrides.json",
+        overrides_path=TEST_OVERRIDES_PATH,
         bootstrap_token=BOOTSTRAP_TOKEN,
         session_token=SESSION_TOKEN,
     )
