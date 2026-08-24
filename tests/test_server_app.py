@@ -6,7 +6,6 @@ import http.client
 import json
 import threading
 from collections.abc import Callable, Mapping
-from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -36,11 +35,6 @@ TEST_HOST = f"127.0.0.1:{TEST_PORT}"
 TEST_ORIGIN = f"http://{TEST_HOST}"
 BOOTSTRAP_TOKEN = "bootstrap-secret"
 SESSION_TOKEN = "session-secret"
-TEST_OVERRIDES_PATH = str(
-    Path(__file__).resolve().parent
-    / "fixtures"
-    / "server-app-overrides-do-not-exist.json"
-)
 
 IDLE_METADATA = {
     "schema_version": 1,
@@ -55,13 +49,18 @@ IDLE_METADATA = {
 
 
 def build_client(
+    tmp_path,
     *,
     clock: Callable[[], float] = lambda: 1000.0,
     assets: Mapping[str, AssetSpec] | None = None,
 ):
-    """Return the reusable Flask client seam imported by later server tests."""
+    """Build a Flask test client with a test-owned overrides path.
+
+    The session reads ``overrides.json`` from ``tmp_path``. Pass a directory
+    owned by the current test to prevent shared override state.
+    """
     session = Session(
-        overrides_path=TEST_OVERRIDES_PATH,
+        overrides_path=str(tmp_path / "overrides.json"),
         clock=clock,
         bootstrap_token=BOOTSTRAP_TOKEN,
         session_token=SESSION_TOKEN,
@@ -113,8 +112,8 @@ def assert_error(response, status: int, code: str) -> None:
     assert_security_headers(response)
 
 
-def test_bootstrap_is_one_time_and_sets_the_host_only_session_cookie():
-    client, session, _app = build_client()
+def test_bootstrap_is_one_time_and_sets_the_host_only_session_cookie(tmp_path):
+    client, session, _app = build_client(tmp_path)
 
     response = bootstrap(client)
 
@@ -134,8 +133,8 @@ def test_bootstrap_is_one_time_and_sets_the_host_only_session_cookie():
     assert replay.json["error"]["message"].endswith("already been used")
 
 
-def test_bootstrap_rejects_bad_query_shapes_without_consuming_token():
-    client, session, _app = build_client()
+def test_bootstrap_rejects_bad_query_shapes_without_consuming_token(tmp_path):
+    client, session, _app = build_client(tmp_path)
 
     for path in (
         "/bootstrap",
@@ -151,8 +150,8 @@ def test_bootstrap_rejects_bad_query_shapes_without_consuming_token():
         assert session.bootstrap_token == BOOTSTRAP_TOKEN
 
 
-def test_non_ascii_bootstrap_credential_is_a_normal_auth_failure():
-    client, session, _app = build_client()
+def test_non_ascii_bootstrap_credential_is_a_normal_auth_failure(tmp_path):
+    client, session, _app = build_client(tmp_path)
 
     response = bootstrap(client, "café")
 
@@ -161,8 +160,8 @@ def test_non_ascii_bootstrap_credential_is_a_normal_auth_failure():
 
 
 @pytest.mark.parametrize("method", ["head", "options"])
-def test_only_get_bootstrap_is_exempt_from_authentication(method):
-    client, session, _app = build_client()
+def test_only_get_bootstrap_is_exempt_from_authentication(method, tmp_path):
+    client, session, _app = build_client(tmp_path)
 
     response = getattr(client, method)(
         f"/bootstrap?token={BOOTSTRAP_TOKEN}",
@@ -178,8 +177,8 @@ def test_only_get_bootstrap_is_exempt_from_authentication(method):
     assert session.bootstrap_token == BOOTSTRAP_TOKEN
 
 
-def test_authenticated_head_cannot_consume_the_bootstrap_token():
-    client, session, _app = build_client()
+def test_authenticated_head_cannot_consume_the_bootstrap_token(tmp_path):
+    client, session, _app = build_client(tmp_path)
     client.set_cookie(
         SESSION_COOKIE_NAME,
         SESSION_TOKEN,
@@ -197,9 +196,9 @@ def test_authenticated_head_cannot_consume_the_bootstrap_token():
     assert session.bootstrap_token == BOOTSTRAP_TOKEN
 
 
-def test_expired_bootstrap_gives_restart_hint_and_does_not_exit():
+def test_expired_bootstrap_gives_restart_hint_and_does_not_exit(tmp_path):
     now = [1000.0]
-    client, session, _app = build_client(clock=lambda: now[0])
+    client, session, _app = build_client(tmp_path, clock=lambda: now[0])
     now[0] += BOOTSTRAP_TTL_SECONDS
 
     response = bootstrap(client)
@@ -209,8 +208,8 @@ def test_expired_bootstrap_gives_restart_hint_and_does_not_exit():
     assert session.bootstrap_token == BOOTSTRAP_TOKEN
 
 
-def test_unauthenticated_routes_are_refused_without_state_change():
-    client, session, _app = build_client()
+def test_unauthenticated_routes_are_refused_without_state_change(tmp_path):
+    client, session, _app = build_client(tmp_path)
     before = session_state(session)
 
     for method, path in (("get", "/"), ("get", "/api/report"), ("post", "/api/shutdown")):
@@ -224,8 +223,8 @@ def test_unauthenticated_routes_are_refused_without_state_change():
     assert session_state(session) == before
 
 
-def test_non_ascii_session_cookie_is_a_normal_auth_failure():
-    client, _session, _app = build_client()
+def test_non_ascii_session_cookie_is_a_normal_auth_failure(tmp_path):
+    client, _session, _app = build_client(tmp_path)
     client.set_cookie(
         SESSION_COOKIE_NAME,
         "café",
@@ -238,8 +237,8 @@ def test_non_ascii_session_cookie_is_a_normal_auth_failure():
 
 
 @pytest.mark.parametrize("path", ["/bootstrap?token=bootstrap-secret", "/api/report"])
-def test_wrong_host_is_rejected_before_authentication_and_changes_nothing(path):
-    client, session, _app = build_client()
+def test_wrong_host_is_rejected_before_authentication_and_changes_nothing(path, tmp_path):
+    client, session, _app = build_client(tmp_path)
     before = session_state(session)
 
     response = client.get(path, base_url="http://localhost:43123")
@@ -248,8 +247,8 @@ def test_wrong_host_is_rejected_before_authentication_and_changes_nothing(path):
     assert session_state(session) == before
 
 
-def test_missing_host_is_rejected_without_consuming_bootstrap():
-    client, session, _app = build_client()
+def test_missing_host_is_rejected_without_consuming_bootstrap(tmp_path):
+    client, session, _app = build_client(tmp_path)
 
     response = client.get(
         f"/bootstrap?token={BOOTSTRAP_TOKEN}",
@@ -274,8 +273,8 @@ def test_missing_host_is_rejected_without_consuming_bootstrap():
     ],
 )
 @pytest.mark.parametrize("origin", [None, "http://localhost:43123", "null"])
-def test_every_post_requires_the_exact_origin_without_changing_state(path, origin):
-    client, session, _app = build_client()
+def test_every_post_requires_the_exact_origin_without_changing_state(path, origin, tmp_path):
+    client, session, _app = build_client(tmp_path)
     assert bootstrap(client).status_code == 303
     before = session_state(session)
     headers = {} if origin is None else {"Origin": origin}
@@ -287,8 +286,8 @@ def test_every_post_requires_the_exact_origin_without_changing_state(path, origi
 
 
 @pytest.mark.parametrize("origin", ["http://localhost:43123", "null"])
-def test_get_rejects_a_present_noncanonical_origin(origin):
-    client, session, _app = build_client()
+def test_get_rejects_a_present_noncanonical_origin(origin, tmp_path):
+    client, session, _app = build_client(tmp_path)
     assert bootstrap(client).status_code == 303
     before = session_state(session)
 
@@ -302,8 +301,8 @@ def test_get_rejects_a_present_noncanonical_origin(origin):
     assert session_state(session) == before
 
 
-def test_authenticated_root_and_idle_report():
-    client, _session, _app = build_client()
+def test_authenticated_root_and_idle_report(tmp_path):
+    client, _session, _app = build_client(tmp_path)
     assert bootstrap(client).status_code == 303
 
     root = client.get("/", base_url=TEST_ORIGIN)
@@ -327,8 +326,8 @@ def test_authenticated_root_and_idle_report():
         ("post", "/api/reset"),
     ],
 )
-def test_later_child_routes_use_the_stable_idle_error(method, path):
-    client, _session, _app = build_client()
+def test_later_child_routes_use_the_stable_idle_error(method, path, tmp_path):
+    client, _session, _app = build_client(tmp_path)
     assert bootstrap(client).status_code == 303
 
     response = getattr(client, method)(
@@ -350,8 +349,8 @@ def test_later_child_routes_use_the_stable_idle_error(method, path):
         "/api/exports/manifest",
     ],
 )
-def test_non_allowlisted_traversal_and_manifest_paths_are_404(path):
-    client, _session, _app = build_client()
+def test_non_allowlisted_traversal_and_manifest_paths_are_404(path, tmp_path):
+    client, _session, _app = build_client(tmp_path)
     assert bootstrap(client).status_code == 303
 
     response = client.get(path, base_url=TEST_ORIGIN)
@@ -359,8 +358,8 @@ def test_non_allowlisted_traversal_and_manifest_paths_are_404(path):
     assert_error(response, 404, "not_found")
 
 
-def test_route_table_is_exact_and_has_no_manifest_endpoint():
-    _client, _session, app = build_client()
+def test_route_table_is_exact_and_has_no_manifest_endpoint(tmp_path):
+    _client, _session, app = build_client(tmp_path)
     rules = {rule.rule for rule in app.url_map.iter_rules()}
 
     assert rules == {
@@ -382,16 +381,16 @@ def test_route_table_is_exact_and_has_no_manifest_endpoint():
 @pytest.mark.parametrize(
     "path", ["/bootstrap", "/api", "/api/report", "/api/future"]
 )
-def test_assets_cannot_shadow_reserved_server_routes(path):
-    session = Session(overrides_path=TEST_OVERRIDES_PATH)
+def test_assets_cannot_shadow_reserved_server_routes(path, tmp_path):
+    session = Session(overrides_path=str(tmp_path / "overrides.json"))
     session.configure_bound_port(TEST_PORT)
 
     with pytest.raises(ValueError, match="reserved server route"):
         create_app(session, assets={path: ("text/plain", lambda: b"shadow")})
 
 
-def test_shutdown_is_serialized_and_runs_only_when_response_closes():
-    client, session, app = build_client()
+def test_shutdown_is_serialized_and_runs_only_when_response_closes(tmp_path):
+    client, session, app = build_client(tmp_path)
     called = []
     session.shutdown_callback = lambda: called.append(True)
     assert bootstrap(client).status_code == 303
@@ -412,8 +411,8 @@ def test_shutdown_is_serialized_and_runs_only_when_response_closes():
     )
 
 
-def test_shutdown_callback_runs_when_close_raises(monkeypatch):
-    client, session, _app = build_client()
+def test_shutdown_callback_runs_when_close_raises(monkeypatch, tmp_path):
+    client, session, _app = build_client(tmp_path)
     events = []
     session.shutdown_callback = lambda: events.append("callback")
 
@@ -435,8 +434,8 @@ def test_shutdown_callback_runs_when_close_raises(monkeypatch):
     assert events == ["close", "callback"]
 
 
-def test_shutdown_rejects_a_nonempty_body_without_calling_shutdown():
-    client, session, _app = build_client()
+def test_shutdown_rejects_a_nonempty_body_without_calling_shutdown(tmp_path):
+    client, session, _app = build_client(tmp_path)
     called = []
     session.shutdown_callback = lambda: called.append(True)
     assert bootstrap(client).status_code == 303
@@ -453,8 +452,8 @@ def test_shutdown_rejects_a_nonempty_body_without_calling_shutdown():
     assert called == []
 
 
-def test_flask_wide_body_cap_returns_the_stable_413_shape():
-    client, _session, _app = build_client()
+def test_flask_wide_body_cap_returns_the_stable_413_shape(tmp_path):
+    client, _session, _app = build_client(tmp_path)
     assert bootstrap(client).status_code == 303
 
     response = client.post(
@@ -481,13 +480,14 @@ def test_registered_errors_all_produce_the_stable_schema():
 
 
 @pytest.mark.parametrize("code", sorted(ERROR_REGISTRY))
-def test_every_registered_error_round_trips_through_the_flask_schema(code):
+def test_every_registered_error_round_trips_through_the_flask_schema(code, tmp_path):
     spec = ERROR_REGISTRY[code]
 
     def fail() -> bytes:
         raise ApiError(code, spec.status, "safe detail")
 
     client, _session, _app = build_client(
+        tmp_path,
         assets={"/": ("text/html; charset=utf-8", fail)}
     )
     assert bootstrap(client).status_code == 303
@@ -498,8 +498,8 @@ def test_every_registered_error_round_trips_through_the_flask_schema(code):
     assert response.json["error"]["message"] == "safe detail"
 
 
-def test_named_limits_and_flask_wide_body_cap_are_pinned():
-    _client, _session, app = build_client()
+def test_named_limits_and_flask_wide_body_cap_are_pinned(tmp_path):
+    _client, _session, app = build_client(tmp_path)
 
     assert MAX_EXPORT_BYTES == 32 * 1024 * 1024
     assert MAX_TOTAL_EXPORT_BYTES == 96 * 1024 * 1024
@@ -508,16 +508,16 @@ def test_named_limits_and_flask_wide_body_cap_are_pinned():
     assert app.config["MAX_CONTENT_LENGTH"] == MAX_REQUEST_BODY_BYTES
 
 
-def test_production_tokens_are_distinct_and_high_entropy():
-    session = Session(overrides_path=TEST_OVERRIDES_PATH)
+def test_production_tokens_are_distinct_and_high_entropy(tmp_path):
+    session = Session(overrides_path=str(tmp_path / "overrides.json"))
 
     assert session.bootstrap_token != session.session_token
     assert len(session.bootstrap_token) >= 32
     assert len(session.session_token) >= 32
 
 
-def test_port_80_uses_the_browser_canonical_host_and_origin():
-    session = Session(overrides_path=TEST_OVERRIDES_PATH)
+def test_port_80_uses_the_browser_canonical_host_and_origin(tmp_path):
+    session = Session(overrides_path=str(tmp_path / "overrides.json"))
 
     session.configure_bound_port(80)
 
@@ -525,8 +525,8 @@ def test_port_80_uses_the_browser_canonical_host_and_origin():
     assert session.expected_origin == "http://127.0.0.1"
 
 
-def test_session_metadata_is_a_deep_copy_of_mutable_state():
-    session = Session(overrides_path=TEST_OVERRIDES_PATH)
+def test_session_metadata_is_a_deep_copy_of_mutable_state(tmp_path):
+    session = Session(overrides_path=str(tmp_path / "overrides.json"))
     session.snapshot = {"groups": [{"name": "original"}]}
     session.verdicts = [{"id": "one", "verdict": "keep"}]
     session.override_status = [{"id": "one", "status": "active"}]
@@ -541,13 +541,14 @@ def test_session_metadata_is_a_deep_copy_of_mutable_state():
     assert session.override_status == [{"id": "one", "status": "active"}]
 
 
-def test_sanitized_500_logs_locally_but_leaks_no_path(caplog):
+def test_sanitized_500_logs_locally_but_leaks_no_path(caplog, tmp_path):
     private_path = "/private/session/staging/export.csv"
 
     def fail() -> bytes:
         raise OSError(private_path)
 
     client, _session, _app = build_client(
+        tmp_path,
         assets={"/": ("text/html; charset=utf-8", fail)}
     )
     assert bootstrap(client).status_code == 303
@@ -559,9 +560,9 @@ def test_sanitized_500_logs_locally_but_leaks_no_path(caplog):
     assert private_path in caplog.text
 
 
-def test_real_server_binds_loopback_redacts_log_and_stops_after_ack(caplog):
+def test_real_server_binds_loopback_redacts_log_and_stops_after_ack(caplog, tmp_path):
     session = Session(
-        overrides_path=TEST_OVERRIDES_PATH,
+        overrides_path=str(tmp_path / "overrides.json"),
         bootstrap_token=BOOTSTRAP_TOKEN,
         session_token=SESSION_TOKEN,
     )
