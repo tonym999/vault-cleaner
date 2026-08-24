@@ -46,6 +46,17 @@ surprises the next agent should know about.
 - Validation passes: Ruff reports no findings, all 603 tests pass (including
   real loopback coverage), `git diff --check` is clean, and no file under
   `data/` is tracked.
+- Review follow-up: the overlap regression now spies on
+  `server_app.session_metadata` before delegation and only for the shutdown
+  request, proving the shutdown view cannot enter before the serialized upload
+  finishes. The staging redirect now replaces only the `server_app.tempfile`
+  binding with a delegating proxy, leaving process-wide
+  `tempfile.mkdtemp` unchanged. `build_client` documents its test-owned
+  `tmp_path/overrides.json` contract.
+- Mutation proof: removing `@serialized` from either the upload handler or the
+  shutdown view makes the overlap regression fail at the pre-delegation view
+  assertion: without either side of the serialization boundary, shutdown can
+  enter while report construction is still blocked.
 
 ## 2026-08-24 — isolate server-app test overrides (#65)
 

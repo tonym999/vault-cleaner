@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -201,12 +202,23 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
     """A shutdown request cannot overtake an upload holding the mutation lock."""
     staging_root = tmp_path / "server-staging"
     staging_root.mkdir()
-    real_mkdtemp = server_app.tempfile.mkdtemp
+    real_tempfile = server_app.tempfile
+    process_mkdtemp = tempfile.mkdtemp
 
-    def local_mkdtemp(*, prefix):
-        return real_mkdtemp(prefix=prefix, dir=staging_root)
+    class TempfileProxy:
+        def __init__(self, delegate):
+            self._delegate = delegate
 
-    monkeypatch.setattr(server_app.tempfile, "mkdtemp", local_mkdtemp)
+        def mkdtemp(self, suffix=None, prefix=None, dir=None):
+            if prefix is not None and prefix.startswith("vault-cleaner-uploads-"):
+                dir = staging_root
+            return self._delegate.mkdtemp(suffix=suffix, prefix=prefix, dir=dir)
+
+        def __getattr__(self, name):
+            return getattr(self._delegate, name)
+
+    monkeypatch.setattr(server_app, "tempfile", TempfileProxy(real_tempfile))
+    assert tempfile.mkdtemp is process_mkdtemp
 
     session = Session(
         overrides_path=str(tmp_path / "overrides.json"),
@@ -218,6 +230,7 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
     server = build_server(session, 0)
     app = server.app
     shutdown_arrived = threading.Event()
+    shutdown_view_entered = threading.Event()
     report_entered = threading.Event()
     release_report = threading.Event()
     shutdown_callback_entered = threading.Event()
@@ -230,6 +243,16 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
         if request.path == "/api/shutdown":
             events.append("shutdown-arrived")
             shutdown_arrived.set()
+
+    original_session_metadata = server_app.session_metadata
+
+    def observe_shutdown_view_entered(target_session):
+        if request.path == "/api/shutdown":
+            events.append("shutdown-view-entered")
+            shutdown_view_entered.set()
+        return original_session_metadata(target_session)
+
+    monkeypatch.setattr(server_app, "session_metadata", observe_shutdown_view_entered)
 
     original_run_report = server_app.run_report
 
@@ -295,6 +318,7 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
         )
         shutdown_thread.start()
         assert shutdown_arrived.wait(timeout=_WAIT_SECONDS)
+        assert not shutdown_view_entered.is_set()
         assert not shutdown_callback_entered.is_set()
 
         release_report.set()
@@ -303,6 +327,7 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
         assert upload_result["status"] == 200
         assert upload_result["payload"]["state"] == "exports-loaded"
         assert upload_result["payload"]["report_revision"] == 1
+        assert shutdown_view_entered.wait(timeout=_WAIT_SECONDS)
         assert shutdown_callback_entered.wait(timeout=_WAIT_SECONDS)
         loaded_state = assert_lifecycle_state(session, "exports-loaded")
 
@@ -323,7 +348,11 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
         assert not shutdown_thread.is_alive()
         assert events.index("report-start") < events.index("shutdown-arrived")
         assert events.index("shutdown-arrived") < events.index("report-end")
+        assert events.index("report-end") < events.index("shutdown-view-entered")
         assert events.index("report-end") < events.index("shutdown-callback-entered")
+        assert events.index("shutdown-view-entered") < events.index(
+            "shutdown-callback-entered"
+        )
         assert_lifecycle_state(session, "closed", previous=loaded_state)
         assert list(staging_root.iterdir()) == []
         assert not session._candidate_staging_dirs

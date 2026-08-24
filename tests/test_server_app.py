@@ -54,7 +54,11 @@ def build_client(
     clock: Callable[[], float] = lambda: 1000.0,
     assets: Mapping[str, AssetSpec] | None = None,
 ):
-    """Return the reusable Flask client seam imported by later server tests."""
+    """Build a Flask test client with a test-owned overrides path.
+
+    The session reads ``overrides.json`` from ``tmp_path``. Pass a directory
+    owned by the current test to prevent shared override state.
+    """
     session = Session(
         overrides_path=str(tmp_path / "overrides.json"),
         clock=clock,
