@@ -3,6 +3,50 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-24 — server lifecycle regression contract (#83)
+
+- Audited all nine substantive PR #82 review findings. Post-close upload
+  allocation is covered by
+  `test_close_before_upload_rejects_without_staging_a_candidate` and the new
+  real-socket overlap test; partial live metadata and revision rewind are
+  covered by `test_close_invalidates_all_accepted_export_state` plus the shared
+  lifecycle expectations; and the over-wide rollback span is covered by
+  `test_post_commit_retirement_failure_keeps_new_live_state`.
+- The prepare, cleanup-retry, and retirement boundaries remain pinned by
+  `test_report_failure_rolls_back_and_removes_candidate`,
+  `test_failed_candidate_cleanup_remains_tracked_until_close`,
+  `test_close_retries_a_directory_when_deletion_temporarily_fails`, and the
+  post-commit retirement regression. Shutdown cleanup cannot gate process
+  teardown: `test_shutdown_callback_runs_when_close_raises` and
+  `test_run_server_closes_server_when_session_close_fails` cover the callback
+  and socket-close boundaries respectively.
+- Added `tests/test_server_lifecycle.py` with one extensible expectation table
+  for current idle, exports-loaded, and closed state. Its real-loopback test
+  blocks inside report construction with events, proves a shutdown request has
+  reached Flask but cannot overtake the serialized upload, then proves ordered
+  completion, successful server exit, monotonic revisions, and no live,
+  candidate, or retired staging residue. It uses bounded waits and joins, not
+  sleeps or a lock-only simulation.
+- Removed the shared absent override fixture path from server-app tests; every
+  constructed session now receives its own `tmp_path` path. The CLI's
+  default-path forwarding test stays intentionally path-specific and stubs
+  `run_server`, so it performs no filesystem read. This closes both the real or
+  cwd-relative override exposure and the later finding that absence of the
+  shared fixture was unenforced.
+- Two review findings remain explicit contract decisions rather than defects:
+  the 96 MiB aggregate guard is defensive because three 32 MiB per-kind caps
+  make its rejection side unreachable today, while the coherent terminal
+  response for repeated shutdown remains a schema decision for #66. No
+  production or schema behaviour changed here.
+- Promoted the reusable rules to the `AGENTS.md` server-lifecycle checklist:
+  close is terminal, revisions are monotonic, uploads use prepare → adopt →
+  retire phases, rollback ends before adoption, cleanup is retryable and cannot
+  block shutdown, deletion is server-owned only, and tests use explicit
+  test-owned paths.
+- Validation passes: Ruff reports no findings, all 603 tests pass (including
+  real loopback coverage), `git diff --check` is clean, and no file under
+  `data/` is tracked.
+
 ## 2026-08-24 — isolate server-app test overrides (#65)
 
 - Replaced every repo-relative `overrides.json` path used by

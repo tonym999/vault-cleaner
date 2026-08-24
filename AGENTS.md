@@ -124,6 +124,22 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   `git status` before committing anyway — that rule saved `data/` once
   and failed on `build/` once.
 
+## Server lifecycle checklist
+
+- Treat close as a terminal transition, never as a reset: revisions stay
+  monotonic, and closed sessions cannot allocate uploads or expose reports.
+- Structure upload replacement as explicit prepare → commit/adopt → retire
+  phases. Rollback owns candidates only through preparation and ends before
+  adoption; retirement is post-commit best-effort housekeeping.
+- Keep cleanup retryable and retain failed server-owned paths privately for a
+  later attempt. Cleanup failure must not prevent the shutdown callback or
+  server socket close from running.
+- Delete only temporary staging, candidate, or retired directories created and
+  owned by the server. Request content must never supply a cleanup path.
+- Give server tests explicit test-owned filesystem paths, normally backed by a
+  module-local `tmp_path` helper or fixture. Test a default path only when
+  forwarding or default-path behaviour is the subject of that test.
+
 ## Conventions
 
 - Test fixtures in `tests/fixtures/` are pinned to real export headers but
