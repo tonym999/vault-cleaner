@@ -3,6 +3,89 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-24 — isolate server-app test overrides (#65)
+
+- Replaced every repo-relative `overrides.json` path used by
+  `tests/test_server_app.py` sessions with an absolute, deliberately absent
+  test-owned fixture path. The `run_server` integration test continues to use
+  its own `tmp_path` override path, so a real repository override file cannot
+  influence the server-app tests.
+
+## 2026-08-23 — final upload lifecycle review follow-up (#65)
+
+- Lifecycle tests now pass isolated overrides paths under `tmp_path` and never
+  read personal `data/` overrides; the one default-path forwarding test remains
+  explicit about `DEFAULT_OVERRIDES_PATH`.
+- Clarified the narrow deletion exception: the local review server may remove
+  only its own temporary staging/candidate/retired directories, and request
+  content can never supply cleanup paths.
+- `override_digest` remains internal session state for #67 lost-update/finalize
+  drift detection and is deliberately absent from schema-version-1
+  `/api/report` responses.
+- Repeat `/api/shutdown` metadata coherence requires a terminal closed protocol
+  state and is deferred to #66/parent state-machine work; #65 API behavior is
+  unchanged.
+- Ruff and the full test suite pass: 602 tests collected and passed.
+
+## 2026-08-23 — upload lifecycle review follow-up, round 3 (#65)
+
+- Preserved the session's prior state plus monotonic `report_revision` and
+  `verdict_revision` counters across close while still invalidating the live
+  report, export metadata, verdict data, and staging pointer. Failed cleanup
+  paths remain private retry state.
+- Authenticated `GET /api/report` now returns the registered 409
+  `illegal_state` error after shutdown, rather than exposing a reset-looking
+  idle envelope. Shutdown still builds its response metadata before the close
+  callback runs.
+- Wrapped both shutdown callback and server socket cleanup in `finally` paths;
+  regressions prove each cleanup callback runs when session close raises. The
+  full suite passes all 602 tests, including the two real loopback checks.
+
+## 2026-08-23 — upload lifecycle review follow-up (#65)
+
+- Made the lock-protected session closed flag authoritative for uploads and
+  shutdown: closed sessions return the registered 409 illegal-state error
+  before reading or staging a body. Close now invalidates the report, export
+  digests/sizes, fingerprint/snapshot, verdicts, revisions, state, and live
+  staging pointer before cleanup; failed deletions remain only in private
+  retry tracking.
+- Encapsulated candidate tracking, adoption, and retirement in `Session`.
+  Candidate rollback ends before adoption, while prior-directory retirement is
+  post-commit best effort so cleanup failures cannot remove the new live run.
+- Kept `MAX_EXPORT_BYTES=32 MiB` and `MAX_TOTAL_EXPORT_BYTES=96 MiB` and
+  removed the production-only aggregate-limit seam. With exactly three shipped
+  export kinds, each capped at 32 MiB, the reject side is mathematically
+  unreachable under those constants; the aggregate guard remains defensive
+  for future kinds or limit changes. Integration rejection coverage injects a
+  lower module cap instead.
+- Converted upload-test client setup to unconditional `Session.close()`
+  teardown and added close-before-upload, close-state invalidation, and
+  post-commit retirement-failure regressions. The full suite passes all 600
+  tests, including the two real loopback checks.
+
+## 2026-08-23 — server uploads and transactional report staging (#65)
+
+- Added strict raw-byte upload handling for weapons, armor, and ghost exports:
+  explicit lengths, transfer-encoding rejection, named per-kind/aggregate
+  limits, media-type checks, strict UTF-8 decoding, and sanitized schema/error
+  responses.
+- Uploads now build a complete canonical temporary export set and run the
+  existing `run_report` engine before swapping session state. Identical bytes
+  are idempotent; changed uploads advance `report_revision`; failed builds and
+  invalid replacements leave the live report untouched and remove candidates.
+- Sessions now retain the current `ReportRun`, source digests/sizes, exact
+  override-store bytes digest (with missing-file distinction), and clean live,
+  retired, and candidate directories idempotently on shutdown or startup
+  failure. `/api/report` derives its snapshot and override status from the
+  committed run.
+- Added focused upload, rollback, transport, canonical-path, limit, and
+  lifecycle coverage. Full suite passes (597 tests); no ruleset or snapshot
+  version changed and no files under `data/` are tracked.
+- Follow-up: centralized temporary-directory deletion in `Session`, retaining
+  paths when a filesystem removal transiently fails so repeated `close()` calls
+  retry them. Candidate rollback now uses the same seam; focused tests cover
+  failed deletion and later cleanup. Full suite now collects 597 tests.
+
 ## 2026-08-23 — final Project #3 workflow verification (#61)
 
 - Verified live Project #3 workflows through GraphQL: `Auto-add to project`,

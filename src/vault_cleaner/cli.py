@@ -26,6 +26,7 @@ from vault_cleaner.report_run import (
 )
 from vault_cleaner.review import (
     DEFAULT_OVERRIDES_PATH,
+    OverridesError,
     ReviewError,
     apply_vetoes,
     check_manifest_matches,
@@ -636,7 +637,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
             no_wishlists=args.no_wishlists,
             port=args.port,
         )
-    except (ConfigError, WishlistError, ManifestError, OSError) as e:
+    except (ConfigError, OverridesError, WishlistError, ManifestError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
         if isinstance(e, (WishlistError, ManifestError)):
             print("(pass --no-wishlists to start without wishlist data)", file=sys.stderr)

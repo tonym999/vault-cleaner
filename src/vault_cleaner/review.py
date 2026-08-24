@@ -142,6 +142,26 @@ def _load_json_object(path: Path, error: type[ReviewError], what: str) -> dict:
     return data
 
 
+def _load_json_bytes(
+    content: bytes,
+    error: type[ReviewError],
+    where: str,
+    what: str,
+) -> dict:
+    """Decode and parse one JSON object from an already-read byte buffer."""
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise error(f"could not read {what} {where}: invalid UTF-8") from e
+    try:
+        data = json.loads(text, parse_constant=_reject_nan)
+    except (json.JSONDecodeError, ReviewError) as e:
+        raise error(f"{where}: not valid JSON: {e}") from e
+    if not isinstance(data, dict):
+        raise error(f"{where}: {what} must be a JSON object")
+    return data
+
+
 def check_keys(
     data: Mapping[str, object],
     allowed: frozenset[str],
@@ -331,13 +351,8 @@ def check_manifest_matches(manifest: ReviewManifest, run: ReportRun) -> None:
         )
 
 
-def load_overrides(path: str | Path) -> OverrideStore:
-    """Load persisted vetoes; a missing file is an empty store, not an error."""
-    path = Path(path)
-    if not path.exists():
-        return empty_store()
-    data = _load_json_object(path, OverridesError, "overrides file")
-    where = str(path)
+def _parse_overrides_data(data: Mapping[str, object], where: str) -> OverrideStore:
+    """Validate a decoded overrides object without touching the filesystem."""
     check_keys(data, _OVERRIDES_KEYS, OverridesError, where)
     _require_version(
         data, "schema_version", OVERRIDES_SCHEMA_VERSION, OverridesError, where
@@ -375,6 +390,29 @@ def load_overrides(path: str | Path) -> OverrideStore:
         schema_version=OVERRIDES_SCHEMA_VERSION,
         vetoes=ordered_vetoes(vetoes),
     )
+
+
+def load_overrides_bytes(content: bytes, *, source: str = "overrides file") -> OverrideStore:
+    """Load persisted vetoes from exact UTF-8 bytes.
+
+    The server hashes the same bytes it validates.  Keeping this boundary
+    separate from the path loader avoids a read/decode/re-read race and makes
+    a missing file distinguishable from an existing empty store.
+    """
+    data = _load_json_bytes(content, OverridesError, source, "overrides file")
+    return _parse_overrides_data(data, source)
+
+
+def load_overrides(path: str | Path) -> OverrideStore:
+    """Load persisted vetoes; a missing file is an empty store, not an error."""
+    path = Path(path)
+    try:
+        content = path.read_bytes()
+    except FileNotFoundError:
+        return empty_store()
+    except OSError as e:
+        raise OverridesError(f"could not read overrides file {path}: {e}") from e
+    return load_overrides_bytes(content, source=str(path))
 
 
 def store_dict(store: OverrideStore, *, updated_at: str) -> dict:
