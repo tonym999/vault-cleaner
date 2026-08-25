@@ -22,6 +22,8 @@
   var SNAPSHOT_KEYS = ["schema_version", "ruleset_version", "fingerprint"];
   var DECISION_KEYS = ["id", "kind", "hash", "name", "action", "reason", "verdict"];
 
+  // Code points, not UTF-16 units, so the result cannot end in half a
+  // surrogate pair and its length matches Python's len().
   function clip(text) {
     var points = Array.from(String(text));
     return points.length <= MAX_TEXT ? String(text) : points.slice(0, MAX_TEXT).join("");

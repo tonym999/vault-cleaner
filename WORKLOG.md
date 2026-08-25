@@ -17,6 +17,14 @@ surprises the next agent should know about.
   static-adapter Node harness retains manifest/parity coverage, while the
   presentation harness directly requires the packaged resource; resource
   loading decodes raw bytes to avoid universal-newline drift.
+- Review follow-up adds a small Node DOM-stub contract for the shared view
+  layer, precise static-only layering guards, exact snapshot-element coupling,
+  and a strict Set-like contract for active persisted veto ids. Safety comments
+  now live with the extracted helpers, including the DOM text-node boundary and
+  64-bit id ordering rationale.
+- Windows review finding: packaged CSS/JS resources now have narrowly scoped
+  LF attributes, preserving exact browser bytes under core.autocrlf while the
+  existing byte-exact fixture rules remain unchanged.
 - No server UI, HTTP client, CSP, or manifest-code deletion was introduced.
 
 ## 2026-08-25 — transactional server finalization (#67)

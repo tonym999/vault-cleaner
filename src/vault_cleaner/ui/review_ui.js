@@ -26,8 +26,9 @@
     return value === null || value === undefined ? "" : String(value);
   }
 
-  // Code points, not UTF-16 units, so the result cannot end in half a
-  // surrogate pair and its length matches Python's len().
+  // Ids and hashes are decimal uint64 strings. Comparing by length and then
+  // lexicographically orders them numerically without ever building a Number,
+  // which would silently round the low digits away.
   function compareIds(a, b) {
     var x = String(a), y = String(b);
     if (/^[0-9]+$/.test(x) && /^[0-9]+$/.test(y)) {
@@ -114,18 +115,22 @@
     return { total: items.length, junk: junk, review: review };
   }
 
-  // What the reviewed export would still contain: a veto suppresses the
-  // proposal, exactly as review.apply_vetoes does on the Python side.
   function hasPersistedVeto(ids, id) {
-    if (!ids) return false;
-    if (typeof ids.has === "function") return ids.has(id);
-    if (Array.isArray(ids)) return ids.indexOf(id) !== -1;
-    return ids[id] === true;
+    return ids.has(id);
   }
 
   // The server supplies active persisted veto ids; the temporary static
   // adapter passes an empty Set because it has no overrides input.
+  // What the reviewed export would still contain: a persisted or current
+  // veto suppresses the proposal, exactly as review.apply_vetoes does on the
+  // Python side.
   function keptItems(items, verdicts, activePersistedVetoIds) {
+    if (!activePersistedVetoIds ||
+        typeof activePersistedVetoIds.has !== "function") {
+      throw new TypeError(
+        "active persisted veto ids must be a Set-like object with has(id)"
+      );
+    }
     return items.filter(function (item) {
       return !hasPersistedVeto(activePersistedVetoIds, item.id) &&
              verdictOf(verdicts, item.id) !== "vetoed";
@@ -248,6 +253,10 @@
       ["name", "Name"], ["id", "Instance id"], ["kind", "Kind"],
       ["owner", "Owner"], ["action", "Action"], ["reason", "Reason"]
     ];
+    // Every node is built with createElement/textContent, and no snapshot
+    // value is concatenated into innerHTML or into an href/src, so hostile
+    // item names remain inert text. A source-level HTML script end-tag marker
+    // would truncate the containing element, so never spell one here.
     function el(tag, attrs, children) {
       var node = document.createElement(tag);
       if (attrs) {

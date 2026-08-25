@@ -36,6 +36,14 @@ function verdictMap(pairs) {
   pairs.forEach(function (pair) { map[pair[0]] = pair[1]; });
   return map;
 }
+function rejectsKeptShape(shape, values) {
+  try {
+    api.keptItems(values || items, verdicts, shape);
+    return false;
+  } catch (error) {
+    return /Set-like object with has/.test(error.message);
+  }
+}
 
 var first = items[0];
 var second = items[1];
@@ -105,6 +113,12 @@ var out = {
       items, verdicts, activePersistedVetoIds
     )).indexOf(second.id) === -1
   },
+  persistedVetoContract: {
+    absentRejected: rejectsKeptShape(undefined),
+    arrayRejected: rejectsKeptShape([second.id]),
+    objectRejected: rejectsKeptShape({}),
+    absentRejectedForEmptyItems: rejectsKeptShape(undefined, [])
+  },
   prototypeSafety: {
     names: api.countBy(items, "name").map(function (entry) {
       return [entry.value, entry.count];
@@ -119,6 +133,204 @@ var out = {
   }
 };
 process.stdout.write(JSON.stringify(out));
+"""
+
+
+VIEW_HARNESS = r"""
+"use strict";
+var api = require(process.argv[2]);
+
+function Node(tagName, ownerDocument) {
+  this.tagName = tagName.toUpperCase();
+  this.ownerDocument = ownerDocument;
+  this.children = [];
+  this.parentNode = null;
+  this.attributes = Object.create(null);
+  this.listeners = Object.create(null);
+  this._text = "";
+  this.value = "";
+}
+Object.defineProperty(Node.prototype, "firstChild", {
+  get: function () { return this.children[0] || null; }
+});
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () {
+    return this._text + this.children.map(function (child) {
+      return child.textContent;
+    }).join("");
+  },
+  set: function (value) {
+    this._text = String(value);
+    this.children = [];
+  }
+});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this;
+  this.children.push(child);
+  return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  if (index === -1) throw new Error("child is not present");
+  this.children.splice(index, 1);
+  child.parentNode = null;
+  return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.ids[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name) {
+  var event = { target: this, key: name, preventDefault: function () {} };
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null;
+  function visit(node) {
+    if (found || !node.children) return;
+    for (var i = 0; i < node.children.length; i++) {
+      var child = node.children[i];
+      if (child.tagName.toLowerCase() === selector.toLowerCase()) {
+        found = child;
+        return;
+      }
+      visit(child);
+      if (found) return;
+    }
+  }
+  visit(this);
+  return found;
+};
+
+function Document() { this.ids = Object.create(null); }
+Document.prototype.createElement = function (tagName) {
+  return new Node(tagName, this);
+};
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this);
+  node.textContent = text;
+  return node;
+};
+Document.prototype.getElementById = function (id) { return this.ids[id] || null; };
+
+function fail(message) { throw new Error(message); }
+function find(node, predicate) {
+  if (predicate(node)) return node;
+  for (var i = 0; i < (node.children || []).length; i++) {
+    var result = find(node.children[i], predicate);
+    if (result) return result;
+  }
+  return null;
+}
+function hasTag(node, tagName) {
+  return !!find(node, function (child) {
+    return child.tagName === tagName.toUpperCase();
+  });
+}
+
+var document = new Document();
+var hostile = "<img src=x onerror=alert(1)>";
+var items = [
+  {
+    id: "18446744073709551615", hash: "900", name: hostile,
+    kind: "weapons", owner: "Titan", action: "junk", reason: "dupe-lower",
+    protectionLevel: "", protectionReason: "", tag: "junk", note: "#vc-junk",
+    keptId: "9", originalTag: "", originalNotes: "", locked: false,
+    equipped: false, inLoadout: false,
+    armor: {
+      slot: "helmet", equippable: true, best_archetype: "Melee-primary",
+      score: 112, base_score: 110, set_bonus: 2, rank: 1, group_size: 2,
+      stats: { Mobility: 12, Resilience: 30 }
+    }
+  },
+  {
+    id: "9", hash: "901", name: "Keep roll", kind: "weapons", owner: "Titan",
+    action: "review", reason: "wishlist", protectionLevel: "soft",
+    protectionReason: "locked", tag: "", note: "#vc-review", keptId: "",
+    originalTag: "", originalNotes: "", locked: true, equipped: false,
+    inLoadout: false, armor: null
+  }
+];
+var state = {
+  sort: { field: "name", direction: "asc" },
+  expanded: Object.create(null), rows: Object.create(null),
+  verdicts: Object.create(null)
+};
+state.expanded[items[0].id] = true;
+var toggles = [];
+var renders = 0;
+var queryChanges = [];
+var view = api.createView({
+  document: document, state: state, items: items, columns: api.COLUMNS,
+  toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
+  renderList: function () { renders++; }
+});
+
+var inert = view.el("span", { text: hostile });
+if (inert.textContent !== hostile || hasTag(inert, "img")) {
+  fail("el must leave hostile values as text data");
+}
+var table = view.table(items);
+if (!table.querySelector("table") || !table.querySelector("thead") ||
+    !table.querySelector("tbody")) fail("table structure is incomplete");
+var header = view.headerRow();
+if (header.textContent.indexOf("Verdict") === -1) fail("Verdict header is missing");
+if (table.textContent.indexOf("Armor scoring") === -1 ||
+    table.textContent.indexOf(hostile) === -1 || hasTag(table, "img")) {
+  fail("rows/details must render data through text nodes");
+}
+var nameButton = find(state.rows[items[0].id].tr, function (node) {
+  return node.tagName === "BUTTON" && node.textContent.indexOf(hostile) !== -1;
+});
+if (!nameButton) fail("expanded row name button is missing");
+nameButton.dispatch("click");
+if (state.expanded[items[0].id] !== undefined || renders !== 1) {
+  fail("detail toggle must wire state and render callback");
+}
+state.expanded[items[0].id] = true;
+view.table([items[0]]);
+state.rows[items[0].id].approve.dispatch("click");
+if (JSON.stringify(toggles) !== JSON.stringify([[items[0].id, "approved"]])) {
+  fail("approve callback is not wired");
+}
+var sortButton = find(header, function (node) {
+  return node.tagName === "BUTTON" && node.textContent.indexOf("Name") !== -1;
+});
+if (!sortButton) fail("sortable header button is missing");
+sortButton.dispatch("click");
+if (state.sort.direction !== "desc" || renders !== 2) fail("sort callback is not wired");
+
+var oldStyle = view.optionsFor("kind", "all kinds");
+var explicitItems = view.optionsFor(items, "kind", "all kinds");
+if (oldStyle.length !== 2 || explicitItems.length !== 2 ||
+    oldStyle[1].textContent !== "weapons (2)") {
+  fail("optionsFor compatibility shim or counts are broken");
+}
+var host = document.createElement("div");
+view.addSelect(host, "kind", "Kind", oldStyle, "kind", "weapons",
+  function (field) {
+    return function (event) { queryChanges.push([field, event.target.value]); };
+  });
+var select = host.querySelector("select");
+if (!select || select.value !== "weapons") fail("addSelect must select its value");
+select.dispatch("change");
+if (JSON.stringify(queryChanges) !== JSON.stringify([["kind", "weapons"]])) {
+  fail("addSelect selection callback is not wired");
+}
+process.stdout.write(JSON.stringify({
+  hasHeader: header.textContent.indexOf("Verdict") !== -1,
+  hasDetails: table.textContent.indexOf("Armor scoring") !== -1,
+  hostileIsText: inert.textContent === hostile && !hasTag(table, "img"),
+  callbackState: toggles.length === 1 && renders === 2,
+  selected: select.value,
+  optionCount: oldStyle.length
+}));
 """
 
 
@@ -150,6 +362,23 @@ def run_shared(tmp_path: Path, builder=build_report):
     return Harness(run, json.loads(completed.stdout), tmp_path)
 
 
+def run_view(tmp_path: Path) -> dict:
+    """Run the reusable DOM-facing view against a tiny Node DOM stub."""
+    harness = tmp_path / "view-harness.js"
+    harness.write_text(VIEW_HARNESS, encoding="utf-8")
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        subprocess.run([NODE, "--check", str(app)], check=True, timeout=60)
+        completed = subprocess.run(
+            [NODE, str(harness), str(app)],
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
+            timeout=60,
+        )
+    return json.loads(completed.stdout)
+
+
 @pytest.fixture(scope="module")
 def plain(tmp_path_factory):
     return run_shared(tmp_path_factory.mktemp("plain"))
@@ -158,6 +387,28 @@ def plain(tmp_path_factory):
 @pytest.fixture(scope="module")
 def hostile(tmp_path_factory):
     return run_shared(tmp_path_factory.mktemp("hostile"), hostile_report)
+
+
+def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
+    result = run_view(tmp_path)
+    assert result == {
+        "hasHeader": True,
+        "hasDetails": True,
+        "hostileIsText": True,
+        "callbackState": True,
+        "selected": "weapons",
+        "optionCount": 2,
+    }
+
+
+def test_kept_items_requires_an_active_set_like_input(plain):
+    assert plain.results["persistedVetoContract"] == {
+        "absentRejected": True,
+        "arrayRejected": True,
+        "objectRejected": True,
+        "absentRejectedForEmptyItems": True,
+    }
+    assert plain.results["persistedVeto"]["excludesApprovedId"]
 
 
 def test_packaged_presentation_resource_has_no_manifest_adapter():
@@ -175,8 +426,50 @@ def test_packaged_presentation_resource_has_no_manifest_adapter():
         "unknownKeyError", "textError", "versionError",
         "window",
     )
-    for name in static_only_surface:
-        assert name not in resource, name
+    constants = {
+        "MANIFEST_SCHEMA_VERSION", "VERDICTS", "STORAGE_PREFIX", "MAX_TEXT",
+        "MANIFEST_KEYS", "SNAPSHOT_KEYS", "DECISION_KEYS",
+    }
+    functions = {
+        "loadAutosave", "saveAutosave", "buildManifest", "clip", "manifestJson",
+        "exportManifest", "offerDownload", "applyImport", "renderHandoff",
+        "readManifest", "readManifestText", "readManifestBytes", "readPastedManifest",
+        "decodeManifestBytes", "fractionalNumberError", "fail", "unknownKeyError",
+        "textError", "versionError",
+    }
+    assert set(static_only_surface) == constants | functions | {"localStorage", "window"}
+
+    # A presentation resource may discuss failure or clipping in prose, so a
+    # bare substring check is too broad. The forbidden surface is detected at
+    # the syntactic points that would actually import the temporary adapter:
+    # declarations, function definitions/calls, object exports, and browser
+    # dependencies. Keep the complete issue-listed surface above so adding a
+    # temporary-only name cannot silently shrink this guard.
+    patterns_by_name = {}
+    for name in constants:
+        escaped = re.escape(name)
+        patterns_by_name[name] = (
+            rf"(?m)^\s*(?:var|let|const)\s+{escaped}\b",
+            rf"(?:^|[{{,])\s*{escaped}\s*:",
+            rf"\b{escaped}\b\s*(?:===|!==|<=|>=|[<>=+*/%-])",
+        )
+    for name in functions:
+        escaped = re.escape(name)
+        patterns_by_name[name] = (
+            rf"(?m)^\s*function\s+{escaped}\s*\(",
+            rf"\b{escaped}\s*\(",
+            rf"(?:^|[{{,])\s*{escaped}\s*:",
+        )
+    patterns_by_name["window"] = (r"\bwindow\s*(?:\.|\[)",)
+    patterns_by_name["localStorage"] = (r"\blocalStorage\s*\.",)
+    adapter = files("vault_cleaner.ui").joinpath("review_static.js").read_text(
+        encoding="utf-8"
+    )
+    patterns = [pattern for group in patterns_by_name.values() for pattern in group]
+    assert not any(re.search(pattern, "fail loudly; clipboard") for pattern in patterns)
+    for name, name_patterns in patterns_by_name.items():
+        assert any(re.search(pattern, adapter) for pattern in name_patterns), name
+        assert not any(re.search(pattern, resource) for pattern in name_patterns), name
 
 
 def test_packaged_sources_cannot_truncate_their_html_script_or_hide_controls():

@@ -21,6 +21,7 @@ from vault_cleaner.report_run import (
     snapshot_dict,
 )
 from vault_cleaner.review_html import (
+    _STATIC_ADAPTER_JS,
     APP_ELEMENT_ID,
     APP_JS,
     BODY_HTML,
@@ -99,6 +100,12 @@ def test_page_carries_the_privacy_warning():
     html = render_review_html(build_report())
     assert PRIVACY_WARNING in html
     assert "keep this file local" in html
+
+
+def test_packaged_static_adapter_consumes_the_python_snapshot_element_id():
+    """The browser lookup and Python's data-script marker must stay coupled."""
+    lookup = f'root.document.getElementById("{SNAPSHOT_ELEMENT_ID}")'
+    assert _STATIC_ADAPTER_JS.count(lookup) == 1
 
 
 def test_render_is_byte_deterministic():
