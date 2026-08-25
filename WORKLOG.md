@@ -25,6 +25,12 @@ surprises the next agent should know about.
   distinct existing/missing override drift cases, finalized cache/reset
   behavior, post-commit response recovery, `--once` close semantics, and
   route-specific error-path redaction for report, upload, finalize, and reset.
+- Review follow-up: derive the approved-still-vetoed header from the merge
+  result, make reset's refreshed override store/digest inputs required, give
+  closed-session finalize requests a terminal-state error, and cover missing
+  and float-spelled revisions plus finalized upload refusal for every export
+  kind. The finalize digest remains the pre-persistence review baseline by
+  design; reset is the atomic store+digest refresh boundary.
 
 ## 2026-08-25 — verdicts, reset, stale revisions, and terminal shutdown (#66)
 

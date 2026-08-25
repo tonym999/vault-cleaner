@@ -30,7 +30,6 @@ SESSION_EXTENSION_KEY = "vault_cleaner_session"
 REPORT_REVISION_HEADER = "Vault-Cleaner-Report-Revision"
 VERDICT_REVISION_HEADER = "Vault-Cleaner-Verdict-Revision"
 BootstrapResult = Literal["ok", "invalid", "expired"]
-_UNSET = object()
 
 
 def _stale_error(code: str, message: str) -> None:
@@ -322,8 +321,8 @@ class Session:
     def reset_live_state(
         self,
         *,
-        override_store: OverrideStore | None = None,
-        override_digest: str | None | object = _UNSET,
+        override_store: OverrideStore,
+        override_digest: str | None,
     ) -> None:
         """Discard non-durable session state while preserving revisions.
 
@@ -347,11 +346,8 @@ class Session:
             self.verdicts = []
             self.override_status = []
             self.staging_dir = None
-            if override_store is not None:
-                self.override_store = override_store
-            if override_digest is not _UNSET:
-                assert override_digest is None or isinstance(override_digest, str)
-                self.override_digest = override_digest
+            self.override_store = override_store
+            self.override_digest = override_digest
             self.finalized_csv_bytes = None
             self.approved_still_vetoed_count = 0
             self.state = "idle"

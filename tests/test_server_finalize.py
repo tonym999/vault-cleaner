@@ -172,12 +172,56 @@ def test_finalize_caches_bytes_and_uses_one_response_contract(client_session):
 
     # Finalized sessions remain reportable but all live mutations are refused.
     assert client.get("/api/report", base_url=ORIGIN).json["state"] == "finalized"
-    assert client.post(
-        "/api/exports/armor",
+
+
+@pytest.mark.parametrize(
+    ("kind", "filename"),
+    [
+        ("weapons", "weapons_dupes.csv"),
+        ("armor", "armor.csv"),
+        ("ghosts", "ghosts_cleanup.csv"),
+    ],
+)
+def test_upload_mutation_is_rejected_for_every_kind_after_finalization(
+    client_session, kind, filename
+):
+    client, session, _overrides = client_session
+    uploaded = upload(client)
+    completed = finalize(client, uploaded.json)
+    assert completed.status_code == 200
+
+    body = (FIXTURE.parent / filename).read_bytes()
+    refused = client.post(
+        f"/api/exports/{kind}",
         base_url=ORIGIN,
-        headers={"Origin": ORIGIN, "Content-Type": "text/csv"},
-        data=FIXTURE.read_bytes(),
-    ).json["error"]["code"] == "illegal_state"
+        headers={
+            "Origin": ORIGIN,
+            "Content-Type": "text/csv",
+            "Content-Length": str(len(body)),
+        },
+        data=body,
+    )
+    assert refused.status_code == 409
+    assert refused.json["error"]["code"] == "illegal_state"
+    assert session.state == "finalized"
+
+
+def test_finalize_rejects_closed_session_before_body_validation(client_session):
+    client, session, _overrides = client_session
+    session.close()
+
+    response = client.post(
+        "/api/finalize",
+        base_url=ORIGIN,
+        headers={"Origin": ORIGIN},
+        data=b"not-json",
+    )
+
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "illegal_state"
+    assert response.json["error"]["message"] == (
+        "finalize is not available after session shutdown"
+    )
 
 
 def test_once_finalize_shuts_down_only_after_successful_response_close(tmp_path):
@@ -360,6 +404,8 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
         b"not-json",
         {"report_revision": 1, "verdict_revision": 0, "fingerprint": "x", "extra": 1},
         {"report_revision": True, "verdict_revision": 0, "fingerprint": "x"},
+        {"report_revision": 1, "verdict_revision": 0},
+        {"report_revision": 1.0, "verdict_revision": 0, "fingerprint": "x"},
         {"report_revision": 1, "verdict_revision": 0, "fingerprint": 1},
     ],
 )

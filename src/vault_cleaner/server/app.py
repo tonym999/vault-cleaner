@@ -717,10 +717,14 @@ def create_app(
         # Finalization is legal only after an export report exists.  Keep this
         # check ahead of body parsing to preserve the stable idle error; once
         # finalized, the request is parsed below so retries remain strict.
+        if session.closed:
+            raise ApiError(
+                "illegal_state",
+                409,
+                "finalize is not available after session shutdown",
+            )
         if session.state != "finalized" and (
-            session.closed
-            or session.report is None
-            or session.state not in {"exports-loaded", "reviewing"}
+            session.report is None or session.state not in {"exports-loaded", "reviewing"}
         ):
             unavailable()
 
@@ -756,13 +760,7 @@ def create_app(
         csv_bytes = render_import_csv(
             decision.import_row() for decision in kept
         )
-        approved_ids = {
-            entry["id"]
-            for entry in session.verdicts
-            if entry.get("verdict") == "approved"
-        }
-        merged_ids = {veto.id for veto in merge.store.vetoes}
-        conflict_count = len(approved_ids & merged_ids)
+        conflict_count = len(merge.already_vetoed_but_approved)
 
         try:
             current_digest = session.read_override_digest()
