@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import shutil
 import sys
@@ -26,16 +27,28 @@ from vault_cleaner.parse import (
     load_weapons_bytes,
 )
 from vault_cleaner.report_run import run_report, snapshot_dict
-from vault_cleaner.review import DEFAULT_OVERRIDES_PATH
+from vault_cleaner.review import (
+    DEFAULT_OVERRIDES_PATH,
+    ReviewManifestError,
+    check_keys,
+    require_id,
+    require_text,
+)
+from vault_cleaner.review_session import retain_verdicts
 from vault_cleaner.server.errors import ApiError, error_payload
 from vault_cleaner.server.limits import (
     MAX_EXPORT_BYTES,
+    MAX_JSON_BODY_BYTES,
     MAX_REQUEST_BODY_BYTES,
     MAX_TOTAL_EXPORT_BYTES,
 )
 from vault_cleaner.server.session import (
     SESSION_EXTENSION_KEY,
     Session,
+    check_expected_revisions,
+    order_verdicts,
+    proposal_ids_in_order,
+    revision_headers,
     serialized,
     session_metadata,
 )
@@ -68,6 +81,12 @@ UPLOAD_LOADERS = {
     "ghosts": load_ghosts_bytes,
 }
 UPLOAD_STATES = frozenset({"idle", "exports-loaded", "reviewing"})
+MAX_VERDICT_ENTRIES = 50_000
+VERDICT_ROOT_KEYS = frozenset(
+    {"report_revision", "verdict_revision", "fingerprint", "decisions"}
+)
+RESET_ROOT_KEYS = frozenset({"report_revision", "verdict_revision"})
+VERDICT_ENTRY_KEYS = frozenset({"id", "verdict"})
 DEFAULT_ASSETS: Mapping[str, AssetSpec] = {
     "/": ("text/html; charset=utf-8", lambda: PLACEHOLDER_HTML.encode("utf-8")),
 }
@@ -108,6 +127,95 @@ def _validate_total_export_size(
             "combined exports exceed the allowed size",
         )
     return candidate_sizes
+
+
+def _load_json_object(body: bytes, where: str) -> dict[str, object]:
+    """Decode one bounded JSON object without exposing filesystem details."""
+    if len(body) > MAX_JSON_BODY_BYTES:
+        raise ApiError("payload_too_large", 413, "JSON request exceeds the allowed size")
+    try:
+        text = body.decode("utf-8")
+        value = json.loads(text, parse_constant=_reject_json_constant)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        raise ApiError("bad_request", 400, f"{where} must be valid JSON") from None
+    if not isinstance(value, dict):
+        raise ApiError("bad_request", 400, f"{where} must be a JSON object")
+    return value
+
+
+def _reject_json_constant(constant: str) -> object:
+    raise ValueError(f"non-finite JSON value {constant}")
+
+
+def _json_body(where: str) -> dict[str, object]:
+    if request.content_length is not None and request.content_length > MAX_JSON_BODY_BYTES:
+        raise ApiError("payload_too_large", 413, "JSON request exceeds the allowed size")
+    return _load_json_object(request.get_data(cache=False, as_text=False), where)
+
+
+def _require_revision(data: Mapping[str, object], key: str, where: str) -> int:
+    value = data.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ApiError("bad_request", 400, f"{where}: {key!r} must be an integer")
+    if value < 0:
+        raise ApiError("bad_request", 400, f"{where}: {key!r} must not be negative")
+    return value
+
+
+def _validate_verdict_payload_data(
+    payload: Mapping[str, object],
+) -> tuple[int, int, str, list[dict[str, object]]]:
+    """Validate payload shape before report-dependent stale checks."""
+    try:
+        check_keys(payload, VERDICT_ROOT_KEYS, ReviewManifestError, "verdict request")
+        report_revision = _require_revision(payload, "report_revision", "verdict request")
+        verdict_revision = _require_revision(payload, "verdict_revision", "verdict request")
+        fingerprint = require_text(
+            payload, "fingerprint", ReviewManifestError, "verdict request"
+        )
+        raw_decisions = payload.get("decisions")
+        if not isinstance(raw_decisions, list):
+            raise ReviewManifestError("verdict request: 'decisions' must be a list")
+        if len(raw_decisions) > MAX_VERDICT_ENTRIES:
+            raise ReviewManifestError("verdict request contains too many decisions")
+        decisions: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for index, raw_entry in enumerate(raw_decisions):
+            where = f"verdict request: decisions[{index}]"
+            if not isinstance(raw_entry, dict):
+                raise ReviewManifestError(f"{where}: must be an object")
+            check_keys(raw_entry, VERDICT_ENTRY_KEYS, ReviewManifestError, where)
+            item_id = require_id(raw_entry, ReviewManifestError, where)
+            if item_id in seen:
+                raise ReviewManifestError(f"{where}: id appears twice")
+            seen.add(item_id)
+            if "verdict" not in raw_entry:
+                raise ReviewManifestError(f"{where}: missing 'verdict'")
+            verdict = raw_entry["verdict"]
+            if verdict is not None:
+                require_text(raw_entry, "verdict", ReviewManifestError, where)
+                if verdict not in {"approved", "vetoed"}:
+                    raise ReviewManifestError(
+                        f"{where}: verdict must be approved, vetoed, or null"
+                    )
+            decisions.append({"id": item_id, "verdict": verdict})
+        return report_revision, verdict_revision, fingerprint, decisions
+    except ReviewManifestError:
+        raise ApiError("bad_request", 400, "verdict request contains invalid fields") from None
+
+
+def _validate_current_verdict_ids(
+    decisions: list[dict[str, object]], proposal_ids: set[str]
+) -> None:
+    """Apply report-dependent count and id checks after stale preconditions."""
+    if len(decisions) > len(proposal_ids):
+        raise ApiError(
+            "bad_request", 400, "verdict request contains invalid fields"
+        )
+    if any(entry["id"] not in proposal_ids for entry in decisions):
+        raise ApiError(
+            "bad_request", 400, "verdict request contains invalid fields"
+        )
 
 
 class RedactingRequestHandler(WSGIRequestHandler):
@@ -180,7 +288,11 @@ def create_app(
 
     @app.errorhandler(ApiError)
     def handle_api_error(error: ApiError) -> tuple[Response, int]:
-        return jsonify(error_payload(error.code, error.message)), error.status
+        response = jsonify(error_payload(error.code, error.message))
+        if error.code in {"stale_report", "stale_verdicts"}:
+            for name, value in revision_headers(session).items():
+                response.headers[name] = value
+        return response, error.status
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_too_large(_error: RequestEntityTooLarge) -> tuple[Response, int]:
@@ -289,7 +401,7 @@ def create_app(
             raise ApiError("bad_request", 400, "upload body length does not match Content-Length")
         return body
 
-    def _construct_upload(kind: str, body: bytes) -> None:
+    def _construct_upload(kind: str, body: bytes) -> tuple[list[str], list[str]]:
         """Build a report in a private candidate directory, then commit it."""
         if session.closed:
             raise ApiError(
@@ -300,7 +412,11 @@ def create_app(
         digest = hashlib.sha256(body).hexdigest()
         size = len(body)
         if session.export_digests.get(kind) == digest:
-            return
+            current = order_verdicts(session, session.verdicts)
+            return (
+                [entry["id"] for entry in current],
+                [],
+            )
 
         candidate_sizes = _validate_total_export_size(
             session.export_sizes, kind, size, MAX_TOTAL_EXPORT_BYTES
@@ -358,6 +474,35 @@ def create_app(
             # on the candidate side preserves the transaction if that
             # presentation step ever gains a new failure mode.
             candidate_snapshot = snapshot_dict(candidate_report)
+            if session.report is None:
+                retained_entries: list[dict[str, str]] = []
+                discarded_ids: list[str] = []
+            else:
+                retention = retain_verdicts(
+                    session.verdicts, session.report, candidate_report
+                )
+                retained_entries = [dict(entry) for entry in retention.retained]
+                discarded_ids = list(retention.discarded_ids)
+            candidate_verdicts = {
+                entry["id"]: entry for entry in retained_entries
+            }
+            candidate_ordered_verdicts = [
+                candidate_verdicts[item_id]
+                for item_id in (
+                    decision.id
+                    for section in candidate_report.sections
+                    for decision in section.decisions
+                )
+                if item_id in candidate_verdicts
+            ]
+            old_verdict_map = {
+                entry["id"]: entry["verdict"] for entry in session.verdicts
+            }
+            new_verdict_map = {
+                entry["id"]: entry["verdict"]
+                for entry in candidate_ordered_verdicts
+            }
+            verdict_set_changed = old_verdict_map != new_verdict_map
         except BaseException:
             session.cleanup_directory(candidate, candidate=True)
             raise
@@ -367,8 +512,10 @@ def create_app(
         session.export_digests = candidate_digests
         session.export_sizes = candidate_sizes
         session.report_revision += 1
-        if session.state == "idle":
-            session.state = "exports-loaded"
+        session.verdicts = candidate_ordered_verdicts
+        if verdict_set_changed:
+            session.verdict_revision += 1
+        session.state = "reviewing" if session.verdicts else "exports-loaded"
         session.fingerprint = candidate_report.fingerprint
         # Keep the compatibility fields coherent without making them the
         # source of truth; /api/report derives from the ReportRun.
@@ -383,6 +530,10 @@ def create_app(
             except Exception:
                 current_app.logger.exception("retiring the previous upload directory failed")
                 session.track_retired(previous)
+        return (
+            [entry["id"] for entry in candidate_ordered_verdicts],
+            discarded_ids,
+        )
 
     def upload(kind: str) -> Response:
         if session.closed:
@@ -411,8 +562,11 @@ def create_app(
             raise ApiError("bad_request", 400, "export is not valid UTF-8") from None
         except (ValueError, pd.errors.ParserError):
             raise ApiError("invalid_export", 422, "export CSV or schema is invalid") from None
-        _construct_upload(kind, body)
-        return jsonify(session_metadata(session))
+        retained_ids, discarded_ids = _construct_upload(kind, body)
+        payload = session_metadata(session)
+        payload["retained_verdict_ids"] = retained_ids
+        payload["discarded_verdict_ids"] = discarded_ids
+        return jsonify(payload)
 
     def serialized_upload(kind: str) -> Callable[[], Response]:
         @serialized
@@ -420,6 +574,75 @@ def create_app(
             return upload(kind)
 
         return handler
+
+    def _validate_verdict_payload() -> tuple[int, int, str, list[dict[str, object]]]:
+        payload = _json_body("verdict request")
+        return _validate_verdict_payload_data(payload)
+
+    @serialized
+    def verdicts() -> Response:
+        if session.closed or session.report is None or session.state not in UPLOAD_STATES:
+            raise ApiError(
+                "illegal_state", 409, "verdicts are not available in the current session state"
+            )
+        report_revision, verdict_revision, fingerprint, decisions = (
+            _validate_verdict_payload()
+        )
+        check_expected_revisions(
+            session,
+            report_revision,
+            expected_verdict_revision=verdict_revision,
+            fingerprint=fingerprint,
+        )
+        _validate_current_verdict_ids(decisions, set(proposal_ids_in_order(session)))
+        current = {entry["id"]: entry["verdict"] for entry in session.verdicts}
+        changed = False
+        for entry in decisions:
+            item_id = entry["id"]
+            verdict = entry["verdict"]
+            if verdict is None:
+                if item_id in current:
+                    del current[item_id]
+                    changed = True
+            elif current.get(item_id) != verdict:
+                current[item_id] = verdict
+                changed = True
+        if changed:
+            session.verdict_revision += 1
+            entries = [
+                {"id": item_id, "verdict": verdict}
+                for item_id, verdict in current.items()
+            ]
+            session.verdicts = order_verdicts(session, entries)
+            session.state = "reviewing" if session.verdicts else "exports-loaded"
+        payload = session_metadata(session)
+        payload["verdicts"] = order_verdicts(session, session.verdicts)
+        return jsonify(payload)
+
+    @serialized
+    def reset() -> Response:
+        payload = _json_body("reset request")
+        try:
+            check_keys(payload, RESET_ROOT_KEYS, ReviewManifestError, "reset request")
+        except ReviewManifestError:
+            raise ApiError("bad_request", 400, "reset request contains invalid fields") from None
+        if session.closed:
+            raise ApiError("illegal_state", 409, "session is closed")
+        report_revision = _require_revision(payload, "report_revision", "reset request")
+        verdict_revision = _require_revision(payload, "verdict_revision", "reset request")
+        check_expected_revisions(
+            session,
+            report_revision,
+            expected_verdict_revision=verdict_revision,
+        )
+        had_report = session.report is not None or bool(session.export_digests)
+        had_verdicts = bool(session.verdicts)
+        if had_report:
+            session.report_revision += 1
+        if had_verdicts:
+            session.verdict_revision += 1
+        session.reset_live_state()
+        return jsonify(session_metadata(session))
 
     for kind in ("weapons", "armor", "ghosts"):
         handler = serialized_upload(kind)
@@ -430,10 +653,15 @@ def create_app(
             methods=["POST"],
         )
     app.add_url_rule(
-        "/api/verdicts", endpoint="verdicts", view_func=unavailable, methods=["POST"]
+        "/api/verdicts", endpoint="verdicts", view_func=verdicts, methods=["POST"]
     )
+
+    @serialized
+    def finalize() -> Response:
+        unavailable()
+
     app.add_url_rule(
-        "/api/finalize", endpoint="finalize", view_func=unavailable, methods=["POST"]
+        "/api/finalize", endpoint="finalize", view_func=finalize, methods=["POST"]
     )
     app.add_url_rule(
         "/api/finalized.csv",
@@ -442,7 +670,7 @@ def create_app(
         methods=["GET"],
     )
     app.add_url_rule(
-        "/api/reset", endpoint="reset", view_func=unavailable, methods=["POST"]
+        "/api/reset", endpoint="reset", view_func=reset, methods=["POST"]
     )
 
     @app.post("/api/shutdown")
@@ -450,6 +678,9 @@ def create_app(
     def shutdown() -> Response:
         if request.get_data(cache=False):
             raise ApiError("bad_request", 400, "shutdown request body must be empty")
+        # Invalidate in-memory state before creating the acknowledgement.  The
+        # callback performs retryable physical cleanup and stops the socket.
+        session.mark_closed()
         response = jsonify(session_metadata(session))
         response.call_on_close(session.request_shutdown)
         return response

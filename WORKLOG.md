@@ -3,6 +3,38 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-25 — verdicts, reset, stale revisions, and terminal shutdown (#66)
+
+- Added the serialized `/api/verdicts` batch mutation with strict shared
+  review-input validation, opaque ids, duplicate/unknown-id rejection, both
+  batch caps, JSON `null` clearing, no-op semantics, deterministic report-order
+  responses, and one revision bump per changed batch.
+- Added the reusable session stale-check seam and exact revision headers for
+  `stale_report`/`stale_verdicts`; stale checks run inside the same serialized
+  critical section as verdict and reset mutations.
+- Upload replacement now reconciles verdicts through #63's
+  `retain_verdicts()` before adoption, returns retained/discarded ids, and
+  bumps `verdict_revision` once only when the stored verdict set changes.
+- Added serialized `/api/reset` with monotonic revisions and retryable
+  server-owned cleanup while leaving durable overrides untouched. Shutdown now
+  synchronously enters terminal `closed` state, clears live metadata, keeps
+  revisions monotonic, and returns a coherent idempotent closed envelope;
+  physical cleanup and socket stop remain in the response callback boundary.
+- Added focused protocol tests for validation, atomicity, stale headers,
+  clear/reset, repeated shutdown, and response ordering. No durable review
+  writes were introduced. Added a real-loopback overlapping-verdict test with
+  events and bounded joins proving one same-revision request wins and the
+  other receives stale headers.
+- Follow-up hardening requires the `verdict` key explicitly (so omitted and
+  JSON `null` remain distinct), snapshots stale revision headers under the
+  session lock, deep-copies report-present verdict arrays, and makes reset,
+  close, and post-commit retirement resilient to ordinary cleanup exceptions.
+  The protocol note in `PLAN.md` records schema-v1's five states, including
+  #67's `finalized` and the terminal `closed` state.
+- Validation passes: Ruff reports no findings, all 637 tests pass (including
+  the real-loopback overlap regressions), `git diff --check` is clean, and no
+  file under `data/` is tracked.
+
 ## 2026-08-24 — server lifecycle regression contract (#83)
 
 - Audited all nine substantive PR #82 review findings. Post-close upload

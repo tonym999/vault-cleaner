@@ -328,14 +328,13 @@ def test_close_invalidates_all_accepted_export_state(tmp_path):
         session.verdicts = [{"id": "6917", "verdict": "vetoed"}]
         staging = session.staging_dir
         assert staging is not None
-        before_state = session.state
         before_report_revision = session.report_revision
         before_verdict_revision = session.verdict_revision
 
         session.close()
 
         assert session.closed
-        assert session.state == before_state
+        assert session.state == "closed"
         assert session.report_revision == before_report_revision
         assert session.verdict_revision == before_verdict_revision
         assert session.report is None

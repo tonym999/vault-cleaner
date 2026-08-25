@@ -13,7 +13,7 @@ from typing import Any
 from flask import request
 
 from vault_cleaner.server import app as server_app
-from vault_cleaner.server.app import build_server
+from vault_cleaner.server.app import build_server, create_app
 from vault_cleaner.server.session import Session, session_metadata
 
 HOST = "127.0.0.1"
@@ -69,10 +69,21 @@ LIFECYCLE_EXPECTATIONS = {
         candidates=0,
         retired=0,
     ),
-    # close intentionally preserves the visible state and monotonic revisions
-    # until #66 chooses the terminal protocol envelope.
+    "reviewing": LifecycleExpectation(
+        state="reviewing",
+        closed=False,
+        report_revision=1,
+        verdict_revision=1,
+        report=True,
+        fingerprint=True,
+        snapshot=True,
+        verdict_count=1,
+        staging=True,
+        candidates=0,
+        retired=0,
+    ),
     "closed": LifecycleExpectation(
-        state="exports-loaded",
+        state="closed",
         closed=True,
         report_revision=_PRESERVED,
         verdict_revision=_PRESERVED,
@@ -85,6 +96,66 @@ LIFECYCLE_EXPECTATIONS = {
         retired=0,
     ),
 }
+
+
+def test_transition_seam_covers_reviewing_and_clear(tmp_path):
+    session = Session(
+        overrides_path=str(tmp_path / "overrides.json"),
+        config_path="config.toml",
+        no_wishlists=True,
+        bootstrap_token="bootstrap",
+        session_token="session",
+    )
+    session.configure_bound_port(43123)
+    app = create_app(session)
+    app.config["TESTING"] = True
+    client = app.test_client()
+    origin = "http://127.0.0.1:43123"
+    try:
+        assert client.get("/bootstrap?token=bootstrap", base_url=origin).status_code == 303
+        body = (FIXTURES / "armor.csv").read_bytes()
+        upload = client.post(
+            "/api/exports/armor",
+            base_url=origin,
+            headers={
+                "Origin": origin,
+                "Content-Type": "text/csv",
+                "Content-Length": str(len(body)),
+            },
+            data=body,
+        )
+        assert upload.status_code == 200
+        assert_lifecycle_state(session, "exports-loaded")
+        proposal = upload.json["snapshot"]["sections"][0]["decisions"][0]
+        verdict = client.post(
+            "/api/verdicts",
+            base_url=origin,
+            headers={"Origin": origin},
+            json={
+                "report_revision": 1,
+                "verdict_revision": 0,
+                "fingerprint": upload.json["fingerprint"],
+                "decisions": [{"id": proposal["id"], "verdict": "vetoed"}],
+            },
+        )
+        assert verdict.status_code == 200
+        assert_lifecycle_state(session, "reviewing")
+        cleared = client.post(
+            "/api/verdicts",
+            base_url=origin,
+            headers={"Origin": origin},
+            json={
+                "report_revision": 1,
+                "verdict_revision": 1,
+                "fingerprint": upload.json["fingerprint"],
+                "decisions": [{"id": proposal["id"], "verdict": None}],
+            },
+        )
+        assert cleared.status_code == 200
+        assert cleared.json["state"] == "exports-loaded"
+        assert cleared.json["verdict_revision"] == 2
+    finally:
+        session.close()
 
 
 def lifecycle_snapshot(session: Session) -> dict[str, Any]:
@@ -329,18 +400,22 @@ def test_real_socket_upload_waits_for_report_before_shutdown(
         assert upload_result["payload"]["report_revision"] == 1
         assert shutdown_view_entered.wait(timeout=_WAIT_SECONDS)
         assert shutdown_callback_entered.wait(timeout=_WAIT_SECONDS)
-        loaded_state = assert_lifecycle_state(session, "exports-loaded")
+        loaded_state = {
+            "state": "exports-loaded",
+            "report_revision": upload_result["payload"]["report_revision"],
+            "verdict_revision": upload_result["payload"]["verdict_revision"],
+        }
 
         release_shutdown.set()
         assert shutdown_complete.wait(timeout=_WAIT_SECONDS)
         assert shutdown_done.wait(timeout=_WAIT_SECONDS)
         assert "error" not in shutdown_result
         assert shutdown_result["status"] == 200
-        assert shutdown_result["payload"]["state"] == loaded_state["state"]
+        assert shutdown_result["payload"]["state"] == "closed"
         assert shutdown_result["payload"]["report_revision"] == loaded_state[
             "report_revision"
         ]
-        assert shutdown_result["payload"]["fingerprint"] is not None
+        assert shutdown_result["payload"]["fingerprint"] is None
 
         upload_thread.join(timeout=_WAIT_SECONDS)
         shutdown_thread.join(timeout=_WAIT_SECONDS)
