@@ -3,3 +3,8 @@
 # the checkout translate their line endings (#45 — core.autocrlf=true turned
 # every fixture CRLF on Windows and broke every digest comparison).
 tests/fixtures/** -text
+
+# Packaged browser resources must retain LF on Windows so their bytes and
+# source-level safety checks stay identical regardless of core.autocrlf.
+src/vault_cleaner/ui/*.css text eol=lf
+src/vault_cleaner/ui/*.js text eol=lf

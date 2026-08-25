@@ -1,9 +1,9 @@
-"""Exercise the review page's browser logic by running the shipped script.
+"""Exercise the static review adapter by running the shipped script.
 
 The script is extracted from a *generated artifact*, not from a copy, and run
-under node — so these tests fail if the real page's filtering, grouping,
-counting, or manifest handling drifts. The page's pure logic is exported under
-CommonJS precisely so this is possible without a browser or a bundler.
+under node, so these tests fail if the real page's manifest construction,
+import, export, or validation drifts. Reusable presentation behavior is tested
+directly from the packaged resource in ``test_review_ui_js.py``.
 
 Skipped when node is absent. CI's ubuntu runners ship it, and nothing in the
 package depends on it at runtime.
@@ -19,7 +19,6 @@ import pytest
 from test_review import BIG_ID, build_report, proposals
 from test_review_html import hostile_report, split_artifact
 
-from vault_cleaner.report import summarize
 from vault_cleaner.report_run import snapshot_json
 from vault_cleaner.review import check_manifest_matches, parse_manifest
 from vault_cleaner.review_html import render_review_html
@@ -35,8 +34,9 @@ pytestmark = pytest.mark.skipif(
     NODE is None, reason="node is not installed; the review page's logic is JavaScript"
 )
 
-# Drives the page's exported logic and prints one JSON blob of observations.
-# Kept in-repo as a string so no packaging or asset wiring is involved.
+# Drives the temporary static adapter in the generated artifact and prints the
+# manifest/import observations. Presentation behavior belongs to the direct
+# packaged-resource harness in test_review_ui_js.py.
 HARNESS = r"""
 "use strict";
 var fs = require("fs");
@@ -59,60 +59,8 @@ function write(name, value) {
   fs.writeFileSync(outDir + "/" + name, JSON.stringify(value, null, 2) + "\n");
 }
 
-out.itemCount = items.length;
-out.ids = ids(items);
-out.idsAndHashesAreStrings = items.every(function (item) {
-  return typeof item.id === "string" && typeof item.hash === "string";
-});
-out.groupLabels = api.groupItems(items).map(function (g) { return g.label; });
-out.actionCounts = api.actionCounts(items);
-out.sortedById = ids(api.sortItems(items, "id", "asc"));
-out.sortedByIdDesc = ids(api.sortItems(items, "id", "desc"));
-out.sortedByName = api.sortItems(items, "name", "asc").map(function (i) {
-  return i.name;
-});
-out.unknownSortFieldFallsBackToName =
-  JSON.stringify(ids(api.sortItems(items, "nope", "asc"))) ===
-  JSON.stringify(ids(api.sortItems(items, "name", "asc")));
-
-// Numeric ordering of 64-bit ids, and why it cannot go through Number().
-var BIG = "18446744073709551615", BIG_MINUS_1 = "18446744073709551614";
-out.precision = {
-  compare: api.compareIds(BIG, BIG_MINUS_1),
-  numberWouldTie: Number(BIG) === Number(BIG_MINUS_1),
-  shorterFirst: api.compareIds("9", "10"),
-  ordered: ["10", BIG, "9", BIG_MINUS_1].sort(api.compareIds)
-};
-
 var first = items[0], second = items[1];
 var verdicts = verdictMap([[first.id, "vetoed"], [second.id, "approved"]]);
-
-out.filters = {
-  junk: ids(api.filterItems(items, { action: "junk" })),
-  weaponsJunk: ids(api.filterItems(items, { action: "junk", kind: "weapons" })),
-  byReason: ids(api.filterItems(items, { reason: first.reason })),
-  byOwner: ids(api.filterItems(items, { owner: first.owner })),
-  protectedOnly: ids(api.filterItems(items, { protection: "protected" })),
-  unprotectedOnly: ids(api.filterItems(items, { protection: "unprotected" })),
-  soft: ids(api.filterItems(items, { protection: "soft" })),
-  hard: ids(api.filterItems(items, { protection: "hard" })),
-  searchById: ids(api.filterItems(items, { text: first.id })),
-  searchByNameLower: ids(api.filterItems(items, { text: first.name.toLowerCase() })),
-  searchMisses: ids(api.filterItems(items, { text: "no such item anywhere" })),
-  emptyQueryKeepsAll: api.filterItems(items, {}).length,
-  vetoed: ids(api.filterItems(items, { verdict: "vetoed" }, verdicts)),
-  approved: ids(api.filterItems(items, { verdict: "approved" }, verdicts)),
-  unreviewed: api.filterItems(items, { verdict: "unreviewed" }, verdicts).length
-};
-
-out.counts = {
-  kept: api.keptItems(items, verdicts).length,
-  keptExcludesVetoed: ids(api.keptItems(items, verdicts)).indexOf(first.id) === -1,
-  keptActions: api.actionCounts(api.keptItems(items, verdicts)),
-  review: api.reviewCounts(items, verdicts),
-  byKind: api.countBy(items, "kind"),
-  byAction: api.countBy(items, "action")
-};
 
 var manifest = api.buildManifest(snapshot, items, verdicts, "2026-07-25T12:00:00Z");
 write("manifest.json", manifest);
@@ -174,25 +122,11 @@ out.unknownIds = (function () {
   };
 })();
 
-// countBy keys on item names, so a name that looks like a prototype slot is
-// the pollution vector worth pinning.
-out.prototypeSafety = {
-  names: api.countBy(items, "name").map(function (e) { return [e.value, e.count]; }),
-  objectPrototypeClean: Object.prototype.polluted === undefined &&
-                        ({}).__proto__ === Object.prototype
-};
-
 out.clip = {
   longName: Array.from(api.clip(new Array(261).join("A"))).length,
   shortUnchanged: api.clip("abc") === "abc",
   emojiNotSplit: Array.from(api.clip(new Array(301).join("\u{1F480}"))).every(
     function (point) { return point === "\u{1F480}"; })
-};
-
-out.verdictOf = {
-  unset: api.verdictOf(Object.create(null), "1"),
-  garbageIgnored: api.verdictOf(verdictMap([["1", "probably"]]), "1"),
-  set: api.verdictOf(verdictMap([["1", "vetoed"]]), "1")
 };
 
 // The raw-text number scan, which exists because JSON.parse erases the
@@ -308,152 +242,6 @@ def hostile(tmp_path_factory):
     return drive(tmp_path_factory.mktemp("hostile"), hostile_report())
 
 
-# ------------------------------------------------------------------- loading
-
-
-def test_every_decision_becomes_an_item(plain):
-    assert plain.results["itemCount"] == len(proposals(plain.run))
-    assert sorted(plain.results["ids"]) == sorted(d.id for d in proposals(plain.run))
-
-
-def test_ids_and_hashes_stay_strings_in_the_browser(plain, hostile):
-    assert plain.results["idsAndHashesAreStrings"]
-    assert hostile.results["idsAndHashesAreStrings"]
-
-
-def test_a_numeric_id_in_a_snapshot_is_refused_not_coerced(tmp_path):
-    """Numbers have already lost precision by the time JSON.parse returns."""
-    app = split_artifact(render_review_html(build_report()))[2]
-    (tmp_path / "app.js").write_text(app, encoding="utf-8")
-    (tmp_path / "numeric.js").write_text(
-        'var api = require(process.argv[2]);\n'
-        'try {\n'
-        '  api.itemsFromSnapshot({ sections: [{ kind: "weapons", decisions: [\n'
-        '    { id: 6917529027641981542, hash: "500" }\n'
-        '  ] }] });\n'
-        '  process.stdout.write("ACCEPTED");\n'
-        '} catch (e) { process.stdout.write(e.message); }\n',
-        encoding="utf-8",
-    )
-    completed = subprocess.run(
-        [NODE, str(tmp_path / "numeric.js"), str(tmp_path / "app.js")],
-        capture_output=True, encoding="utf-8", check=True, timeout=NODE_TIMEOUT,
-    )
-    assert "must be a JSON string, not number" in completed.stdout
-
-
-# ------------------------------------------------------------------ grouping
-
-
-def test_grouping_matches_the_terminal_summary_exactly(plain):
-    """The page and `vault-cleaner report` must tell the same story in order."""
-    expected = [
-        line for line in summarize(plain.run.summary_sections()).splitlines()
-        if line.startswith(("JUNK ", "REVIEW "))
-    ]
-    assert plain.results["groupLabels"] == expected
-
-
-def test_action_counts_match_the_run(plain):
-    decisions = proposals(plain.run)
-    assert plain.results["actionCounts"] == {
-        "total": len(decisions),
-        "junk": sum(1 for d in decisions if d.action == "junk"),
-        "review": sum(1 for d in decisions if d.action == "review"),
-    }
-
-
-def test_count_by_kind_covers_every_section(plain):
-    by_kind = {entry["value"]: entry["count"] for entry in plain.results["counts"]["byKind"]}
-    assert by_kind == {
-        section.kind: len(section.decisions)
-        for section in plain.run.sections
-        if section.decisions
-    }
-
-
-# ------------------------------------------------------------------- sorting
-
-
-def test_ids_sort_numerically_without_going_through_number(hostile):
-    precision = hostile.results["precision"]
-    assert precision["compare"] == 1, "the wider id must sort after the narrower"
-    assert precision["numberWouldTie"], "Number() really does lose these digits"
-    assert precision["shorterFirst"] == -1, "9 before 10, not lexicographically"
-    assert precision["ordered"] == [
-        "9", "10", "18446744073709551614", "18446744073709551615"
-    ]
-
-
-def test_sorting_by_id_is_a_reversible_total_order(plain):
-    ascending = plain.results["sortedById"]
-    assert ascending == sorted(ascending, key=int)
-    assert plain.results["sortedByIdDesc"] == list(reversed(ascending))
-
-
-def test_an_unknown_sort_field_falls_back_to_name(plain):
-    assert plain.results["unknownSortFieldFallsBackToName"]
-
-
-# ----------------------------------------------------------------- filtering
-
-
-def test_filters_select_the_same_items_the_run_would(plain):
-    decisions = {d.id: d for d in proposals(plain.run)}
-    filters = plain.results["filters"]
-    assert set(filters["junk"]) == {i for i, d in decisions.items() if d.action == "junk"}
-    assert set(filters["weaponsJunk"]) == {
-        i for i, d in decisions.items() if d.action == "junk" and d.kind == "weapons"
-    }
-    assert set(filters["protectedOnly"]) == {
-        i for i, d in decisions.items() if d.protection_level
-    }
-    assert set(filters["soft"]) == {
-        i for i, d in decisions.items() if d.protection_level == "soft"
-    }
-    assert not set(filters["protectedOnly"]) & set(filters["unprotectedOnly"])
-    assert filters["emptyQueryKeepsAll"] == len(decisions)
-
-
-def test_search_matches_name_case_insensitively_and_id_exactly(plain):
-    filters = plain.results["filters"]
-    first = plain.results["ids"][0]
-    assert filters["searchById"] == [first]
-    assert first in filters["searchByNameLower"]
-    assert filters["searchMisses"] == []
-
-
-def test_verdict_filter_partitions_the_items(plain):
-    filters = plain.results["filters"]
-    assert len(filters["vetoed"]) == 1
-    assert len(filters["approved"]) == 1
-    assert filters["unreviewed"] == plain.results["itemCount"] - 2
-
-
-# ------------------------------------------------------------------- counting
-
-
-def test_a_veto_removes_exactly_one_proposal_from_the_kept_set(plain):
-    counts = plain.results["counts"]
-    assert counts["kept"] == plain.results["itemCount"] - 1
-    assert counts["keptExcludesVetoed"]
-    assert counts["review"] == {
-        "approved": 1, "vetoed": 1, "unreviewed": plain.results["itemCount"] - 2
-    }
-
-
-def test_kept_counts_mirror_python_apply_vetoes(plain):
-    from vault_cleaner.review import apply_vetoes
-
-    vetoed = plain.results["manifest"]["vetoedId"]
-    kept = apply_vetoes(plain.run, frozenset({vetoed}))
-    assert plain.results["counts"]["keptActions"] == {
-        "total": len(kept),
-        "junk": sum(1 for d in kept if d.action == "junk"),
-        "review": sum(1 for d in kept if d.action == "review"),
-    }
-
-
 # -------------------------------------------------------- manifest handoff
 
 
@@ -556,28 +344,6 @@ def test_import_refuses_malformed_manifests(plain, case, expected):
     message = plain.results["rejections"][case]
     assert message != "ACCEPTED", f"{case} should have been refused"
     assert expected in message
-
-
-# ------------------------------------------------------------------- hardening
-
-
-def test_a_prototype_shaped_item_name_is_counted_not_absorbed(hostile):
-    """With a plain `{}` accumulator this entry would vanish silently.
-
-    Assigning a number to `__proto__` on a normal object is a no-op, so the
-    name would never appear in the counts — and the filter dropdown would
-    quietly omit a whole group of items.
-    """
-    safety = hostile.results["prototypeSafety"]
-    names = dict(safety["names"])
-    assert names.get("__proto__") == 1, "a __proto__ name must be a normal group key"
-    assert safety["objectPrototypeClean"]
-
-
-def test_unset_and_garbage_verdicts_read_as_unreviewed(plain):
-    assert plain.results["verdictOf"] == {
-        "unset": "", "garbageIgnored": "", "set": "vetoed"
-    }
 
 
 # ------------------------------------------------------- validation parity
