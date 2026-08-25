@@ -636,6 +636,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
             overrides_path=args.overrides,
             no_wishlists=args.no_wishlists,
             port=args.port,
+            once=args.once,
         )
     except (ConfigError, OverridesError, WishlistError, ManifestError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
@@ -736,6 +737,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="skip wishlist and Bungie manifest pre-warming")
     sp.add_argument("--port", default=0, type=_port,
                     help="loopback port (default 0: choose an available port)")
+    sp.add_argument("--once", action="store_true",
+                    help="shut down after a successful finalize response")
     sp.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)

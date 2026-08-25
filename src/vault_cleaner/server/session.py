@@ -30,6 +30,7 @@ SESSION_EXTENSION_KEY = "vault_cleaner_session"
 REPORT_REVISION_HEADER = "Vault-Cleaner-Report-Revision"
 VERDICT_REVISION_HEADER = "Vault-Cleaner-Verdict-Revision"
 BootstrapResult = Literal["ok", "invalid", "expired"]
+_UNSET = object()
 
 
 def _stale_error(code: str, message: str) -> None:
@@ -155,25 +156,13 @@ class Session:
         # Internal state for #67 finalize drift detection; deliberately absent
         # from the schema-version-1 report response.
         self.override_digest: str | None
+        self.finalized_csv_bytes: bytes | None = None
+        self.approved_still_vetoed_count = 0
         self._retired_staging_dirs: set[Path] = set()
         self._candidate_staging_dirs: set[Path] = set()
         self._closed = False
 
-        override_path = Path(overrides_path)
-        try:
-            override_bytes = override_path.read_bytes()
-        except FileNotFoundError:
-            self.override_store = empty_store()
-            self.override_digest = None
-        except OSError as e:
-            # The review loader supplies the project-owned error type and a
-            # useful local path while the server is still unbound.
-            raise OverridesError(f"could not read overrides file {override_path}: {e}") from e
-        else:
-            self.override_store = load_overrides_bytes(
-                override_bytes, source=str(override_path)
-            )
-            self.override_digest = hashlib.sha256(override_bytes).hexdigest()
+        self.override_store, self.override_digest = self.read_override_snapshot()
 
         # These compatibility fields are retained for callers that used the
         # #64 session seam directly.  When a report exists, metadata derives
@@ -219,6 +208,38 @@ class Session:
     def authenticated(self, candidate: str | None) -> bool:
         return _constant_time_equals(candidate, self.session_token)
 
+    def read_override_snapshot(self) -> tuple[OverrideStore, str | None]:
+        """Read and validate the durable override bytes and their digest.
+
+        The missing-file case is intentionally distinct from an empty file:
+        it establishes a baseline that can later detect an externally-created
+        overrides file.  Callers use this seam before mutating session state.
+        """
+        override_path = Path(self.overrides_path)
+        try:
+            override_bytes = override_path.read_bytes()
+        except FileNotFoundError:
+            return empty_store(), None
+        except OSError as error:
+            raise OverridesError(
+                f"could not read overrides file {override_path}: {error}"
+            ) from error
+        store = load_overrides_bytes(override_bytes, source=str(override_path))
+        return store, hashlib.sha256(override_bytes).hexdigest()
+
+    def read_override_digest(self) -> str | None:
+        """Hash the current override file without parsing or exposing it."""
+        override_path = Path(self.overrides_path)
+        try:
+            override_bytes = override_path.read_bytes()
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            raise OverridesError(
+                f"could not read overrides file {override_path}: {error}"
+            ) from error
+        return hashlib.sha256(override_bytes).hexdigest()
+
     @property
     def closed(self) -> bool:
         """Return whether shutdown has started, under the mutation lock."""
@@ -248,6 +269,8 @@ class Session:
             self.verdicts = []
             self.override_status = []
             self.staging_dir = None
+            self.finalized_csv_bytes = None
+            self.approved_still_vetoed_count = 0
 
     def request_shutdown(self) -> None:
         # Mark the session closed before handing control to the server.  A
@@ -296,7 +319,12 @@ class Session:
                     del cleanup_error
                     self._retired_staging_dirs.add(directory)
 
-    def reset_live_state(self) -> None:
+    def reset_live_state(
+        self,
+        *,
+        override_store: OverrideStore | None = None,
+        override_digest: str | None | object = _UNSET,
+    ) -> None:
         """Discard non-durable session state while preserving revisions.
 
         Reset is the one operation that can return a live session to ``idle``.
@@ -319,6 +347,13 @@ class Session:
             self.verdicts = []
             self.override_status = []
             self.staging_dir = None
+            if override_store is not None:
+                self.override_store = override_store
+            if override_digest is not _UNSET:
+                assert override_digest is None or isinstance(override_digest, str)
+                self.override_digest = override_digest
+            self.finalized_csv_bytes = None
+            self.approved_still_vetoed_count = 0
             self.state = "idle"
             for directory in paths:
                 try:

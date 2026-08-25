@@ -1,11 +1,19 @@
+import http.client
+import json
+import threading
 from io import StringIO
+from pathlib import Path
 
 import pytest
 
 from vault_cleaner import cli
 from vault_cleaner.review import OverridesError
 from vault_cleaner.server import app as server_app
+from vault_cleaner.server.app import build_server
+from vault_cleaner.server.session import Session
 from vault_cleaner.wishlist import WishlistError
+
+FIXTURE = Path(__file__).parent / "fixtures" / "armor.csv"
 
 
 def test_serve_cli_passes_options_and_defaults(monkeypatch):
@@ -21,6 +29,7 @@ def test_serve_cli_passes_options_and_defaults(monkeypatch):
             "overrides_path": "data/overrides.json",
             "no_wishlists": True,
             "port": 0,
+            "once": False,
         }
     ]
 
@@ -43,7 +52,103 @@ def test_serve_cli_passes_explicit_options(monkeypatch):
         "overrides_path": "custom.json",
         "no_wishlists": True,
         "port": 8123,
+        "once": False,
     }
+
+
+def test_serve_cli_forwards_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        server_app, "run_server", lambda **kwargs: calls.append(kwargs) or 0
+    )
+
+    assert cli.main(["serve", "--no-wishlists", "--once"]) == 0
+    assert calls[0]["once"] is True
+
+
+def test_real_loopback_once_returns_complete_csv_then_exits(tmp_path):
+    session = Session(
+        overrides_path=str(tmp_path / "overrides.json"),
+        config_path="nonexistent.toml",
+        no_wishlists=True,
+        bootstrap_token="bootstrap",
+        session_token="session",
+    )
+    try:
+        try:
+            server = build_server(session, 0, once=True)
+        except PermissionError as error:
+            pytest.skip(f"loopback sockets unavailable in this sandbox: {error}")
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        connection = http.client.HTTPConnection(
+            server.server_address[0], server.server_address[1], timeout=5
+        )
+        try:
+            connection.request(
+                "GET",
+                "/bootstrap?token=bootstrap",
+                headers={"Host": session.expected_host},
+            )
+            bootstrap = connection.getresponse()
+            assert bootstrap.status == 303
+            cookie = bootstrap.getheader("Set-Cookie").split(";", 1)[0]
+            body = FIXTURE.read_bytes()
+            connection.request(
+                "POST",
+                "/api/exports/armor",
+                body=body,
+                headers={
+                    "Host": session.expected_host,
+                    "Cookie": cookie,
+                    "Origin": session.expected_origin,
+                    "Content-Type": "text/csv",
+                    "Content-Length": str(len(body)),
+                },
+            )
+            upload = connection.getresponse()
+            upload_payload = json.loads(upload.read())
+            assert upload.status == 200
+            finalize_body = json.dumps(
+                {
+                    "report_revision": upload_payload["report_revision"],
+                    "verdict_revision": upload_payload["verdict_revision"],
+                    "fingerprint": upload_payload["fingerprint"],
+                }
+            ).encode()
+            connection.request(
+                "POST",
+                "/api/finalize",
+                body=finalize_body,
+                headers={
+                    "Host": session.expected_host,
+                    "Cookie": cookie,
+                    "Origin": session.expected_origin,
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(finalize_body)),
+                },
+            )
+            finalized = connection.getresponse()
+            csv_bytes = finalized.read()
+            assert finalized.status == 200
+            assert finalized.getheader("Content-Type") == "text/csv; charset=utf-8"
+            assert finalized.getheader("Content-Disposition") == (
+                'attachment; filename="dim-import.csv"'
+            )
+            assert csv_bytes.startswith(b"Id,Hash,Tag,Notes\r\n")
+            assert csv_bytes.endswith(b"\r\n")
+            assert len(csv_bytes) > len(b"Id,Hash,Tag,Notes\r\n")
+        finally:
+            connection.close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    finally:
+        if "server" in locals():
+            if thread.is_alive():
+                server.shutdown()
+                thread.join(timeout=5)
+            server.server_close()
+        session.close()
 
 
 @pytest.mark.parametrize("port", ["-1", "65536", "nope"])
@@ -158,7 +263,8 @@ def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch, tmp_p
         def server_close(self):
             events.append("server-closed")
 
-    def fake_build(session, port):
+    def fake_build(session, port, *, once=False):
+        assert once is False
         assert port == 0
         assert session.config_path == "config.toml"
         assert session.overrides_path == str(tmp_path / "overrides.json")
@@ -224,7 +330,8 @@ def test_run_server_closes_server_when_session_close_fails(monkeypatch, tmp_path
         def server_close(self):
             events.append("server-closed")
 
-    def fake_build(session, port):
+    def fake_build(session, port, *, once=False):
+        assert once is False
         session.configure_bound_port(54321)
         return FakeServer()
 
@@ -278,7 +385,8 @@ def test_run_server_cleans_up_after_ctrl_c(monkeypatch, tmp_path):
         def server_close(self):
             events.append("server-closed")
 
-    def fake_build(session, port):
+    def fake_build(session, port, *, once=False):
+        assert once is False
         session.configure_bound_port(54321)
         return KeyboardInterruptServer()
 
