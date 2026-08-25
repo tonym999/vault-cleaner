@@ -26,15 +26,19 @@ from vault_cleaner.parse import (
     load_ghosts_bytes,
     load_weapons_bytes,
 )
+from vault_cleaner.report import render_import_csv
 from vault_cleaner.report_run import run_report, snapshot_dict
 from vault_cleaner.review import (
     DEFAULT_OVERRIDES_PATH,
     ReviewManifestError,
+    apply_vetoes,
     check_keys,
+    classify,
     require_id,
     require_text,
+    save_overrides,
 )
-from vault_cleaner.review_session import retain_verdicts
+from vault_cleaner.review_session import merge_verdicts, retain_verdicts, utc_now
 from vault_cleaner.server.errors import ApiError, error_payload
 from vault_cleaner.server.limits import (
     MAX_EXPORT_BYTES,
@@ -86,6 +90,9 @@ VERDICT_ROOT_KEYS = frozenset(
     {"report_revision", "verdict_revision", "fingerprint", "decisions"}
 )
 RESET_ROOT_KEYS = frozenset({"report_revision", "verdict_revision"})
+FINALIZE_ROOT_KEYS = frozenset(
+    {"report_revision", "verdict_revision", "fingerprint"}
+)
 VERDICT_ENTRY_KEYS = frozenset({"id", "verdict"})
 DEFAULT_ASSETS: Mapping[str, AssetSpec] = {
     "/": ("text/html; charset=utf-8", lambda: PLACEHOLDER_HTML.encode("utf-8")),
@@ -218,6 +225,20 @@ def _validate_current_verdict_ids(
         )
 
 
+def _validate_finalize_payload_data(payload: Mapping[str, object]) -> tuple[int, int, str]:
+    """Validate the exact, revision-bound finalize request shape."""
+    try:
+        check_keys(payload, FINALIZE_ROOT_KEYS, ReviewManifestError, "finalize request")
+        report_revision = _require_revision(payload, "report_revision", "finalize request")
+        verdict_revision = _require_revision(payload, "verdict_revision", "finalize request")
+        fingerprint = require_text(
+            payload, "fingerprint", ReviewManifestError, "finalize request"
+        )
+        return report_revision, verdict_revision, fingerprint
+    except ReviewManifestError:
+        raise ApiError("bad_request", 400, "finalize request contains invalid fields") from None
+
+
 class RedactingRequestHandler(WSGIRequestHandler):
     """Werkzeug request logger that never records a bootstrap query string."""
 
@@ -228,12 +249,39 @@ class RedactingRequestHandler(WSGIRequestHandler):
         self.log("info", '"%s" %s %s', request_line, code, size)
 
 
+def _csv_response(session: Session) -> Response:
+    """Return the cached DIM import with the protocol's stable headers."""
+    if session.finalized_csv_bytes is None:
+        raise ApiError("illegal_state", 409, "finalized CSV is not available")
+    response = Response(
+        session.finalized_csv_bytes,
+        content_type="text/csv; charset=utf-8",
+    )
+    response.headers["Content-Disposition"] = 'attachment; filename="dim-import.csv"'
+    response.headers["Vault-Cleaner-Report-Revision"] = str(session.report_revision)
+    response.headers["Vault-Cleaner-Verdict-Revision"] = str(session.verdict_revision)
+    response.headers["Vault-Cleaner-Approved-Still-Vetoed"] = str(
+        session.approved_still_vetoed_count
+    )
+    return response
+
+
+def _finalized_csv_response(session: Session) -> Response:
+    """Construct the finalized CSV response through a stable, testable seam."""
+    return _csv_response(session)
+
+
 def create_app(
     session: Session,
     *,
     assets: Mapping[str, AssetSpec] | None = None,
+    once: bool = False,
 ) -> Flask:
-    """Build the authenticated application around one session."""
+    """Build the authenticated application around one session.
+
+    When ``once`` is true, shutdown is scheduled only after a successful
+    finalize response closes.
+    """
     app = Flask(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
     app.extensions[SESSION_EXTENSION_KEY] = session
@@ -635,13 +683,25 @@ def create_app(
             report_revision,
             expected_verdict_revision=verdict_revision,
         )
+        # Refresh the durable baseline before changing any live state.  A
+        # malformed or unreadable external edit therefore leaves this review
+        # intact and is reported without disclosing its filesystem path.
+        try:
+            refreshed_store, refreshed_digest = session.read_override_snapshot()
+        except Exception:  # noqa: BLE001 - sanitize all filesystem failures
+            raise ApiError(
+                "internal_error", 500, "could not reload persisted overrides"
+            ) from None
         had_report = session.report is not None or bool(session.export_digests)
         had_verdicts = bool(session.verdicts)
         if had_report:
             session.report_revision += 1
         if had_verdicts:
             session.verdict_revision += 1
-        session.reset_live_state()
+        session.reset_live_state(
+            override_store=refreshed_store,
+            override_digest=refreshed_digest,
+        )
         return jsonify(session_metadata(session))
 
     for kind in ("weapons", "armor", "ghosts"):
@@ -658,17 +718,102 @@ def create_app(
 
     @serialized
     def finalize() -> Response:
-        unavailable()
+        # A closed session is terminal. Reject before parsing so shutdown
+        # errors remain stable even when the request body is malformed.
+        if session.closed:
+            raise ApiError(
+                "illegal_state",
+                409,
+                "finalize is not available after session shutdown",
+            )
+        # Finalization is legal only after an export report exists. Keep this
+        # check ahead of body parsing to preserve the stable idle error; once
+        # finalized, the request is parsed below so retries remain strict.
+        if session.state != "finalized" and (
+            session.report is None or session.state not in {"exports-loaded", "reviewing"}
+        ):
+            unavailable()
+
+        payload = _json_body("finalize request")
+        report_revision, verdict_revision, fingerprint = (
+            _validate_finalize_payload_data(payload)
+        )
+        check_expected_revisions(
+            session,
+            report_revision,
+            expected_verdict_revision=verdict_revision,
+            fingerprint=fingerprint,
+        )
+
+        if session.state == "finalized":
+            response = _finalized_csv_response(session)
+            if once:
+                response.call_on_close(session.request_shutdown)
+            return response
+
+        assert session.report is not None
+        # The server deliberately renders the complete CSV before persisting
+        # overrides.  This is the inverse of the CLI's historical ordering:
+        # no durable veto can exist without a fully generated matching export.
+        merge = merge_verdicts(
+            session.override_store,
+            session.verdicts,
+            session.report,
+            recorded_at=utc_now(),
+        )
+        status = classify(merge.store, session.report)
+        kept = apply_vetoes(session.report, status.active_ids)
+        csv_bytes = render_import_csv(
+            decision.import_row() for decision in kept
+        )
+        conflict_count = len(merge.already_vetoed_but_approved)
+
+        try:
+            current_digest = session.read_override_digest()
+        except Exception:  # noqa: BLE001 - filesystem details stay server-side
+            raise ApiError(
+                "internal_error",
+                500,
+                "could not verify persisted overrides",
+            ) from None
+        if current_digest != session.override_digest:
+            raise ApiError(
+                "overrides_changed",
+                409,
+                "persisted overrides changed outside this session; reset and re-review before finalizing",
+            )
+
+        # There is an unavoidable tiny TOCTOU window between this digest
+        # guard and save_overrides' atomic os.replace.  The next reset reloads
+        # the resulting bytes and establishes a fresh baseline.
+        save_overrides(merge.store, session.overrides_path)
+        # Keep this commit boundary intentionally tiny: once persistence has
+        # returned, only in-memory assignments occur before the finalized
+        # state becomes observable and retries can recover the cached bytes.
+        session.override_store = merge.store
+        session.finalized_csv_bytes = csv_bytes
+        session.approved_still_vetoed_count = conflict_count
+        session.state = "finalized"
+        response = _finalized_csv_response(session)
+        if once:
+            response.call_on_close(session.request_shutdown)
+        return response
 
     app.add_url_rule(
         "/api/finalize", endpoint="finalize", view_func=finalize, methods=["POST"]
     )
-    app.add_url_rule(
-        "/api/finalized.csv",
-        endpoint="finalized_csv",
-        view_func=unavailable,
-        methods=["GET"],
-    )
+    @app.get("/api/finalized.csv", endpoint="finalized_csv")
+    def finalized_csv() -> Response:
+        with session.mutation_lock:
+            if session.closed:
+                raise ApiError(
+                    "illegal_state",
+                    409,
+                    "finalized CSV is not available after session shutdown",
+                )
+            if session.state != "finalized" or session.finalized_csv_bytes is None:
+                unavailable()
+            return _finalized_csv_response(session)
     app.add_url_rule(
         "/api/reset", endpoint="reset", view_func=reset, methods=["POST"]
     )
@@ -711,9 +856,10 @@ def build_server(
     port: int,
     *,
     assets: Mapping[str, AssetSpec] | None = None,
+    once: bool = False,
 ) -> BaseWSGIServer:
     """Bind the threaded Werkzeug server and finish the origin contract."""
-    app = create_app(session, assets=assets)
+    app = create_app(session, assets=assets, once=once)
     server = make_server(
         LOOPBACK_HOST,
         port,
@@ -733,6 +879,7 @@ def run_server(
     no_wishlists: bool,
     port: int,
     stdout: TextIO | None = None,
+    once: bool = False,
 ) -> int:
     """Pre-warm, bind, print the bootstrap URL, and serve until stopped."""
     if not no_wishlists:
@@ -749,7 +896,7 @@ def run_server(
             config_path=config_path,
             no_wishlists=no_wishlists,
         )
-        server = build_server(session, port)
+        server = build_server(session, port, once=once)
         print(
             f"http://{session.expected_host}/bootstrap?token={session.bootstrap_token}",
             file=output,

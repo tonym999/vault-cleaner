@@ -622,8 +622,9 @@ def test_run_server_prints_a_bootstrap_url_that_works(monkeypatch, tmp_path):
     servers = []
     original_build_server = server_app.build_server
 
-    def capture_server(session, port):
-        server = original_build_server(session, port)
+    def capture_server(session, port, *, once=False):
+        assert once is False
+        server = original_build_server(session, port, once=once)
         servers.append(server)
         return server
 

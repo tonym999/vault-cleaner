@@ -3,6 +3,39 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-25 — transactional server finalization (#67)
+
+- Implemented serialized `/api/finalize` as prepare → raw-byte override drift
+  guard → durable persistence → tiny in-memory commit. The complete DIM CSV is
+  rendered before `save_overrides`, deliberately preserving the server/CLI
+  ordering distinction, and finalized bytes are cached for idempotent retries
+  and `/api/finalized.csv` without another disk read.
+- Added strict finalize request and revision validation, exact CSV/disposition
+  and revision headers, the approved-still-vetoed conflict count, finalized
+  lifecycle invalidation on reset/close, and `serve --once` shutdown on a
+  successful response close only.
+- Reset now reloads and validates the current override bytes/digest before
+  changing session state, so an `overrides_changed` refusal can recover and a
+  second review in the same process adopts the new baseline. The digest
+  comparison still has the unavoidable small TOCTOU window before
+  `save_overrides`' atomic replacement; the next reset establishes a fresh
+  exact-byte baseline.
+- Added raw-byte parity coverage against all three CLI reference modes
+  (proposal report, persisted-veto review, and fixed review-manifest review),
+  distinct existing/missing override drift cases, finalized cache/reset
+  behavior, post-commit response recovery, `--once` close semantics, and
+  route-specific error-path redaction for report, upload, finalize, and reset.
+- Review follow-up: derive the approved-still-vetoed header from the merge
+  result, make reset's refreshed override store/digest inputs required, give
+  closed-session finalize requests a terminal-state error, and cover missing
+  and float-spelled revisions plus finalized upload refusal for every export
+  kind. The finalize digest remains the pre-persistence review baseline by
+  design; reset is the atomic store+digest refresh boundary.
+- Review follow-up also gives closed `/api/finalized.csv` requests a terminal
+  shutdown error, documents the `create_app(once=True)` response-close
+  contract, and clarifies the finalized-response construction seam and
+  lifecycle comments.
+
 ## 2026-08-25 — verdicts, reset, stale revisions, and terminal shutdown (#66)
 
 - Added the serialized `/api/verdicts` batch mutation with strict shared

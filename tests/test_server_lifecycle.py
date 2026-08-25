@@ -82,6 +82,19 @@ LIFECYCLE_EXPECTATIONS = {
         candidates=0,
         retired=0,
     ),
+    "finalized": LifecycleExpectation(
+        state="finalized",
+        closed=False,
+        report_revision=_PRESERVED,
+        verdict_revision=_PRESERVED,
+        report=True,
+        fingerprint=True,
+        snapshot=True,
+        verdict_count=0,
+        staging=True,
+        candidates=0,
+        retired=0,
+    ),
     "closed": LifecycleExpectation(
         state="closed",
         closed=True,
@@ -154,6 +167,19 @@ def test_transition_seam_covers_reviewing_and_clear(tmp_path):
         assert cleared.status_code == 200
         assert cleared.json["state"] == "exports-loaded"
         assert cleared.json["verdict_revision"] == 2
+        before_finalized = lifecycle_snapshot(session)
+        finalized = client.post(
+            "/api/finalize",
+            base_url=origin,
+            headers={"Origin": origin},
+            json={
+                "report_revision": cleared.json["report_revision"],
+                "verdict_revision": cleared.json["verdict_revision"],
+                "fingerprint": cleared.json["fingerprint"],
+            },
+        )
+        assert finalized.status_code == 200
+        assert_lifecycle_state(session, "finalized", previous=before_finalized)
     finally:
         session.close()
 
