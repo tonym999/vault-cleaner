@@ -3,6 +3,22 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-25 — shared review UI assets and presentation core (#87)
+
+- Extracted the review stylesheet and the manifest-free presentation/view layer
+  into packaged `vault_cleaner.ui` resources. The static HTML adapter now reads
+  and inlines those exact resource bytes, while keeping autosave and manifest
+  import/export in a clearly temporary adapter for #51.
+- Generalized browser `keptItems` to combine active persisted veto ids with
+  current-session vetoes; the static adapter passes an empty `Set`.
+- Added setuptools package-data configuration and direct Node coverage for the
+  packaged presentation resource (64-bit ids, grouping parity, prototype-safe
+  maps, and persisted-veto filtering), plus an exact inline-byte proof. The
+  static-adapter Node harness retains manifest/parity coverage, while the
+  presentation harness directly requires the packaged resource; resource
+  loading decodes raw bytes to avoid universal-newline drift.
+- No server UI, HTTP client, CSP, or manifest-code deletion was introduced.
+
 ## 2026-08-25 — transactional server finalization (#67)
 
 - Implemented serialized `/api/finalize` as prepare → raw-byte override drift

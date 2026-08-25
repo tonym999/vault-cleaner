@@ -23,6 +23,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"vault_cleaner.ui" = ["*.css", "*.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Prepended to sys.path relative to pytest's rootdir, so a run from a git
