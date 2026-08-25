@@ -119,11 +119,19 @@
     return ids.has(id);
   }
 
-  // The server supplies active persisted veto ids; the temporary static
-  // adapter passes an empty Set because it has no overrides input.
-  // What the reviewed export would still contain: a persisted or current
-  // veto suppresses the proposal, exactly as review.apply_vetoes does on the
-  // Python side.
+  /**
+   * Return a filtered copy excluding persisted or current-session vetoes.
+   * Active persisted veto ids must be Set-like with `has(id)`; item ids are
+   * opaque strings and are never coerced through Number. Invalid active-id
+   * shapes throw TypeError.
+   *
+   * @param {Array<Object>} items Items with opaque string `id` values.
+   * @param {Object} verdicts Current-session verdicts keyed by item id.
+   * @param {{has: function(string): boolean}} activePersistedVetoIds
+   *   Active persisted veto ids.
+   * @returns {Array<Object>} A new filtered array.
+   * @throws {TypeError} If activePersistedVetoIds has no callable `has`.
+   */
   function keptItems(items, verdicts, activePersistedVetoIds) {
     if (!activePersistedVetoIds ||
         typeof activePersistedVetoIds.has !== "function") {

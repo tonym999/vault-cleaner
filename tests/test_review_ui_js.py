@@ -356,9 +356,10 @@ def run_shared(tmp_path: Path, builder=build_report):
             [NODE, str(harness), str(app), str(snapshot), str(tmp_path)],
             capture_output=True,
             encoding="utf-8",
-            check=True,
+            check=False,
             timeout=60,
         )
+        assert completed.returncode == 0, completed.stderr
     return Harness(run, json.loads(completed.stdout), tmp_path)
 
 
@@ -373,9 +374,10 @@ def run_view(tmp_path: Path) -> dict:
             [NODE, str(harness), str(app)],
             capture_output=True,
             encoding="utf-8",
-            check=True,
+            check=False,
             timeout=60,
         )
+        assert completed.returncode == 0, completed.stderr
     return json.loads(completed.stdout)
 
 
@@ -440,19 +442,16 @@ def test_packaged_presentation_resource_has_no_manifest_adapter():
     assert set(static_only_surface) == constants | functions | {"localStorage", "window"}
 
     # A presentation resource may discuss failure or clipping in prose, so a
-    # bare substring check is too broad. The forbidden surface is detected at
-    # the syntactic points that would actually import the temporary adapter:
-    # declarations, function definitions/calls, object exports, and browser
-    # dependencies. Keep the complete issue-listed surface above so adding a
-    # temporary-only name cannot silently shrink this guard.
+    # bare substring check is too broad. SCREAMING_CASE constants are simple
+    # identifiers: any word-boundary use would import the temporary adapter,
+    # including ordinary reads and member access. Generic functions and
+    # browser globals retain syntactic guards so prose and longer identifiers
+    # such as "clipboard" remain accepted. Keep the complete issue-listed
+    # surface above so adding a temporary-only name cannot silently shrink this
+    # guard.
     patterns_by_name = {}
     for name in constants:
-        escaped = re.escape(name)
-        patterns_by_name[name] = (
-            rf"(?m)^\s*(?:var|let|const)\s+{escaped}\b",
-            rf"(?:^|[{{,])\s*{escaped}\s*:",
-            rf"\b{escaped}\b\s*(?:===|!==|<=|>=|[<>=+*/%-])",
-        )
+        patterns_by_name[name] = (rf"\b{re.escape(name)}\b",)
     for name in functions:
         escaped = re.escape(name)
         patterns_by_name[name] = (
@@ -467,6 +466,15 @@ def test_packaged_presentation_resource_has_no_manifest_adapter():
     )
     patterns = [pattern for group in patterns_by_name.values() for pattern in group]
     assert not any(re.search(pattern, "fail loudly; clipboard") for pattern in patterns)
+    constant_sentinels = {
+        "var limit = MAX_TEXT;": "MAX_TEXT",
+        "VERDICTS.indexOf(v)": "VERDICTS",
+        "return value <= MAX_TEXT ? value : 0;": "MAX_TEXT",
+    }
+    for source, name in constant_sentinels.items():
+        assert any(
+            re.search(pattern, source) for pattern in patterns_by_name[name]
+        ), (name, source)
     for name, name_patterns in patterns_by_name.items():
         assert any(re.search(pattern, adapter) for pattern in name_patterns), name
         assert not any(re.search(pattern, resource) for pattern in name_patterns), name

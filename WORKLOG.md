@@ -25,6 +25,10 @@ surprises the next agent should know about.
 - Windows review finding: packaged CSS/JS resources now have narrowly scoped
   LF attributes, preserving exact browser bytes under core.autocrlf while the
   existing byte-exact fixture rules remain unchanged.
+- Round-two review follow-up: constant leak sentinels now catch ordinary
+  SCREAMING_CASE reads, Node harness failures retain captured stderr, and the
+  exported `keptItems` Set-like/opaque-id/filter-copy contract is documented
+  beside the function.
 - No server UI, HTTP client, CSP, or manifest-code deletion was introduced.
 
 ## 2026-08-25 — transactional server finalization (#67)
