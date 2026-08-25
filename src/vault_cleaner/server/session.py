@@ -27,7 +27,86 @@ from vault_cleaner.review_session import OverrideStore
 
 BOOTSTRAP_TTL_SECONDS = 5 * 60
 SESSION_EXTENSION_KEY = "vault_cleaner_session"
+REPORT_REVISION_HEADER = "Vault-Cleaner-Report-Revision"
+VERDICT_REVISION_HEADER = "Vault-Cleaner-Verdict-Revision"
 BootstrapResult = Literal["ok", "invalid", "expired"]
+
+
+def _stale_error(code: str, message: str) -> None:
+    # Import locally to keep this state module independent of the Flask app's
+    # error-handler implementation.
+    from vault_cleaner.server.errors import ApiError
+
+    raise ApiError(code, 409, message)
+
+
+def check_expected_revisions(
+    session: Session,
+    expected_report_revision: int,
+    *,
+    expected_verdict_revision: int | None = None,
+    fingerprint: str | None = None,
+) -> None:
+    """Check mutation preconditions in the protocol's required order.
+
+    Callers must invoke this inside ``@serialized``.  No state is changed by
+    this helper, and report revision mismatches always win over the
+    fingerprint and verdict checks.  Finalize can reuse the same seam.
+    """
+    if expected_report_revision != session.report_revision:
+        _stale_error(
+            "stale_report",
+            "report revision is stale; reload the current report before retrying",
+        )
+    if fingerprint is not None:
+        current = session.report.fingerprint if session.report is not None else None
+        if current != fingerprint:
+            _stale_error(
+                "stale_report",
+                "report fingerprint is stale; reload the current report before retrying",
+            )
+    if (
+        expected_verdict_revision is not None
+        and expected_verdict_revision != session.verdict_revision
+    ):
+        _stale_error(
+            "stale_verdicts",
+            "verdict revision is stale; reload the current verdicts before retrying",
+        )
+
+
+def proposal_ids_in_order(session: Session) -> list[str]:
+    """Return current report proposal ids in deterministic report order."""
+    if session.report is None:
+        return []
+    return [
+        decision.id
+        for section in session.report.sections
+        for decision in section.decisions
+    ]
+
+
+def order_verdicts(
+    session: Session, verdicts: list[dict[str, str]] | tuple[dict[str, str], ...]
+) -> list[dict[str, str]]:
+    """Order non-null verdict entries by the current proposal sequence."""
+    if session.report is None:
+        return deepcopy(list(verdicts))
+    by_id = {entry["id"]: entry for entry in verdicts}
+    return [
+        deepcopy(entry)
+        for item_id in proposal_ids_in_order(session)
+        if (entry := by_id.get(item_id))
+    ]
+
+
+def revision_headers(session: Session) -> dict[str, str]:
+    """Snapshot both monotonic revisions as one coherent header pair."""
+    with session.mutation_lock:
+        return {
+            REPORT_REVISION_HEADER: str(session.report_revision),
+            VERDICT_REVISION_HEADER: str(session.verdict_revision),
+        }
 
 
 def _constant_time_equals(candidate: str | None, secret: str) -> bool:
@@ -63,6 +142,7 @@ class Session:
         self.bound_port: int | None = None
         self.mutation_lock = RLock()
         self.shutdown_callback: Callable[[], None] | None = None
+        self._shutdown_callback_called = False
 
         self.state = "idle"
         self.report_revision = 0
@@ -145,11 +225,41 @@ class Session:
         with self.mutation_lock:
             return self._closed
 
+    def mark_closed(self) -> None:
+        """Invalidate all live state and enter the terminal state.
+
+        This deliberately does not perform filesystem I/O.  The shutdown
+        response can therefore expose a coherent terminal envelope before its
+        ``call_on_close`` cleanup callback runs.  ``close`` performs the
+        retryable physical cleanup and is safe to call afterwards (or again).
+        """
+        with self.mutation_lock:
+            if self._closed:
+                return
+            self._closed = True
+            self.state = "closed"
+            if self.staging_dir is not None:
+                self._retired_staging_dirs.add(self.staging_dir)
+            self.report = None
+            self.export_digests = {}
+            self.export_sizes = {}
+            self.fingerprint = None
+            self.snapshot = None
+            self.verdicts = []
+            self.override_status = []
+            self.staging_dir = None
+
     def request_shutdown(self) -> None:
         # Mark the session closed before handing control to the server.  A
         # concurrent upload therefore observes the same lock-protected
         # shutdown boundary as an explicit ``close()`` call.
-        callback = self.shutdown_callback
+        with self.mutation_lock:
+            callback = (
+                None
+                if self._shutdown_callback_called
+                else self.shutdown_callback
+            )
+            self._shutdown_callback_called = True
         try:
             self.close()
         finally:
@@ -164,13 +274,43 @@ class Session:
         path; it cannot leave the API pointing at an accepted export after
         close.
         """
+        self.mark_closed()
         with self.mutation_lock:
-            self._closed = True
             candidates = set(self._candidate_staging_dirs)
             retired = set(self._retired_staging_dirs)
-            if self.staging_dir is not None:
-                retired.add(self.staging_dir)
+            # Register every path before attempting cleanup.  If an
+            # unexpected exception escapes the cleanup seam, the path remains
+            # private session state for a later close() retry.
+            self._candidate_staging_dirs.update(candidates)
+            self._retired_staging_dirs.update(retired)
+            for directory in candidates:
+                try:
+                    self.cleanup_directory(directory, candidate=True)
+                except Exception as cleanup_error:  # noqa: BLE001 - cleanup must not block shutdown
+                    del cleanup_error
+                    self._candidate_staging_dirs.add(directory)
+            for directory in retired:
+                try:
+                    self.cleanup_directory(directory)
+                except Exception as cleanup_error:  # noqa: BLE001 - cleanup must remain retryable
+                    del cleanup_error
+                    self._retired_staging_dirs.add(directory)
 
+    def reset_live_state(self) -> None:
+        """Discard non-durable session state while preserving revisions.
+
+        Reset is the one operation that can return a live session to ``idle``.
+        Cleanup is best effort and remains retryable through the private path
+        sets, just like shutdown cleanup.
+        """
+        with self.mutation_lock:
+            if self._closed:
+                raise RuntimeError("session is closed")
+            paths = set(self._candidate_staging_dirs)
+            if self.staging_dir is not None:
+                paths.add(self.staging_dir)
+            paths.update(self._retired_staging_dirs)
+            self._retired_staging_dirs.update(paths)
             self.report = None
             self.export_digests = {}
             self.export_sizes = {}
@@ -179,16 +319,13 @@ class Session:
             self.verdicts = []
             self.override_status = []
             self.staging_dir = None
-
-            # Register every path before attempting cleanup.  If an
-            # unexpected exception escapes the cleanup seam, the path remains
-            # private session state for a later close() retry.
-            self._candidate_staging_dirs.update(candidates)
-            self._retired_staging_dirs.update(retired)
-            for directory in candidates:
-                self.cleanup_directory(directory, candidate=True)
-            for directory in retired:
-                self.cleanup_directory(directory)
+            self.state = "idle"
+            for directory in paths:
+                try:
+                    self.cleanup_directory(directory)
+                except Exception as cleanup_error:  # noqa: BLE001 - reset must remain coherent
+                    del cleanup_error
+                    self._retired_staging_dirs.add(directory)
 
     def track_candidate(self, directory: Path) -> None:
         """Register a newly-created candidate directory for cleanup."""
@@ -224,7 +361,7 @@ class Session:
             self._retired_staging_dirs.add(directory)
             try:
                 return self.cleanup_directory(directory)
-            except RuntimeError:
+            except Exception:  # noqa: BLE001 - post-commit retirement is best effort
                 # Adoption is the commit boundary.  Cleanup is best effort;
                 # retain the opaque path for ``close()`` to retry.
                 self._retired_staging_dirs.add(directory)
@@ -320,7 +457,7 @@ def session_metadata(session: Session) -> dict[str, Any]:
             "verdict_revision": session.verdict_revision,
             "fingerprint": fingerprint,
             "snapshot": snapshot,
-            "verdicts": deepcopy(session.verdicts),
+            "verdicts": order_verdicts(session, session.verdicts),
             "override_status": override_status,
         }
 

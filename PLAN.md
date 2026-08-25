@@ -89,6 +89,16 @@ Public repo; `data/` gitignored from the first commit.
 7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review.
 8. **M8 — Local review server:** loopback-only authenticated HTTP server (Flask 3.1); the browser uploads exports and downloads the reviewed CSV, so no input/output filesystem paths are required. Python owns rules, validation, persistence, and CSV generation; the page renders server data and collects verdicts. After the server-only review path and static-page cleanup land, bounded armor threshold what-if variants are produced in Python as an M8 follow-up.
 
+### M8 schema-version-1 session states
+
+The local review server's schema-version-1 session envelope admits five
+states: `idle` (no report), `exports-loaded` (a report with no session
+verdicts), `reviewing` (a report with at least one verdict), `finalized` (the
+#67-owned durable finalize state), and terminal `closed` (shutdown has cleared
+all live report, upload, snapshot, fingerprint, and verdict data). Revisions
+remain monotonic across reset and shutdown; `closed` cannot be revived by any
+mutation.
+
 ## Risks & mitigations
 
 - **DIM CSV format drift** — header-name access, a schema-sanity check on load that fails loudly, fixture tests pinned to a real export.

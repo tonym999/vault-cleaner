@@ -46,6 +46,10 @@ IDLE_METADATA = {
     "verdicts": [],
     "override_status": [],
 }
+CLOSED_METADATA = {
+    **IDLE_METADATA,
+    "state": "closed",
+}
 
 
 def build_client(
@@ -323,7 +327,6 @@ def test_authenticated_root_and_idle_report(tmp_path):
         ("post", "/api/verdicts"),
         ("post", "/api/finalize"),
         ("get", "/api/finalized.csv"),
-        ("post", "/api/reset"),
     ],
 )
 def test_later_child_routes_use_the_stable_idle_error(method, path, tmp_path):
@@ -402,7 +405,7 @@ def test_shutdown_is_serialized_and_runs_only_when_response_closes(tmp_path):
     )
 
     assert response.status_code == 200
-    assert response.json == IDLE_METADATA
+    assert response.json == CLOSED_METADATA
     assert called == []
     response.close()
     assert called == [True]
@@ -599,7 +602,7 @@ def test_real_server_binds_loopback_redacts_log_and_stops_after_ack(caplog, tmp_
         shutdown = connection.getresponse()
         payload = json.loads(shutdown.read())
         assert shutdown.status == 200
-        assert payload == IDLE_METADATA
+        assert payload == CLOSED_METADATA
         thread.join(timeout=5)
         assert not thread.is_alive()
 
