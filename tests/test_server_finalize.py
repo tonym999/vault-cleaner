@@ -241,6 +241,25 @@ def test_once_finalize_shuts_down_only_after_successful_response_close(tmp_path)
         session.close()
 
 
+def test_finalized_csv_rejects_closed_once_session_with_terminal_message(tmp_path):
+    client, session, _overrides = build_client(tmp_path, once=True)
+    try:
+        uploaded = upload(client)
+        response = finalize(client, uploaded.json)
+        assert response.status_code == 200
+        response.close()
+        assert session.closed
+
+        unavailable = client.get("/api/finalized.csv", base_url=ORIGIN)
+        assert unavailable.status_code == 409
+        assert unavailable.json["error"] == {
+            "code": "illegal_state",
+            "message": "finalized CSV is not available after session shutdown",
+        }
+    finally:
+        session.close()
+
+
 def test_once_failed_finalize_does_not_schedule_shutdown(tmp_path, monkeypatch):
     client, session, _overrides = build_client(tmp_path, once=True)
     callbacks = []

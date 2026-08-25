@@ -31,6 +31,10 @@ surprises the next agent should know about.
   and float-spelled revisions plus finalized upload refusal for every export
   kind. The finalize digest remains the pre-persistence review baseline by
   design; reset is the atomic store+digest refresh boundary.
+- Review follow-up also gives closed `/api/finalized.csv` requests a terminal
+  shutdown error, documents the `create_app(once=True)` response-close
+  contract, and clarifies the finalized-response construction seam and
+  lifecycle comments.
 
 ## 2026-08-25 — verdicts, reset, stale revisions, and terminal shutdown (#66)
 

@@ -267,7 +267,7 @@ def _csv_response(session: Session) -> Response:
 
 
 def _finalized_csv_response(session: Session) -> Response:
-    """Compatibility-named adapter for the shared CSV response helper."""
+    """Construct the finalized CSV response through a stable, testable seam."""
     return _csv_response(session)
 
 
@@ -277,7 +277,11 @@ def create_app(
     assets: Mapping[str, AssetSpec] | None = None,
     once: bool = False,
 ) -> Flask:
-    """Build the authenticated application around one session."""
+    """Build the authenticated application around one session.
+
+    When ``once`` is true, shutdown is scheduled only after a successful
+    finalize response closes.
+    """
     app = Flask(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
     app.extensions[SESSION_EXTENSION_KEY] = session
@@ -714,15 +718,17 @@ def create_app(
 
     @serialized
     def finalize() -> Response:
-        # Finalization is legal only after an export report exists.  Keep this
-        # check ahead of body parsing to preserve the stable idle error; once
-        # finalized, the request is parsed below so retries remain strict.
+        # A closed session is terminal. Reject before parsing so shutdown
+        # errors remain stable even when the request body is malformed.
         if session.closed:
             raise ApiError(
                 "illegal_state",
                 409,
                 "finalize is not available after session shutdown",
             )
+        # Finalization is legal only after an export report exists. Keep this
+        # check ahead of body parsing to preserve the stable idle error; once
+        # finalized, the request is parsed below so retries remain strict.
         if session.state != "finalized" and (
             session.report is None or session.state not in {"exports-loaded", "reviewing"}
         ):
@@ -799,6 +805,12 @@ def create_app(
     @app.get("/api/finalized.csv", endpoint="finalized_csv")
     def finalized_csv() -> Response:
         with session.mutation_lock:
+            if session.closed:
+                raise ApiError(
+                    "illegal_state",
+                    409,
+                    "finalized CSV is not available after session shutdown",
+                )
             if session.state != "finalized" or session.finalized_csv_bytes is None:
                 unavailable()
             return _finalized_csv_response(session)
