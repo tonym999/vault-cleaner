@@ -174,6 +174,55 @@ process.stdout.write(JSON.stringify({
     }
 
 
+def test_reconnect_button_retains_and_calls_its_retry_callback(tmp_path: Path):
+    harness = tmp_path / "server-ui-reconnect-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+var listener = null;
+var button = {
+  addEventListener: function (name, callback) {
+    if (name === "click") listener = callback;
+  }
+};
+var host = {
+  ownerDocument: {
+    createElement: function (name) {
+      if (name !== "button") throw new Error("expected a button");
+      return button;
+    }
+  },
+  appendChild: function (child) {
+    if (child !== button) throw new Error("unexpected child");
+  }
+};
+var calls = 0;
+server.showReconnect(host, function () { calls += 1; });
+listener();
+process.stdout.write(JSON.stringify({
+  calls: calls, type: button.type, text: button.textContent
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "calls": 1,
+        "type": "button",
+        "text": "Reconnect",
+    }
+
+
 def test_server_adapter_has_no_content_length_or_inline_dom_html():
     resource = files("vault_cleaner.ui").joinpath("review_server.js")
     with as_file(resource) as adapter:

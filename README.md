@@ -107,20 +107,6 @@ off disk; there is no server, port, or process to run.
 > its own (a `default-src 'none'` policy blocks every outbound request), but
 > the file itself is as sensitive as `data/in/`.
 
-### Local review server
-
-For a local browser session, start the loopback-only server and open the one-use
-URL it prints:
-
-```bash
-.venv/bin/vault-cleaner serve --no-wishlists
-```
-
-Upload any combination of DIM weapons, armor, and ghost CSVs in the page. The
-report view reuses the search, filters, grouping, sorting, detail,
-armor-scoring, and count views from `review-html`; it is read-only and never
-accepts a filesystem path. Stop the server with <kbd>Ctrl-C</kbd> when done.
-
 In the page you get overall junk/review counts and counts after vetoes, the
 same action/kind/reason grouping the terminal summary prints, search by name
 or instance id, filters for action, reason, kind, owner, protection state and
@@ -198,6 +184,20 @@ run itself is trusted over the manifest for everything else.
 `vault-cleaner review-html` is what generates these — see
 [Reviewing in a browser](#reviewing-in-a-browser). The format is simple enough
 to hand-write from a report run if you would rather script it.
+
+### Local review server
+
+For a local browser session, start the loopback-only server and open the one-use
+URL it prints:
+
+```bash
+.venv/bin/vault-cleaner serve --no-wishlists
+```
+
+Upload any combination of DIM weapons, armor, and ghost CSVs in the page. The
+report view reuses the search, filters, grouping, sorting, detail,
+armor-scoring, and count views from `review-html`; it is read-only and never
+accepts a filesystem path. Stop the server with <kbd>Ctrl-C</kbd> when done.
 
 ## Status
 

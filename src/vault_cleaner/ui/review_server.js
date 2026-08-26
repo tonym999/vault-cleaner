@@ -182,12 +182,12 @@
     });
   }
 
-  function showReconnect(host) {
+  function showReconnect(host, reconnect) {
     var button = host.ownerDocument.createElement("button");
     button.type = "button";
     button.textContent = "Reconnect";
     button.addEventListener("click", function () {
-      root.VaultCleanerServerUI.start();
+      reconnect();
     });
     host.appendChild(button);
   }
@@ -217,7 +217,7 @@
       state.connected = false;
       state.terminal = !!terminal;
       setUploadsDisabled(true);
-      if (!terminal) showReconnect(status);
+      if (!terminal) showReconnect(status, requestReport);
     }
     function adopt(envelope) {
       applySessionEnvelope(envelope, state);
@@ -446,7 +446,8 @@
     applySessionEnvelope: applySessionEnvelope,
     createState: createState,
     persistedVetoIds: persistedVetoIds,
-    copyVerdicts: copyVerdicts
+    copyVerdicts: copyVerdicts,
+    showReconnect: showReconnect
   };
   if (root && root.document) {
     if (root.document.readyState === "loading") {

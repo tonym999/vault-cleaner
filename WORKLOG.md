@@ -3,6 +3,33 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-26 — Linux VM handoff review (#88)
+
+- Recreated the ignored development environment after the repository move and
+  revalidated the pushed issue branch: Ruff was clean, all 687 existing tests
+  passed, all three packaged JavaScript files passed Node syntax checks,
+  `git diff --check` was clean, and no file under `data/` was tracked. The VM
+  only provides Python 3.14 rather than the documented Python 3.12 target; the
+  declared `>=3.12`
+  package contract and full suite still pass there.
+- Ran an isolated real-loopback smoke test: bootstrap authentication and all
+  three fake fixture uploads returned 200, an invalid weapons replacement
+  returned the sanitized 422 response, and the accepted report fingerprint
+  and revision remained unchanged after rejection.
+- Moved the minimal local-server README section below the static manifest
+  workflow. Its earlier placement made the following static-only approve/veto
+  and browser-storage paragraphs read as features of the read-only server.
+- The SSH-forwarded real-browser pass covered all three accepted fixture
+  uploads, rejected replacement preservation, rendering, refresh, and the
+  disconnected state. It found that the visible Reconnect button did nothing:
+  deferred execution let the outer loader overwrite the global runtime object
+  its click handler looked up. The button now retains its retry callback
+  directly, with a Node regression that constructs and clicks it. A fresh
+  real-browser pass then proved the button sends its retry, a stopped server
+  retains the visible disconnected state, and a replacement session produces
+  terminal 401 restart guidance without another retry. The manual checklist is
+  complete, and the final suite passes all 688 tests.
+
 ## 2026-08-25 — server review UI shell and read-only report (#88)
 
 - Replaced the server placeholder root with fixed packaged HTML, CSS, shared
