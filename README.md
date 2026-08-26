@@ -107,6 +107,20 @@ off disk; there is no server, port, or process to run.
 > its own (a `default-src 'none'` policy blocks every outbound request), but
 > the file itself is as sensitive as `data/in/`.
 
+### Local review server
+
+For a local browser session, start the loopback-only server and open the one-use
+URL it prints:
+
+```bash
+.venv/bin/vault-cleaner serve --no-wishlists
+```
+
+Upload any combination of DIM weapons, armor, and ghost CSVs in the page. The
+report view reuses the search, filters, grouping, sorting, detail,
+armor-scoring, and count views from `review-html`; it is read-only and never
+accepts a filesystem path. Stop the server with <kbd>Ctrl-C</kbd> when done.
+
 In the page you get overall junk/review counts and counts after vetoes, the
 same action/kind/reason grouping the terminal summary prints, search by name
 or instance id, filters for action, reason, kind, owner, protection state and
@@ -194,7 +208,7 @@ to hand-write from a report run if you would rather script it.
 - ✅ M5 — polish: ghost cleanup pass (`vault-cleaner ghosts` — junks every shell not equipped/locked/tagged/in a loadout) and the all-passes dry-run summary (`vault-cleaner report`)
 - ✅ M6 — armor dupes: exact-dupe pass, review-only close-dupe pass, and the last-of-archetype score guard
 - 🚧 M7 — review UI: reusable report snapshot ✅, persistent vetoes + reviewed export (`vault-cleaner review`) ✅, static HTML review UI (`vault-cleaner review-html`) ✅
-- 🔜 M8 — local review server (planned; [#46](https://github.com/tonym999/vault-cleaner/issues/46)): loopback-only Flask server, browser upload/review/download with no filesystem paths; the static `review-html` page (never released) retires once the server UI reaches parity, and the armor what-if controls land as Python-precomputed variants
+- 🚧 M8 — local review server: authenticated loopback server with browser CSV uploads and a read-only report view; verdict/finalization APIs exist, while their browser controls remain follow-up work
 
 See the [issue board](https://github.com/tonym999/vault-cleaner/issues) for
 ticket-level detail.

@@ -257,6 +257,10 @@
     var items = context.items || [];
     var toggleVerdict = context.toggleVerdict || function () {};
     var renderList = context.renderList || function () {};
+    var readOnly = context.readOnly === true;
+    var verdictText = context.verdictText || function (item, verdict) {
+      return verdict || "—";
+    };
     var COLUMNS = context.columns || [
       ["name", "Name"], ["id", "Instance id"], ["kind", "Kind"],
       ["owner", "Owner"], ["action", "Action"], ["reason", "Reason"]
@@ -408,18 +412,25 @@
       var verdict = verdictOf(state.verdicts, item.id);
       var expanded = state.expanded[item.id] === true;
       var detailId = "vc-detail-" + item.id;
-      var approve = el("button", {
-        type: "button", class: "approve", text: "Approve",
-        "aria-pressed": verdict === "approved" ? "true" : "false",
-        "aria-label": "approve " + (item.name || "unnamed item") + ", id " + item.id,
-        on: { click: function () { toggleVerdict(item.id, "approved"); } }
-      });
-      var veto = el("button", {
-        type: "button", class: "veto", text: "Veto",
-        "aria-pressed": verdict === "vetoed" ? "true" : "false",
-        "aria-label": "veto " + (item.name || "unnamed item") + ", id " + item.id,
-        on: { click: function () { toggleVerdict(item.id, "vetoed"); } }
-      });
+      var approve = null, veto = null;
+      var actions;
+      if (readOnly) {
+        actions = el("span", { class: "hint", text: verdictText(item, verdict) });
+      } else {
+        approve = el("button", {
+          type: "button", class: "approve", text: "Approve",
+          "aria-pressed": verdict === "approved" ? "true" : "false",
+          "aria-label": "approve " + (item.name || "unnamed item") + ", id " + item.id,
+          on: { click: function () { toggleVerdict(item.id, "approved"); } }
+        });
+        veto = el("button", {
+          type: "button", class: "veto", text: "Veto",
+          "aria-pressed": verdict === "vetoed" ? "true" : "false",
+          "aria-label": "veto " + (item.name || "unnamed item") + ", id " + item.id,
+          on: { click: function () { toggleVerdict(item.id, "vetoed"); } }
+        });
+        actions = el("div", { class: "row-actions" }, [approve, veto]);
+      }
       var tr = el("tr", {
         class: verdict === "vetoed" ? "vetoed" : "", "data-id": item.id
       }, [
@@ -447,7 +458,7 @@
         })]),
         el("td", { text: item.reason }),
         el("td", { text: item.protectionLevel || "—" }),
-        el("td", null, [el("div", { class: "row-actions" }, [approve, veto])])
+        el("td", null, [actions])
       ]);
       state.rows[item.id] = { tr: tr, approve: approve, veto: veto };
       return expanded ? [tr, detailRow(item, detailId, columns)] : [tr];

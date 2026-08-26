@@ -8,3 +8,4 @@ tests/fixtures/** -text
 # source-level safety checks stay identical regardless of core.autocrlf.
 src/vault_cleaner/ui/*.css text eol=lf
 src/vault_cleaner/ui/*.js text eol=lf
+src/vault_cleaner/ui/*.html text eol=lf

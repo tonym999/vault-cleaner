@@ -6,6 +6,7 @@ import http.client
 import json
 import threading
 from collections.abc import Callable, Mapping
+from importlib.resources import files
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -97,8 +98,9 @@ def assert_security_headers(response) -> None:
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["Content-Security-Policy"] == (
-        "default-src 'self'; object-src 'none'; base-uri 'none'; "
-        "frame-ancestors 'none'"
+        "default-src 'none'; script-src 'self'; style-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'none'; "
+        "frame-ancestors 'none'; form-action 'none'"
     )
     assert not any(
         name.casefold().startswith("access-control-")
@@ -314,11 +316,56 @@ def test_authenticated_root_and_idle_report(tmp_path):
 
     assert root.status_code == 200
     assert root.content_type == "text/html; charset=utf-8"
-    assert b"local review server is ready" in root.data
+    assert b"vault-cleaner review" in root.data
+    assert b"/assets/review.css" in root.data
+    assert b"/assets/review_server.js" in root.data
     assert report.status_code == 200
     assert report.json == IDLE_METADATA
     assert_security_headers(root)
     assert_security_headers(report)
+
+
+def test_default_server_assets_are_packaged_and_allowlisted(tmp_path):
+    client, _session, app = build_client(tmp_path)
+    assert bootstrap(client).status_code == 303
+    expected = {
+        "/": ("text/html; charset=utf-8", "review_server.html"),
+        "/assets/review.css": ("text/css; charset=utf-8", "review.css"),
+        "/assets/review_ui.js": ("text/javascript; charset=utf-8", "review_ui.js"),
+        "/assets/review_server.js": (
+            "text/javascript; charset=utf-8", "review_server.js"
+        ),
+    }
+    assert {
+        rule.rule for rule in app.url_map.iter_rules()
+        if rule.rule.startswith("/assets") or rule.rule == "/"
+    } == set(expected)
+    resources = files("vault_cleaner.ui")
+    for path, (content_type, name) in expected.items():
+        response = client.get(path, base_url=TEST_ORIGIN)
+        assert response.status_code == 200
+        assert response.content_type == content_type
+        assert response.data == resources.joinpath(name).read_bytes()
+        assert_security_headers(response)
+
+    html = client.get("/", base_url=TEST_ORIGIN).get_data(as_text=True)
+    assert "<script>" not in html
+    assert "<style>" not in html
+    assert "<form" not in html.lower()
+
+    served_scripts = b"\n".join(
+        client.get(path, base_url=TEST_ORIGIN).data
+        for path in ("/assets/review_ui.js", "/assets/review_server.js")
+    )
+    for forbidden in (
+        b"readManifest",
+        b"readManifestText",
+        b"readManifestBytes",
+        b"readPastedManifest",
+        b"decodeManifestBytes",
+        b"fractionalNumberError",
+    ):
+        assert forbidden not in served_scripts
 
 
 @pytest.mark.parametrize(
@@ -368,6 +415,9 @@ def test_route_table_is_exact_and_has_no_manifest_endpoint(tmp_path):
     assert rules == {
         "/bootstrap",
         "/",
+        "/assets/review.css",
+        "/assets/review_ui.js",
+        "/assets/review_server.js",
         "/api/report",
         "/api/exports/weapons",
         "/api/exports/armor",
@@ -622,9 +672,10 @@ def test_run_server_prints_a_bootstrap_url_that_works(monkeypatch, tmp_path):
     servers = []
     original_build_server = server_app.build_server
 
-    def capture_server(session, port, *, once=False):
+    def capture_server(session, port, *, assets=None, once=False):
         assert once is False
-        server = original_build_server(session, port, once=once)
+        assert assets is server_app.DEFAULT_ASSETS
+        server = original_build_server(session, port, assets=assets, once=once)
         servers.append(server)
         return server
 
