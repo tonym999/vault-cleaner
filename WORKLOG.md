@@ -29,6 +29,23 @@ surprises the next agent should know about.
   retains the visible disconnected state, and a replacement session produces
   terminal 401 restart guidance without another retry. The manual checklist is
   complete, and the final suite passes all 688 tests.
+- Follow-up review fixes keep one stable ``VaultCleanerServerUI`` object while
+  exposing live ``start`` and ``state`` handles for both interactive and
+  loading-time script execution. Shared response conversion now distinguishes
+  transport failures, HTTP/API errors, invalid JSON, and incompatible success
+  envelopes; malformed successful responses are terminal with restart guidance,
+  while ordinary rejected uploads remain connected. Added focused Node coverage
+  for response/error classes, array/numeric-id/duplicate-id envelopes, upload
+  rejection, terminal 401, and both DOM timings. Upload statuses are now
+  outside the file labels, linked with ``aria-describedby``, and polite live
+  regions for all three export kinds. Documented the read-only view contract,
+  including null approve/veto row handles. Focused UI tests pass (40 tests);
+  full validation passes Ruff, all 701 tests, packaged JavaScript syntax
+  checks, diff whitespace checks, and confirms no tracked files under
+  ``data/``. A shared browser failure-state helper now handles only common
+  401, illegal-state, incompatible/invalid-JSON, and transport transitions;
+  ordinary upload HTTP failures remain per-kind while report HTTP failures
+  retain reconnect guidance.
 
 ## 2026-08-25 — server review UI shell and read-only report (#88)
 

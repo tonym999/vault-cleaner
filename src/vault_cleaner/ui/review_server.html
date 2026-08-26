@@ -18,21 +18,27 @@
       <h2 id="vc-uploads-title">Exports</h2>
       <p class="hint">Choose DIM CSV exports to build a report. Files stay on this machine.</p>
       <div class="controls">
-        <label class="field" for="vc-upload-weapons">
-          <span>Weapons CSV</span>
-          <input id="vc-upload-weapons" type="file" accept=".csv,text/csv">
-          <span id="vc-upload-status-weapons" class="hint">Idle</span>
-        </label>
-        <label class="field" for="vc-upload-armor">
-          <span>Armor CSV</span>
-          <input id="vc-upload-armor" type="file" accept=".csv,text/csv">
-          <span id="vc-upload-status-armor" class="hint">Idle</span>
-        </label>
-        <label class="field" for="vc-upload-ghosts">
-          <span>Ghosts CSV</span>
-          <input id="vc-upload-ghosts" type="file" accept=".csv,text/csv">
-          <span id="vc-upload-status-ghosts" class="hint">Idle</span>
-        </label>
+        <div class="field">
+          <label for="vc-upload-weapons"><span>Weapons CSV</span></label>
+          <input id="vc-upload-weapons" type="file" accept=".csv,text/csv"
+                 aria-describedby="vc-upload-status-weapons">
+          <span id="vc-upload-status-weapons" class="hint" role="status"
+                aria-live="polite">Idle</span>
+        </div>
+        <div class="field">
+          <label for="vc-upload-armor"><span>Armor CSV</span></label>
+          <input id="vc-upload-armor" type="file" accept=".csv,text/csv"
+                 aria-describedby="vc-upload-status-armor">
+          <span id="vc-upload-status-armor" class="hint" role="status"
+                aria-live="polite">Idle</span>
+        </div>
+        <div class="field">
+          <label for="vc-upload-ghosts"><span>Ghosts CSV</span></label>
+          <input id="vc-upload-ghosts" type="file" accept=".csv,text/csv"
+                 aria-describedby="vc-upload-status-ghosts">
+          <span id="vc-upload-status-ghosts" class="hint" role="status"
+                aria-live="polite">Idle</span>
+        </div>
       </div>
     </section>
 

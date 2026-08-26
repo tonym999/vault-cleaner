@@ -323,13 +323,30 @@ select.dispatch("change");
 if (JSON.stringify(queryChanges) !== JSON.stringify([["kind", "weapons"]])) {
   fail("addSelect selection callback is not wired");
 }
+var readOnlyState = {
+  sort: { field: "name", direction: "asc" },
+  expanded: Object.create(null), rows: Object.create(null),
+  verdicts: Object.create(null)
+};
+var readOnlyView = api.createView({
+  document: document, state: readOnlyState, items: [items[0]],
+  columns: api.COLUMNS, readOnly: true,
+  verdictText: function () { return "read-only verdict"; }
+});
+readOnlyView.table([items[0]]);
+if (readOnlyState.rows[items[0].id].approve !== null ||
+    readOnlyState.rows[items[0].id].veto !== null) {
+  fail("read-only rows must expose null verdict button handles");
+}
 process.stdout.write(JSON.stringify({
   hasHeader: header.textContent.indexOf("Verdict") !== -1,
   hasDetails: table.textContent.indexOf("Armor scoring") !== -1,
   hostileIsText: inert.textContent === hostile && !hasTag(table, "img"),
   callbackState: toggles.length === 1 && renders === 2,
   selected: select.value,
-  optionCount: oldStyle.length
+  optionCount: oldStyle.length,
+  readOnlyNullHandles: readOnlyState.rows[items[0].id].approve === null &&
+    readOnlyState.rows[items[0].id].veto === null
 }));
 """
 
@@ -400,6 +417,7 @@ def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
         "callbackState": True,
         "selected": "weapons",
         "optionCount": 2,
+        "readOnlyNullHandles": True,
     }
 
 

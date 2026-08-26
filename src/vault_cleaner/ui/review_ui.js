@@ -249,6 +249,16 @@
       return b.count - a.count || compareText(a.value, b.value);
     });
   }
+  /**
+   * Build the DOM-facing view for a report.
+   *
+   * ``context.readOnly`` is a presentation-only mode. When it is true each
+   * row renders ``context.verdictText(item, verdict)`` as text and does not
+   * create verdict buttons; consequently ``state.rows[item.id].approve`` and
+   * ``.veto`` are both null. When it is false, the row handles are buttons
+   * wired to ``context.toggleVerdict``. ``verdictText`` is used only in
+   * read-only mode and receives the normalized item plus its current verdict.
+   */
   function createView(context) {
     context = context || {};
     var document = context.document || (root && root.document);

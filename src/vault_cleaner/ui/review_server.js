@@ -23,6 +23,9 @@
     armor: "/api/exports/armor",
     ghosts: "/api/exports/ghosts"
   };
+  var liveStart = null;
+  var liveState = null;
+  var booted = false;
 
   function emptyMap() { return Object.create(null); }
   function isObject(value) {
@@ -78,6 +81,71 @@
     return error;
   }
 
+  function validateEnvelope(envelope) {
+    var states = ["idle", "exports-loaded", "reviewing", "finalized", "closed"];
+    ["state", "report_revision", "verdict_revision", "fingerprint", "snapshot",
+      "verdicts", "override_status"].forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(envelope, key)) {
+        throw envelopeError("session envelope is missing " + key);
+      }
+    });
+    if (states.indexOf(envelope.state) === -1) {
+      throw envelopeError("session envelope state is not supported");
+    }
+    if (typeof envelope.report_revision !== "number" ||
+        !isFinite(envelope.report_revision) ||
+        Math.floor(envelope.report_revision) !== envelope.report_revision ||
+        envelope.report_revision < 0) {
+      throw envelopeError("session envelope report revision is invalid");
+    }
+    if (typeof envelope.verdict_revision !== "number" ||
+        !isFinite(envelope.verdict_revision) ||
+        Math.floor(envelope.verdict_revision) !== envelope.verdict_revision ||
+        envelope.verdict_revision < 0) {
+      throw envelopeError("session envelope verdict revision is invalid");
+    }
+    if (envelope.fingerprint !== null &&
+        typeof envelope.fingerprint !== "string") {
+      throw envelopeError("session envelope fingerprint is invalid");
+    }
+    if (envelope.snapshot !== null && envelope.snapshot !== undefined) {
+      if (!isObject(envelope.snapshot) || !Array.isArray(envelope.snapshot.sections)) {
+        throw envelopeError("session envelope snapshot is invalid");
+      }
+      envelope.snapshot.sections.forEach(function (section, index) {
+        if (!isObject(section) || !Array.isArray(section.decisions)) {
+          throw envelopeError("session envelope section " + index + " is invalid");
+        }
+      });
+    } else if (envelope.state !== "idle" && envelope.state !== "closed") {
+      throw envelopeError("session envelope snapshot is required in this state");
+    }
+    if (envelope.verdicts !== undefined) {
+      if (!Array.isArray(envelope.verdicts)) {
+        throw envelopeError("session envelope verdicts must be a list");
+      }
+      var seenVerdicts = emptyMap();
+      envelope.verdicts.forEach(function (entry, index) {
+        if (!isObject(entry) || typeof entry.id !== "string" ||
+            (entry.verdict !== "approved" && entry.verdict !== "vetoed")) {
+          throw envelopeError("session envelope verdict " + index + " is invalid");
+        }
+        if (seenVerdicts[entry.id]) {
+          throw envelopeError("session envelope has duplicate verdict id " + entry.id);
+        }
+        seenVerdicts[entry.id] = true;
+      });
+    }
+    ["retained_verdict_ids", "discarded_verdict_ids"].forEach(function (key) {
+      if (envelope[key] === undefined) return;
+      if (!Array.isArray(envelope[key]) || envelope[key].some(function (id) {
+        return typeof id !== "string";
+      })) {
+        throw envelopeError("session envelope " + key + " is invalid");
+      }
+    });
+  }
+
   function valueStillExists(items, verdicts, field, value) {
     if (!value) return true;
     var query = emptyMap();
@@ -91,12 +159,13 @@
    * handling only; they are deliberately not rendered as vault content.
    */
   function applySessionEnvelope(envelope, state) {
-    if (!isObject(envelope)) throw new TypeError("session envelope must be an object");
+    if (!isObject(envelope)) throw envelopeError("session envelope must be an object");
     if (!state || typeof state !== "object") throw new TypeError("state is required");
     if (envelope.schema_version !== SESSION_SCHEMA_VERSION) {
       throw envelopeError("session schema version " +
         String(envelope.schema_version) + " is not supported by this page");
     }
+    validateEnvelope(envelope);
     var snapshot = envelope.snapshot;
     var nextItems = [];
     if (snapshot !== null && snapshot !== undefined) {
@@ -153,32 +222,112 @@
   }
 
   function responseError(response) {
-    return response.json().then(function (payload) {
+    var status = response && response.status;
+    var fallback = "request failed (HTTP " + String(status || "unknown") + ")";
+    if (!response || typeof response.json !== "function") {
+      return Promise.resolve({
+        kind: "http", status: status, code: "http_error", message: fallback
+      });
+    }
+    var body;
+    try {
+      body = response.json();
+    } catch (cause) {
+      return Promise.resolve({
+        kind: "http", status: status, code: "invalid_error_body", message: fallback
+      });
+    }
+    if (!body || typeof body.then !== "function") {
+      return Promise.resolve({
+        kind: "http", status: status, code: "invalid_error_body", message: fallback
+      });
+    }
+    return body.then(function (payload) {
       var error = payload && payload.error;
       var message = error && typeof error.message === "string"
-        ? error.message : "request failed (HTTP " + response.status + ")";
+        ? error.message : fallback;
       return {
-        status: response.status,
-        code: error && error.code,
-        message: message
+        kind: "http", status: status,
+        code: error && error.code || "http_error", message: message
       };
     }, function () {
       return {
-        status: response.status,
-        code: "network_error",
-        message: "request failed (HTTP " + response.status + ")"
+        kind: "http", status: status, code: "invalid_error_body", message: fallback
       };
     });
   }
 
-  function fetchEnvelope(path, options) {
-    return root.fetch(path, options).then(function (response) {
-      if (response.ok) return response.json();
+  function requestError(failure, cause) {
+    var error = new Error(failure.message);
+    error.clientCode = failure.code;
+    error.failure = failure;
+    if (failure.kind === "http") error.server = failure;
+    if (cause) error.cause = cause;
+    return error;
+  }
+
+  function transportError(cause) {
+    return requestError({
+      kind: "transport", code: "transport_error",
+      message: "Could not reach the review server. Check that it is still running and reconnect."
+    }, cause);
+  }
+
+  function incompatibleResponse(cause) {
+    return requestError({
+      kind: "incompatible", code: "incompatible_response",
+      message: "The review server returned an incompatible response. Restart vault-cleaner serve and open its new bootstrap URL."
+    }, cause);
+  }
+
+  function responsePayload(response) {
+    if (!response || !response.ok) {
       return responseError(response).then(function (error) {
-        var failure = new Error(error.message);
-        failure.server = error;
-        throw failure;
+        throw requestError(error);
       });
+    }
+    if (typeof response.json !== "function") {
+      throw requestError({
+        kind: "json", code: "invalid_json",
+        message: "The review server returned an invalid JSON response."
+      });
+    }
+    var body;
+    try {
+      body = response.json();
+    } catch (cause) {
+      throw requestError({
+        kind: "json", code: "invalid_json",
+        message: "The review server returned an invalid JSON response."
+      }, cause);
+    }
+    if (!body || typeof body.then !== "function") {
+      throw requestError({
+        kind: "json", code: "invalid_json",
+        message: "The review server returned an invalid JSON response."
+      });
+    }
+    return body.then(function (payload) {
+      return payload;
+    }, function (cause) {
+      throw requestError({
+        kind: "json", code: "invalid_json",
+        message: "The review server returned an invalid JSON response."
+      }, cause);
+    });
+  }
+
+  function fetchEnvelope(path, options) {
+    var request;
+    try {
+      request = root.fetch(path, options);
+    } catch (cause) {
+      return Promise.reject(transportError(cause));
+    }
+    return request.then(function (response) {
+      return responsePayload(response);
+    }, function (cause) {
+      throw transportError(cause);
     });
   }
 
@@ -193,7 +342,8 @@
   }
 
   function boot(document) {
-    if (!ui || !root.fetch) return;
+    if (booted || !ui || !root.fetch) return;
+    booted = true;
     var status = document.getElementById("vc-status");
     var reportPanel = document.getElementById("vc-report");
     var filtersPanel = document.getElementById("vc-filters");
@@ -219,32 +369,59 @@
       setUploadsDisabled(true);
       if (!terminal) showReconnect(status, requestReport);
     }
+    function handleCommonFailure(error) {
+      var server = error.server || {};
+      if (server.status === 401) {
+        fail("The authenticated session is unavailable. Restart vault-cleaner serve and open its new bootstrap URL.", true);
+        return true;
+      }
+      if (server.code === "illegal_state") {
+        fail(server.message, true);
+        return true;
+      }
+      if (error.clientCode === "incompatible_response" ||
+          error.clientCode === "invalid_json") {
+        fail(error.clientCode === "invalid_json"
+          ? "The review server returned an incompatible response. Restart vault-cleaner serve and open its new bootstrap URL."
+          : error.message, true);
+        return true;
+      }
+      if (error.clientCode === "transport_error") {
+        fail(error.message, false);
+        return true;
+      }
+      return false;
+    }
     function adopt(envelope) {
-      applySessionEnvelope(envelope, state);
-      setUploadsDisabled(state.terminal);
-      var items = state.items;
-      view = ui.createView({
-        state: state,
-        items: items,
-        columns: ui.COLUMNS,
-        readOnly: true,
-        verdictText: function (item) { return sessionVerdictText(state, item); },
-        toggleVerdict: function () {},
-        renderList: renderList
-      });
-      renderControls();
-      renderList();
-      renderSummary();
-      reportPanel.hidden = envelope.state === "idle";
-      filtersPanel.hidden = envelope.state === "idle";
-      proposalsPanel.hidden = envelope.state === "idle";
-      document.getElementById("vc-fingerprint").textContent = envelope.fingerprint || "";
-      if (envelope.state === "closed") {
-        announce("This review session has ended. Start a new vault-cleaner serve session.", "error");
-      } else if (envelope.state === "idle") {
-        announce("Connected. Upload one or more DIM CSV exports to begin.", "ok");
-      } else {
-        announce("Connected — report loaded in read-only mode.", "ok");
+      try {
+        applySessionEnvelope(envelope, state);
+        setUploadsDisabled(state.terminal);
+        var items = state.items;
+        view = ui.createView({
+          state: state,
+          items: items,
+          columns: ui.COLUMNS,
+          readOnly: true,
+          verdictText: function (item) { return sessionVerdictText(state, item); },
+          toggleVerdict: function () {},
+          renderList: renderList
+        });
+        renderControls();
+        renderList();
+        renderSummary();
+        reportPanel.hidden = envelope.state === "idle";
+        filtersPanel.hidden = envelope.state === "idle";
+        proposalsPanel.hidden = envelope.state === "idle";
+        document.getElementById("vc-fingerprint").textContent = envelope.fingerprint || "";
+        if (envelope.state === "closed") {
+          announce("This review session has ended. Start a new vault-cleaner serve session.", "error");
+        } else if (envelope.state === "idle") {
+          announce("Connected. Upload one or more DIM CSV exports to begin.", "ok");
+        } else {
+          announce("Connected — report loaded in read-only mode.", "ok");
+        }
+      } catch (error) {
+        throw incompatibleResponse(error);
       }
     }
     function renderSummary() {
@@ -378,32 +555,17 @@
       markUpload(kind, "uploading", "");
       // Do not set a transport length header: browsers own it.  The
       // explicit media type is the server's accepted CSV upload contract.
-      root.fetch(ENDPOINTS[kind], {
+      fetchEnvelope(ENDPOINTS[kind], {
         method: "POST",
         headers: { "Content-Type": "text/csv", "Accept": "application/json" },
         body: file
-      }).then(function (response) {
-        if (response.ok) return response.json();
-        return responseError(response).then(function (error) {
-          var failure = new Error(error.message);
-          failure.server = error;
-          throw failure;
-        });
       }).then(function (envelope) {
         adopt(envelope);
         markUpload(kind, "accepted", "");
       }).catch(function (error) {
         var server = error.server || {};
         markUpload(kind, "rejected", server.message || error.message || "Upload failed");
-        if (server.status === 401) {
-          fail("The authenticated session is unavailable. Restart vault-cleaner serve and open its new bootstrap URL.", true);
-        } else if (server.code === "illegal_state") {
-          fail(server.message, true);
-        } else if (error.clientCode === "unsupported_envelope") {
-          fail(error.message, true);
-        } else if (!server.status) {
-          fail("Could not reach the review server. Check that it is still running and reconnect.", false);
-        }
+        if (handleCommonFailure(error)) return;
       });
     }
     function requestReport() {
@@ -413,14 +575,12 @@
         .then(adopt)
         .catch(function (error) {
           var server = error.server || {};
-          if (server.status === 401) {
-            fail("The authenticated session is unavailable. Restart vault-cleaner serve and open its new bootstrap URL.", true);
-          } else if (server.code === "illegal_state") {
-            fail(server.message, true);
-          } else if (error.clientCode === "unsupported_envelope") {
-            fail(error.message, true);
-          } else {
-            fail("Could not reach the review server. Check that it is still running and reconnect.", false);
+          var handled = handleCommonFailure(error);
+          if (!handled && server.kind === "http") {
+            fail("The review server returned an HTTP error (" +
+              String(server.status || "unknown") + "). Try reconnecting.", false);
+          } else if (!handled) {
+            fail("The review server request failed. Try reconnecting.", false);
           }
         });
     }
@@ -431,12 +591,8 @@
         if (file && !state.terminal) upload(kind, file);
       });
     });
-    root.VaultCleanerServerUI = {
-      applySessionEnvelope: applySessionEnvelope,
-      createState: createState,
-      start: requestReport,
-      state: state
-    };
+    liveState = state;
+    liveStart = requestReport;
     requestReport();
   }
 
@@ -447,8 +603,17 @@
     createState: createState,
     persistedVetoIds: persistedVetoIds,
     copyVerdicts: copyVerdicts,
-    showReconnect: showReconnect
+    showReconnect: showReconnect,
+    responseError: responseError,
+    fetchEnvelope: fetchEnvelope,
+    start: function () {
+      if (liveStart) return liveStart.apply(null, arguments);
+    }
   };
+  Object.defineProperty(api, "state", {
+    enumerable: true,
+    get: function () { return liveState; }
+  });
   if (root && root.document) {
     if (root.document.readyState === "loading") {
       root.document.addEventListener("DOMContentLoaded", function () { boot(root.document); });
