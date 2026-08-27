@@ -22,6 +22,16 @@ surprises the next agent should know about.
   preserve terminal authentication/session/incompatibility outcomes separately
   from recoverable HTTP/transport failures; a successful Download-again
   response restores the connected finalized lifecycle controls.
+- Acknowledgement envelopes that invalidate a query now rebuild the filter
+  controls along with the rows. Session actions live outside the report panel,
+  so Shutdown and the idle upload hint remain reachable after boot and Reset;
+  the action group is explicitly labelled for assistive technology.
+- The static artifact now opts into the shared non-read-only view and shared
+  row painter, keeping Unset aria state and verdict presentation synchronized.
+  Finalisation surfaces the protocol's approved-but-still-vetoed count with
+  singular/plural wording. A small ``Vault-Cleaner-Serve-Once`` response
+  signal lets the page represent intentional post-download shutdown without
+  a misleading reconnect prompt; persistent servers retain report recovery.
 
 ## 2026-08-27 — server-acknowledged review mutations and finalisation (#89)
 

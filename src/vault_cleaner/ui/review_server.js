@@ -84,7 +84,6 @@
       bulkControls: [],
       mutationInFlight: null,
       finalizeHeaders: null,
-      downloadAvailable: false,
       connected: false,
       terminal: false
     };
@@ -284,6 +283,18 @@
     return leftKeys.every(function (id) { return right[id] === true; });
   }
 
+  function responseHeader(headers, name) {
+    if (!headers) return null;
+    if (typeof headers.get === "function") return headers.get(name);
+    if (Object.prototype.hasOwnProperty.call(headers, name)) return headers[name];
+    var lower = name.toLowerCase();
+    return Object.prototype.hasOwnProperty.call(headers, lower) ? headers[lower] : null;
+  }
+
+  function responseIsServeOnce(response) {
+    return responseHeader(response && response.headers, "Vault-Cleaner-Serve-Once") === "true";
+  }
+
   function responseError(response) {
     var status = response && response.status;
     var fallback = "request failed (HTTP " + String(status || "unknown") + ")";
@@ -361,12 +372,14 @@
     if (typeof response.arrayBuffer !== "function") {
       var missing = requestError({ kind: "bytes", code: "invalid_bytes", message: INCOMPATIBLE_MESSAGE });
       missing.committedResponse = true;
+      missing.serveOnce = responseIsServeOnce(response);
       return Promise.reject(missing);
     }
     var value;
     try { value = response.arrayBuffer(); } catch (cause) {
       var thrown = requestError({ kind: "bytes", code: "invalid_bytes", message: INCOMPATIBLE_MESSAGE }, cause);
       thrown.committedResponse = true;
+      thrown.serveOnce = responseIsServeOnce(response);
       return Promise.reject(thrown);
     }
     return Promise.resolve(value).then(function (bytes) {
@@ -374,6 +387,7 @@
     }, function (cause) {
       var rejected = requestError({ kind: "bytes", code: "invalid_bytes", message: INCOMPATIBLE_MESSAGE }, cause);
       rejected.committedResponse = true;
+      rejected.serveOnce = responseIsServeOnce(response);
       throw rejected;
     });
   }
@@ -561,14 +575,20 @@
       var rebuilt = !view || beforeRevision !== state.report_revision || beforeFingerprint !== state.fingerprint;
       var membershipChanged = beforeVisible !== null &&
         !sameIds(beforeVisible, visibleIds(state.items, state.query, state.verdicts));
+      var controlsInvalidated = state.viewInvalidated.some(function (entry) {
+        return entry.indexOf("filter ") === 0 || entry.indexOf("sort field ") === 0;
+      });
       if (rebuilt) {
         buildView();
         renderControls();
         renderList();
-      } else if (membershipChanged) {
-        renderList();
       } else {
-        repaintRows();
+        // applySessionEnvelope may clear an invalid filter while preserving
+        // the report revision. Rebuild controls as well as the list so the
+        // visible select cannot continue to claim a stale value.
+        if (controlsInvalidated) renderControls();
+        if (membershipChanged || controlsInvalidated) renderList();
+        else repaintRows();
       }
       refreshMutationControls();
       renderSummary();
@@ -705,7 +725,14 @@
         // authoritative session.
         var downloadDisabled = !!state.mutationInFlight || state.terminal;
         var lifecycleDisabled = !!state.mutationInFlight || !state.connected || state.terminal;
-        host.appendChild(view.el("p", { class: "ok", text: "Finalised — this review is frozen. The reviewed CSV has been produced." }));
+        var suppression = state.finalizeHeaders && state.finalizeHeaders.approvedStillVetoed;
+        var suppressionText = "";
+        if (typeof suppression === "string" && /^(?:0|[1-9][0-9]*)$/.test(suppression)) {
+          suppressionText = suppression === "1"
+            ? " 1 approved item remains suppressed by an active persisted veto."
+            : " " + suppression + " approved items remain suppressed by active persisted vetoes.";
+        }
+        host.appendChild(view.el("p", { class: "ok", text: "Finalised — this review is frozen. The reviewed CSV has been produced." + suppressionText }));
         host.appendChild(view.el("button", { id: "vc-download-again", type: "button", text: "Download again", disabled: downloadDisabled, on: { click: downloadAgain } }));
         host.appendChild(view.el("button", { id: "vc-reset", type: "button", text: "Reset / Start new review", disabled: lifecycleDisabled, on: { click: resetSession } }));
         host.appendChild(view.el("button", { id: "vc-shutdown", type: "button", text: "Shutdown", disabled: lifecycleDisabled, on: { click: shutdownSession } }));
@@ -816,20 +843,21 @@
         if (objectUrl !== null) root.URL.revokeObjectURL(objectUrl);
       }
     }
-    function header(headers, name) {
-      if (!headers) return null;
-      if (typeof headers.get === "function") return headers.get(name);
-      if (Object.prototype.hasOwnProperty.call(headers, name)) return headers[name];
-      var lower = name.toLowerCase();
-      return Object.prototype.hasOwnProperty.call(headers, lower) ? headers[lower] : null;
+    function header(headers, name) { return responseHeader(headers, name); }
+    function finishOnceSession(message, kind) {
+      state.server_state = "finalized";
+      state.connected = false;
+      state.terminal = true;
+      refreshMutationControls();
+      announce(message, kind || "ok");
     }
     function afterCsvDownload(result, source) {
       state.finalizeHeaders = {
         reportRevision: header(result.response.headers, "Vault-Cleaner-Report-Revision"),
         verdictRevision: header(result.response.headers, "Vault-Cleaner-Verdict-Revision"),
-        approvedStillVetoed: header(result.response.headers, "Vault-Cleaner-Approved-Still-Vetoed")
+        approvedStillVetoed: header(result.response.headers, "Vault-Cleaner-Approved-Still-Vetoed"),
+        serveOnce: responseIsServeOnce(result.response)
       };
-      state.downloadAvailable = true;
       // A successful CSV response is itself proof that the server committed
       // finalisation (and a finalized.csv response is likewise terminal for
       // the report). Freeze mutation controls while the envelope refresh runs.
@@ -847,6 +875,13 @@
         announce(downloadError
           ? "Finalisation succeeded, but download handling failed. Use Download again."
           : "Downloaded dim-import.csv again.", downloadError ? "error" : "ok");
+        return Promise.resolve(!downloadError);
+      }
+      if (state.finalizeHeaders.serveOnce) {
+        finishOnceSession(downloadError
+          ? "Finalisation succeeded, but the CSV could not be handled before the --once server stopped. Start a new review session."
+          : "Finalised and downloaded dim-import.csv. The --once review server has stopped; start a new review session for another review.",
+        downloadError ? "error" : "ok");
         return Promise.resolve(!downloadError);
       }
       return fetchEnvelope("/api/report", { headers: { "Accept": "application/json" } }).then(function (envelope) {
@@ -868,7 +903,6 @@
     }
     function recoverCommittedFinalize(reason) {
       state.server_state = "finalized";
-      state.downloadAvailable = true;
       return fetchEnvelope("/api/report", { headers: { "Accept": "application/json" } }).then(function (envelope) {
         adopt(envelope);
         setMutationGate(null);
@@ -897,7 +931,12 @@
         .then(function () { setMutationGate(null); })
         .catch(function (error) {
           if (error.committedResponse) {
-            recoverCommittedFinalize("the CSV response could not be read");
+            if (error.serveOnce) {
+              finishOnceSession("Finalisation succeeded, but the CSV response could not be read before the --once server stopped. Start a new review session.", "error");
+              setMutationGate(null);
+            } else {
+              recoverCommittedFinalize("the CSV response could not be read");
+            }
             return;
           }
           setMutationGate(null);
@@ -917,7 +956,6 @@
         .catch(function (error) {
           if (error.committedResponse) {
             state.server_state = "finalized";
-            state.downloadAvailable = true;
             state.connected = true;
             state.terminal = false;
             setMutationGate(null);

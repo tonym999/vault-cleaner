@@ -13,6 +13,7 @@ import json
 import shutil
 import subprocess
 from dataclasses import dataclass
+from importlib.resources import as_file, files
 from pathlib import Path
 
 import pytest
@@ -240,6 +241,165 @@ def plain(tmp_path_factory):
 @pytest.fixture(scope="module")
 def hostile(tmp_path_factory):
     return drive(tmp_path_factory.mktemp("hostile"), hostile_report())
+
+
+STATIC_BEHAVIOR_HARNESS = r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+var snapshot = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._textContent = ""; this.disabled = false;
+  this.value = ""; this.files = []; this.className = "";
+}
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () {
+    return this._textContent + this.children.map(function (child) {
+      return child.textContent;
+    }).join("");
+  },
+  set: function (value) { this._textContent = String(value); this.children = []; }
+});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || { target: this, preventDefault: function () {} };
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    node.children.forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child;
+      else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+Object.defineProperty(Node.prototype, "firstChild", { get: function () {
+  return this.children[0] || null;
+} });
+Node.prototype.click = function () {};
+
+function Document() {
+  this.readyState = "complete"; this.nodes = Object.create(null);
+  this.listeners = Object.create(null); this.body = new Node("body", this);
+  ["vc-snapshot", "vc-status", "vc-fingerprint", "vc-handoff", "vc-export-json",
+   "vc-controls", "vc-summary", "vc-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+
+var document = new Document();
+document.nodes["vc-snapshot"].textContent = JSON.stringify(snapshot);
+var storage = { values: Object.create(null), getItem: function (key) {
+  return this.values[key] || null;
+}, setItem: function (key, value) { this.values[key] = String(value); } };
+var context = { document: document, VaultCleanerReviewUI: shared, window: null,
+  localStorage: storage, Blob: function () {}, URL: { createObjectURL: function () {
+    return "blob:review";
+  }, revokeObjectURL: function () {} }, setTimeout: setTimeout };
+context.window = context; context.globalThis = context;
+vm.runInNewContext(source, context);
+
+function find(node, predicate) {
+  if (predicate(node)) return node;
+  for (var i = 0; i < node.children.length; i++) {
+    var found = find(node.children[i], predicate);
+    if (found) return found;
+  }
+  return null;
+}
+function byClass(node, className) {
+  return find(node, function (candidate) {
+    return (candidate.className || "").split(/\\s+/).indexOf(className) !== -1;
+  });
+}
+var first = context.VaultCleanerReviewUI.itemsFromSnapshot(snapshot)[0];
+var row = find(document.nodes["vc-list"], function (candidate) {
+  return candidate.tagName === "TR" && candidate.getAttribute("data-id") === first.id;
+});
+var approve = byClass(row, "approve"), veto = byClass(row, "veto");
+var clear = byClass(row, "clear-verdict");
+var presentation = byClass(row, "verdict-presentation");
+var originalRow = row;
+approve.dispatch("click");
+var approved = { same: find(document.nodes["vc-list"], function (candidate) {
+  return candidate.tagName === "TR" && candidate.getAttribute("data-id") === first.id;
+}) === originalRow, approve: approve.getAttribute("aria-pressed"),
+  veto: veto.getAttribute("aria-pressed"), clear: clear.getAttribute("aria-pressed"),
+  presentation: presentation.textContent };
+veto.dispatch("click");
+var vetoed = { approve: approve.getAttribute("aria-pressed"),
+  veto: veto.getAttribute("aria-pressed"), clear: clear.getAttribute("aria-pressed"),
+  presentation: presentation.textContent };
+clear.dispatch("click");
+var unset = { approve: approve.getAttribute("aria-pressed"),
+  veto: veto.getAttribute("aria-pressed"), clear: clear.getAttribute("aria-pressed"),
+  presentation: presentation.textContent };
+process.stdout.write(JSON.stringify({ approved: approved, vetoed: vetoed, unset: unset }));
+'''
+
+
+def test_static_adapter_repaints_shared_verdict_controls_and_presentation(tmp_path):
+    run = build_report()
+    snapshot = tmp_path / "snapshot.json"
+    harness = tmp_path / "static-behavior.js"
+    snapshot.write_text(snapshot_json(run), encoding="utf-8")
+    harness.write_text(STATIC_BEHAVIOR_HARNESS, encoding="utf-8")
+    static_resource = files("vault_cleaner.ui").joinpath("review_static.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(static_resource) as adapter, as_file(shared_resource) as shared:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(shared), str(snapshot)],
+            capture_output=True, encoding="utf-8", check=False, timeout=NODE_TIMEOUT,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "approved": {
+            "same": True, "approve": "true", "veto": "false", "clear": "false",
+            "presentation": "approved",
+        },
+        "vetoed": {
+            "approve": "false", "veto": "true", "clear": "false",
+            "presentation": "vetoed",
+        },
+        "unset": {
+            "approve": "false", "veto": "false", "clear": "true",
+            "presentation": "Unreviewed",
+        },
+    }
 
 
 # -------------------------------------------------------- manifest handoff

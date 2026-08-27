@@ -232,6 +232,7 @@ def test_once_finalize_shuts_down_only_after_successful_response_close(tmp_path)
         uploaded = upload(client)
         response = finalize(client, uploaded.json)
         assert response.status_code == 200
+        assert response.headers["Vault-Cleaner-Serve-Once"] == "true"
         assert callbacks == []
         assert session.state == "finalized"
         response.close()

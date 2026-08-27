@@ -292,6 +292,13 @@ def _finalized_csv_response(session: Session) -> Response:
     return _csv_response(session)
 
 
+def _mark_once_response(response: Response, once: bool) -> Response:
+    """Tell the browser that this CSV response deliberately stops the server."""
+    if once:
+        response.headers["Vault-Cleaner-Serve-Once"] = "true"
+    return response
+
+
 def create_app(
     session: Session,
     *,
@@ -764,7 +771,7 @@ def create_app(
         )
 
         if session.state == "finalized":
-            response = _finalized_csv_response(session)
+            response = _mark_once_response(_finalized_csv_response(session), once)
             if once:
                 response.call_on_close(session.request_shutdown)
             return response
@@ -812,7 +819,7 @@ def create_app(
         session.finalized_csv_bytes = csv_bytes
         session.approved_still_vetoed_count = conflict_count
         session.state = "finalized"
-        response = _finalized_csv_response(session)
+        response = _mark_once_response(_finalized_csv_response(session), once)
         if once:
             response.call_on_close(session.request_shutdown)
         return response
