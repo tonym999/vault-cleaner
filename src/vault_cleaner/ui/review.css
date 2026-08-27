@@ -98,8 +98,11 @@ button {
   text-align: left;
 }
 button:hover { border-color: var(--accent); }
+button:disabled { cursor: not-allowed; opacity: .55; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 .row-actions { display: flex; gap: .3rem; }
+.verdict-presentation { align-self: center; color: var(--muted); font-size: .8rem; }
+.clear-verdict[aria-pressed="true"] { border-color: var(--accent); }
 button.veto[aria-pressed="true"] {
   background: var(--veto-bg); border-color: var(--veto); color: var(--veto);
   font-weight: 600;

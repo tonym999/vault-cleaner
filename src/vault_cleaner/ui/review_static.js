@@ -338,8 +338,12 @@
     };
 
     var view = ui.createView({
-      state: state, items: items, columns: ui.COLUMNS,
-      toggleVerdict: toggleVerdict, renderList: renderList
+      document: root.document, state: state, items: items, columns: ui.COLUMNS,
+      readOnly: false,
+      toggleVerdict: toggleVerdict,
+      clearVerdict: function (id) { setVerdict(id, ""); },
+      verdictText: function (item, verdict) { return verdict || "Unreviewed"; },
+      renderList: renderList
     });
     var el = view.el, clear = view.clear, byId = view.byId;
 
@@ -392,22 +396,13 @@
       }
     }
 
-    function paintRow(id) {
-      var row = state.rows[id];
-      if (!row) return;
-      var verdict = verdictOf(state.verdicts, id);
-      row.tr.className = verdict === "vetoed" ? "vetoed" : "";
-      row.approve.setAttribute("aria-pressed", verdict === "approved" ? "true" : "false");
-      row.veto.setAttribute("aria-pressed", verdict === "vetoed" ? "true" : "false");
-    }
-
     function setVerdict(id, verdict) {
       if (verdict) state.verdicts[id] = verdict;
       else delete state.verdicts[id];
       saveAutosave();
       // Only a verdict filter can change which rows belong on screen.
       if (state.query.verdict) renderList();
-      else paintRow(id);
+      else view.paintRow(id);
       renderSummary();
     }
 

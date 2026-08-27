@@ -42,11 +42,15 @@
       </div>
     </section>
 
+    <div id="vc-actions" class="controls" role="group" aria-label="Review session actions"></div>
+
     <section class="panel" id="vc-report" aria-labelledby="vc-report-title" hidden>
       <h2 id="vc-report-title">Report</h2>
       <p class="sub">Report fingerprint <code id="vc-fingerprint"></code></p>
       <div class="tiles" id="vc-summary"></div>
       <div id="vc-overrides"></div>
+      <p id="vc-reconciliation" class="hint" role="status" aria-live="polite" hidden></p>
+      <p id="vc-session-note" class="hint">Decisions are held in this server session, but no reviewed CSV has been produced and this session's new vetoes have not been persisted.</p>
     </section>
 
     <section class="panel" id="vc-filters" aria-labelledby="vc-filters-title" hidden>
@@ -56,7 +60,7 @@
 
     <section class="panel" id="vc-proposals" aria-labelledby="vc-proposals-title" hidden>
       <h2 id="vc-proposals-title">Proposals</h2>
-      <p class="hint">This view is read-only. Apply or change verdicts with the server's API.</p>
+      <p class="hint">Verdicts are held by the server and change only after an acknowledgement.</p>
       <div id="vc-list"></div>
     </section>
   </main>
