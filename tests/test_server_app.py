@@ -594,6 +594,16 @@ def test_session_metadata_is_a_deep_copy_of_mutable_state(tmp_path):
     assert session.override_status == [{"id": "one", "status": "active"}]
 
 
+def test_session_metadata_rejects_unknown_state(tmp_path):
+    session = Session(overrides_path=str(tmp_path / "overrides.json"))
+    session.state = "future-state"
+
+    with pytest.raises(
+        RuntimeError, match="session state is outside the schema-v1 vocabulary"
+    ):
+        session_metadata(session)
+
+
 def test_sanitized_500_logs_locally_but_leaks_no_path(caplog, tmp_path):
     private_path = "/private/session/staging/export.csv"
 

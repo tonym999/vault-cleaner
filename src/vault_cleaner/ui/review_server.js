@@ -17,6 +17,9 @@
   // an instruction to write a file; it only turns one session envelope into
   // read-only presentation state.
   var SESSION_SCHEMA_VERSION = 1;
+  var SESSION_STATES = ["idle", "exports-loaded", "reviewing", "finalized", "closed"];
+  var OVERRIDE_STATUS_VALUES = ["active", "stale", "orphaned", "unchecked"];
+  var INCOMPATIBLE_MESSAGE = "The review server returned an incompatible response. Restart vault-cleaner serve and open its new bootstrap URL.";
   var KINDS = ["weapons", "armor", "ghosts"];
   var ENDPOINTS = {
     weapons: "/api/exports/weapons",
@@ -81,15 +84,38 @@
     return error;
   }
 
+  function sanitizedOverrideStatus(entries) {
+    if (!Array.isArray(entries)) {
+      throw envelopeError("session envelope override_status must be a list");
+    }
+    var seen = emptyMap();
+    return entries.map(function (entry, index) {
+      if (!isObject(entry) ||
+          Object.keys(entry).length !== 3 ||
+          !Object.prototype.hasOwnProperty.call(entry, "id") ||
+          !Object.prototype.hasOwnProperty.call(entry, "status") ||
+          !Object.prototype.hasOwnProperty.call(entry, "detail") ||
+          typeof entry.id !== "string" ||
+          OVERRIDE_STATUS_VALUES.indexOf(entry.status) === -1 ||
+          typeof entry.detail !== "string") {
+        throw envelopeError("session envelope override status " + index + " is invalid");
+      }
+      if (seen[entry.id]) {
+        throw envelopeError("session envelope has duplicate override status id " + entry.id);
+      }
+      seen[entry.id] = true;
+      return { id: entry.id, status: entry.status, detail: entry.detail };
+    });
+  }
+
   function validateEnvelope(envelope) {
-    var states = ["idle", "exports-loaded", "reviewing", "finalized", "closed"];
     ["state", "report_revision", "verdict_revision", "fingerprint", "snapshot",
       "verdicts", "override_status"].forEach(function (key) {
       if (!Object.prototype.hasOwnProperty.call(envelope, key)) {
         throw envelopeError("session envelope is missing " + key);
       }
     });
-    if (states.indexOf(envelope.state) === -1) {
+    if (SESSION_STATES.indexOf(envelope.state) === -1) {
       throw envelopeError("session envelope state is not supported");
     }
     if (typeof envelope.report_revision !== "number" ||
@@ -120,6 +146,7 @@
     } else if (envelope.state !== "idle" && envelope.state !== "closed") {
       throw envelopeError("session envelope snapshot is required in this state");
     }
+    var overrideStatus = sanitizedOverrideStatus(envelope.override_status);
     if (envelope.verdicts !== undefined) {
       if (!Array.isArray(envelope.verdicts)) {
         throw envelopeError("session envelope verdicts must be a list");
@@ -144,6 +171,7 @@
         throw envelopeError("session envelope " + key + " is invalid");
       }
     });
+    return overrideStatus;
   }
 
   function valueStillExists(items, verdicts, field, value) {
@@ -165,7 +193,7 @@
       throw envelopeError("session schema version " +
         String(envelope.schema_version) + " is not supported by this page");
     }
-    validateEnvelope(envelope);
+    var nextOverrideStatus = validateEnvelope(envelope);
     var snapshot = envelope.snapshot;
     var nextItems = [];
     if (snapshot !== null && snapshot !== undefined) {
@@ -198,9 +226,8 @@
     state.snapshot = snapshot;
     state.items = nextItems;
     state.verdicts = nextVerdicts;
-    state.override_status = Array.isArray(envelope.override_status)
-      ? envelope.override_status.slice() : [];
-    state.persistedVetoIds = persistedVetoIds(envelope.override_status);
+    state.override_status = nextOverrideStatus;
+    state.persistedVetoIds = persistedVetoIds(nextOverrideStatus);
     state.rows = emptyMap();
     state.reconciliation = {
       retained: Array.isArray(envelope.retained_verdict_ids)
@@ -276,7 +303,7 @@
   function incompatibleResponse(cause) {
     return requestError({
       kind: "incompatible", code: "incompatible_response",
-      message: "The review server returned an incompatible response. Restart vault-cleaner serve and open its new bootstrap URL."
+      message: INCOMPATIBLE_MESSAGE
     }, cause);
   }
 
@@ -289,7 +316,7 @@
     if (typeof response.json !== "function") {
       throw requestError({
         kind: "json", code: "invalid_json",
-        message: "The review server returned an invalid JSON response."
+        message: INCOMPATIBLE_MESSAGE
       });
     }
     var body;
@@ -298,13 +325,13 @@
     } catch (cause) {
       throw requestError({
         kind: "json", code: "invalid_json",
-        message: "The review server returned an invalid JSON response."
+        message: INCOMPATIBLE_MESSAGE
       }, cause);
     }
     if (!body || typeof body.then !== "function") {
       throw requestError({
         kind: "json", code: "invalid_json",
-        message: "The review server returned an invalid JSON response."
+        message: INCOMPATIBLE_MESSAGE
       });
     }
     return body.then(function (payload) {
@@ -312,7 +339,7 @@
     }, function (cause) {
       throw requestError({
         kind: "json", code: "invalid_json",
-        message: "The review server returned an invalid JSON response."
+        message: INCOMPATIBLE_MESSAGE
       }, cause);
     });
   }
@@ -370,23 +397,21 @@
       if (!terminal) showReconnect(status, requestReport);
     }
     function handleCommonFailure(error) {
-      var server = error.server || {};
-      if (server.status === 401) {
+      var failure = error.failure || {};
+      var server = failure.kind === "http" ? error.server || {} : {};
+      if (failure.kind === "http" && server.status === 401) {
         fail("The authenticated session is unavailable. Restart vault-cleaner serve and open its new bootstrap URL.", true);
         return true;
       }
-      if (server.code === "illegal_state") {
+      if (failure.kind === "http" && server.code === "illegal_state") {
         fail(server.message, true);
         return true;
       }
-      if (error.clientCode === "incompatible_response" ||
-          error.clientCode === "invalid_json") {
-        fail(error.clientCode === "invalid_json"
-          ? "The review server returned an incompatible response. Restart vault-cleaner serve and open its new bootstrap URL."
-          : error.message, true);
+      if (failure.kind === "incompatible" || failure.kind === "json") {
+        fail(INCOMPATIBLE_MESSAGE, true);
         return true;
       }
-      if (error.clientCode === "transport_error") {
+      if (failure.kind === "transport") {
         fail(error.message, false);
         return true;
       }
@@ -445,8 +470,7 @@
         "without a current-session verdict"));
       var overrideHost = document.getElementById("vc-overrides");
       view.clear(overrideHost);
-      var statuses = state.envelope && Array.isArray(state.envelope.override_status)
-        ? state.envelope.override_status : [];
+      var statuses = state.override_status;
       if (statuses.length) {
         overrideHost.appendChild(view.el("p", {
           class: "hint", text: statuses.length +
@@ -574,9 +598,10 @@
       fetchEnvelope("/api/report", { headers: { "Accept": "application/json" } })
         .then(adopt)
         .catch(function (error) {
+          var failure = error.failure || {};
           var server = error.server || {};
           var handled = handleCommonFailure(error);
-          if (!handled && server.kind === "http") {
+          if (!handled && failure.kind === "http") {
             fail("The review server returned an HTTP error (" +
               String(server.status || "unknown") + "). Try reconnecting.", false);
           } else if (!handled) {
@@ -597,6 +622,7 @@
   }
 
   var api = {
+    SESSION_STATES: SESSION_STATES.slice(),
     KINDS: KINDS,
     ENDPOINTS: ENDPOINTS,
     applySessionEnvelope: applySessionEnvelope,

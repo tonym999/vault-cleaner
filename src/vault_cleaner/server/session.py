@@ -29,6 +29,9 @@ BOOTSTRAP_TTL_SECONDS = 5 * 60
 SESSION_EXTENSION_KEY = "vault_cleaner_session"
 REPORT_REVISION_HEADER = "Vault-Cleaner-Report-Revision"
 VERDICT_REVISION_HEADER = "Vault-Cleaner-Verdict-Revision"
+SESSION_STATES = frozenset(
+    {"idle", "exports-loaded", "reviewing", "finalized", "closed"}
+)
 BootstrapResult = Literal["ok", "invalid", "expired"]
 
 
@@ -470,6 +473,8 @@ def _override_status_payload(status: OverrideStatus) -> list[dict[str, str]]:
 def session_metadata(session: Session) -> dict[str, Any]:
     """Build the sole schema-version-1 session response envelope."""
     with session.mutation_lock:
+        if session.state not in SESSION_STATES:
+            raise RuntimeError("session state is outside the schema-v1 vocabulary")
         run = session.report
         if run is None:
             snapshot = deepcopy(session.snapshot)

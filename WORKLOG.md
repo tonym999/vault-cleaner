@@ -39,13 +39,18 @@ surprises the next agent should know about.
   rejection, terminal 401, and both DOM timings. Upload statuses are now
   outside the file labels, linked with ``aria-describedby``, and polite live
   regions for all three export kinds. Documented the read-only view contract,
-  including null approve/veto row handles. Focused UI tests pass (40 tests);
-  full validation passes Ruff, all 701 tests, packaged JavaScript syntax
-  checks, diff whitespace checks, and confirms no tracked files under
-  ``data/``. A shared browser failure-state helper now handles only common
-  401, illegal-state, incompatible/invalid-JSON, and transport transitions;
-  ordinary upload HTTP failures remain per-kind while report HTTP failures
-  retain reconnect guidance.
+  including null approve/veto row handles. A shared browser failure-state helper
+  now handles only common 401, illegal-state, incompatible/invalid-JSON, and
+  transport transitions based on client failure kinds; ordinary upload HTTP
+  failures remain per-kind while report HTTP failures retain reconnect guidance.
+  Session envelope override statuses are validated and copied before state
+  adoption, and the browser/Python session-state vocabularies are parity-tested.
+  Invalid-JSON guidance is identical in the main and per-kind live regions.
+  Focused browser/UI plus session-invariant tests pass (47 tests, including 46
+  UI tests); full validation passes Ruff, all 708 tests, packaged JavaScript
+  syntax checks, diff whitespace checks, and confirms no tracked files under
+  ``data/``. Session metadata now fails loudly if an unknown state would be
+  emitted, while upload eligibility remains an explicit allow-list.
 
 ## 2026-08-25 — server review UI shell and read-only report (#88)
 

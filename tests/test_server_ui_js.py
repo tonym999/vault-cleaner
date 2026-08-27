@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from html.parser import HTMLParser
 from importlib.resources import as_file, files
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
+
+from vault_cleaner.server.session import SESSION_STATES
 
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not installed")
@@ -238,6 +242,26 @@ def test_server_adapter_has_no_content_length_or_inline_dom_html():
         assert label in source
 
 
+def test_server_ui_session_state_vocabulary_matches_python(tmp_path: Path):
+    harness = tmp_path / "server-ui-state-vocabulary.js"
+    harness.write_text(
+        'var server = require(process.argv[2]);\n'
+        'process.stdout.write(JSON.stringify(server.SESSION_STATES));\n',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert set(json.loads(completed.stdout)) == set(SESSION_STATES)
+
+
 BOOT_HARNESS = r'''
 "use strict";
 var fs = require("fs");
@@ -332,22 +356,45 @@ def test_server_global_api_remains_stable_for_both_dom_timings(tmp_path: Path):
     }
 
 
+class _UploadMarkupParser(HTMLParser):
+    _VOID_TAGS: ClassVar[set[str]] = {"input", "meta", "link", "br", "hr", "img"}
+
+    def __init__(self):
+        super().__init__()
+        self.inputs = {}
+        self.statuses = {}
+        self._label_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "label":
+            self._label_depth = 1
+        elif tag == "input" and attributes.get("id"):
+            self.inputs[attributes["id"]] = attributes
+        elif tag == "span" and attributes.get("id"):
+            attributes["inside_label"] = self._label_depth > 0
+            self.statuses[attributes["id"]] = attributes
+        if self._label_depth and tag not in self._VOID_TAGS and tag != "label":
+            self._label_depth += 1
+
+    def handle_endtag(self, tag):
+        if self._label_depth:
+            self._label_depth -= 1
+
+
 def test_server_upload_statuses_are_described_live_regions():
     resource = files("vault_cleaner.ui").joinpath("review_server.html")
     with as_file(resource) as page:
         source = page.read_text(encoding="utf-8")
+    parser = _UploadMarkupParser()
+    parser.feed(source)
     for kind in ("weapons", "armor", "ghosts"):
         input_id = f"vc-upload-{kind}"
         status_id = f"vc-upload-status-{kind}"
-        assert f'id="{input_id}"' in source
-        assert f'aria-describedby="{status_id}"' in source
-        assert (
-            f'id="{status_id}" class="hint" role="status"\n'
-            '                aria-live="polite"'
-        ) in source
-        label_start = source.index(f'<label for="{input_id}">')
-        label_end = source.index("</label>", label_start)
-        assert status_id not in source[label_start:label_end]
+        assert parser.inputs[input_id]["aria-describedby"] == status_id
+        assert parser.statuses[status_id]["role"] == "status"
+        assert parser.statuses[status_id]["aria-live"] == "polite"
+        assert parser.statuses[status_id]["inside_label"] is False
 
 
 RESPONSE_HARNESS = r'''
@@ -467,6 +514,72 @@ def test_server_envelope_validation_rejects_array_numeric_and_duplicate_decision
     assert "duplicate decision" in results[2]["message"]
 
 
+OVERRIDE_HARNESS = r'''
+"use strict";
+var server = require(process.argv[2]);
+function envelope(statuses) {
+  return {
+    schema_version: 1, state: "reviewing", report_revision: 1,
+    verdict_revision: 0, fingerprint: "fingerprint",
+    snapshot: { sections: [{ kind: "weapons", decisions: [] }] },
+    verdicts: [], override_status: statuses
+  };
+}
+function stateView(state) {
+  return JSON.stringify({
+    envelope: state.envelope,
+    serverState: state.server_state,
+    overrideStatus: state.override_status,
+    persisted: Array.from(state.persistedVetoIds),
+    query: state.query,
+    sort: state.sort
+  });
+}
+var state = server.createState();
+server.applySessionEnvelope(envelope([
+  { id: "1", status: "active", detail: "still matches" }
+]), state);
+state.query.text = "keep me";
+state.sort = { field: "id", direction: "desc" };
+var before = stateView(state);
+var error = "";
+try {
+  server.applySessionEnvelope(envelope([
+    { id: "1", status: "active", detail: "still matches" },
+    { id: "1", status: "stale", detail: "duplicate" }
+  ]), state);
+} catch (failure) {
+  error = failure.clientCode + ":" + failure.message;
+}
+process.stdout.write(JSON.stringify({
+  error: error, unchanged: before === stateView(state),
+  sanitized: state.override_status
+}));
+'''
+
+
+def test_malformed_override_status_is_atomic_and_sanitized(tmp_path: Path):
+    harness = tmp_path / "server-ui-override-harness.js"
+    harness.write_text(OVERRIDE_HARNESS, encoding="utf-8")
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "error": (
+            "unsupported_envelope:session envelope has duplicate override status id 1"
+        ),
+        "unchanged": True,
+        "sanitized": [{"id": "1", "status": "active", "detail": "still matches"}],
+    }
+
+
 FAILURE_HARNESS = r'''
 "use strict";
 var fs = require("fs");
@@ -553,6 +666,13 @@ function response(status, payload) {
     json: function () { return Promise.resolve(payload); }
   };
 }
+function invalidJsonResponse(status) {
+  return {
+    ok: status >= 200 && status < 300,
+    status: status,
+    json: function () { return Promise.reject(new Error("bad JSON")); }
+  };
+}
 function run() {
   var document = new Document();
   var queue;
@@ -561,6 +681,12 @@ function run() {
     queue = [new Error("offline")];
   } else if (scenario === "report-incompatible") {
     queue = [response(200, [])];
+  } else if (scenario === "report-invalid-override") {
+    var badEnvelope = envelope();
+    badEnvelope.override_status = [{ id: "1", status: "active", detail: 7 }];
+    queue = [response(200, badEnvelope)];
+  } else if (scenario === "report-invalid-json") {
+    queue = [invalidJsonResponse(200)];
   } else if (scenario === "report-unauthorized") {
     queue = [response(401, {
       error: { code: "authentication_required", message: "auth required" }
@@ -591,6 +717,12 @@ function run() {
       queue.push(response(200, []));
     } else if (scenario === "upload-network") {
       queue.push(new Error("offline"));
+    } else if (scenario === "upload-collision") {
+      queue.push(response(422, {
+        error: { code: "transport_error", message: "bad CSV" }
+      }));
+    } else if (scenario === "upload-invalid-json") {
+      queue.push(invalidJsonResponse(200));
     }
   }
   var context = {
@@ -695,6 +827,34 @@ run().then(function (result) { process.stdout.write(JSON.stringify(result)); });
             },
         ),
         (
+            "report-invalid-override",
+            {
+                "sameObject": True,
+                "connected": False,
+                "terminal": True,
+                "mainStatus": (
+                    "The review server returned an incompatible response. Restart "
+                    "vault-cleaner serve and open its new bootstrap URL."
+                ),
+                "uploadPhase": "idle",
+                "uploadStatus": "",
+            },
+        ),
+        (
+            "report-invalid-json",
+            {
+                "sameObject": True,
+                "connected": False,
+                "terminal": True,
+                "mainStatus": (
+                    "The review server returned an incompatible response. Restart "
+                    "vault-cleaner serve and open its new bootstrap URL."
+                ),
+                "uploadPhase": "idle",
+                "uploadStatus": "",
+            },
+        ),
+        (
             "report-unauthorized",
             {
                 "sameObject": True,
@@ -717,6 +877,34 @@ run().then(function (result) { process.stdout.write(JSON.stringify(result)); });
                 "mainStatus": "Connected. Upload one or more DIM CSV exports to begin.",
                 "uploadPhase": "rejected",
                 "uploadStatus": "Rejected: bad CSV",
+            },
+        ),
+        (
+            "upload-collision",
+            {
+                "sameObject": True,
+                "connected": True,
+                "terminal": False,
+                "mainStatus": "Connected. Upload one or more DIM CSV exports to begin.",
+                "uploadPhase": "rejected",
+                "uploadStatus": "Rejected: bad CSV",
+            },
+        ),
+        (
+            "upload-invalid-json",
+            {
+                "sameObject": True,
+                "connected": False,
+                "terminal": True,
+                "mainStatus": (
+                    "The review server returned an incompatible response. Restart "
+                    "vault-cleaner serve and open its new bootstrap URL."
+                ),
+                "uploadPhase": "rejected",
+                "uploadStatus": (
+                    "Rejected: The review server returned an incompatible response. "
+                    "Restart vault-cleaner serve and open its new bootstrap URL."
+                ),
             },
         ),
         (
