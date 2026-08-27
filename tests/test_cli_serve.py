@@ -263,8 +263,9 @@ def test_run_server_prints_working_bootstrap_shape_and_closes(monkeypatch, tmp_p
         def server_close(self):
             events.append("server-closed")
 
-    def fake_build(session, port, *, once=False):
+    def fake_build(session, port, *, assets=None, once=False):
         assert once is False
+        assert assets is server_app.DEFAULT_ASSETS
         assert port == 0
         assert session.config_path == "config.toml"
         assert session.overrides_path == str(tmp_path / "overrides.json")
@@ -330,8 +331,9 @@ def test_run_server_closes_server_when_session_close_fails(monkeypatch, tmp_path
         def server_close(self):
             events.append("server-closed")
 
-    def fake_build(session, port, *, once=False):
+    def fake_build(session, port, *, assets=None, once=False):
         assert once is False
+        assert assets is server_app.DEFAULT_ASSETS
         session.configure_bound_port(54321)
         return FakeServer()
 
@@ -385,8 +387,9 @@ def test_run_server_cleans_up_after_ctrl_c(monkeypatch, tmp_path):
         def server_close(self):
             events.append("server-closed")
 
-    def fake_build(session, port, *, once=False):
+    def fake_build(session, port, *, assets=None, once=False):
         assert once is False
+        assert assets is server_app.DEFAULT_ASSETS
         session.configure_bound_port(54321)
         return KeyboardInterruptServer()
 

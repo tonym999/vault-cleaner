@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vault-cleaner review</title>
+  <link rel="stylesheet" href="/assets/review.css">
+</head>
+<body>
+  <a class="skip" href="#vc-list">Skip to the item list</a>
+  <main class="wrap">
+    <h1>vault-cleaner review</h1>
+    <p id="vc-status" role="status" aria-live="polite" class="hint">
+      Connecting to the local review server…
+    </p>
+
+    <section class="panel" id="vc-uploads" aria-labelledby="vc-uploads-title">
+      <h2 id="vc-uploads-title">Exports</h2>
+      <p class="hint">Choose DIM CSV exports to build a report. Files stay on this machine.</p>
+      <div class="controls">
+        <div class="field">
+          <label for="vc-upload-weapons"><span>Weapons CSV</span></label>
+          <input id="vc-upload-weapons" type="file" accept=".csv,text/csv"
+                 aria-describedby="vc-upload-status-weapons">
+          <span id="vc-upload-status-weapons" class="hint" role="status"
+                aria-live="polite">Idle</span>
+        </div>
+        <div class="field">
+          <label for="vc-upload-armor"><span>Armor CSV</span></label>
+          <input id="vc-upload-armor" type="file" accept=".csv,text/csv"
+                 aria-describedby="vc-upload-status-armor">
+          <span id="vc-upload-status-armor" class="hint" role="status"
+                aria-live="polite">Idle</span>
+        </div>
+        <div class="field">
+          <label for="vc-upload-ghosts"><span>Ghosts CSV</span></label>
+          <input id="vc-upload-ghosts" type="file" accept=".csv,text/csv"
+                 aria-describedby="vc-upload-status-ghosts">
+          <span id="vc-upload-status-ghosts" class="hint" role="status"
+                aria-live="polite">Idle</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="vc-report" aria-labelledby="vc-report-title" hidden>
+      <h2 id="vc-report-title">Report</h2>
+      <p class="sub">Report fingerprint <code id="vc-fingerprint"></code></p>
+      <div class="tiles" id="vc-summary"></div>
+      <div id="vc-overrides"></div>
+    </section>
+
+    <section class="panel" id="vc-filters" aria-labelledby="vc-filters-title" hidden>
+      <h2 id="vc-filters-title">Filters</h2>
+      <div class="controls" id="vc-controls"></div>
+    </section>
+
+    <section class="panel" id="vc-proposals" aria-labelledby="vc-proposals-title" hidden>
+      <h2 id="vc-proposals-title">Proposals</h2>
+      <p class="hint">This view is read-only. Apply or change verdicts with the server's API.</p>
+      <div id="vc-list"></div>
+    </section>
+  </main>
+  <script src="/assets/review_ui.js" defer></script>
+  <script src="/assets/review_server.js" defer></script>
+</body>
+</html>

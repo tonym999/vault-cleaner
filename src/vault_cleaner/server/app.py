@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Callable, Mapping
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -61,22 +62,6 @@ from vault_cleaner.wishlist import load_all_with_sources
 LOOPBACK_HOST = "127.0.0.1"
 SESSION_COOKIE_NAME = "vault_cleaner_session"
 
-PLACEHOLDER_HTML = """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vault Cleaner</title>
-</head>
-<body>
-  <main>
-    <h1>Vault Cleaner</h1>
-    <p>The local review server is ready. The review interface arrives in a later update.</p>
-  </main>
-</body>
-</html>
-"""
-
 AssetProvider = Callable[[], bytes]
 AssetSpec = tuple[str, AssetProvider]
 UPLOAD_LOADERS = {
@@ -94,8 +79,44 @@ FINALIZE_ROOT_KEYS = frozenset(
     {"report_revision", "verdict_revision", "fingerprint"}
 )
 VERDICT_ENTRY_KEYS = frozenset({"id", "verdict"})
+# The server UI is deliberately an explicit resource allow-list.  No request
+# value is ever used to construct a package or filesystem path.  Keeping the
+# providers lazy also means importing the server has no file I/O side effects.
+SERVER_CSP = (
+    "default-src 'none'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'none'"
+)
+
+_UI_RESOURCES = files("vault_cleaner.ui")
+
+
+def _ui_asset(name: str) -> AssetProvider:
+    """Return a provider for one fixed packaged browser resource."""
+    resource = _UI_RESOURCES.joinpath(name)
+
+    def read() -> bytes:
+        return resource.read_bytes()
+
+    return read
+
+
 DEFAULT_ASSETS: Mapping[str, AssetSpec] = {
-    "/": ("text/html; charset=utf-8", lambda: PLACEHOLDER_HTML.encode("utf-8")),
+    "/": ("text/html; charset=utf-8", _ui_asset("review_server.html")),
+    "/assets/review.css": ("text/css; charset=utf-8", _ui_asset("review.css")),
+    "/assets/review_ui.js": (
+        "text/javascript; charset=utf-8",
+        _ui_asset("review_ui.js"),
+    ),
+    "/assets/review_server.js": (
+        "text/javascript; charset=utf-8",
+        _ui_asset("review_server.js"),
+    ),
 }
 
 
@@ -328,10 +349,7 @@ def create_app(
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; object-src 'none'; base-uri 'none'; "
-            "frame-ancestors 'none'"
-        )
+        response.headers["Content-Security-Policy"] = SERVER_CSP
         return response
 
     @app.errorhandler(ApiError)
@@ -896,7 +914,9 @@ def run_server(
             config_path=config_path,
             no_wishlists=no_wishlists,
         )
-        server = build_server(session, port, once=once)
+        # Pass the fixed packaged allow-list through each lifecycle seam.  The
+        # request layer never gets an opportunity to turn a URL into a path.
+        server = build_server(session, port, assets=DEFAULT_ASSETS, once=once)
         print(
             f"http://{session.expected_host}/bootstrap?token={session.bootstrap_token}",
             file=output,

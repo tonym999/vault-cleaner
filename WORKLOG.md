@@ -3,6 +3,83 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-26 — Linux VM handoff review (#88)
+
+- Recreated the ignored development environment after the repository move and
+  revalidated the pushed issue branch: Ruff was clean, all 687 existing tests
+  passed, all three packaged JavaScript files passed Node syntax checks,
+  `git diff --check` was clean, and no file under `data/` was tracked. The VM
+  only provides Python 3.14 rather than the documented Python 3.12 target; the
+  declared `>=3.12`
+  package contract and full suite still pass there.
+- Ran an isolated real-loopback smoke test: bootstrap authentication and all
+  three fake fixture uploads returned 200, an invalid weapons replacement
+  returned the sanitized 422 response, and the accepted report fingerprint
+  and revision remained unchanged after rejection.
+- Moved the minimal local-server README section below the static manifest
+  workflow. Its earlier placement made the following static-only approve/veto
+  and browser-storage paragraphs read as features of the read-only server.
+- The SSH-forwarded real-browser pass covered all three accepted fixture
+  uploads, rejected replacement preservation, rendering, refresh, and the
+  disconnected state. It found that the visible Reconnect button did nothing:
+  deferred execution let the outer loader overwrite the global runtime object
+  its click handler looked up. The button now retains its retry callback
+  directly, with a Node regression that constructs and clicks it. A fresh
+  real-browser pass then proved the button sends its retry, a stopped server
+  retains the visible disconnected state, and a replacement session produces
+  terminal 401 restart guidance without another retry. The manual checklist is
+  complete, and the final suite passes all 688 tests.
+- Follow-up review fixes keep one stable ``VaultCleanerServerUI`` object while
+  exposing live ``start`` and ``state`` handles for both interactive and
+  loading-time script execution. Shared response conversion now distinguishes
+  transport failures, HTTP/API errors, invalid JSON, and incompatible success
+  envelopes; malformed successful responses are terminal with restart guidance,
+  while ordinary rejected uploads remain connected. Added focused Node coverage
+  for response/error classes, array/numeric-id/duplicate-id envelopes, upload
+  rejection, terminal 401, and both DOM timings. Upload statuses are now
+  outside the file labels, linked with ``aria-describedby``, and polite live
+  regions for all three export kinds. Documented the read-only view contract,
+  including null approve/veto row handles. A shared browser failure-state helper
+  now handles only common 401, illegal-state, incompatible/invalid-JSON, and
+  transport transitions based on client failure kinds; ordinary upload HTTP
+  failures remain per-kind while report HTTP failures retain reconnect guidance.
+  Session envelope override statuses are validated and copied before state
+  adoption, and the browser/Python session-state vocabularies are parity-tested.
+  Invalid-JSON guidance is identical in the main and per-kind live regions.
+  Focused browser/UI plus session-invariant tests pass (47 tests, including 46
+  UI tests); full validation passes Ruff, all 708 tests, packaged JavaScript
+  syntax checks, diff whitespace checks, and confirms no tracked files under
+  ``data/``. Session metadata now fails loudly if an unknown state would be
+  emitted, while upload eligibility remains an explicit allow-list.
+
+## 2026-08-25 — server review UI shell and read-only report (#88)
+
+- Replaced the server placeholder root with fixed packaged HTML, CSS, shared
+  presentation JavaScript, and a server-only adapter wired through
+  `run_server` → `build_server` → `create_app`; the explicit asset allow-list
+  remains the only way browser resources are served.
+- Tightened the HTTP CSP to deny all by default while allowing only same-origin
+  packaged scripts/styles and same-origin API fetches. The page has no forms,
+  inline code, request-derived paths, or mutation/finalization controls.
+- Added separate weapons/armor/ghost CSV inputs using `fetch` with explicit
+  `text/csv` and browser-owned transport length headers. Each input reports its
+  own upload/error status, while one `applySessionEnvelope` seam adopts server
+  state, rejects unknown schema versions, keeps valid local
+  search/filter/group/sort/detail state, drops only invalidated filter/sort/
+  expansion values, and retains upload reconciliation ids privately.
+- The read-only report uses the #87 presentation core for counts, filtering,
+  grouping, sorting, item details, hostile-text-safe DOM rendering, and armor
+  panels. Persisted override statuses and current-session verdicts are shown
+  as separate concepts. Added server asset/CSP tests and Node seam/safety tests,
+  updated serve docs, and kept the static review adapter unchanged.
+- Review found and fixed selective view-state invalidation, exact CSP ordering,
+  the five named count displays, disconnected upload disabling, and terminal
+  `401` restart guidance before the final verification pass.
+- A real browser pass remains: the Linux Playwright driver had no installed
+  Chrome and the Windows browser-control bridge could not attach from this WSL
+  workspace. Open the printed bootstrap URL, upload each fake fixture kind,
+  refresh, reject a replacement, and verify disconnected/terminal messaging.
+
 ## 2026-08-25 — shared review UI assets and presentation core (#87)
 
 - Extracted the review stylesheet and the manifest-free presentation/view layer
