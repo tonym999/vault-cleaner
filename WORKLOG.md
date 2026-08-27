@@ -3,6 +3,46 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-27 — #89 review follow-up: control and finalisation recovery hardening
+
+- Refreshed every mutation control, including bulk buttons, whenever the
+  single-tab gate or authoritative session state changes. Finalized adoption
+  now leaves verdict controls frozen while retaining a safe Download-again
+  recovery action when report refresh is disconnected.
+- Treated every successful finalise HTTP response as committed even when CSV
+  bytes are missing or unreadable. Added no-retry/no-second-finalise coverage,
+  finalized CSV recovery coverage, and preserved committed-success messaging
+  when the post-download report refresh fails.
+- A stale mutation whose mandatory report refetch fails now enters an explicit
+  disconnected recovery state with Reconnect and no enabled mutations; the
+  stale envelope remains display-only until authoritative adoption.
+- Verdict-filter acknowledgements now compare actual visible row membership,
+  so approving an already-approved row (and the vetoed/unreviewed equivalents)
+  repaints in place without stealing focus. Finalisation report-refresh errors
+  preserve terminal authentication/session/incompatibility outcomes separately
+  from recoverable HTTP/transport failures; a successful Download-again
+  response restores the connected finalized lifecycle controls.
+
+## 2026-08-27 — server-acknowledged review mutations and finalisation (#89)
+
+- Extended the packaged server review page from read-only presentation to a
+  server-acknowledged review workflow. Single-row and filtered bulk approve,
+  veto, and unset actions use one revision/fingerprint-bound request and a
+  single same-tab mutation gate; displayed verdicts change only after the
+  returned envelope is accepted.
+- Added keyboard ``a``/``v``/``u`` review controls, in-place acknowledged row
+  repainting (including focus-preserving row handles), stale mutation
+  reconciliation through ``GET /api/report`` without replay, selective local
+  view-state invalidation reporting, and retained/discarded upload verdict
+  presentation.
+- Added finalise/download/reset/shutdown lifecycle controls. Finalisation
+  consumes CSV bytes and protocol headers, revokes temporary download URLs,
+  supports ``GET /api/finalized.csv`` recovery, freezes the finalized view,
+  sends reset's exact two-key payload, and sends shutdown as a bodyless POST.
+- The shared view layer now exposes explicit Unset controls and safe row-paint
+  and control-disable seams. Hostile item text remains text-node data, while
+  approved-session/active-persisted-veto conflicts remain explicit.
+
 ## 2026-08-26 — Linux VM handoff review (#88)
 
 - Recreated the ignored development environment after the repository move and

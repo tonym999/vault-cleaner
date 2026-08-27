@@ -254,10 +254,11 @@
    *
    * ``context.readOnly`` is a presentation-only mode. When it is true each
    * row renders ``context.verdictText(item, verdict)`` as text and does not
-   * create verdict buttons; consequently ``state.rows[item.id].approve`` and
-   * ``.veto`` are both null. When it is false, the row handles are buttons
-   * wired to ``context.toggleVerdict``. ``verdictText`` is used only in
-   * read-only mode and receives the normalized item plus its current verdict.
+   * create verdict buttons; consequently the verdict handles are null. When
+   * it is false, the row handles are buttons wired to ``context.toggleVerdict``
+   * and ``context.clearVerdict``. The view also exposes ``paintRow`` so an
+   * acknowledged server verdict can update the existing DOM nodes without
+   * rebuilding the table (and thereby losing keyboard focus).
    */
   function createView(context) {
     context = context || {};
@@ -266,6 +267,10 @@
       expanded: Object.create(null), rows: Object.create(null), verdicts: Object.create(null) };
     var items = context.items || [];
     var toggleVerdict = context.toggleVerdict || function () {};
+    var clearVerdict = context.clearVerdict || function (id) {
+      toggleVerdict(id, "");
+    };
+    var verdictDisabled = context.verdictDisabled || function () { return false; };
     var renderList = context.renderList || function () {};
     var readOnly = context.readOnly === true;
     var verdictText = context.verdictText || function (item, verdict) {
@@ -287,6 +292,7 @@
           if (value === null || value === undefined || value === false) return;
           if (key === "text") { node.textContent = String(value); return; }
           if (key === "class") { node.className = String(value); return; }
+          if (key === "disabled") { node.disabled = !!value; if (value) node.setAttribute(key, ""); return; }
           if (key === "on") {
             Object.keys(value).forEach(function (name) {
               node.addEventListener(name, value[name]);
@@ -422,7 +428,7 @@
       var verdict = verdictOf(state.verdicts, item.id);
       var expanded = state.expanded[item.id] === true;
       var detailId = "vc-detail-" + item.id;
-      var approve = null, veto = null;
+      var approve = null, veto = null, clear = null, presentation = null;
       var actions;
       if (readOnly) {
         actions = el("span", { class: "hint", text: verdictText(item, verdict) });
@@ -431,15 +437,31 @@
           type: "button", class: "approve", text: "Approve",
           "aria-pressed": verdict === "approved" ? "true" : "false",
           "aria-label": "approve " + (item.name || "unnamed item") + ", id " + item.id,
+          disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(item.id, "approved"); } }
         });
         veto = el("button", {
           type: "button", class: "veto", text: "Veto",
           "aria-pressed": verdict === "vetoed" ? "true" : "false",
           "aria-label": "veto " + (item.name || "unnamed item") + ", id " + item.id,
+          disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(item.id, "vetoed"); } }
         });
-        actions = el("div", { class: "row-actions" }, [approve, veto]);
+        clear = el("button", {
+          type: "button", class: "clear-verdict", text: "Unset",
+          "aria-pressed": verdict === "" ? "true" : "false",
+          "aria-label": "unset verdict for " + (item.name || "unnamed item") +
+            ", id " + item.id,
+          disabled: verdictDisabled(),
+          on: { click: function () { clearVerdict(item.id); } }
+        });
+        presentation = el("span", {
+          class: "verdict-presentation",
+          text: verdictText(item, verdict)
+        });
+        actions = el("div", { class: "row-actions" }, [
+          approve, veto, clear, presentation
+        ]);
       }
       var tr = el("tr", {
         class: verdict === "vetoed" ? "vetoed" : "", "data-id": item.id
@@ -470,7 +492,10 @@
         el("td", { text: item.protectionLevel || "—" }),
         el("td", null, [actions])
       ]);
-      state.rows[item.id] = { tr: tr, approve: approve, veto: veto };
+      state.rows[item.id] = {
+        tr: tr, approve: approve, veto: veto, clear: clear,
+        presentation: presentation, item: item
+      };
       return expanded ? [tr, detailRow(item, detailId, columns)] : [tr];
     }
     function table(rows) {
@@ -484,10 +509,37 @@
       ]);
     }
 
+    function paintRow(id) {
+      var row = state.rows[id];
+      if (!row) return false;
+      var current = verdictOf(state.verdicts, id);
+      row.tr.className = current === "vetoed" ? "vetoed" : "";
+      if (row.approve) {
+        row.approve.setAttribute("aria-pressed", current === "approved" ? "true" : "false");
+        row.veto.setAttribute("aria-pressed", current === "vetoed" ? "true" : "false");
+        row.clear.setAttribute("aria-pressed", current === "" ? "true" : "false");
+        row.approve.disabled = verdictDisabled();
+        row.veto.disabled = verdictDisabled();
+        row.clear.disabled = verdictDisabled();
+      }
+      if (row.presentation) row.presentation.textContent = verdictText(row.item, current);
+      return true;
+    }
+
+    function setVerdictControlsDisabled(disabled) {
+      Object.keys(state.rows).forEach(function (id) {
+        var row = state.rows[id];
+        [row.approve, row.veto, row.clear].forEach(function (control) {
+          if (control) control.disabled = !!disabled;
+        });
+      });
+    }
+
     return {
       el: el, clear: clear, byId: byId, headerRow: headerRow, definition: definition,
       armorDetail: armorDetail, detailRow: detailRow, itemRows: itemRows, table: table,
-      tile: tile, select: select, addSelect: addSelect, optionsFor: optionsFor
+      tile: tile, select: select, addSelect: addSelect, optionsFor: optionsFor,
+      paintRow: paintRow, setVerdictControlsDisabled: setVerdictControlsDisabled
     };
   }
 

@@ -227,15 +227,17 @@ process.stdout.write(JSON.stringify({
     }
 
 
-def test_server_adapter_has_no_content_length_or_inline_dom_html():
+def test_server_adapter_uses_browser_owned_transport_and_server_mutations():
     resource = files("vault_cleaner.ui").joinpath("review_server.js")
     with as_file(resource) as adapter:
         source = adapter.read_text(encoding="utf-8")
     assert "Content-Length" not in source
     assert "innerHTML" not in source
     assert "text/csv" in source
-    assert "/api/finalize" not in source
-    assert "/api/verdicts" not in source
+    assert "/api/finalize" in source
+    assert "/api/verdicts" in source
+    assert "/api/reset" in source
+    assert "/api/shutdown" in source
     assert ".disabled = disabled" in source
     assert "Restart vault-cleaner serve and open its new bootstrap URL" in source
     for label in ('"proposed"', '"after vetoes"', '"reviewed"', '"shown"', '"unreviewed"'):
@@ -958,3 +960,519 @@ def test_server_adapter_classifies_browser_failures_without_losing_upload_state(
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == expected
+
+
+MUTATION_HARNESS = r'''
+"use strict";
+var fs = require("fs"), vm = require("vm"), scenario = process.argv[3];
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[4]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._textContent = ""; this.disabled = false;
+  this.hidden = false; this.value = ""; this.files = [];
+}
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () { return this._textContent; },
+  set: function (value) { this._textContent = String(value); this.children = []; }
+});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  // Match browser activation: disabled form controls do not dispatch click
+  // events. This catches stale references that would otherwise make a frozen
+  // action look usable in this lightweight harness.
+  if (name === "click" && this.disabled) return;
+  event = event || { target: this, preventDefault: function () {} };
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child; else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+Node.prototype.focus = function () { this.ownerDocument.activeElement = this; };
+Node.prototype.click = function () {
+  if (this.ownerDocument && this.ownerDocument.downloads) {
+    this.ownerDocument.downloads.push(this.download || "");
+  }
+};
+Object.defineProperty(Node.prototype, "firstChild", { get: function () {
+  return this.children[0] || null;
+} });
+
+function Document() {
+  this.nodes = Object.create(null); this.listeners = Object.create(null);
+  this.body = new Node("body", this); this.activeElement = null; this.downloads = [];
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Document.prototype.dispatch = function (name, event) {
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+
+var id = "18446744073709551615";
+function envelope(verdictRevision, verdicts, state) {
+  return { schema_version: 1, state: state || "reviewing", report_revision: 1,
+    verdict_revision: verdictRevision, fingerprint: "opaque-fingerprint",
+    snapshot: { sections: [{ kind: "weapons", decisions: [
+      { id: id, hash: "18446744073709551614", name: "<img>", owner: "Titan",
+        action: "junk", reason: "dupe-lower" },
+      { id: "2", hash: "500", name: "Second", owner: "Hunter",
+        action: "review", reason: "wishlist" }
+    ] }] }, verdicts: verdicts || [],
+    override_status: [{ id: id, status: "active", detail: "suppresses this item" }] };
+}
+function response(payload, status) {
+  return { ok: (status || 200) < 300, status: status || 200,
+    json: function () { return Promise.resolve(payload); } };
+}
+function csvResponse(mode) {
+  var result = { ok: true, status: 200,
+    headers: { get: function (name) {
+      if (name === "Vault-Cleaner-Report-Revision") return "1";
+      if (name === "Vault-Cleaner-Verdict-Revision") return "1";
+      if (name === "Vault-Cleaner-Approved-Still-Vetoed") return "1";
+      return null;
+    } }
+  };
+  if (mode === "missing") return result;
+  result.arrayBuffer = function () {
+    if (mode === "reject") return Promise.reject(new Error("body read failed"));
+    return Promise.resolve(new Uint8Array([65, 44, 66, 10]).buffer);
+  };
+  return result;
+}
+function idleEnvelope() {
+  return { schema_version: 1, state: "idle", report_revision: 0,
+    verdict_revision: 0, fingerprint: null, snapshot: null, verdicts: [],
+    override_status: [] };
+}
+
+var queue = [response(envelope(0))], calls = [];
+if (scenario === "single" || scenario === "keyboard") queue.push(response(envelope(1, [{ id: id, verdict: "approved" }] )));
+if (scenario === "clear") queue.push(response(envelope(1)));
+if (scenario === "failure") queue.push(response({ error: { code: "invalid_export", message: "no" } }, 422));
+if (scenario === "bulk") queue.push(response(envelope(1, [
+  { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
+])));
+if (scenario === "verdict-filter-approved") {
+  queue = [response(envelope(0, [{ id: id, verdict: "approved" }])),
+    response(envelope(1, [{ id: id, verdict: "approved" }]))];
+}
+if (scenario === "verdict-filter-vetoed") {
+  queue = [response(envelope(0, [{ id: id, verdict: "vetoed" }])),
+    response(envelope(1, [{ id: id, verdict: "vetoed" }]))];
+}
+if (scenario === "verdict-filter-unreviewed") {
+  queue = [response(envelope(0)), response(envelope(1))];
+}
+if (scenario === "stale") {
+  queue.push(response({ error: { code: "stale_verdicts", message: "stale" } }, 409));
+  queue.push(response(envelope(2, [{ id: id, verdict: "vetoed" }])));
+}
+if (scenario === "stale-failure") {
+  queue.push(response({ error: { code: "stale_verdicts", message: "stale" } }, 409));
+  queue.push(response({ error: { code: "temporary", message: "report unavailable" } }, 500));
+}
+if (scenario === "upload-gate") {
+  queue = [response(idleEnvelope()), response(envelope(1)), response(envelope(2, [
+    { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
+  ]))];
+}
+if (scenario === "finalize" || scenario === "finalize-missing" ||
+    scenario === "finalize-reject" || scenario.indexOf("finalize-refetch-") === 0 ||
+    scenario.indexOf("finalize-body-") === 0) {
+  var csvMode = scenario === "finalize-missing" ? "missing" :
+    (scenario === "finalize-reject" || scenario.indexOf("finalize-body-") === 0 ? "reject" : "ok");
+  queue.push(csvResponse(csvMode));
+  if (scenario === "finalize-refetch-http" || scenario === "finalize-refetch-failure") {
+    queue.push(response({ error: { code: "temporary", message: "report unavailable" } }, 500));
+  } else if (scenario === "finalize-refetch-transport") {
+    queue.push(new Error("offline"));
+  } else if (scenario === "finalize-refetch-unauthorized") {
+    queue.push(response({ error: { code: "authentication_required", message: "auth required" } }, 401));
+  } else if (scenario === "finalize-refetch-illegal") {
+    queue.push(response({ error: { code: "illegal_state", message: "session ended" } }, 409));
+  } else if (scenario === "finalize-refetch-incompatible") {
+    queue.push(response([], 200));
+  } else if (scenario === "finalize-refetch-closed") {
+    queue.push(response(envelope(1, [{ id: id, verdict: "approved" }], "closed")));
+  } else if (scenario === "finalize-body-http") {
+    queue.push(response({ error: { code: "temporary", message: "report unavailable" } }, 500));
+  } else if (scenario === "finalize-body-transport") {
+    queue.push(new Error("offline"));
+  } else if (scenario === "finalize-body-unauthorized") {
+    queue.push(response({ error: { code: "authentication_required", message: "auth required" } }, 401));
+  } else if (scenario === "finalize-body-illegal") {
+    queue.push(response({ error: { code: "illegal_state", message: "session ended" } }, 409));
+  } else if (scenario === "finalize-body-incompatible") {
+    queue.push(response([], 200));
+  } else if (scenario === "finalize-body-closed") {
+    queue.push(response(envelope(1, [{ id: id, verdict: "approved" }], "closed")));
+  } else {
+    queue.push(response(envelope(1, [{ id: id, verdict: "approved" }], "finalized")));
+  }
+  if (scenario === "finalize-missing" || scenario === "finalize-reject" ||
+      scenario === "finalize-refetch-failure" || scenario === "finalize-body-http") queue.push(csvResponse());
+}
+if (scenario === "reset") queue.push(response({ schema_version: 1, state: "idle", report_revision: 2,
+  verdict_revision: 1, fingerprint: null, snapshot: null, verdicts: [], override_status: [] }));
+if (scenario === "shutdown") queue.push(response({ schema_version: 1, state: "closed", report_revision: 1,
+  verdict_revision: 0, fingerprint: null, snapshot: null, verdicts: [], override_status: [] }));
+
+var document = new Document();
+var revoked = 0;
+var context = { document: document, VaultCleanerReviewUI: shared, Promise: Promise, Set: Set,
+  Blob: Blob, URL: { createObjectURL: function () { return "blob:review"; },
+    revokeObjectURL: function () { revoked += 1; } }, confirm: function () { return true; }, setTimeout: setTimeout,
+  fetch: function (path, options) {
+    calls.push({ path: path, options: options || null });
+    var next = queue.shift();
+    if (scenario === "upload-gate" && path === "/api/exports/weapons") {
+      return new Promise(function (resolve) { setTimeout(function () { resolve(next); }, 5); });
+    }
+    return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+  } };
+context.globalThis = context;
+vm.runInNewContext(source, context);
+
+function finish() {
+  var state = context.VaultCleanerServerUI.state;
+  var output = { paths: calls.map(function (call) { return call.path; }),
+    state: state.server_state, verdicts: state.verdicts,
+    status: document.nodes["vc-status"].textContent,
+    revoked: revoked, downloads: document.downloads,
+    finalizeHeaders: state.finalizeHeaders,
+    connected: state.connected, terminal: state.terminal,
+    uploadBulkDisabled: uploadBulkDisabled,
+    bulkDisabled: document.nodes["vc-bulk-veto"] ? document.nodes["vc-bulk-veto"].disabled : null,
+    rowDisabled: state.rows[id] ? state.rows[id].approve.disabled : null,
+    downloadDisabled: document.nodes["vc-download-again"] ? document.nodes["vc-download-again"].disabled : null,
+    resetDisabled: document.nodes["vc-reset"] ? document.nodes["vc-reset"].disabled : null,
+    shutdownDisabled: document.nodes["vc-shutdown"] ? document.nodes["vc-shutdown"].disabled : null,
+    finalizeVisible: document.nodes["vc-actions"].children.some(function (child) {
+      return child.getAttribute && child.getAttribute("id") === "vc-finalize";
+    }),
+    reconnectVisible: document.nodes["vc-status"].children.length > 0,
+    bodylessShutdown: calls.some(function (call) { return call.path === "/api/shutdown" &&
+      call.options && call.options.method === "POST" && !Object.prototype.hasOwnProperty.call(call.options, "body"); }),
+    row: state.rows[id] ? { same: state.rows[id].tr === beforeRow, focused: document.activeElement === beforeFocus,
+      presentation: state.rows[id].presentation && state.rows[id].presentation.textContent } : null };
+  var payloadCall = calls.filter(function (call) { return call.path === "/api/verdicts" || call.path === "/api/reset"; })[0];
+  if (payloadCall && payloadCall.options && payloadCall.options.body) output.payload = JSON.parse(payloadCall.options.body);
+  process.stdout.write(JSON.stringify(output));
+}
+var beforeRow = null, beforeFocus = null, beforeFinalize = null, uploadBulkDisabled = null;
+setTimeout(function () {
+  var server = context.VaultCleanerServerUI, state = server.state;
+  if (scenario === "single" || scenario === "clear" || scenario === "failure" || scenario === "stale" || scenario === "stale-failure") {
+    beforeRow = state.rows[id].tr; beforeFocus = state.rows[id].approve; beforeFocus.focus();
+    if (scenario === "clear") state.rows[id].clear.dispatch("click");
+    else if (scenario === "stale") state.rows[id].approve.dispatch("click");
+    else if (scenario === "stale-failure") state.rows[id].approve.dispatch("click");
+    else state.rows[id].approve.dispatch("click");
+  } else if (scenario === "keyboard") {
+    document.dispatch("keydown", { target: state.rows[id].tr, key: "a", preventDefault: function () {} });
+  } else if (scenario === "bulk") {
+    document.nodes["vc-bulk-veto"].dispatch("click");
+  } else if (scenario === "verdict-filter-approved" || scenario === "verdict-filter-vetoed" || scenario === "verdict-filter-unreviewed") {
+    var filter = document.nodes["vc-f-verdict"];
+    filter.value = scenario === "verdict-filter-approved" ? "approved" :
+      (scenario === "verdict-filter-vetoed" ? "vetoed" : "unreviewed");
+    filter.dispatch("change", { target: filter });
+    beforeRow = state.rows[id].tr;
+    beforeFocus = scenario === "verdict-filter-approved" ? state.rows[id].approve :
+      (scenario === "verdict-filter-vetoed" ? state.rows[id].veto : state.rows[id].clear);
+    beforeFocus.focus();
+    beforeFocus.dispatch("click");
+  } else if (scenario === "upload-gate") {
+    var input = document.nodes["vc-upload-weapons"];
+    input.files = [{}];
+    input.dispatch("change", { target: input });
+    uploadBulkDisabled = document.nodes["vc-bulk-veto"].disabled;
+    setTimeout(function () { document.nodes["vc-bulk-veto"].dispatch("click"); }, 15);
+  } else if (scenario === "finalize") {
+    beforeFinalize = document.nodes["vc-finalize"];
+    document.nodes["vc-finalize"].dispatch("click");
+    setTimeout(function () {
+      state.rows[id].approve.dispatch("click");
+      document.nodes["vc-bulk-veto"].dispatch("click");
+    }, 5);
+  } else if (scenario === "finalize-missing" || scenario === "finalize-reject" ||
+      scenario.indexOf("finalize-refetch-") === 0 || scenario.indexOf("finalize-body-") === 0) {
+    beforeFinalize = document.nodes["vc-finalize"];
+    document.nodes["vc-finalize"].dispatch("click");
+    setTimeout(function () {
+      state.rows[id].approve.dispatch("click");
+      document.nodes["vc-bulk-veto"].dispatch("click");
+      if (scenario === "finalize-missing" || scenario === "finalize-reject" ||
+          scenario === "finalize-refetch-failure" || scenario === "finalize-body-http") {
+        document.nodes["vc-download-again"].dispatch("click");
+      }
+    }, 15);
+  } else if (scenario === "reset") {
+    document.nodes["vc-reset"].dispatch("click");
+  } else if (scenario === "shutdown") {
+    document.nodes["vc-shutdown"].dispatch("click");
+  }
+  setTimeout(finish, scenario === "upload-gate" ? 40 : (scenario.indexOf("finalize-") === 0 ? 40 : 10));
+}, 10);
+'''
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_path", "expected_verdict"),
+    [
+        ("single", "/api/verdicts", "approved"),
+        ("keyboard", "/api/verdicts", "approved"),
+        ("clear", "/api/verdicts", None),
+        ("failure", "/api/verdicts", None),
+        ("bulk", "/api/verdicts", "vetoed"),
+        ("verdict-filter-approved", "/api/verdicts", "approved"),
+        ("verdict-filter-vetoed", "/api/verdicts", "vetoed"),
+        ("verdict-filter-unreviewed", "/api/verdicts", None),
+        ("stale", "/api/report", "vetoed"),
+        ("stale-failure", "/api/report", None),
+        ("upload-gate", "/api/verdicts", "vetoed"),
+        ("finalize", "/api/finalize", "approved"),
+        ("finalize-missing", "/api/finalize", "approved"),
+        ("finalize-reject", "/api/finalize", "approved"),
+        ("finalize-refetch-failure", "/api/finalize", None),
+        ("finalize-refetch-http", "/api/finalize", None),
+        ("finalize-refetch-transport", "/api/finalize", None),
+        ("finalize-refetch-unauthorized", "/api/finalize", None),
+        ("finalize-refetch-illegal", "/api/finalize", None),
+        ("finalize-refetch-incompatible", "/api/finalize", None),
+        ("finalize-refetch-closed", "/api/finalize", "approved"),
+        ("finalize-body-http", "/api/finalize", None),
+        ("finalize-body-transport", "/api/finalize", None),
+        ("finalize-body-unauthorized", "/api/finalize", None),
+        ("finalize-body-illegal", "/api/finalize", None),
+        ("finalize-body-incompatible", "/api/finalize", None),
+        ("finalize-body-closed", "/api/finalize", "approved"),
+        ("reset", "/api/reset", None),
+        ("shutdown", "/api/shutdown", None),
+    ],
+)
+def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
+    tmp_path: Path, scenario: str, expected_path: str, expected_verdict: str | None
+):
+    harness = tmp_path / f"server-ui-mutation-{scenario}.js"
+    harness.write_text(MUTATION_HARNESS, encoding="utf-8")
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), scenario, str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert expected_path in result["paths"]
+    if expected_verdict is None:
+        assert result["verdicts"] == {}
+    else:
+        assert result["verdicts"]["18446744073709551615"] == expected_verdict
+    if scenario in {"single", "keyboard"}:
+        assert result["payload"] == {
+            "report_revision": 1, "verdict_revision": 0,
+            "fingerprint": "opaque-fingerprint",
+            "decisions": [{"id": "18446744073709551615", "verdict": "approved"}],
+        }
+        if scenario == "single":
+            assert result["row"]["same"] is True
+            assert result["row"]["focused"] is True
+        assert "Approved this session" in result["row"]["presentation"] if result["row"] else False
+    if scenario == "clear":
+        assert result["payload"]["decisions"] == [
+            {"id": "18446744073709551615", "verdict": None}
+        ]
+    if scenario == "failure":
+        assert "no" in result["status"]
+    if scenario == "stale":
+        assert result["paths"] == ["/api/report", "/api/verdicts", "/api/report"]
+        assert "not applied" in result["status"]
+    if scenario == "stale-failure":
+        assert result["paths"] == ["/api/report", "/api/verdicts", "/api/report"]
+        assert result["connected"] is False
+        assert result["terminal"] is False
+        assert result["reconnectVisible"] is True
+        assert result["rowDisabled"] is True
+        assert result["bulkDisabled"] is True
+        assert "could not be fetched" in result["status"]
+    if scenario == "upload-gate":
+        assert result["paths"] == [
+            "/api/report", "/api/exports/weapons", "/api/verdicts"
+        ]
+        assert result["uploadBulkDisabled"] is True
+        assert result["bulkDisabled"] is False
+        assert result["payload"]["decisions"] == [
+            {"id": "18446744073709551615", "verdict": "vetoed"},
+            {"id": "2", "verdict": "vetoed"},
+        ]
+    if scenario == "bulk":
+        assert result["paths"] == ["/api/report", "/api/verdicts"]
+        assert result["payload"]["decisions"] == [
+            {"id": "18446744073709551615", "verdict": "vetoed"},
+            {"id": "2", "verdict": "vetoed"},
+        ]
+    if scenario in {"verdict-filter-approved", "verdict-filter-vetoed", "verdict-filter-unreviewed"}:
+        assert result["paths"] == ["/api/report", "/api/verdicts"]
+        assert result["row"]["same"] is True
+        assert result["row"]["focused"] is True
+    if scenario == "finalize-refetch-failure":
+        assert result["paths"] == [
+            "/api/report", "/api/finalize", "/api/report", "/api/finalized.csv"
+        ]
+        assert result["state"] == "finalized"
+        assert result["connected"] is True
+        assert result["terminal"] is False
+        assert result["downloadDisabled"] is False
+        assert result["resetDisabled"] is False
+        assert result["shutdownDisabled"] is False
+        assert result["reconnectVisible"] is False
+        assert "Downloaded dim-import.csv again." in result["status"]
+    if scenario in {"finalize-refetch-http", "finalize-refetch-transport"}:
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["state"] == "finalized"
+        assert result["connected"] is False
+        assert result["terminal"] is False
+        assert result["downloadDisabled"] is False
+        assert result["resetDisabled"] is True
+        assert result["shutdownDisabled"] is True
+        assert result["reconnectVisible"] is True
+        assert "Finalisation succeeded" in result["status"]
+    if scenario in {"finalize-refetch-unauthorized", "finalize-refetch-illegal", "finalize-refetch-incompatible"}:
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["state"] == "finalized"
+        assert result["connected"] is False
+        assert result["terminal"] is True
+        assert result["downloadDisabled"] is True
+        assert result["resetDisabled"] is True
+        assert result["shutdownDisabled"] is True
+        assert result["reconnectVisible"] is False
+    if scenario == "finalize-refetch-unauthorized":
+        assert "authenticated session is unavailable" in result["status"]
+    if scenario == "finalize-refetch-illegal":
+        assert result["status"] == "session ended"
+    if scenario == "finalize-refetch-incompatible":
+        assert "incompatible response" in result["status"]
+    if scenario == "finalize-refetch-closed":
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["state"] == "closed"
+        assert result["connected"] is False
+        assert result["terminal"] is True
+        assert result["reconnectVisible"] is False
+        assert "session has ended" in result["status"]
+    if scenario == "finalize-body-http":
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report", "/api/finalized.csv"]
+        assert result["state"] == "finalized"
+        assert result["connected"] is True
+        assert result["terminal"] is False
+        assert result["downloadDisabled"] is False
+        assert result["resetDisabled"] is False
+        assert result["shutdownDisabled"] is False
+    if scenario == "finalize-body-transport":
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["state"] == "finalized"
+        assert result["connected"] is False
+        assert result["terminal"] is False
+        assert result["downloadDisabled"] is False
+        assert result["resetDisabled"] is True
+        assert result["shutdownDisabled"] is True
+        assert result["reconnectVisible"] is True
+    if scenario in {"finalize-body-unauthorized", "finalize-body-illegal", "finalize-body-incompatible"}:
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["state"] == "finalized"
+        assert result["connected"] is False
+        assert result["terminal"] is True
+        assert result["downloadDisabled"] is True
+        assert result["resetDisabled"] is True
+        assert result["shutdownDisabled"] is True
+        assert result["reconnectVisible"] is False
+    if scenario == "finalize-body-unauthorized":
+        assert "authenticated session is unavailable" in result["status"]
+    if scenario == "finalize-body-illegal":
+        assert result["status"] == "session ended"
+    if scenario == "finalize-body-incompatible":
+        assert "incompatible response" in result["status"]
+    if scenario == "finalize-body-closed":
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["state"] == "closed"
+        assert result["connected"] is False
+        assert result["terminal"] is True
+        assert result["reconnectVisible"] is False
+        assert "session has ended" in result["status"]
+    if scenario == "finalize":
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["revoked"] == 1
+        assert result["downloads"] == ["dim-import.csv"]
+        assert result["finalizeHeaders"] == {
+            "reportRevision": "1", "verdictRevision": "1", "approvedStillVetoed": "1"
+        }
+        assert result["finalizeVisible"] is False
+        assert result["rowDisabled"] is True
+        assert result["bulkDisabled"] is True
+        assert result["connected"] is True
+        assert result["terminal"] is False
+        assert result["downloadDisabled"] is False
+        assert result["resetDisabled"] is False
+        assert result["shutdownDisabled"] is False
+    if scenario in {"finalize-missing", "finalize-reject"}:
+        assert result["paths"] == [
+            "/api/report", "/api/finalize", "/api/report", "/api/finalized.csv"
+        ]
+        assert result["state"] == "finalized"
+        assert result["finalizeVisible"] is False
+        assert result["rowDisabled"] is True
+        assert result["bulkDisabled"] is True
+        assert result["connected"] is True
+        assert result["terminal"] is False
+        assert result["downloadDisabled"] is False
+        assert result["resetDisabled"] is False
+        assert result["shutdownDisabled"] is False
+        assert result["downloads"] == ["dim-import.csv"]
+        assert "could not be read" in result["status"] or "Downloaded" in result["status"]
+    if scenario == "reset":
+        assert result["payload"] == {"report_revision": 1, "verdict_revision": 0}
+    if scenario == "shutdown":
+        assert result["bodylessShutdown"]
+        assert result["state"] == "closed"

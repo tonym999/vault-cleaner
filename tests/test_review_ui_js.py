@@ -299,6 +299,16 @@ state.rows[items[0].id].approve.dispatch("click");
 if (JSON.stringify(toggles) !== JSON.stringify([[items[0].id, "approved"]])) {
   fail("approve callback is not wired");
 }
+state.rows[items[0].id].clear.dispatch("click");
+if (JSON.stringify(toggles) !== JSON.stringify([
+  [items[0].id, "approved"], [items[0].id, ""]
+])) fail("clear callback is not wired");
+var originalRow = state.rows[items[0].id].tr;
+state.verdicts[items[0].id] = "approved";
+if (!view.paintRow(items[0].id) || state.rows[items[0].id].tr !== originalRow ||
+    state.rows[items[0].id].approve.getAttribute("aria-pressed") !== "true") {
+  fail("paintRow must update an existing row in place");
+}
 var sortButton = find(header, function (node) {
   return node.tagName === "BUTTON" && node.textContent.indexOf("Name") !== -1;
 });
@@ -342,7 +352,8 @@ process.stdout.write(JSON.stringify({
   hasHeader: header.textContent.indexOf("Verdict") !== -1,
   hasDetails: table.textContent.indexOf("Armor scoring") !== -1,
   hostileIsText: inert.textContent === hostile && !hasTag(table, "img"),
-  callbackState: toggles.length === 1 && renders === 2,
+  callbackState: toggles.length === 2 && renders === 2,
+  paintedInPlace: state.rows[items[0].id].tr === originalRow,
   selected: select.value,
   optionCount: oldStyle.length,
   readOnlyNullHandles: readOnlyState.rows[items[0].id].approve === null &&
@@ -418,6 +429,7 @@ def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
         "selected": "weapons",
         "optionCount": 2,
         "readOnlyNullHandles": True,
+        "paintedInPlace": True,
     }
 
 
