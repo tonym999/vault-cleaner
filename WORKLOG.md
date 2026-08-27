@@ -3,6 +3,32 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-27 — #94 review follow-up: browser launch and wheel-proof hardening
+
+- Replaced the browser test's `BrowserType.executable_path` preflight with the
+  real `launch_browser()` attempt. Only Playwright's exact missing-executable
+  diagnostic is translated into the ordinary skip / `VAULT_CLEANER_BROWSER_REQUIRED=1`
+  failure policy; unrelated launch failures still propagate. Fixture return
+  annotations now use `Iterator[...]`.
+- Changed `scripts/check_wheel_install.py` to snapshot current bytes for
+  `git ls-files -z` paths into a fresh temporary source tree. Pip builds from
+  that tree outside the checkout, so ignored `build/`, `data/`, `.venv/`, and
+  other untracked content cannot be reused. The child server's stderr is
+  drained concurrently and retained in diagnostics; malformed bootstrap URLs
+  now become the intended `RuntimeError`.
+- Validation: Ruff passed; all 750 pytest tests passed; browser collection was
+  exactly 2; both required Chromium browser tests passed; empty-browser
+  ordinary mode skipped 2 and required mode exited nonzero with 2 setup
+  failures; the wheel proof passed; a disposable clone containing a stale
+  `build/stale.whl` left that artifact untouched while the proof built from a
+  `/tmp` source snapshot; all three packaged JavaScript files passed
+  `node --check`; `git diff --check` passed; and `git ls-files data/` remained
+  empty.
+- Intentional non-changes: `Session.expected_origin` remains untouched because
+  it is a property; no runtime dependencies, package data, production server,
+  protocol, or UI files changed; the reusable browser checklist remains in one
+  document as requested by #90.
+
 ## 2026-08-27 — #90 browser parity gate, wheel proof, and documentation
 
 - Pinned dev/test-only `playwright==1.62.0` and

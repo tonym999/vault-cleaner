@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.cookiejar
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,36 @@ def clean_environment() -> dict[str, str]:
     return child
 
 
+def copy_tracked_source(destination: Path) -> int:
+    """Copy current bytes for tracked paths into an isolated source tree."""
+    listing = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    copied = 0
+    for raw_path in listing.split(b"\0"):
+        if not raw_path:
+            continue
+        relative = Path(os.fsdecode(raw_path))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise RuntimeError(f"git returned an unsafe tracked path: {relative}")
+        source = ROOT / relative
+        if not source.is_file():
+            # A deleted tracked file is part of the current working tree too;
+            # do not resurrect its contents from HEAD.
+            continue
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        shutil.copymode(source, target)
+        copied += 1
+    if copied == 0:
+        raise RuntimeError("git returned no current tracked source files")
+    return copied
+
+
 def run_checked(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
@@ -72,10 +103,26 @@ def first_output_line(
         return line.strip()
     if process.poll() is None:
         raise RuntimeError("installed server closed stdout without exiting")
-    stderr = process.stderr.read() if process.stderr is not None else ""
-    raise RuntimeError(
-        f"installed server exited before printing a bootstrap URL: {stderr.strip()}"
-    )
+    raise RuntimeError("installed server exited before printing a bootstrap URL")
+
+
+def drain_stderr(
+    process: subprocess.Popen[str], output: queue.Queue[str]
+) -> None:
+    """Drain the child stderr pipe so a noisy failure cannot deadlock it."""
+    assert process.stderr is not None
+    output.put(process.stderr.read())
+
+
+def collected_stderr(
+    output: queue.Queue[str], reader: threading.Thread
+) -> str:
+    """Return drained child diagnostics after the process has stopped."""
+    reader.join(timeout=STOP_TIMEOUT_SECONDS)
+    try:
+        return output.get_nowait()
+    except queue.Empty:
+        return ""
 
 
 def stop_process(process: subprocess.Popen[str]) -> None:
@@ -91,12 +138,16 @@ def stop_process(process: subprocess.Popen[str]) -> None:
 
 
 def assert_bootstrap_url(url: str) -> None:
-    parsed = urlsplit(url)
-    tokens = parse_qs(parsed.query, strict_parsing=True).get("token", [])
+    try:
+        parsed = urlsplit(url)
+        tokens = parse_qs(parsed.query, strict_parsing=True).get("token", [])
+        port = parsed.port
+    except ValueError as error:
+        raise RuntimeError(f"installed server printed an invalid bootstrap URL: {url}") from error
     if (
         parsed.scheme != "http"
         or parsed.hostname != "127.0.0.1"
-        or parsed.port in (None, 0)
+        or port in (None, 0)
         or parsed.path != "/bootstrap"
         or len(tokens) != 1
     ):
@@ -141,11 +192,14 @@ def main() -> int:
     child_env = clean_environment()
     with tempfile.TemporaryDirectory(prefix="vault-cleaner-wheel-proof-") as raw_temp:
         temp = Path(raw_temp)
+        source = temp / "source"
+        source.mkdir()
         wheelhouse = temp / "wheelhouse"
         wheelhouse.mkdir()
         run_dir = temp / "run"
         run_dir.mkdir()
         environment = temp / "environment"
+        copied = copy_tracked_source(source)
 
         run_checked(
             [
@@ -156,9 +210,9 @@ def main() -> int:
                 "--no-deps",
                 "--wheel-dir",
                 str(wheelhouse),
-                ".",
+                str(source),
             ],
-            cwd=ROOT,
+            cwd=source,
             env=child_env,
         )
         wheels = list(wheelhouse.glob("vault_cleaner-*.whl"))
@@ -212,13 +266,31 @@ def main() -> int:
             text=True,
             encoding="utf-8",
         )
+        stderr_output: queue.Queue[str] = queue.Queue(maxsize=1)
+        stderr_reader = threading.Thread(
+            target=drain_stderr,
+            args=(process, stderr_output),
+            name="wheel-proof-server-stderr-reader",
+            daemon=True,
+        )
+        stderr_reader.start()
         try:
             bootstrap_url = first_output_line(process)
             assert_bootstrap_url(bootstrap_url)
             verify_http_assets(bootstrap_url)
+        except Exception as error:
+            stop_process(process)
+            stderr = collected_stderr(stderr_output, stderr_reader).strip()
+            if stderr:
+                raise RuntimeError(
+                    f"{error}\ninstalled server stderr:\n{stderr}"
+                ) from error
+            raise
         finally:
             stop_process(process)
+            collected_stderr(stderr_output, stderr_reader)
 
+        print(f"wheel source snapshot: {source} ({copied} tracked files)")
         print(f"built non-editable wheel: {wheels[0].name}")
         print(f"isolated package origin: {origin}")
         print("verified installed root HTML and all three allow-listed UI assets")

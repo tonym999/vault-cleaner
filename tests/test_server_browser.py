@@ -5,12 +5,21 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Browser, BrowserType, Dialog, Page, expect
+from playwright.sync_api import (
+    Browser,
+    BrowserType,
+    Dialog,
+    Page,
+    expect,
+)
+from playwright.sync_api import (
+    Error as PlaywrightError,
+)
 
 from vault_cleaner.server import app as server_app
 from vault_cleaner.server.app import DEFAULT_ASSETS, build_server
@@ -56,18 +65,22 @@ class _TempfileProxy:
 def browser(
     browser_type: BrowserType,
     launch_browser: Callable[[], Browser],
-) -> Generator[Browser]:
-    """Guard the managed executable before pytest-playwright launches it."""
-    executable = Path(browser_type.executable_path)
-    if not executable.is_file():
-        message = (
-            f"managed Playwright {browser_type.name} executable is absent: "
-            f"{executable}"
-        )
+) -> Iterator[Browser]:
+    """Launch the managed browser, with an opt-in missing-browser guard."""
+    try:
+        managed_browser = launch_browser()
+    except PlaywrightError as error:
+        # Playwright 1.62 may launch Chromium through its separate headless
+        # shell.  Checking BrowserType.executable_path before launch therefore
+        # checks a different binary than the one this fixture needs.  Keep the
+        # guard limited to Playwright's own missing-executable diagnostic so
+        # launch/library/runtime failures remain visible as real test errors.
+        if not str(error).startswith("BrowserType.launch: Executable doesn't exist at "):
+            raise
+        message = f"managed Playwright {browser_type.name} executable is absent: {error}"
         if os.environ.get("VAULT_CLEANER_BROWSER_REQUIRED") == "1":
             pytest.fail(message)
         pytest.skip(message)
-    managed_browser = launch_browser()
     yield managed_browser
     managed_browser.close()
 
@@ -75,7 +88,7 @@ def browser(
 @pytest.fixture
 def live_server(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> Generator[LiveServer]:
+) -> Iterator[LiveServer]:
     staging_root = tmp_path / "server-staging"
     staging_root.mkdir()
     monkeypatch.setattr(
