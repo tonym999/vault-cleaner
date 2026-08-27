@@ -3,6 +3,82 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-27 — #94 review follow-up: browser launch and wheel-proof hardening
+
+- Replaced the browser test's `BrowserType.executable_path` preflight with the
+  real `launch_browser()` attempt. Only Playwright's exact missing-executable
+  diagnostic is translated into the ordinary skip / `VAULT_CLEANER_BROWSER_REQUIRED=1`
+  failure policy; unrelated launch failures still propagate. Fixture return
+  annotations now use `Iterator[...]`.
+- Changed `scripts/check_wheel_install.py` to snapshot current bytes for
+  `git ls-files -z` paths into a fresh temporary source tree. Pip builds from
+  that tree outside the checkout, so ignored `build/`, `data/`, `.venv/`, and
+  other untracked content cannot be reused. The child server's stderr is
+  drained concurrently and retained in diagnostics; malformed bootstrap URLs
+  now become the intended `RuntimeError`.
+- Validation: Ruff passed; all 750 pytest tests passed; browser collection was
+  exactly 2; both required Chromium browser tests passed; empty-browser
+  ordinary mode skipped 2 and required mode exited nonzero with 2 setup
+  failures; the wheel proof passed; a disposable clone containing a stale
+  `build/stale.whl` left that artifact untouched while the proof built from a
+  `/tmp` source snapshot; all three packaged JavaScript files passed
+  `node --check`; `git diff --check` passed; and `git ls-files data/` remained
+  empty.
+- Intentional non-changes: `Session.expected_origin` remains untouched because
+  it is a property; no runtime dependencies, package data, production server,
+  protocol, or UI files changed; the reusable browser checklist remains in one
+  document as requested by #90.
+
+## 2026-08-27 — #90 browser parity gate, wheel proof, and documentation
+
+- Pinned dev/test-only `playwright==1.62.0` and
+  `pytest-playwright==0.9.0` without changing the pandas + Flask runtime set.
+  The managed install resolved Chrome for Testing 151.0.7922.34, Playwright
+  Chromium browser revision 1234 (plus headless-shell revision 1234 and FFmpeg
+  revision 1011).
+- Added exactly two `browser`-marked real-browser tests over the existing
+  loopback server: hostile uploaded names/notes remain inert live DOM text with
+  no injected `img`, `script`, `b`, or dialog, and the one browser smoke covers
+  bootstrap → armor upload → approve → unset → veto → finalise → Playwright
+  download. The downloaded `dim-import.csv` bytes equal
+  `session.finalized_csv_bytes`; #67's CLI/server parity was not duplicated.
+- Guarded the managed browser executable before launch. Browser-free runs skip
+  both tests, while `VAULT_CLEANER_BROWSER_REQUIRED=1` turns a missing Chromium
+  into a failing setup instead of a falsely green job. Collection reports
+  exactly 2 browser tests.
+- Added a dedicated Ubuntu browser CI job alongside the unchanged
+  Windows/Linux core matrix. It installs Chromium with
+  `python -m playwright install --with-deps chromium`, runs the isolated wheel
+  proof and both browser tests, and uploads retained-on-failure traces and
+  failure screenshots from `test-results`; no retries or rerun tooling were
+  added.
+- Added `scripts/check_wheel_install.py`: it builds a real wheel with
+  `python -m pip wheel --no-deps --wheel-dir <temporary-wheelhouse> .`, installs
+  only that wheel into a fresh temporary virtual environment, removes inherited
+  `PYTHONPATH`, runs outside the checkout, verifies the imported package origin,
+  starts the installed `vault-cleaner serve --no-wishlists --port 0`, follows
+  bootstrap with a cookie-aware standard-library client, and checks the root
+  HTML plus every allow-listed CSS/JavaScript asset for status, content type,
+  body, and references. The existing #87 `vault_cleaner.ui` package-data
+  declaration was sufficient; no packaging correction was required.
+- Completed the reusable manual browser/accessibility checklist on Linux with
+  Chrome for Testing 151.0.7922.34 at 1440×1000 and 390×844. Light, dark,
+  narrow, keyboard `a`/`v`/`u` focus preservation, report controls,
+  finalised/frozen state, Download again, Reset, Shutdown, and the required
+  stale second-tab reconciliation all passed. No product browser defect was
+  found; one exploratory checklist command selected an option absent from the
+  all-review fixture and was corrected before the complete pass.
+- Expanded the README from the #88 stub to the complete #89 server workflow
+  and privacy model: byte uploads rather than paths, session-held verdicts,
+  finalisation and durable vetoes, download/reset/shutdown, loopback and
+  bootstrap secrecy, local-only vault data, no Bungie credentials, and the
+  separate optional static-content network path with `--no-wishlists`.
+- Final validation: Ruff passed; all 750 pytest tests passed; browser collection
+  was exactly 2 and both passed in Chromium; all three packaged JavaScript files
+  passed `node --check`; the non-editable wheel proof passed; the fake-fixture
+  round-trip stayed dry; `git diff --check` passed; and `git ls-files data/`
+  remained empty.
+
 ## 2026-08-27 — #89 review follow-up: control and finalisation recovery hardening
 
 - Refreshed every mutation control, including bulk buttons, whenever the
