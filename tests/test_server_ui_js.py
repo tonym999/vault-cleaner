@@ -1401,7 +1401,10 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         if scenario == "single":
             assert result["row"]["same"] is True
             assert result["row"]["focused"] is True
-        assert "Approved this session" in result["row"]["presentation"] if result["row"] else False
+        assert result["row"] is not None
+        assert result["row"]["presentation"] == (
+            "Approved this session · active persisted veto still suppresses this item"
+        )
     if scenario == "clear":
         assert result["payload"]["decisions"] == [
             {"id": "18446744073709551615", "verdict": None}
@@ -1459,7 +1462,7 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["resetDisabled"] is False
         assert result["shutdownDisabled"] is False
         assert result["reconnectVisible"] is False
-        assert "Downloaded dim-import.csv again." in result["status"]
+        assert result["status"] == "Downloaded dim-import.csv again."
     if scenario in {"finalize-refetch-http", "finalize-refetch-transport"}:
         assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
         assert result["state"] == "finalized"
@@ -1555,6 +1558,10 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
     if scenario == "finalize-once":
         assert result["paths"] == ["/api/report", "/api/finalize"]
         assert result["state"] == "finalized"
+        assert result["finalizeHeaders"] == {
+            "reportRevision": "1", "verdictRevision": "1",
+            "approvedStillVetoed": "1", "serveOnce": True
+        }
         assert result["connected"] is False
         assert result["terminal"] is True
         assert result["reconnectVisible"] is False
@@ -1562,9 +1569,14 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["resetDisabled"] is True
         assert result["shutdownDisabled"] is True
         assert "--once review server has stopped" in result["status"]
+        assert "1 approved item remains suppressed" in result["actionsText"]
     if scenario in {"finalize-once-missing", "finalize-once-reject"}:
         assert result["paths"] == ["/api/report", "/api/finalize"]
         assert result["state"] == "finalized"
+        assert result["finalizeHeaders"] == {
+            "reportRevision": "1", "verdictRevision": "1",
+            "approvedStillVetoed": "1", "serveOnce": True
+        }
         assert result["connected"] is False
         assert result["terminal"] is True
         assert result["reconnectVisible"] is False
@@ -1572,6 +1584,7 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["resetDisabled"] is True
         assert result["shutdownDisabled"] is True
         assert "could not be read before the --once server stopped" in result["status"]
+        assert "1 approved item remains suppressed" in result["actionsText"]
     if scenario in {"finalize-missing", "finalize-reject"}:
         assert result["paths"] == [
             "/api/report", "/api/finalize", "/api/report", "/api/finalized.csv"
@@ -1586,7 +1599,12 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["resetDisabled"] is False
         assert result["shutdownDisabled"] is False
         assert result["downloads"] == ["dim-import.csv"]
-        assert "could not be read" in result["status"] or "Downloaded" in result["status"]
+        assert result["finalizeHeaders"] == {
+            "reportRevision": "1", "verdictRevision": "1",
+            "approvedStillVetoed": "1", "serveOnce": False
+        }
+        assert result["status"] == "Downloaded dim-import.csv again."
+        assert "1 approved item remains suppressed" in result["actionsText"]
     if scenario == "reset":
         assert result["payload"] == {"report_revision": 1, "verdict_revision": 0}
     if scenario == "shutdown":

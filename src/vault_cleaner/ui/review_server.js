@@ -295,6 +295,15 @@
     return responseHeader(response && response.headers, "Vault-Cleaner-Serve-Once") === "true";
   }
 
+  function finalizeResponseHeaders(response) {
+    return {
+      reportRevision: responseHeader(response && response.headers, "Vault-Cleaner-Report-Revision"),
+      verdictRevision: responseHeader(response && response.headers, "Vault-Cleaner-Verdict-Revision"),
+      approvedStillVetoed: responseHeader(response && response.headers, "Vault-Cleaner-Approved-Still-Vetoed"),
+      serveOnce: responseIsServeOnce(response)
+    };
+  }
+
   function responseError(response) {
     var status = response && response.status;
     var fallback = "request failed (HTTP " + String(status || "unknown") + ")";
@@ -369,25 +378,33 @@
     if (!response || !response.ok) {
       return responseError(response).then(function (error) { throw requestError(error); });
     }
+    // Read all protocol metadata before asking the browser for the body. A
+    // body stream may reject or be absent after the server has committed the
+    // result, but the headers still carry the revision and conflict count the
+    // finalized UI must disclose.
+    var finalizeHeaders = finalizeResponseHeaders(response);
     if (typeof response.arrayBuffer !== "function") {
       var missing = requestError({ kind: "bytes", code: "invalid_bytes", message: INCOMPATIBLE_MESSAGE });
       missing.committedResponse = true;
-      missing.serveOnce = responseIsServeOnce(response);
+      missing.serveOnce = finalizeHeaders.serveOnce;
+      missing.finalizeHeaders = finalizeHeaders;
       return Promise.reject(missing);
     }
     var value;
     try { value = response.arrayBuffer(); } catch (cause) {
       var thrown = requestError({ kind: "bytes", code: "invalid_bytes", message: INCOMPATIBLE_MESSAGE }, cause);
       thrown.committedResponse = true;
-      thrown.serveOnce = responseIsServeOnce(response);
+      thrown.serveOnce = finalizeHeaders.serveOnce;
+      thrown.finalizeHeaders = finalizeHeaders;
       return Promise.reject(thrown);
     }
     return Promise.resolve(value).then(function (bytes) {
-      return { response: response, bytes: bytes };
+      return { response: response, bytes: bytes, finalizeHeaders: finalizeHeaders };
     }, function (cause) {
       var rejected = requestError({ kind: "bytes", code: "invalid_bytes", message: INCOMPATIBLE_MESSAGE }, cause);
       rejected.committedResponse = true;
-      rejected.serveOnce = responseIsServeOnce(response);
+      rejected.serveOnce = finalizeHeaders.serveOnce;
+      rejected.finalizeHeaders = finalizeHeaders;
       throw rejected;
     });
   }
@@ -843,7 +860,6 @@
         if (objectUrl !== null) root.URL.revokeObjectURL(objectUrl);
       }
     }
-    function header(headers, name) { return responseHeader(headers, name); }
     function finishOnceSession(message, kind) {
       state.server_state = "finalized";
       state.connected = false;
@@ -852,12 +868,7 @@
       announce(message, kind || "ok");
     }
     function afterCsvDownload(result, source) {
-      state.finalizeHeaders = {
-        reportRevision: header(result.response.headers, "Vault-Cleaner-Report-Revision"),
-        verdictRevision: header(result.response.headers, "Vault-Cleaner-Verdict-Revision"),
-        approvedStillVetoed: header(result.response.headers, "Vault-Cleaner-Approved-Still-Vetoed"),
-        serveOnce: responseIsServeOnce(result.response)
-      };
+      state.finalizeHeaders = result.finalizeHeaders || finalizeResponseHeaders(result.response);
       // A successful CSV response is itself proof that the server committed
       // finalisation (and a finalized.csv response is likewise terminal for
       // the report). Freeze mutation controls while the envelope refresh runs.
@@ -931,6 +942,7 @@
         .then(function () { setMutationGate(null); })
         .catch(function (error) {
           if (error.committedResponse) {
+            state.finalizeHeaders = error.finalizeHeaders || state.finalizeHeaders;
             if (error.serveOnce) {
               finishOnceSession("Finalisation succeeded, but the CSV response could not be read before the --once server stopped. Start a new review session.", "error");
               setMutationGate(null);
@@ -955,6 +967,7 @@
         .then(function () { setMutationGate(null); })
         .catch(function (error) {
           if (error.committedResponse) {
+            state.finalizeHeaders = error.finalizeHeaders || state.finalizeHeaders;
             state.server_state = "finalized";
             state.connected = true;
             state.terminal = false;

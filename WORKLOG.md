@@ -32,6 +32,9 @@ surprises the next agent should know about.
   singular/plural wording. A small ``Vault-Cleaner-Serve-Once`` response
   signal lets the page represent intentional post-download shutdown without
   a misleading reconnect prompt; persistent servers retain report recovery.
+- Finalization response metadata is snapshotted before reading CSV bytes and
+  carried through committed body-read failures, so even a ``--once`` server
+  can show the accurate approved-but-still-vetoed count in its terminal banner.
 
 ## 2026-08-27 — server-acknowledged review mutations and finalisation (#89)
 
