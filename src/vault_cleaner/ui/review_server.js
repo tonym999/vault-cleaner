@@ -886,6 +886,10 @@
       // finalisation (and a finalized.csv response is likewise terminal for
       // the report). Freeze mutation controls while the envelope refresh runs.
       state.server_state = "finalized";
+      // Set the committed lifecycle note before any download handling or
+      // authoritative report refresh can await. A slow report must not leave
+      // the pre-finalization explanation visible after POST /api/finalize.
+      renderSessionNote();
       var downloadError = null;
       try { downloadBlob(result.bytes); } catch (error) { downloadError = error; }
       if (source === "retry") {

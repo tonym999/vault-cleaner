@@ -38,6 +38,9 @@ surprises the next agent should know about.
 - Finalisation notes now remain truthful across every committed response and
   report-refresh recovery path; zero suppression counts are omitted, and
   invalidated filters synchronize in place without stealing search focus.
+- The committed finalisation note is now rendered synchronously before a
+  follow-up report refresh can wait; focused-control tests retain the search
+  caret and cover zero and malformed suppression headers.
 
 ## 2026-08-27 — server-acknowledged review mutations and finalisation (#89)
 
