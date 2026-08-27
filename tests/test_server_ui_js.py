@@ -1108,7 +1108,9 @@ function csvResponse(mode) {
     headers: { get: function (name) {
       if (name === "Vault-Cleaner-Report-Revision") return "1";
       if (name === "Vault-Cleaner-Verdict-Revision") return "1";
-      if (name === "Vault-Cleaner-Approved-Still-Vetoed") return mode === "plural" ? "2" : "1";
+      if (name === "Vault-Cleaner-Approved-Still-Vetoed") {
+        return mode === "plural" ? "2" : (mode === "zero" ? "0" : "1");
+      }
       if (name === "Vault-Cleaner-Serve-Once") return mode === "once" || mode.indexOf("once-") === 0 ? "true" : null;
       return null;
     } }
@@ -1132,6 +1134,9 @@ if (scenario === "single" || scenario === "keyboard") queue.push(response(envelo
 if (scenario === "clear") queue.push(response(envelope(1)));
 if (scenario === "failure") queue.push(response({ error: { code: "invalid_export", message: "no" } }, 422));
 if (scenario === "bulk") queue.push(response(envelope(1, [
+  { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
+])));
+if (scenario === "filter-cleared-search") queue.push(response(envelope(1, [
   { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
 ])));
 if (scenario === "verdict-filter-approved") {
@@ -1163,6 +1168,7 @@ if (scenario === "upload-gate") {
 }
 if (scenario === "finalize" || scenario === "finalize-missing" ||
     scenario === "finalize-reject" || scenario === "finalize-plural" ||
+    scenario === "finalize-zero" ||
     scenario === "finalize-once" || scenario === "finalize-once-missing" ||
     scenario === "finalize-once-reject" || scenario.indexOf("finalize-refetch-") === 0 ||
     scenario.indexOf("finalize-body-") === 0) {
@@ -1173,6 +1179,7 @@ if (scenario === "finalize" || scenario === "finalize-missing" ||
   } else if (scenario === "finalize-once-reject") csvMode = "once-reject";
   else if (scenario === "finalize-once-missing") csvMode = "once-missing";
   else if (scenario === "finalize-plural") csvMode = "plural";
+  else if (scenario === "finalize-zero") csvMode = "zero";
   else if (scenario.indexOf("finalize-once") === 0) csvMode = "once";
   queue.push(csvResponse(csvMode));
   if (scenario === "finalize-refetch-http" || scenario === "finalize-refetch-failure") {
@@ -1235,6 +1242,11 @@ function finish() {
     revoked: revoked, downloads: document.downloads,
     finalizeHeaders: state.finalizeHeaders,
     filterValue: document.nodes["vc-f-verdict"] ? document.nodes["vc-f-verdict"].value : null,
+    sessionNote: document.nodes["vc-session-note"].textContent,
+    searchValue: document.nodes["vc-search"] ? document.nodes["vc-search"].value : null,
+    searchFocused: document.activeElement === document.nodes["vc-search"],
+    searchSame: document.nodes["vc-search"] === beforeSearch,
+    bulkSame: document.nodes["vc-bulk-veto"] === beforeBulk,
     rowIds: Object.keys(state.rows).sort(),
     actionRole: document.nodes["vc-actions"].getAttribute("role"),
     actionsReachable: document.nodes["vc-actions"].parentNode === document.main,
@@ -1267,6 +1279,7 @@ function finish() {
   process.stdout.write(JSON.stringify(output));
 }
 var beforeRow = null, beforeFocus = null, beforeFinalize = null, uploadBulkDisabled = null;
+var beforeSearch = null, beforeBulk = null;
 setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   if (scenario === "single" || scenario === "clear" || scenario === "failure" || scenario === "stale" || scenario === "stale-failure") {
@@ -1279,6 +1292,17 @@ setTimeout(function () {
     document.dispatch("keydown", { target: state.rows[id].tr, key: "a", preventDefault: function () {} });
   } else if (scenario === "bulk") {
     document.nodes["vc-bulk-veto"].dispatch("click");
+  } else if (scenario === "filter-cleared-search") {
+    var verdictFilter = document.nodes["vc-f-verdict"];
+    verdictFilter.value = "unreviewed";
+    verdictFilter.dispatch("change", { target: verdictFilter });
+    var search = document.nodes["vc-search"];
+    beforeSearch = search;
+    search.value = "Second";
+    search.dispatch("input", { target: search });
+    search.focus();
+    beforeBulk = document.nodes["vc-bulk-veto"];
+    beforeBulk.dispatch("click");
   } else if (scenario === "verdict-filter-approved" || scenario === "verdict-filter-vetoed" || scenario === "verdict-filter-unreviewed") {
     var filter = document.nodes["vc-f-verdict"];
     filter.value = scenario === "verdict-filter-approved" ? "approved" :
@@ -1311,7 +1335,7 @@ setTimeout(function () {
       document.nodes["vc-bulk-veto"].dispatch("click");
     }, 5);
   } else if (scenario === "finalize-missing" || scenario === "finalize-reject" ||
-      scenario === "finalize-plural" || scenario === "finalize-once" ||
+      scenario === "finalize-plural" || scenario === "finalize-zero" || scenario === "finalize-once" ||
       scenario === "finalize-once-missing" || scenario === "finalize-once-reject" ||
       scenario.indexOf("finalize-refetch-") === 0 || scenario.indexOf("finalize-body-") === 0) {
     beforeFinalize = document.nodes["vc-finalize"];
@@ -1342,6 +1366,7 @@ setTimeout(function () {
         ("clear", "/api/verdicts", None),
         ("failure", "/api/verdicts", None),
         ("bulk", "/api/verdicts", "vetoed"),
+        ("filter-cleared-search", "/api/verdicts", "vetoed"),
         ("verdict-filter-approved", "/api/verdicts", "approved"),
         ("verdict-filter-vetoed", "/api/verdicts", "vetoed"),
         ("verdict-filter-unreviewed", "/api/verdicts", None),
@@ -1353,6 +1378,7 @@ setTimeout(function () {
         ("finalize", "/api/finalize", "approved"),
         ("finalize-missing", "/api/finalize", "approved"),
         ("finalize-reject", "/api/finalize", "approved"),
+        ("finalize-zero", "/api/finalize", "approved"),
         ("finalize-refetch-failure", "/api/finalize", None),
         ("finalize-refetch-http", "/api/finalize", None),
         ("finalize-refetch-transport", "/api/finalize", None),
@@ -1438,6 +1464,13 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
             {"id": "18446744073709551615", "verdict": "vetoed"},
             {"id": "2", "verdict": "vetoed"},
         ]
+    if scenario == "filter-cleared-search":
+        assert result["paths"] == ["/api/report", "/api/verdicts"]
+        assert result["filterValue"] == ""
+        assert result["searchValue"] == "Second"
+        assert result["searchFocused"] is True
+        assert result["searchSame"] is True
+        assert result["bulkSame"] is True
     if scenario in {"verdict-filter-approved", "verdict-filter-vetoed", "verdict-filter-unreviewed"}:
         assert result["paths"] == ["/api/report", "/api/verdicts"]
         assert result["row"]["same"] is True
@@ -1473,6 +1506,9 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["shutdownDisabled"] is True
         assert result["reconnectVisible"] is True
         assert "Finalisation succeeded" in result["status"]
+        assert result["sessionNote"].startswith(
+            "Finalisation succeeded. The reviewed CSV was produced"
+        )
     if scenario in {"finalize-refetch-unauthorized", "finalize-refetch-illegal", "finalize-refetch-incompatible"}:
         assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
         assert result["state"] == "finalized"
@@ -1482,6 +1518,9 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["resetDisabled"] is True
         assert result["shutdownDisabled"] is True
         assert result["reconnectVisible"] is False
+        assert result["sessionNote"].startswith(
+            "Finalisation succeeded. The reviewed CSV was produced"
+        )
     if scenario == "finalize-refetch-unauthorized":
         assert "authenticated session is unavailable" in result["status"]
     if scenario == "finalize-refetch-illegal":
@@ -1521,6 +1560,9 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["resetDisabled"] is True
         assert result["shutdownDisabled"] is True
         assert result["reconnectVisible"] is False
+        assert result["sessionNote"].startswith(
+            "Finalisation succeeded. The reviewed CSV was produced"
+        )
     if scenario == "finalize-body-unauthorized":
         assert "authenticated session is unavailable" in result["status"]
     if scenario == "finalize-body-illegal":
@@ -1555,6 +1597,10 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
         assert result["finalizeHeaders"]["approvedStillVetoed"] == "2"
         assert "2 approved items remain suppressed" in result["actionsText"]
+    if scenario == "finalize-zero":
+        assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
+        assert result["finalizeHeaders"]["approvedStillVetoed"] == "0"
+        assert "approved item remains suppressed" not in result["actionsText"]
     if scenario == "finalize-once":
         assert result["paths"] == ["/api/report", "/api/finalize"]
         assert result["state"] == "finalized"
@@ -1570,6 +1616,9 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["shutdownDisabled"] is True
         assert "--once review server has stopped" in result["status"]
         assert "1 approved item remains suppressed" in result["actionsText"]
+        assert result["sessionNote"].startswith(
+            "Finalisation succeeded. The reviewed CSV was produced"
+        )
     if scenario in {"finalize-once-missing", "finalize-once-reject"}:
         assert result["paths"] == ["/api/report", "/api/finalize"]
         assert result["state"] == "finalized"
@@ -1585,6 +1634,9 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["shutdownDisabled"] is True
         assert "could not be read before the --once server stopped" in result["status"]
         assert "1 approved item remains suppressed" in result["actionsText"]
+        assert result["sessionNote"].startswith(
+            "Finalisation succeeded. The reviewed CSV was produced"
+        )
     if scenario in {"finalize-missing", "finalize-reject"}:
         assert result["paths"] == [
             "/api/report", "/api/finalize", "/api/report", "/api/finalized.csv"

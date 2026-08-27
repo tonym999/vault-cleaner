@@ -476,6 +476,15 @@
       return state.viewInvalidated.length
         ? " Local view state dropped: " + state.viewInvalidated.join("; ") + "." : "";
     }
+    function renderSessionNote() {
+      var sessionNote = byId("vc-session-note");
+      if (!sessionNote) return;
+      sessionNote.textContent = state.server_state === "finalized"
+        ? "Finalisation succeeded. The reviewed CSV was produced; this session is now frozen."
+        : state.server_state === "closed"
+          ? "This review session is closed. It cannot accept further uploads or verdicts."
+          : "Decisions are held in this server session, but no reviewed CSV has been produced and this session's new vetoes have not been persisted.";
+    }
     function fail(message, terminal) {
       state.connected = false;
       state.terminal = !!terminal;
@@ -495,6 +504,9 @@
       showReconnect(status, requestReport);
     }
     function handleCommittedFinalizeRefreshFailure(error, message) {
+      // The finalize POST already committed the result. Keep this note
+      // truthful when the authoritative follow-up report cannot be adopted.
+      renderSessionNote();
       var failure = error.failure || {};
       var server = error.server || {};
       // These responses describe a terminal session or an incompatible page,
@@ -595,15 +607,22 @@
       var controlsInvalidated = state.viewInvalidated.some(function (entry) {
         return entry.indexOf("filter ") === 0 || entry.indexOf("sort field ") === 0;
       });
+      var queryInvalidated = state.viewInvalidated.filter(function (entry) {
+        return entry.indexOf("filter ") === 0;
+      });
       if (rebuilt) {
         buildView();
         renderControls();
         renderList();
       } else {
         // applySessionEnvelope may clear an invalid filter while preserving
-        // the report revision. Rebuild controls as well as the list so the
-        // visible select cannot continue to claim a stale value.
-        if (controlsInvalidated) renderControls();
+        // the report revision. Synchronize only affected live controls;
+        // rebuilding the panel would steal search focus and discard edits.
+        queryInvalidated.forEach(function (entry) {
+          var field = entry.slice("filter ".length).split(" ")[0];
+          var control = byId("vc-f-" + field);
+          if (control) control.value = state.query[field];
+        });
         if (membershipChanged || controlsInvalidated) renderList();
         else repaintRows();
       }
@@ -614,14 +633,7 @@
       if (proposalsPanel) proposalsPanel.hidden = envelope.state === "idle";
       var fingerprintNode = byId("vc-fingerprint");
       if (fingerprintNode) fingerprintNode.textContent = envelope.fingerprint || "";
-      var sessionNote = byId("vc-session-note");
-      if (sessionNote) {
-        sessionNote.textContent = envelope.state === "finalized"
-          ? "Finalisation succeeded. The reviewed CSV was produced; this session is now frozen."
-          : envelope.state === "closed"
-            ? "This review session is closed. It cannot accept further uploads or verdicts."
-            : "Decisions are held in this server session, but no reviewed CSV has been produced and this session's new vetoes have not been persisted.";
-      }
+      renderSessionNote();
       var recon = byId("vc-reconciliation");
       if (recon) {
         recon.textContent = "";
@@ -744,7 +756,7 @@
         var lifecycleDisabled = !!state.mutationInFlight || !state.connected || state.terminal;
         var suppression = state.finalizeHeaders && state.finalizeHeaders.approvedStillVetoed;
         var suppressionText = "";
-        if (typeof suppression === "string" && /^(?:0|[1-9][0-9]*)$/.test(suppression)) {
+        if (typeof suppression === "string" && suppression !== "0" && /^(?:0|[1-9][0-9]*)$/.test(suppression)) {
           suppressionText = suppression === "1"
             ? " 1 approved item remains suppressed by an active persisted veto."
             : " " + suppression + " approved items remain suppressed by active persisted vetoes.";
@@ -864,6 +876,7 @@
       state.server_state = "finalized";
       state.connected = false;
       state.terminal = true;
+      renderSessionNote();
       refreshMutationControls();
       announce(message, kind || "ok");
     }
@@ -882,6 +895,7 @@
         // report remains frozen and verdict controls stay disabled.
         state.connected = true;
         state.terminal = false;
+        renderSessionNote();
         refreshMutationControls();
         announce(downloadError
           ? "Finalisation succeeded, but download handling failed. Use Download again."
@@ -914,6 +928,7 @@
     }
     function recoverCommittedFinalize(reason) {
       state.server_state = "finalized";
+      renderSessionNote();
       return fetchEnvelope("/api/report", { headers: { "Accept": "application/json" } }).then(function (envelope) {
         adopt(envelope);
         setMutationGate(null);
@@ -971,6 +986,7 @@
             state.server_state = "finalized";
             state.connected = true;
             state.terminal = false;
+            renderSessionNote();
             setMutationGate(null);
             announce("Finalisation succeeded, but download handling failed. Use Download again.", "error");
             return;
