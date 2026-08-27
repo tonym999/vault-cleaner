@@ -187,17 +187,40 @@ to hand-write from a report run if you would rather script it.
 
 ### Local review server
 
-For a local browser session, start the loopback-only server and open the one-use
+For the complete local browser workflow, start the server and open the one-use
 URL it prints:
 
 ```bash
 .venv/bin/vault-cleaner serve --no-wishlists
 ```
 
-Upload any combination of DIM weapons, armor, and ghost CSVs in the page. The
-report view reuses the search, filters, grouping, sorting, detail,
-armor-scoring, and count views from `review-html`; it is read-only and never
-accepts a filesystem path. Stop the server with <kbd>Ctrl-C</kbd> when done.
+The server binds only to `127.0.0.1`. Treat the bootstrap URL as a local secret:
+it carries a short-lived, one-use token that establishes the authenticated
+browser session. Upload any combination of DIM weapons, armor, and ghost CSVs;
+the browser submits file bytes and never submits a filesystem path. The report
+reuses the search, filters, grouping, sorting, detail, armor-scoring, and count
+views from `review-html`.
+
+Review proposals with **Approve**, **Veto**, and **Unset** (or <kbd>a</kbd>,
+<kbd>v</kbd>, and <kbd>u</kbd> from a focused row). Acknowledged verdicts live
+in this authenticated local server session until finalisation; they are not a
+DIM import and are not yet durable. Existing durable vetoes from
+`data/overrides.json` may already suppress proposals, and approving a proposal
+does not remove such a veto.
+
+Choose **Finalise review** to persist this session's new vetoes, produce the
+reviewed CSV, and download it as `dim-import.csv`. **Download again** retrieves
+the same finalised bytes without repeating finalisation. **Reset / Start new
+review** clears the live report and session verdicts without deleting exports
+or durable overrides. **Shutdown** terminates the server session; <kbd>Ctrl-C</kbd>
+in its terminal is also available.
+
+> **Privacy:** vault exports, report data, verdicts, and generated CSV bytes
+> remain on your machine. The server has no Bungie credentials, account login,
+> API key, or authenticated account access. Optional wishlist and public Bungie
+> manifest downloads fetch static game content; that is separate from uploading
+> vault data anywhere. Use `--no-wishlists` when you want the server workflow to
+> make no wishlist or manifest network requests.
 
 ## Status
 
@@ -208,7 +231,7 @@ accepts a filesystem path. Stop the server with <kbd>Ctrl-C</kbd> when done.
 - ✅ M5 — polish: ghost cleanup pass (`vault-cleaner ghosts` — junks every shell not equipped/locked/tagged/in a loadout) and the all-passes dry-run summary (`vault-cleaner report`)
 - ✅ M6 — armor dupes: exact-dupe pass, review-only close-dupe pass, and the last-of-archetype score guard
 - 🚧 M7 — review UI: reusable report snapshot ✅, persistent vetoes + reviewed export (`vault-cleaner review`) ✅, static HTML review UI (`vault-cleaner review-html`) ✅
-- 🚧 M8 — local review server: authenticated loopback server with browser CSV uploads and a read-only report view; verdict/finalization APIs exist, while their browser controls remain follow-up work
+- 🚧 M8 — local review server: authenticated loopback upload, review, finalisation, and download workflow complete; static-page cleanup and armor what-if follow-ups remain
 
 See the [issue board](https://github.com/tonym999/vault-cleaner/issues) for
 ticket-level detail.

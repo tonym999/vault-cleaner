@@ -10,7 +10,12 @@ dependencies = ["pandas>=3.0,<4", "flask>=3.1,<4"]
 [project.optional-dependencies]
 # The dev toolchain, shared by CI and local setup (AGENTS.md) so the two
 # can't drift: everything CI gates on must come from here.
-dev = ["pytest==9.1.1", "ruff==0.16.0"]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.0",
+    "playwright==1.62.0",
+    "pytest-playwright==0.9.0",
+]
 
 [project.scripts]
 vault-cleaner = "vault_cleaner.cli:main"
@@ -32,3 +37,6 @@ testpaths = ["tests"]
 # worktree imports that worktree's source instead of the single absolute
 # path baked into the editable install's .pth. tests/conftest.py verifies it.
 pythonpath = ["src"]
+markers = [
+    "browser: real-browser acceptance tests requiring a managed Playwright browser",
+]
