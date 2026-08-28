@@ -457,7 +457,8 @@ def test_kept_items_requires_an_active_set_like_input(plain):
 
 def test_packaged_presentation_resources_are_free_of_the_static_adapter():
     retired_symbols = (
-        "read" + "Manifest", "decode" + "ManifestBytes",
+        "read" + "Manifest", "read" + "PastedManifest",
+        "decode" + "ManifestBytes",
         "fractional" + "NumberError", "build" + "Manifest",
         "export" + "Manifest", "manifest" + "Json",
         "offer" + "Download", "apply" + "Import",
@@ -467,9 +468,17 @@ def test_packaged_presentation_resources_are_free_of_the_static_adapter():
         "DECISION" + "_KEYS",
     )
     # This negative regression guard uses substring matching. The readManifest
-    # prefix deliberately covers readManifestText/readManifestBytes/
-    # readPastedManifest, and no positive corpus is retained because the
-    # browser adapter was intentionally deleted.
+    # substring deliberately covers readManifestText/readManifestBytes, while
+    # readPastedManifest has its own entry because the Pasted infix breaks
+    # that substring. No retired production/static-adapter corpus is retained;
+    # the synthetic reader list below pins these four entry points.
+    assert all(
+        any(symbol in reader for symbol in retired_symbols)
+        for reader in (
+            "read" + "Manifest", "read" + "ManifestText",
+            "read" + "ManifestBytes", "read" + "PastedManifest",
+        )
+    )
     for name in ("review_ui.js", "review_server.js"):
         resource = files("vault_cleaner.ui").joinpath(name)
         with as_file(resource) as path:
