@@ -25,12 +25,11 @@ surprises the next agent should know about.
 - Review follow-up: the fingerprint regression now compares all input
   categories at the current ruleset version 2, with only the dedicated
   version-change assertion using version 1. A shared strict level parser now
-  trims surrounding whitespace, accepts empty only for non-crafted/shared
-  rows (as zero), and accepts only ASCII non-negative integer text otherwise;
-  decimal, exponent, signed/negative, arbitrary, and Unicode-digit crafted
-  levels raise SchemaError, while empty crafted levels are handled as the
-  explicit unknown safety sentinel. Both weapon loaders validate every row
-  before rules, and rails.protection validates direct-call data eagerly.
+  trims surrounding whitespace; empty non-crafted/shared levels map to zero,
+  while empty crafted levels map to an explicit unknown sentinel and are
+  hard-protected; every non-empty level must be ASCII non-negative integer
+  text, otherwise SchemaError. Both weapon loaders validate every row before
+  rules, and rails.protection validates direct-call data eagerly.
 - Final review validation: focused Ruff and 117 focused tests passed; full
   Ruff and 716 tests passed; the fake duplicate dry run parsed 18 weapons and
   produced 4 junk plus 3 review decisions, with crafted ids 3021 and 3023
