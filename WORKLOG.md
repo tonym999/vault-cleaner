@@ -30,18 +30,18 @@ surprises the next agent should know about.
   hard-protected; every non-empty level must be ASCII non-negative integer
   text, otherwise SchemaError. Both weapon loaders validate every row before
   rules, and rails.protection validates direct-call data eagerly.
-- Final review validation: focused Ruff and 117 focused tests passed; full
-  Ruff and 716 tests passed; the fake duplicate dry run parsed 18 weapons and
-  produced 4 junk plus 3 review decisions, with crafted ids 3021 and 3023
-  absent and below-threshold id 3022 junked. Snapshot regeneration was
-  byte-identical (schema 1, ruleset 2); git diff --check passed and no data
-  paths are tracked.
 - Empty crafted-level follow-up: crafted rows with empty or whitespace-only
   levels now load as an explicit unknown sentinel and are hard-protected with
   `crafted-lvunknown`; non-crafted empty levels remain zero/unprotected.
   Loader parity, wishlist-trash, duplicate-loser, mixed-export, and eager
   precedence regressions cover the fallback without changing fixtures or the
   ruleset version.
+- Final review validation: focused Ruff and 117 focused tests passed; full
+  Ruff and 716 tests passed; the fake duplicate dry run parsed 18 weapons and
+  produced 4 junk plus 3 review decisions, with crafted ids 3021 and 3023
+  absent and below-threshold id 3022 junked. Snapshot regeneration was
+  byte-identical (schema 1, ruleset 2); git diff --check passed, and no data
+  paths are tracked.
 
 ## 2026-08-28 — #51 retired static review surface
 
