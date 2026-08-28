@@ -148,18 +148,3 @@ def test_review_override_write_failure_says_nothing_was_written(
     assert "read-only filesystem" in captured.err
     assert "Traceback" not in captured.err
     assert not output.exists()
-
-
-def test_review_html_write_failure_is_a_clean_error(tmp_path, monkeypatch, capsys):
-    def fail_write(result, output):
-        raise PermissionError("read-only filesystem")
-
-    monkeypatch.setattr(cli, "write_review_html", fail_write)
-
-    rc = cli.main(_combined("review-html", tmp_path, "--write"))
-
-    captured = capsys.readouterr()
-    assert rc == 1
-    assert "error: review page not written" in captured.err
-    assert "read-only filesystem" in captured.err
-    assert "Traceback" not in captured.err

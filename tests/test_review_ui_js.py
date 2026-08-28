@@ -1,7 +1,6 @@
 """Exercise the packaged, manifest-free presentation resource under node."""
 
 import json
-import re
 import shutil
 import subprocess
 import unicodedata
@@ -11,15 +10,28 @@ from pathlib import Path
 
 import pytest
 from test_review import build_report, proposals
-from test_review_html import hostile_report
 
 from vault_cleaner.report import summarize
-from vault_cleaner.report_run import snapshot_json
+from vault_cleaner.report_run import run_report, snapshot_json
 from vault_cleaner.review import apply_vetoes
-from vault_cleaner.review_html import render_review_html
 
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not installed")
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+HOSTILE = FIXTURES / "weapons_hostile.csv"
+
+
+def hostile_report():
+    """A run whose every item name is shaped like an injection attempt."""
+    return run_report(
+        config_path="nonexistent.toml",
+        weapons_path=HOSTILE,
+        armor_path=FIXTURES / "does-not-exist.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
 
 
 HARNESS = r"""
@@ -443,86 +455,54 @@ def test_kept_items_requires_an_active_set_like_input(plain):
     assert plain.results["persistedVeto"]["excludesApprovedId"]
 
 
-def test_packaged_presentation_resource_has_no_manifest_adapter():
-    resource = (
-        Path(__file__).parents[1] / "src" / "vault_cleaner" / "ui" / "review_ui.js"
-    ).read_text(encoding="utf-8")
-    static_only_surface = (
-        "loadAutosave", "saveAutosave", "localStorage",
-        "MANIFEST_SCHEMA_VERSION", "VERDICTS", "STORAGE_PREFIX", "MAX_TEXT",
-        "MANIFEST_KEYS", "SNAPSHOT_KEYS", "DECISION_KEYS",
-        "buildManifest", "clip", "manifestJson", "exportManifest",
-        "offerDownload", "applyImport", "renderHandoff", "readManifest",
-        "readManifestText", "readManifestBytes", "readPastedManifest",
-        "decodeManifestBytes", "fractionalNumberError", "fail",
-        "unknownKeyError", "textError", "versionError",
-        "window",
+def test_packaged_presentation_resources_are_free_of_the_static_adapter():
+    retired_symbols = (
+        "read" + "Manifest", "read" + "PastedManifest",
+        "decode" + "ManifestBytes",
+        "fractional" + "NumberError", "build" + "Manifest",
+        "export" + "Manifest", "manifest" + "Json",
+        "offer" + "Download", "apply" + "Import",
+        "render" + "Handoff", "load" + "Autosave",
+        "save" + "Autosave", "local" + "Storage",
+        "MANIFEST" + "_KEYS", "SNAPSHOT" + "_KEYS",
+        "DECISION" + "_KEYS",
     )
-    constants = {
-        "MANIFEST_SCHEMA_VERSION", "VERDICTS", "STORAGE_PREFIX", "MAX_TEXT",
-        "MANIFEST_KEYS", "SNAPSHOT_KEYS", "DECISION_KEYS",
-    }
-    functions = {
-        "loadAutosave", "saveAutosave", "buildManifest", "clip", "manifestJson",
-        "exportManifest", "offerDownload", "applyImport", "renderHandoff",
-        "readManifest", "readManifestText", "readManifestBytes", "readPastedManifest",
-        "decodeManifestBytes", "fractionalNumberError", "fail", "unknownKeyError",
-        "textError", "versionError",
-    }
-    assert set(static_only_surface) == constants | functions | {"localStorage", "window"}
-
-    # A presentation resource may discuss failure or clipping in prose, so a
-    # bare substring check is too broad. SCREAMING_CASE constants are simple
-    # identifiers: any word-boundary use would import the temporary adapter,
-    # including ordinary reads and member access. Generic functions and
-    # browser globals retain syntactic guards so prose and longer identifiers
-    # such as "clipboard" remain accepted. Keep the complete issue-listed
-    # surface above so adding a temporary-only name cannot silently shrink this
-    # guard.
-    patterns_by_name = {}
-    for name in constants:
-        patterns_by_name[name] = (rf"\b{re.escape(name)}\b",)
-    for name in functions:
-        escaped = re.escape(name)
-        patterns_by_name[name] = (
-            rf"(?m)^\s*function\s+{escaped}\s*\(",
-            rf"\b{escaped}\s*\(",
-            rf"(?:^|[{{,])\s*{escaped}\s*:",
+    # This negative regression guard uses substring matching. The readManifest
+    # substring deliberately covers readManifestText/readManifestBytes, while
+    # readPastedManifest has its own entry because the Pasted infix breaks
+    # that substring. No retired production/static-adapter corpus is retained;
+    # the synthetic reader list below pins these four entry points.
+    assert all(
+        any(symbol in reader for symbol in retired_symbols)
+        for reader in (
+            "read" + "Manifest", "read" + "ManifestText",
+            "read" + "ManifestBytes", "read" + "PastedManifest",
         )
-    patterns_by_name["window"] = (r"\bwindow\s*(?:\.|\[)",)
-    patterns_by_name["localStorage"] = (r"\blocalStorage\s*\.",)
-    adapter = files("vault_cleaner.ui").joinpath("review_static.js").read_text(
-        encoding="utf-8"
     )
-    patterns = [pattern for group in patterns_by_name.values() for pattern in group]
-    assert not any(re.search(pattern, "fail loudly; clipboard") for pattern in patterns)
-    constant_sentinels = {
-        "var limit = MAX_TEXT;": "MAX_TEXT",
-        "VERDICTS.indexOf(v)": "VERDICTS",
-        "return value <= MAX_TEXT ? value : 0;": "MAX_TEXT",
-    }
-    for source, name in constant_sentinels.items():
-        assert any(
-            re.search(pattern, source) for pattern in patterns_by_name[name]
-        ), (name, source)
-    for name, name_patterns in patterns_by_name.items():
-        assert any(re.search(pattern, adapter) for pattern in name_patterns), name
-        assert not any(re.search(pattern, resource) for pattern in name_patterns), name
+    for name in ("review_ui.js", "review_server.js"):
+        resource = files("vault_cleaner.ui").joinpath(name)
+        with as_file(resource) as path:
+            source = path.read_text(encoding="utf-8")
+        assert not any(symbol in source for symbol in retired_symbols), name
 
 
-def test_packaged_sources_cannot_truncate_their_html_script_or_hide_controls():
-    root = Path(__file__).parents[1] / "src" / "vault_cleaner" / "ui"
+def test_packaged_sources_have_no_invisible_or_control_characters():
     invisible = {"Cf", "Cc", "Zl", "Zp"}
-    for path in sorted(root.iterdir()):
-        if path.suffix not in {".css", ".js"}:
-            continue
-        source = path.read_bytes().decode("utf-8")
-        assert not re.search(r"</script", source, re.IGNORECASE), path
-        assert "<!--" not in source and "-->" not in source, path
+    resources = sorted(
+        (
+            resource
+            for resource in files("vault_cleaner.ui").iterdir()
+            if resource.name.endswith((".css", ".js"))
+        ),
+        key=lambda resource: resource.name,
+    )
+    for resource in resources:
+        with as_file(resource) as path:
+            source = path.read_bytes().decode("utf-8")
         assert all(
             char in "\n\t" or unicodedata.category(char) not in invisible
             for char in source
-        ), path
+        ), resource.name
 
 
 def test_every_decision_becomes_an_item(plain):
@@ -683,16 +663,3 @@ def test_unset_and_garbage_verdicts_read_as_unreviewed(plain):
     assert plain.results["verdictOf"] == {
         "unset": "", "garbageIgnored": "", "set": "vetoed"
     }
-
-
-def test_static_artifact_inlines_exact_packaged_resource_bytes():
-    html = render_review_html(build_report())
-    app = html.split('<script id="vc-app">', 1)[1].split("</script>", 1)[0]
-    style = html.split("<style>", 1)[1].split("</style>", 1)[0]
-    css = files("vault_cleaner.ui").joinpath("review.css").read_bytes()
-    shared = files("vault_cleaner.ui").joinpath("review_ui.js").read_bytes()
-    adapter = files("vault_cleaner.ui").joinpath("review_static.js").read_bytes()
-    assert style.encode("utf-8") == css
-    app_bytes = app.encode("utf-8")
-    assert app_bytes.startswith(shared)
-    assert app_bytes[len(shared) :] == adapter

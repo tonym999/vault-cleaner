@@ -87,7 +87,7 @@ Public repo; `data/` gitignored from the first commit.
 5. **M5 — Polish:** dry-run summary report ("would junk 214 items: …"), per-item reasons, maybe a `--profile pvp|pve` switch.
 6. **M6 — Armor dupes:** measured exact-dupe cleanup, close-dupe review, and last-of-archetype score guard.
 7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review.
-8. **M8 — Local review server:** loopback-only authenticated HTTP server (Flask 3.1); the browser uploads exports and downloads the reviewed CSV, so no input/output filesystem paths are required. Python owns rules, validation, persistence, and CSV generation; the page renders server data and collects verdicts. After the server-only review path and static-page cleanup land, bounded armor threshold what-if variants are produced in Python as an M8 follow-up.
+8. **M8 — Local review server:** loopback-only authenticated HTTP server (Flask 3.1); the browser uploads exports and downloads the reviewed CSV, so no input/output filesystem paths are required. Python owns rules, validation, persistence, and CSV generation; the page renders server data and collects verdicts. With the server-only review path and static-page cleanup complete, bounded armor threshold what-if variants are produced in Python as an M8 follow-up.
 
 ### M8 schema-version-1 session states
 
@@ -107,7 +107,7 @@ mutation.
 - **Stat column changes (Armor 3.0 naming)** — map stat names through one lookup table so a rename is a one-line fix.
 - **The review server creates a new local network attack surface** — constrain it deliberately: loopback-only binding, authenticated session bootstrap, exact `Host` validation, same-origin enforcement for state-changing requests, no-store/no-referrer responses, strict and bounded upload validation, no request-supplied filesystem paths, and cleanup of session state and temporary files. Nothing is intentionally exposed off-machine, but this is a narrower risk than "no network code", not an unchanged posture.
 - **The browser/server boundary still needs a contract** — the server removes the duplicated manifest parser, but upload, report, verdict, session, and download schemas remain cross-runtime boundaries. Specify them before implementation and bind mutations to the exact report revision/fingerprint.
-- **Two interactive review surfaces would recreate the maintenance problem** — the static review page (never released; decided on #48) is retained only as a temporary fallback while the server lands; after the server UI proves parity, it and its browser-side validator/parity suite are removed.
+- **Two interactive review surfaces would recreate the maintenance problem** — the static review page (never released; decided on #48) and its browser-side validator/parity suite were retired after the server UI proved parity; `serve` is the sole browser workflow.
 
 ## Later ideas (explicitly out of scope for now)
 

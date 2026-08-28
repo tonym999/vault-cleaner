@@ -9,9 +9,9 @@
 })(typeof globalThis === "object" ? globalThis : this, function (root) {
   "use strict";
 
-  // Shared pure presentation functions and view helpers live here. The static
-  // page adapter is a separate resource and is intentionally not part of this
-  // served bundle.
+  // Shared pure presentation functions and view helpers live here. The server
+  // adapter is a separate resource and is intentionally not part of this
+  // shared bundle.
   function isObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
   }
