@@ -73,10 +73,12 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   changes; an explicit `refresh=True` forces a full rebuild.
   Names map to *all* hash variants (base + enhanced share display names).
 - DIM exports crafted weapons as `Crafted=crafted`, not boolean `true`;
-  ordinary weapons use `false`, and empty is explicitly not crafted. Use the
-  focused crafted-state helper rather than generic `is_true()`; unknown
-  non-empty tokens must fail schema validation instead of disabling the hard
-  rail.
+  ordinary weapons use `false`, and empty `Crafted` is explicitly not crafted.
+  An empty `Crafted Level` on a crafted row is unknown and hard-protected;
+  non-empty malformed levels must fail schema validation. Use the focused
+  crafted-state helper rather than generic `is_true()`; unknown non-empty
+  crafted-state tokens must fail schema validation instead of disabling the
+  hard rail.
 - DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
   parse the *last* one (`report.reason_slug` does).
 - Python's `csv` module writes CRLF by default: generate fixtures with

@@ -82,6 +82,12 @@ def test_empty_does_not_protect_even_at_high_level():
     )
 
 
+def test_empty_crafted_level_is_hard_protected_as_unknown():
+    assert protection(
+        item(Crafted="crafted", **{"Crafted Level": "  "}), 10
+    ) == (HARD, "crafted-lvunknown")
+
+
 def test_unknown_crafted_value_fails_through_protection():
     with pytest.raises(SchemaError, match="unknown DIM Crafted value"):
         protection(item(Crafted="true", **{"Crafted Level": "12"}), 10)
@@ -89,7 +95,7 @@ def test_unknown_crafted_value_fails_through_protection():
 
 @pytest.mark.parametrize(
     "level",
-    ["10.0", "1e1", "+10", "-1", "١٠", "unknown", ""],
+    ["10.0", "1e1", "+10", "-1", "١٠", "unknown"],
 )
 def test_malformed_crafted_level_fails_through_protection(level):
     with pytest.raises(SchemaError, match="Crafted Level"):

@@ -150,6 +150,25 @@ def test_crafted_threshold_rows_skip_wishlist_and_dupes():
     assert "B" not in decisions
 
 
+def test_empty_level_crafted_trash_match_is_skipped_with_ordinary_decision():
+    weapons = df(
+        weapon("C", 200, Crafted="crafted", **{"Crafted Level": ""}),
+        weapon("O", 200),
+    )
+    decisions = {d.id: d for d in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
+    assert decisions["O"].action == "junk"
+    assert "C" not in decisions
+
+
+def test_empty_level_crafted_dupe_loser_is_hard_protected():
+    weapons = df(
+        weapon("K", 999, **{"Masterwork Tier": "10"}),
+        weapon("C", 999, Crafted="crafted", **{"Crafted Level": ""}),
+    )
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert decisions == []
+
+
 def test_below_threshold_crafted_row_keeps_normal_wishlist_behaviour():
     weapons = df(weapon("A", 200, Crafted="crafted", **{"Crafted Level": "2"}))
     decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions

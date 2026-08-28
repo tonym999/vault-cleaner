@@ -156,6 +156,22 @@ def _set_first_values(values):
     return mutate
 
 
+def test_byte_and_path_loaders_accept_empty_crafted_level(tmp_path):
+    content = _rewrite_csv(
+        FIXTURE.read_bytes(),
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "  "}),
+    )
+    path = tmp_path / "weapons-empty-crafted-level.csv"
+    path.write_bytes(content)
+
+    expected = load_weapons(path)
+    actual = load_weapons_bytes(content)
+    pd.testing.assert_frame_equal(actual, expected)
+    assert len(expected) == 3
+    assert expected.loc[0, "Crafted"] == "crafted"
+    assert expected.loc[0, "Crafted Level"] == "  "
+
+
 INVALID_EXPORT_CASES = [
     ("weapons", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Notes")),
     ("weapons-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted")),
@@ -216,14 +232,6 @@ INVALID_EXPORT_CASES = [
         load_weapons_bytes,
         "weapons export",
         _set_first_values({"Crafted": "crafted", "Crafted Level": "abc"}),
-    ),
-    (
-        "weapons-level-empty-crafted",
-        FIXTURE,
-        load_weapons,
-        load_weapons_bytes,
-        "weapons export",
-        _set_first_values({"Crafted": "crafted", "Crafted Level": ""}),
     ),
     (
         "weapons-level-too-many-digits",

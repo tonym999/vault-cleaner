@@ -31,9 +31,10 @@ def protection(row, crafted_level_protect: int) -> tuple[str | None, str]:
     """Classify one item row, propagating malformed safety-field errors.
 
     ``Crafted`` and ``Crafted Level`` are validated eagerly through the
-    parsing-boundary helper before any rail precedence is applied. Malformed
-    direct-call data raises :class:`SchemaError`; valid rows return
-    ``(HARD|SOFT|None, reason)``.
+    parsing-boundary helper before any rail precedence is applied. A crafted
+    row with an empty level is an unknown safety value and is hard-protected
+    with ``crafted-lvunknown``. Other malformed direct-call data raises
+    :class:`SchemaError`; valid rows return ``(HARD|SOFT|None, reason)``.
     """
     crafted = is_crafted(row.get("Crafted", ""))
     crafted_level = parse_crafted_level(
@@ -44,6 +45,8 @@ def protection(row, crafted_level_protect: int) -> tuple[str | None, str]:
         return HARD, f"dim-tag:{tag}"
     if is_true(row.get("Equipped", "")):
         return HARD, "equipped"
+    if crafted and crafted_level is None:
+        return HARD, "crafted-lvunknown"
     if crafted and crafted_level >= crafted_level_protect:
         return HARD, f"crafted-lv{row.get('Crafted Level')}"
     if row.get("Rarity", "") == "Exotic":

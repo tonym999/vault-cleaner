@@ -146,20 +146,18 @@ def is_crafted(value: object) -> bool:
     raise SchemaError(f"unknown DIM Crafted value {value!r}")
 
 
-def parse_crafted_level(value: object, crafted: bool) -> int:
+def parse_crafted_level(value: object, crafted: bool) -> int | None:
     """Parse a DIM ``Crafted Level`` value for an already parsed state.
 
-    Empty is valid only for a non-crafted/shared row and maps to zero. All
-    other values must be ASCII, non-negative integer text. This strict
-    boundary prevents malformed safety data from being coerced by the
-    ranking helper and disabling the crafted-level rail.
+    Empty is zero for a non-crafted/shared row and an explicit unknown
+    sentinel for a crafted row; all other values must be ASCII, non-negative
+    integer text. This strict boundary prevents malformed safety data from
+    being coerced by the ranking helper and disabling the crafted-level rail.
     """
     normalized = str(value).strip()
     if not normalized:
         if crafted:
-            raise SchemaError(
-                "empty DIM Crafted Level value on a crafted item"
-            )
+            return None
         return 0
     if not re.fullmatch(r"[0-9]+", normalized):
         raise SchemaError(f"invalid DIM Crafted Level value {value!r}")
