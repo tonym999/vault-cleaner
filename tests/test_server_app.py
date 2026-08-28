@@ -353,21 +353,6 @@ def test_default_server_assets_are_packaged_and_allowlisted(tmp_path):
     assert "<style>" not in html
     assert "<form" not in html.lower()
 
-    served_scripts = b"\n".join(
-        client.get(path, base_url=TEST_ORIGIN).data
-        for path in ("/assets/review_ui.js", "/assets/review_server.js")
-    )
-    for forbidden in (
-        b"readManifest",
-        b"readManifestText",
-        b"readManifestBytes",
-        b"readPastedManifest",
-        b"decodeManifestBytes",
-        b"fractionalNumberError",
-    ):
-        assert forbidden not in served_scripts
-
-
 @pytest.mark.parametrize(
     "method,path",
     [

@@ -3,6 +3,37 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-28 — #51 retired static review surface
+
+- Removed the unreleased `review-html` command and Python renderer, deleted
+  `review_static.js`, and deleted the static-only CLI/artifact/browser parity
+  test suites. Browser manifest parsing, import/export, autosave, and handoff
+  code are gone; CLI `review --manifest` and `review.parse_manifest` remain,
+  as does the server's separate strict verdict validator.
+- Kept the permanent manifest-free presentation coverage in
+  `tests/test_review_ui_js.py` (including 64-bit ids, prototype safety,
+  grouping/filtering/sorting, hostile text, and source safety). Its hostile-run
+  helper was moved locally from the deleted static test module. The two #90
+  Playwright tests and the non-editable wheel proof were left intact.
+- Updated README, PLAN, and AGENTS to describe `serve` as the only browser
+  workflow, keep review manifests as CLI/scripting/backup input, and remove
+  obsolete inline/static browser-parser guidance. A stale server asset guard
+  that named deleted browser-parser symbols was removed; allow-listed assets
+  and route tests remain.
+- Retired-surface baseline before deletion: 2,353 lines
+  (`review_html.py` 165, `review_static.js` 745, `test_cli_review_html.py`
+  174, `test_review_html.py` 285, `test_review_html_js.py` 984). Final
+  `git diff --numstat origin/main...HEAD`: 85 additions, 2,634 deletions,
+  for a net reduction of 2,549 lines.
+- Validation: Ruff passed; full suite passed (678 tests); focused UI/review/
+  CLI/verdict suites passed (22/82/34 tests); both permanent Chromium tests
+  passed (2 passed, 676 deselected); the wheel proof passed; both surviving
+  packaged JavaScript assets passed `node --check`; CLI help showed `serve`,
+  `report`, and `review` with `review-html` rejected; `git diff --check`
+  passed; no files under `data/` are tracked; hygiene search found no live
+  retired-surface references and `parse_manifest` remains owned by
+  `review.py`/CLI/tests. No runtime dependency or server protocol change.
+
 ## 2026-08-27 — #94 review follow-up: browser launch and wheel-proof hardening
 
 - Replaced the browser test's `BrowserType.executable_path` preflight with the

@@ -37,11 +37,6 @@ from vault_cleaner.review import (
     parse_manifest,
     save_overrides,
 )
-from vault_cleaner.review_html import (
-    DEFAULT_REVIEW_HTML,
-    PRIVACY_WARNING,
-    write_review_html,
-)
 from vault_cleaner.rules import ghosts as ghost_rules
 from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
 
@@ -70,9 +65,6 @@ COMBINED_OUTPUT_HELP = (
 )
 REVIEWED_OUTPUT_HELP = (
     "reviewed import CSV to write (default: [paths].output_dir/dim-import.csv)"
-)
-REVIEW_HTML_OUTPUT_HELP = (
-    "review page to write (default: [paths].output_dir/vault-review.html)"
 )
 
 def _write_or_error[T](
@@ -530,50 +522,6 @@ def _cmd_review(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_review_html(args: argparse.Namespace) -> int:
-    """Generate the self-contained static HTML review artifact (#37).
-
-    A third output surface, deliberately not a mode of the other two:
-    `report --write` still writes the proposal CSV and `review --write` still
-    writes the reviewed one. This command only ever produces the review page,
-    and the page only ever produces a manifest for `review` to re-validate.
-    """
-    result, paths_cfg, rc = _build_report(args)
-    if result is None or paths_cfg is None:
-        return rc
-    output_path = _resolved_output_path(args, paths_cfg, DEFAULT_REVIEW_HTML)
-
-    for warning in result.warnings:
-        print(warning.render(), file=sys.stderr)
-
-    proposed = [d for section in result.sections for d in section.decisions]
-    print(f"review page: {_action_counts(proposed)} to review")
-    print(f"fingerprint: {result.fingerprint}")
-
-    # Persisted vetoes are not pre-applied here for the same reason `report`
-    # does not apply them: the page shows what the rules propose. Re-vetoing
-    # in the page is harmless — merging a manifest never removes a veto.
-    if not args.write:
-        print(f"would write {output_path}")
-        print("dry run — nothing written; pass --write to generate the review page")
-        return 0
-
-    written, target = _write_or_error(
-        lambda: write_review_html(result, output_path),
-        f"review page not written to {output_path}",
-    )
-    if not written:
-        return 1
-    size = target.stat().st_size
-    print(
-        f"wrote {target} ({size} bytes) — open it in a browser, review, export "
-        "a review manifest, then apply it with "
-        "`vault-cleaner review --manifest <file> --write`"
-    )
-    print(f"note: {PRIVACY_WARNING}")
-    return 0
-
-
 def _cmd_wishlists(args: argparse.Namespace) -> int:
     try:
         cfg = load_config(args.config)
@@ -711,18 +659,6 @@ def main(argv: list[str] | None = None) -> int:
     vp.add_argument("--write", action="store_true",
                     help="persist vetoes and write the reviewed CSV (default is dry run)")
     vp.set_defaults(func=_cmd_review)
-
-    hp = sub.add_parser("review-html",
-                        help="generate the self-contained static HTML review page")
-    hp.add_argument("--weapons", default=None, help=WEAPONS_INPUT_HELP)
-    hp.add_argument("--armor", default=None, help=ARMOR_INPUT_HELP)
-    hp.add_argument("--ghosts", default=None, help=GHOST_INPUT_HELP)
-    hp.add_argument("--output", default=None, help=REVIEW_HTML_OUTPUT_HELP)
-    hp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
-    hp.add_argument("--no-wishlists", action="store_true", help="skip the wishlist pass for weapons")
-    hp.add_argument("--write", action="store_true",
-                    help="write the review page (default is dry run)")
-    hp.set_defaults(func=_cmd_review_html)
 
     wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")
     wp.add_argument("--config", default="config.toml", help="config file (default config.toml)")

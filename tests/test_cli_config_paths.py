@@ -198,7 +198,7 @@ def test_ghosts_ignores_unrelated_armor_config_errors(tmp_path, capsys):
     assert "parsed 7 ghosts" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("command", ["report", "review", "review-html"])
+@pytest.mark.parametrize("command", ["report", "review"])
 def test_combined_command_reads_paths_config_once(command, tmp_path, monkeypatch):
     project = tmp_path / "project"
     _copy_exports(project / "exports")
