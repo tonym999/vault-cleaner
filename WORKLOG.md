@@ -30,8 +30,8 @@ surprises the next agent should know about.
   decimal, exponent, signed/negative, arbitrary, Unicode-digit, and empty
   crafted values raise SchemaError. Both weapon loaders validate every row
   before rules, and rails.protection validates direct-call data eagerly.
-- Final review validation: focused Ruff and 112 focused tests passed; full
-  Ruff and 711 tests passed; the fake duplicate dry run parsed 18 weapons and
+- Final review validation: focused Ruff and 115 focused tests passed; full
+  Ruff and 714 tests passed; the fake duplicate dry run parsed 18 weapons and
   produced 4 junk plus 3 review decisions, with crafted ids 3021 and 3023
   absent and below-threshold id 3022 junked. Snapshot regeneration was
   byte-identical (schema 1, ruleset 2); git diff --check passed and no data

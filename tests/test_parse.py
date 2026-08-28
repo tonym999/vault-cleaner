@@ -1,5 +1,6 @@
 import csv
 import io
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +20,7 @@ from vault_cleaner.parse import (
 FIXTURE = Path(__file__).parent / "fixtures" / "weapons.csv"
 GHOST_FIXTURE = Path(__file__).parent / "fixtures" / "ghosts.csv"
 ARMOR_FIXTURE = Path(__file__).parent / "fixtures" / "armor.csv"
+HUGE_ASCII_LEVEL = "9" * (sys.get_int_max_str_digits() + 1)
 
 EXPORT_CASES = [
     ("weapons", FIXTURE, load_weapons, load_weapons_bytes, "weapons export"),
@@ -168,6 +170,14 @@ INVALID_EXPORT_CASES = [
         _set_first_values({"Crafted": "crafted", "Crafted Level": "10.0"}),
     ),
     (
+        "weapons-level-decimal-non-crafted",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "false", "Crafted Level": "10.0"}),
+    ),
+    (
         "weapons-level-exponent",
         FIXTURE,
         load_weapons,
@@ -214,6 +224,14 @@ INVALID_EXPORT_CASES = [
         load_weapons_bytes,
         "weapons export",
         _set_first_values({"Crafted": "crafted", "Crafted Level": ""}),
+    ),
+    (
+        "weapons-level-too-many-digits",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "false", "Crafted Level": HUGE_ASCII_LEVEL}),
     ),
     ("armor", ARMOR_FIXTURE, load_armor, load_armor_bytes, "armor export", _drop_column("Notes")),
     ("ghosts", GHOST_FIXTURE, load_ghosts, load_ghosts_bytes, "ghosts export", _drop_column("Notes")),

@@ -53,7 +53,7 @@ def test_crafted_level_accepts_trimmed_ascii_integer():
     level, reason = protection(
         item(Crafted=" CRAFTED ", **{"Crafted Level": " 010 "}), 10
     )
-    assert level == HARD and "crafted" in reason
+    assert (level, reason) == (HARD, "crafted-lv 010 ")
 
 
 def test_crafted_above_threshold_is_hard_protected():
@@ -95,6 +95,14 @@ def test_malformed_crafted_level_fails_through_protection(level):
     with pytest.raises(SchemaError, match="Crafted Level"):
         protection(
             item(Crafted="crafted", **{"Crafted Level": level}),
+            10,
+        )
+
+
+def test_malformed_crafted_level_fails_before_hard_tag_short_circuit():
+    with pytest.raises(SchemaError, match="Crafted Level"):
+        protection(
+            item(Tag="keep", Crafted="crafted", **{"Crafted Level": "10.0"}),
             10,
         )
 
