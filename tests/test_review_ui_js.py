@@ -456,7 +456,6 @@ def test_kept_items_requires_an_active_set_like_input(plain):
 
 
 def test_packaged_presentation_resources_are_free_of_the_static_adapter():
-    root = Path(__file__).parents[1] / "src" / "vault_cleaner" / "ui"
     retired_symbols = (
         "read" + "Manifest", "decode" + "ManifestBytes",
         "fractional" + "NumberError", "build" + "Manifest",
@@ -467,8 +466,12 @@ def test_packaged_presentation_resources_are_free_of_the_static_adapter():
         "MANIFEST" + "_KEYS", "SNAPSHOT" + "_KEYS",
         "DECISION" + "_KEYS",
     )
+    # This is an exact-name negative regression guard. No positive corpus is
+    # retained because the browser adapter was intentionally deleted.
     for name in ("review_ui.js", "review_server.js"):
-        source = root.joinpath(name).read_text(encoding="utf-8")
+        resource = files("vault_cleaner.ui").joinpath(name)
+        with as_file(resource) as path:
+            source = path.read_text(encoding="utf-8")
         assert not any(symbol in source for symbol in retired_symbols), name
 
 

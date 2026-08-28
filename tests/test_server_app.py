@@ -353,6 +353,7 @@ def test_default_server_assets_are_packaged_and_allowlisted(tmp_path):
     assert "<style>" not in html
     assert "<form" not in html.lower()
 
+
 @pytest.mark.parametrize(
     "method,path",
     [

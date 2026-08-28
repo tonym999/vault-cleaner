@@ -23,8 +23,8 @@ surprises the next agent should know about.
 - Retired-surface baseline before deletion: 2,353 lines
   (`review_html.py` 165, `review_static.js` 745, `test_cli_review_html.py`
   174, `test_review_html.py` 285, `test_review_html_js.py` 984). Final
-  `git diff --numstat origin/main...HEAD`: 85 additions, 2,634 deletions,
-  for a net reduction of 2,549 lines.
+  `git diff --numstat origin/main...HEAD`: 88 additions, 2,633 deletions,
+  for a net reduction of 2,545 lines.
 - Validation: Ruff passed; full suite passed (678 tests); focused UI/review/
   CLI/verdict suites passed (22/82/34 tests); both permanent Chromium tests
   passed (2 passed, 676 deselected); the wheel proof passed; both surviving
