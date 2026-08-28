@@ -135,6 +135,47 @@ def test_hard_protected_never_trash_tagged():
     assert run(weapons, WISHLIST, PERK_MAP, 10).decisions == []
 
 
+def test_crafted_threshold_rows_skip_wishlist_and_dupes():
+    # K is the only unprotected copy and is a ranking winner before it leaves
+    # through the trash pass. Both crafted rows are deliberate potential
+    # duplicate losers, so their absence cannot be explained by winning.
+    weapons = df(
+        weapon("K", 200, **{"Masterwork Tier": "10"}),
+        weapon("A", 200, Crafted="crafted", **{"Crafted Level": "10"}),
+        weapon("B", 200, Crafted="crafted", **{"Crafted Level": "12"}),
+    )
+    decisions = {d.id: d for d in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
+    assert decisions["K"].action == "junk"
+    assert "A" not in decisions
+    assert "B" not in decisions
+
+
+def test_empty_level_crafted_trash_match_is_skipped_with_ordinary_decision():
+    weapons = df(
+        weapon("C", 200, Crafted="crafted", **{"Crafted Level": ""}),
+        weapon("O", 200),
+    )
+    decisions = {d.id: d for d in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
+    assert decisions["O"].action == "junk"
+    assert "C" not in decisions
+
+
+def test_empty_level_crafted_dupe_loser_is_hard_protected():
+    weapons = df(
+        weapon("K", 999, **{"Masterwork Tier": "10"}),
+        weapon("C", 999, Crafted="crafted", **{"Crafted Level": ""}),
+    )
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert decisions == []
+
+
+def test_below_threshold_crafted_row_keeps_normal_wishlist_behaviour():
+    weapons = df(weapon("A", 200, Crafted="crafted", **{"Crafted Level": "2"}))
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action) for d in decisions] == [("A", "junk")]
+    assert "wishlist-trash whole-item" in decisions[0].note
+
+
 def test_conflicted_copies_still_resolve_as_dupes():
     # Both copies match a keep roll AND a trash entry: trash is skipped
     # (2 conflicts), but dupe rules still junk the lower copy — the CLI

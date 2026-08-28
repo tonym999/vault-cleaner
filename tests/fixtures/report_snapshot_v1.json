@@ -1,5 +1,5 @@
 {
-  "fingerprint": "380e9d3d5cba96074b3d72997cbde2820c34fe6710600c3c8fb490029aaf719c",
+  "fingerprint": "b0d3bada16a6c6fb75f80825ec824fdf274dac469d9431810c05ff21d544109c",
   "inputs": {
     "effective_config": {
       "armor": {
@@ -31,10 +31,10 @@
     "manifest": null,
     "sources": [
       {
-        "item_count": 17,
+        "item_count": 18,
         "kind": "weapons",
         "path": "weapons_dupes.csv",
-        "sha256": "bc19ff289d0635a15efee1dff021ed1d45b68d82e5b1e7db1872d31f60a97400"
+        "sha256": "1248e2394fb45481209ed9006af73f0f7e1d7f1047536ac4e44dab164c8d765a"
       },
       {
         "item_count": 15,
@@ -53,7 +53,7 @@
     "wishlists_used": false
   },
   "keep_trash_conflicts": 0,
-  "ruleset_version": 1,
+  "ruleset_version": 2,
   "schema_version": 1,
   "sections": [
     {
@@ -194,10 +194,10 @@
       ],
       "kind": "weapons",
       "source": {
-        "item_count": 17,
+        "item_count": 18,
         "kind": "weapons",
         "path": "weapons_dupes.csv",
-        "sha256": "bc19ff289d0635a15efee1dff021ed1d45b68d82e5b1e7db1872d31f60a97400"
+        "sha256": "1248e2394fb45481209ed9006af73f0f7e1d7f1047536ac4e44dab164c8d765a"
       }
     },
     {

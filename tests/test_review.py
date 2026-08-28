@@ -54,7 +54,7 @@ def manifest_payload(run, vetoed_ids=()):
         "generated_at": "2026-07-25T12:00:00Z",
         "snapshot": {
             "schema_version": 1,
-            "ruleset_version": 1,
+            "ruleset_version": 2,
             "fingerprint": run.fingerprint,
         },
         "decisions": [

@@ -8,6 +8,8 @@ soft: the item is never tagged junk, but dupe passes may attach a
 
 from __future__ import annotations
 
+from vault_cleaner.parse import is_crafted, parse_crafted_level
+
 HARD = "hard"
 SOFT = "soft"
 
@@ -26,13 +28,26 @@ def to_int(value: object, default: int = 0) -> int:
 
 
 def protection(row, crafted_level_protect: int) -> tuple[str | None, str]:
-    """Classify one item row. Returns (HARD|SOFT|None, reason)."""
+    """Classify one item row, propagating malformed safety-field errors.
+
+    ``Crafted`` and ``Crafted Level`` are validated eagerly through the
+    parsing-boundary helper before any rail precedence is applied. A crafted
+    row with an empty level is an unknown safety value and is hard-protected
+    with ``crafted-lvunknown``. Other malformed direct-call data raises
+    :class:`SchemaError`; valid rows return ``(HARD|SOFT|None, reason)``.
+    """
+    crafted = is_crafted(row.get("Crafted", ""))
+    crafted_level = parse_crafted_level(
+        row.get("Crafted Level", ""), crafted
+    )
     tag = row.get("Tag", "")
     if tag in HARD_PROTECT_TAGS:
         return HARD, f"dim-tag:{tag}"
     if is_true(row.get("Equipped", "")):
         return HARD, "equipped"
-    if is_true(row.get("Crafted", "")) and to_int(row.get("Crafted Level")) >= crafted_level_protect:
+    if crafted and crafted_level is None:
+        return HARD, "crafted-lvunknown"
+    if crafted and crafted_level >= crafted_level_protect:
         return HARD, f"crafted-lv{row.get('Crafted Level')}"
     if row.get("Rarity", "") == "Exotic":
         return SOFT, "exotic"

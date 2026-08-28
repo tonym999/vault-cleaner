@@ -101,7 +101,7 @@ def test_configured_input_dir_uses_export_discovery(tmp_path, capsys):
     ]) == 0
 
     out = capsys.readouterr().out
-    assert f"parsed 17 weapons from {exports / 'destiny-weapon (2).csv'}" in out
+    assert f"parsed 18 weapons from {exports / 'destiny-weapon (2).csv'}" in out
 
 
 def test_configured_input_dir_refuses_ambiguous_exports(tmp_path, capsys):
@@ -154,7 +154,7 @@ def test_roundtrip_accepts_configured_input_dir(tmp_path, capsys):
     ]) == 0
 
     out = capsys.readouterr().out
-    assert f"parsed 17 weapons from {project / 'exports' / 'destiny-weapon.csv'}" in out
+    assert f"parsed 18 weapons from {project / 'exports' / 'destiny-weapon.csv'}" in out
 
 
 def test_roundtrip_ignores_unrelated_armor_config_errors(tmp_path, capsys):
@@ -168,7 +168,7 @@ def test_roundtrip_ignores_unrelated_armor_config_errors(tmp_path, capsys):
         "--item", "Dupe Rifle",
     ]) == 0
 
-    assert "parsed 17 weapons" in capsys.readouterr().out
+    assert "parsed 18 weapons" in capsys.readouterr().out
 
 
 def test_ghosts_accepts_configured_input_dir(tmp_path, capsys):
