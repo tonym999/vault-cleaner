@@ -8,6 +8,8 @@ soft: the item is never tagged junk, but dupe passes may attach a
 
 from __future__ import annotations
 
+from vault_cleaner.parse import is_crafted
+
 HARD = "hard"
 SOFT = "soft"
 
@@ -27,12 +29,13 @@ def to_int(value: object, default: int = 0) -> int:
 
 def protection(row, crafted_level_protect: int) -> tuple[str | None, str]:
     """Classify one item row. Returns (HARD|SOFT|None, reason)."""
+    crafted = is_crafted(row.get("Crafted", ""))
     tag = row.get("Tag", "")
     if tag in HARD_PROTECT_TAGS:
         return HARD, f"dim-tag:{tag}"
     if is_true(row.get("Equipped", "")):
         return HARD, "equipped"
-    if is_true(row.get("Crafted", "")) and to_int(row.get("Crafted Level")) >= crafted_level_protect:
+    if crafted and to_int(row.get("Crafted Level")) >= crafted_level_protect:
         return HARD, f"crafted-lv{row.get('Crafted Level')}"
     if row.get("Rarity", "") == "Exotic":
         return SOFT, "exotic"

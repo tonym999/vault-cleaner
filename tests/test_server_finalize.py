@@ -369,7 +369,7 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
                 "generated_at": "2026-08-25T00:00:00Z",
                 "snapshot": {
                     "schema_version": 1,
-                    "ruleset_version": 1,
+                    "ruleset_version": 2,
                     "fingerprint": report.fingerprint,
                 },
                 "decisions": [

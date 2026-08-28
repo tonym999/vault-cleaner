@@ -142,7 +142,7 @@ def test_manifest_merge_deliberately_ignores_mutated_display_fields():
     manifest = review.ReviewManifest(
         schema_version=1,
         snapshot_schema_version=1,
-        ruleset_version=1,
+        ruleset_version=2,
         fingerprint=run.fingerprint,
         decisions=(manifest_decision,),
     )
@@ -175,7 +175,7 @@ def test_manifest_adapter_and_manifest_free_core_have_the_same_result():
     manifest = review.ReviewManifest(
         schema_version=1,
         snapshot_schema_version=1,
-        ruleset_version=1,
+        ruleset_version=2,
         fingerprint=run.fingerprint,
         decisions=manifest_decisions,
     )
@@ -281,7 +281,7 @@ def test_manifest_adapter_and_core_cover_categories_and_diagnostics():
     manifest = review.ReviewManifest(
         schema_version=1,
         snapshot_schema_version=1,
-        ruleset_version=1,
+        ruleset_version=2,
         fingerprint=run.fingerprint,
         decisions=entries,
     )

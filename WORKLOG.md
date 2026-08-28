@@ -3,6 +3,26 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-28 — #32 crafted token safety-rail correction
+
+- DIM's crafted weapon token is `Crafted=crafted`, but the old rail passed
+  `Crafted` through the generic boolean parser, which only recognised
+  `true`. The focused helper now accepts `crafted` as crafted, `false` and
+  empty as not crafted (with surrounding whitespace/case normalised), and
+  rejects `true` plus every other unknown non-empty token. The fixture-only
+  `true` representation is deliberately not retained.
+- Weapon ingestion now requires and validates `Crafted` and `Crafted Level`
+  before any rule decisions. Threshold and above-threshold unlocked crafted
+  losers are absent from wishlist and duplicate output; below-threshold
+  crafted rows retain normal behaviour.
+- Bumped `RULESET_VERSION` from 1 to 2 and regenerated the fake report
+  snapshot. Focused validation passed Ruff and 96 tests; the elevated full
+  gate passed Ruff and 695 tests. The dry-run reports 4 junk and 3 review
+  decisions, with ids 3021 and 3023 absent and below-threshold id 3022
+  junked. Browser/server/wheel checks are not required for this local parser
+  ticket. No real vault rows or IDs were committed; issue #31 remains
+  separate and unresolved.
+
 ## 2026-08-28 — #51 retired static review surface
 
 - Removed the unreleased `review-html` command and Python renderer, deleted

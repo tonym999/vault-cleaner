@@ -32,8 +32,11 @@ REQUIRED_BASE_COLUMNS = frozenset(
     {"Name", "Hash", "Id", "Tag", "Rarity", "Locked", "Equipped", "Notes"}
 )
 # Ammo is weapons-only: it keeps an armor export (which also has Type) from
-# silently loading through the weapons path.
-REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {"Type", "Ammo"}
+# silently loading through the weapons path. Crafted fields feed the hard
+# safety rail and are therefore part of the required safety-critical schema.
+REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {
+    "Type", "Ammo", "Crafted", "Crafted Level"
+}
 # Ghost exports have no Type column. Loadouts is required because loadout
 # membership is a keep signal in the ghost cleanup pass.
 REQUIRED_GHOST_COLUMNS = REQUIRED_BASE_COLUMNS | {"Loadouts"}
@@ -126,16 +129,51 @@ def _load_dim_bytes(
     return _load_dim_csv(source, required, kind, display_label)
 
 
+def is_crafted(value: object) -> bool:
+    """Interpret DIM's enum-like ``Crafted`` field.
+
+    DIM exports crafted weapons as ``crafted`` and ordinary weapons as
+    ``false``. Empty values are also an explicit not-crafted value for older
+    or shared exports. Unknown non-empty values are malformed safety data and
+    must not silently disable the crafted-level hard rail.
+    """
+    normalized = str(value).strip().lower()
+    if normalized in {"", "false"}:
+        return False
+    if normalized == "crafted":
+        return True
+    raise SchemaError(f"unknown DIM Crafted value {value!r}")
+
+
+def _validate_weapons(df: pd.DataFrame, display_label: str) -> pd.DataFrame:
+    """Validate crafted-state tokens before weapon rules can run."""
+    for _, row in df.iterrows():
+        try:
+            is_crafted(row["Crafted"])
+        except SchemaError as exc:
+            raise SchemaError(
+                f"{display_label}: malformed 'Crafted' value "
+                f"{row['Crafted']!r} on {row['Name']} (id {row['Id']}) — {exc}"
+            ) from exc
+    return df
+
+
 def load_weapons(path: str | Path) -> pd.DataFrame:
     """Load a DIM weapons export. All columns come back as strings; empty
     cells are empty strings, not NaN."""
     path = Path(path)
-    return _load_dim_csv(path, REQUIRED_WEAPON_COLUMNS, "weapons", str(path))
+    return _validate_weapons(
+        _load_dim_csv(path, REQUIRED_WEAPON_COLUMNS, "weapons", str(path)),
+        str(path),
+    )
 
 
 def load_weapons_bytes(content: bytes) -> pd.DataFrame:
     """Load a DIM weapons export from strict UTF-8 bytes."""
-    return _load_dim_bytes(content, REQUIRED_WEAPON_COLUMNS, "weapons", "weapons export")
+    return _validate_weapons(
+        _load_dim_bytes(content, REQUIRED_WEAPON_COLUMNS, "weapons", "weapons export"),
+        "weapons export",
+    )
 
 
 def load_ghosts(path: str | Path) -> pd.DataFrame:

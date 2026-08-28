@@ -51,10 +51,11 @@ def test_single_copies_untouched():
     assert "3015" not in by_id(decisions())
 
 
-def test_crafted_above_threshold_skipped_but_low_level_junked():
+def test_crafted_at_and_above_threshold_skipped_but_low_level_junked():
     d = by_id(decisions())
     assert "3021" not in d  # crafted level 12 — hard rail
-    assert d["3022"].action == "junk"
+    assert "3023" not in d  # crafted level 10 — hard rail boundary
+    assert d["3022"].action == "junk"  # crafted level 2 continues normally
 
 
 def test_gear_tier_outranks_masterwork():

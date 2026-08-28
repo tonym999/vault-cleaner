@@ -114,7 +114,7 @@ def test_snapshot_serialization_is_deterministic():
     assert snapshot_json(first) == snapshot_json(second)
     document = json.loads(snapshot_json(first))
     assert document["schema_version"] == 1
-    assert document["ruleset_version"] == 1
+    assert document["ruleset_version"] == 2
     assert document["fingerprint"] == first.fingerprint
 
 
@@ -236,7 +236,9 @@ def test_fingerprint_changes_for_every_input_category():
         WishlistSourceIdentity("test", "https://example.test/list", "wishlist-a"),
     )
     manifest = ManifestIdentity("v1", "manifest-a")
-    baseline = compute_fingerprint(sources, config, wishlist, manifest)
+    baseline = compute_fingerprint(
+        sources, config, wishlist, manifest, ruleset_version=1
+    )
 
     assert compute_fingerprint(
         {"weapons": "export-b"}, config, wishlist, manifest

@@ -148,6 +148,9 @@ def _set_first_value(column, value):
 
 INVALID_EXPORT_CASES = [
     ("weapons", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Notes")),
+    ("weapons-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted")),
+    ("weapons-crafted-level", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted Level")),
+    ("weapons-unknown-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _set_first_value("Crafted", "true")),
     ("armor", ARMOR_FIXTURE, load_armor, load_armor_bytes, "armor export", _drop_column("Notes")),
     ("ghosts", GHOST_FIXTURE, load_ghosts, load_ghosts_bytes, "ghosts export", _drop_column("Notes")),
     ("weapons-duplicate", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _duplicate_first_item()),

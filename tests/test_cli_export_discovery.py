@@ -19,7 +19,7 @@ GHOSTS = FIXTURES / "ghosts_cleanup.csv"
             ["roundtrip", "--item", "Dupe Rifle"],
             WEAPONS,
             "destiny-weapon (1).csv",
-            "parsed 17 weapons",
+            "parsed 18 weapons",
         ),
         (
             [
@@ -30,7 +30,7 @@ GHOSTS = FIXTURES / "ghosts_cleanup.csv"
             ],
             WEAPONS,
             "destiny-weapon(1).csv",
-            "parsed 17 weapons",
+            "parsed 18 weapons",
         ),
         (
             ["armor", "--config", "nonexistent.toml"],
@@ -128,7 +128,7 @@ def test_single_command_explicit_input_bypasses_ambiguous_default_directory(
         "--item",
         "Dupe Rifle",
     ]) == 0
-    assert "parsed 17 weapons" in capsys.readouterr().out
+    assert "parsed 18 weapons" in capsys.readouterr().out
 
 
 def test_combined_ambiguity_is_a_clean_fatal_error(
