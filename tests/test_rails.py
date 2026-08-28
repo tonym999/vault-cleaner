@@ -49,6 +49,13 @@ def test_crafted_at_threshold_is_hard_protected():
     assert level == HARD and "crafted" in reason
 
 
+def test_crafted_level_accepts_trimmed_ascii_integer():
+    level, reason = protection(
+        item(Crafted=" CRAFTED ", **{"Crafted Level": " 010 "}), 10
+    )
+    assert level == HARD and "crafted" in reason
+
+
 def test_crafted_above_threshold_is_hard_protected():
     level, reason = protection(
         item(Crafted="crafted", **{"Crafted Level": "12"}), 10
@@ -78,6 +85,18 @@ def test_empty_does_not_protect_even_at_high_level():
 def test_unknown_crafted_value_fails_through_protection():
     with pytest.raises(SchemaError, match="unknown DIM Crafted value"):
         protection(item(Crafted="true", **{"Crafted Level": "12"}), 10)
+
+
+@pytest.mark.parametrize(
+    "level",
+    ["10.0", "1e1", "+10", "-1", "١٠", "unknown", ""],
+)
+def test_malformed_crafted_level_fails_through_protection(level):
+    with pytest.raises(SchemaError, match="Crafted Level"):
+        protection(
+            item(Crafted="crafted", **{"Crafted Level": level}),
+            10,
+        )
 
 
 def test_exotic_is_soft_protected():

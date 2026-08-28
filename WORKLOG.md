@@ -22,6 +22,20 @@ surprises the next agent should know about.
   junked. Browser/server/wheel checks are not required for this local parser
   ticket. No real vault rows or IDs were committed; issue #31 remains
   separate and unresolved.
+- Review follow-up: the fingerprint regression now compares all input
+  categories at the current ruleset version 2, with only the dedicated
+  version-change assertion using version 1. A shared strict level parser now
+  trims surrounding whitespace, accepts empty only for non-crafted/shared
+  rows (as zero), and accepts only ASCII non-negative integer text otherwise;
+  decimal, exponent, signed/negative, arbitrary, Unicode-digit, and empty
+  crafted values raise SchemaError. Both weapon loaders validate every row
+  before rules, and rails.protection validates direct-call data eagerly.
+- Final review validation: focused Ruff and 112 focused tests passed; full
+  Ruff and 711 tests passed; the fake duplicate dry run parsed 18 weapons and
+  produced 4 junk plus 3 review decisions, with crafted ids 3021 and 3023
+  absent and below-threshold id 3022 junked. Snapshot regeneration was
+  byte-identical (schema 1, ruleset 2); git diff --check passed and no data
+  paths are tracked.
 
 ## 2026-08-28 — #51 retired static review surface
 

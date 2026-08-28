@@ -146,11 +146,75 @@ def _set_first_value(column, value):
     return mutate
 
 
+def _set_first_values(values):
+    def mutate(rows):
+        for column, value in values.items():
+            rows[1][rows[0].index(column)] = value
+
+    return mutate
+
+
 INVALID_EXPORT_CASES = [
     ("weapons", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Notes")),
     ("weapons-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted")),
     ("weapons-crafted-level", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted Level")),
     ("weapons-unknown-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _set_first_value("Crafted", "true")),
+    (
+        "weapons-level-decimal",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "10.0"}),
+    ),
+    (
+        "weapons-level-exponent",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "1e1"}),
+    ),
+    (
+        "weapons-level-signed",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "+10"}),
+    ),
+    (
+        "weapons-level-negative",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "-1"}),
+    ),
+    (
+        "weapons-level-unicode-digit",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "١٠"}),
+    ),
+    (
+        "weapons-level-arbitrary",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "abc"}),
+    ),
+    (
+        "weapons-level-empty-crafted",
+        FIXTURE,
+        load_weapons,
+        load_weapons_bytes,
+        "weapons export",
+        _set_first_values({"Crafted": "crafted", "Crafted Level": ""}),
+    ),
     ("armor", ARMOR_FIXTURE, load_armor, load_armor_bytes, "armor export", _drop_column("Notes")),
     ("ghosts", GHOST_FIXTURE, load_ghosts, load_ghosts_bytes, "ghosts export", _drop_column("Notes")),
     ("weapons-duplicate", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _duplicate_first_item()),
@@ -204,6 +268,29 @@ def test_byte_and_path_rejections_have_matching_schema_errors(
     assert str(byte_error.value) == str(path_error.value).replace(str(path), label, 1)
     assert label in str(byte_error.value)
     assert str(tmp_path) not in str(byte_error.value)
+
+
+def test_malformed_crafted_level_error_identifies_weapon_and_value(tmp_path):
+    content = _rewrite_csv(
+        FIXTURE.read_bytes(),
+        _set_first_values({"Crafted": "crafted", "Crafted Level": "10.0"}),
+    )
+    path = tmp_path / "weapons.csv"
+    path.write_bytes(content)
+
+    with pytest.raises(SchemaError) as path_error:
+        load_weapons(path)
+    with pytest.raises(SchemaError) as byte_error:
+        load_weapons_bytes(content)
+
+    for message, label in (
+        (str(path_error.value), str(path)),
+        (str(byte_error.value), "weapons export"),
+    ):
+        assert label in message
+        assert "10.0" in message
+        assert "Fake Auto Rifle" in message
+        assert "1000000000000000001" in message
 
 
 @pytest.mark.parametrize(

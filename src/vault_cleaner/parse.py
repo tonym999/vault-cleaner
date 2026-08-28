@@ -7,6 +7,7 @@ a column we depend on has vanished.
 
 from __future__ import annotations
 
+import re
 from io import StringIO
 from pathlib import Path
 
@@ -145,22 +146,54 @@ def is_crafted(value: object) -> bool:
     raise SchemaError(f"unknown DIM Crafted value {value!r}")
 
 
+def parse_crafted_level(value: object, crafted: bool) -> int:
+    """Parse a DIM ``Crafted Level`` value for an already parsed state.
+
+    Empty is valid only for a non-crafted/shared row and maps to zero. All
+    other values must be ASCII, non-negative integer text. This strict
+    boundary prevents malformed safety data from being coerced by the
+    ranking helper and disabling the crafted-level rail.
+    """
+    normalized = str(value).strip()
+    if not normalized:
+        if crafted:
+            raise SchemaError(
+                "empty DIM Crafted Level value on a crafted item"
+            )
+        return 0
+    if not re.fullmatch(r"[0-9]+", normalized):
+        raise SchemaError(f"invalid DIM Crafted Level value {value!r}")
+    try:
+        return int(normalized)
+    except ValueError as exc:
+        # Python can reject an otherwise digit-only value when it exceeds its
+        # configured integer string conversion limit.
+        raise SchemaError(f"invalid DIM Crafted Level value {value!r}") from exc
+
+
 def _validate_weapons(df: pd.DataFrame, display_label: str) -> pd.DataFrame:
     """Validate crafted-state tokens before weapon rules can run."""
     for _, row in df.iterrows():
         try:
-            is_crafted(row["Crafted"])
+            crafted = is_crafted(row["Crafted"])
+            parse_crafted_level(row["Crafted Level"], crafted)
         except SchemaError as exc:
             raise SchemaError(
-                f"{display_label}: malformed 'Crafted' value "
-                f"{row['Crafted']!r} on {row['Name']} (id {row['Id']}) — {exc}"
+                f"{display_label}: malformed crafted safety value on "
+                f"{row['Name']} (id {row['Id']}): "
+                f"Crafted={row['Crafted']!r}, "
+                f"Crafted Level={row['Crafted Level']!r} — {exc}"
             ) from exc
     return df
 
 
 def load_weapons(path: str | Path) -> pd.DataFrame:
-    """Load a DIM weapons export. All columns come back as strings; empty
-    cells are empty strings, not NaN."""
+    """Load and validate a DIM weapons export.
+
+    All columns come back as strings; empty cells are empty strings, not NaN.
+    The safety-critical ``Crafted``/``Crafted Level`` fields are validated
+    before rules run. Malformed values raise :class:`SchemaError`.
+    """
     path = Path(path)
     return _validate_weapons(
         _load_dim_csv(path, REQUIRED_WEAPON_COLUMNS, "weapons", str(path)),
@@ -169,7 +202,11 @@ def load_weapons(path: str | Path) -> pd.DataFrame:
 
 
 def load_weapons_bytes(content: bytes) -> pd.DataFrame:
-    """Load a DIM weapons export from strict UTF-8 bytes."""
+    """Load a strict-UTF-8 DIM weapons export and validate safety fields.
+
+    Malformed ``Crafted`` or ``Crafted Level`` values raise
+    :class:`SchemaError` with the export label and offending weapon context.
+    """
     return _validate_weapons(
         _load_dim_bytes(content, REQUIRED_WEAPON_COLUMNS, "weapons", "weapons export"),
         "weapons export",

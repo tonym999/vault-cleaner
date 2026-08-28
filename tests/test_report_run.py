@@ -236,9 +236,7 @@ def test_fingerprint_changes_for_every_input_category():
         WishlistSourceIdentity("test", "https://example.test/list", "wishlist-a"),
     )
     manifest = ManifestIdentity("v1", "manifest-a")
-    baseline = compute_fingerprint(
-        sources, config, wishlist, manifest, ruleset_version=1
-    )
+    baseline = compute_fingerprint(sources, config, wishlist, manifest)
 
     assert compute_fingerprint(
         {"weapons": "export-b"}, config, wishlist, manifest
@@ -263,7 +261,7 @@ def test_fingerprint_changes_for_every_input_category():
         config,
         wishlist,
         manifest,
-        ruleset_version=2,
+        ruleset_version=1,
     ) != baseline
 
 
