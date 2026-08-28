@@ -466,8 +466,10 @@ def test_packaged_presentation_resources_are_free_of_the_static_adapter():
         "MANIFEST" + "_KEYS", "SNAPSHOT" + "_KEYS",
         "DECISION" + "_KEYS",
     )
-    # This is an exact-name negative regression guard. No positive corpus is
-    # retained because the browser adapter was intentionally deleted.
+    # This negative regression guard uses substring matching. The readManifest
+    # prefix deliberately covers readManifestText/readManifestBytes/
+    # readPastedManifest, and no positive corpus is retained because the
+    # browser adapter was intentionally deleted.
     for name in ("review_ui.js", "review_server.js"):
         resource = files("vault_cleaner.ui").joinpath(name)
         with as_file(resource) as path:
@@ -476,16 +478,22 @@ def test_packaged_presentation_resources_are_free_of_the_static_adapter():
 
 
 def test_packaged_sources_have_no_invisible_or_control_characters():
-    root = Path(__file__).parents[1] / "src" / "vault_cleaner" / "ui"
     invisible = {"Cf", "Cc", "Zl", "Zp"}
-    for path in sorted(root.iterdir()):
-        if path.suffix not in {".css", ".js"}:
-            continue
-        source = path.read_bytes().decode("utf-8")
+    resources = sorted(
+        (
+            resource
+            for resource in files("vault_cleaner.ui").iterdir()
+            if resource.name.endswith((".css", ".js"))
+        ),
+        key=lambda resource: resource.name,
+    )
+    for resource in resources:
+        with as_file(resource) as path:
+            source = path.read_bytes().decode("utf-8")
         assert all(
             char in "\n\t" or unicodedata.category(char) not in invisible
             for char in source
-        ), path
+        ), resource.name
 
 
 def test_every_decision_becomes_an_item(plain):
