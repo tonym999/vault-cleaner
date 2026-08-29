@@ -197,13 +197,14 @@ def test_selected_markers_and_multi_option_cells_do_not_split_identity():
     )
 
 
-def test_base_and_enhanced_perk_names_share_identity():
-    first = _roll_row("1", **{"Perks 3": "Range*"})
-    second = _roll_row("2", **{"Perks 3": "Enhanced Range*"})
+def test_enhanced_perk_name_is_not_collapsed_to_base_name():
+    first = _roll_row("1", **{"Perks 3": "Battery*"})
+    second = _roll_row("2", **{"Perks 3": "Enhanced Battery*"})
 
-    assert exact_roll_fingerprint(pd.Series(first)) == exact_roll_fingerprint(
+    assert exact_roll_fingerprint(pd.Series(first)) != exact_roll_fingerprint(
         pd.Series(second)
     )
+    assert resolve(_roll_df(first, second), crafted_level_protect=10) == []
 
 
 def test_mutable_cells_after_tracker_do_not_split_identity():

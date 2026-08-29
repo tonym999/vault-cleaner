@@ -6,10 +6,11 @@ state (origin/current socket choices, mods, masterwork, memento, and similar
 fields). The 2026-08-29 measurement found that the first tracker-labelled
 cell is a stable structural boundary. The exact-roll fingerprint therefore
 contains the normalized cells before that boundary, with DIM's trailing
-selected ``*`` marker and leading ``Enhanced `` decoration removed. Perk
-options remain in their measured socket order; no option reordering was
-observed, so the resolver does not invent equivalence for an unmeasured
-reordering.
+selected ``*`` marker removed. A leading ``Enhanced `` prefix is retained as
+part of the perk name: measurement found it on ordinary gameplay perk names,
+not as a safe display-only decoration. Perk options remain in their measured
+socket order; no option reordering was observed, so the resolver does not
+invent equivalence for an unmeasured reordering.
 
 Exotic rows in that export also carry a measured pre-tracker prefix; their
 Hash alone is not a safe identity. A row with an unknown/incomplete identity
@@ -62,8 +63,6 @@ def _normalize_roll_cell(value: object) -> str:
     cell = str(value).strip()
     if cell.endswith("*"):
         cell = cell[:-1].rstrip()
-    if cell.casefold().startswith("enhanced "):
-        cell = cell[len("Enhanced "):].lstrip()
     return cell.casefold()
 
 
