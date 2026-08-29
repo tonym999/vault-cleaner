@@ -84,7 +84,16 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   and memento cells are mutable and excluded. Selected trailing `*` markers
   are normalized away, while complete perk names (including ordinary names
   beginning with `Enhanced `) are retained. Missing boundaries or prefixes
-  fail safe as ungroupable rather than collapsing same-Hash rolls.
+  fail safe as ungroupable rather than collapsing same-Hash rolls. DIM's
+  `Perks N` header width is export-dependent: `Perks 0` is the minimal schema
+  invariant, and any contiguous `0..N` range is accepted when the row has a
+  complete prefix and tracker boundary. Perk cells stay whole (commas are not
+  guessed as option separators); adjacent cells are the measured multi-option
+  representation. Comma-bearing cells containing tracker-labelled components
+  are ungroupable regardless of component order. Wishlist matches protect
+  trash decisions but do not rank exact duplicates, whose order is Tier >
+  Masterwork Tier > Crafted Level >
+  stat total > opaque Id.
 - DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
   parse the *last* one (`report.reason_slug` does).
 - Python's `csv` module writes CRLF by default: generate fixtures with

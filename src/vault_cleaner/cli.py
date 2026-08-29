@@ -616,7 +616,7 @@ def main(argv: list[str] | None = None) -> int:
     dp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     dp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     dp.add_argument("--no-wishlists", action="store_true",
-                    help="skip the wishlist pass (trash tagging + keep-roll ranking)")
+                    help="skip the wishlist pass (trash tagging + keep-roll protection)")
     dp.set_defaults(func=_cmd_dupes)
 
     ap = sub.add_parser("armor", help="armor pipeline: exact dupes then archetype scoring; junk with reasons")

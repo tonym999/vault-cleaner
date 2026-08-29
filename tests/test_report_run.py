@@ -23,6 +23,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = FIXTURES / "weapons_dupes.csv"
 ARMOR = FIXTURES / "armor.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
+HOSTILE = FIXTURES / "weapons_hostile.csv"
 GOLDEN = FIXTURES / "report_snapshot_v1.json"
 
 
@@ -82,6 +83,22 @@ def test_report_run_contains_sections_sources_decisions_and_config():
     assert locked.protection_level == "soft"
     assert locked.original_tag == ""
     assert locked.original_notes == ""
+
+
+def test_hostile_rtl_name_and_unicode_notes_reach_a_decision():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=HOSTILE,
+        armor_path=FIXTURES / "does-not-exist.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    decisions = result.sections[0].decisions
+    hostile = next(decision for decision in decisions if decision.id == "7006")
+
+    assert "\u202e" in hostile.name and "\u202c" in hostile.name
+    assert "\u2028" in hostile.note and "\u2029" in hostile.note
+    assert hostile.action == "junk"
 
 
 def test_snapshot_contains_complete_armor_score_metadata():

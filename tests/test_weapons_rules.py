@@ -12,6 +12,12 @@ PERK_MAP = {
     "perk a": frozenset({1}),
     "perk b": frozenset({2, 20}),  # base + enhanced variant share the name
     "bad perk": frozenset({3}),
+    "nail, meet hammer": frozenset({4}),
+    "eyes up, guardian": frozenset({5}),
+    "nail": frozenset({40}),
+    "meet hammer": frozenset({41}),
+    "eyes up": frozenset({42}),
+    "guardian": frozenset({43}),
 }
 
 WISHLIST = parse_wishlist(
@@ -48,6 +54,19 @@ def test_row_perk_hashes_strips_star_and_casefolds():
     assert row_perk_hashes(row, PERK_MAP) == frozenset({1, 2, 20})
 
 
+def test_comma_bearing_perk_names_remain_whole_wishlist_perks():
+    row = df(
+        weapon(
+            "1", 100,
+            perks=["Nail, Meet Hammer*", "Eyes Up, Guardian"],
+        )
+    ).iloc[0]
+
+    assert row_perk_hashes(row, PERK_MAP) == frozenset({4, 5})
+    wishlist = parse_wishlist("dimwishlist:item=100&perks=4,5")
+    assert keep_match_count(100, row_perk_hashes(row, PERK_MAP), wishlist) == 1
+
+
 def test_keep_and_trash_matching():
     row = df(weapon("1", 100, perks=["Perk A", "Perk B"])).iloc[0]
     hashes = row_perk_hashes(row, PERK_MAP)
@@ -75,6 +94,18 @@ def test_keep_match_exact_duplicates_still_resolve_inside_their_group():
     assert [(d.id, d.action, d.kept_id) for d in decisions] == [
         ("A", "junk", "B")
     ]
+
+
+def test_post_tracker_wishlist_state_does_not_rank_exact_duplicates():
+    weapons = df(
+        weapon("A", 100, **{"Perks 7": "Nail, Meet Hammer*"}),
+        weapon("B", 100, **{"Perks 7": "Eyes Up, Guardian*", "Masterwork Tier": "10"}),
+    )
+    wishlist = parse_wishlist("dimwishlist:item=100&perks=4")
+
+    decisions = run(weapons, wishlist, PERK_MAP, 10).decisions
+
+    assert [(d.id, d.kept_id) for d in decisions] == [("A", "B")]
 
 
 def test_whole_item_trash_junked_locked_copy_reviewed():

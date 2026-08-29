@@ -27,6 +27,11 @@ export. Different perk rolls under one Hash, or rows whose roll identity is
 incomplete, survive independently; wishlist-trash remains a separate rule.
 The fingerprint keeps complete named pre-tracker perk cells (including any
 leading `Enhanced ` text), normalizing only DIM's trailing selected `*` marker.
+The `Perks N` header width follows the export: `Perks 0` is the minimal
+invariant, and gaps or incomplete tracker boundaries are left ungroupable.
+Perk cells are kept whole, including legitimate comma-bearing names.
+Comma-bearing cells containing tracker-labelled components are left
+ungroupable regardless of component order.
 
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:
@@ -190,7 +195,7 @@ in its terminal is also available.
 
 - ✅ M1 — round trip: parse DIM weapon + ghost exports, write a DIM-importable tags CSV
 - ✅ M2 — weapon dupe resolver + safety rails (`vault-cleaner dupes`; locked/exotics get review notes, never junk)
-- ✅ M3 — wishlists: download/parse (choosy_voltron, Aegis keep + trash) and matching wired into the dupe ranking via the Bungie manifest's perk name→hash map
+- ✅ M3 — wishlists: download/parse (choosy_voltron, Aegis keep + trash) and matching wired into wishlist-trash protection via the Bungie manifest's perk name→hash map
 - ✅ M4 — Armor 3.0 archetype scoring (`vault-cleaner armor`; config-driven build weights, set-bonus favoring, top-N + floor)
 - ✅ M5 — polish: ghost cleanup pass (`vault-cleaner ghosts` — junks every shell not equipped/locked/tagged/in a loadout) and the all-passes dry-run summary (`vault-cleaner report`)
 - ✅ M6 — armor dupes: exact-dupe pass, review-only close-dupe pass, and the last-of-archetype score guard

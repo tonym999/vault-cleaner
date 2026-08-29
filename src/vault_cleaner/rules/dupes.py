@@ -10,7 +10,10 @@ selected ``*`` marker removed. A leading ``Enhanced `` prefix is retained as
 part of the perk name: measurement found it on ordinary gameplay perk names,
 not as a safe display-only decoration. Perk options remain in their measured
 socket order; no option reordering was observed, so the resolver does not
-invent equivalence for an unmeasured reordering.
+invent equivalence for an unmeasured reordering. A comma-bearing cell that
+contains tracker-labelled components is also treated as an unmeasured
+combined tracker and rejected as ungroupable; legitimate comma-bearing
+ordinary perk names remain whole identity cells.
 
 Exotic rows in that export also carry a measured pre-tracker prefix; their
 Hash alone is not a safe identity. A row with an unknown/incomplete identity
@@ -22,16 +25,15 @@ different hashes across seasonal reissues.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 
 import pandas as pd
 
 from vault_cleaner.rules import rails
 
-# Ranking order per PLAN.md: wishlist match (arrives in M3 via wishlist_key)
-# > gear tier > masterwork tier > crafted level > stat total. Stat total is an
-# exact-roll-group tiebreaker only, so cross-roll comparison never happens.
+# Ranking order per PLAN.md: gear tier > masterwork tier > crafted level > stat
+# total. Stat total is an exact-roll-group tiebreaker only, so cross-roll
+# comparison never happens; opaque Id breaks ties deterministically.
 RANK_COLUMNS = ["Tier", "Masterwork Tier", "Crafted Level"]
 
 STAT_COLUMNS = [
@@ -41,21 +43,27 @@ STAT_COLUMNS = [
 ]
 
 # The export's named fields, rather than dataframe positions, are the
-# measured weapon-roll prefix. ``Perks 0`` is the frame; later cells contain
-# available options for randomized sockets. The parser requires the measured
-# prefix fields, and the row-level extractor discovers any later named fields
-# to reach the tracker boundary without assuming a fixed export width.
+# weapon-roll prefix. ``Perks 0`` is the frame; later cells contain available
+# options for randomized sockets. The parser requires only ``Perks 0`` and
+# the row-level extractor discovers the contiguous named range present in each
+# export to reach the tracker boundary without assuming a fixed width.
 _PERK_HEADER = re.compile(r"^Perks ([0-9]+)$")
-# The measured export is contiguous through Perks 20. Requiring that lower
-# bound prevents a truncated/gapped header set from becoming a partial key;
-# later contiguous fields are accepted so the boundary can move with DIM.
-_MIN_MEASURED_PERK_INDEX = 20
 
 # Tracker labels are the only structural boundary observed across this
 # export. Match the category suffix, rather than a brittle catalogue of
 # today's names (Kill Tracker, Crucible Tracker, etc.). Unknown labels do
 # not get guessed: without this boundary the row is ungroupable.
 _TRACKER_CELL = re.compile(r"(?:^|\s)tracker$", re.IGNORECASE)
+
+
+def _has_comma_tracker_candidate(value: str) -> bool:
+    """Reject unmeasured combined tracker labels without splitting identity."""
+    return "," in value and any(
+        _TRACKER_CELL.search(
+            component.strip().removesuffix("*").rstrip()
+        )
+        for component in value.split(",")
+    )
 
 
 def _normalize_roll_cell(value: object) -> str:
@@ -99,7 +107,6 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
     if (
         not columns
         or numbers[0] != 0
-        or numbers[-1] < _MIN_MEASURED_PERK_INDEX
         or numbers != tuple(range(numbers[-1] + 1))
     ):
         return None
@@ -113,6 +120,12 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
         None,
     )
     if tracker_index is None:
+        return None
+    # Commas are legitimate inside ordinary perk names, so the fingerprint
+    # never splits them. Before the first boundary, however, a comma-bearing
+    # tracker candidate is an unmeasured combined-cell representation; reject
+    # the row regardless of which tracker component appears last.
+    if any(_has_comma_tracker_candidate(value) for value in values[:tracker_index + 1]):
         return None
     prefix = values[:tracker_index]
     if not prefix or any(not value for value in prefix):
@@ -132,17 +145,15 @@ class Decision:
     kept_id: str  # the surviving copy this one lost (or tied) against
 
 
-def rank_key(row, wishlist_key: Callable | None = None) -> tuple:
-    wl = wishlist_key(row) if wishlist_key else 0
+def rank_key(row) -> tuple:
     ranks = tuple(rails.to_int(row.get(c)) for c in RANK_COLUMNS)
     stat_total = sum(rails.to_int(row.get(c)) for c in STAT_COLUMNS)
-    return (wl, *ranks, stat_total)
+    return (*ranks, stat_total)
 
 
 def resolve(
     weapons: pd.DataFrame,
     crafted_level_protect: int,
-    wishlist_key: Callable | None = None,
 ) -> list[Decision]:
     decisions: list[Decision] = []
     groups: dict[tuple[str, tuple[str, ...]], list] = {}
@@ -159,7 +170,7 @@ def resolve(
         if len(group) < 2:
             continue
         keyed = sorted(
-            ((rank_key(row, wishlist_key), row) for row in group),
+            ((rank_key(row), row) for row in group),
             key=lambda kr: str(kr[1]["Id"]),
         )
         keyed = sorted(keyed, key=lambda kr: kr[0], reverse=True)

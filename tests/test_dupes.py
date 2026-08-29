@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from vault_cleaner.parse import load_weapons
 from vault_cleaner.rules.dupes import exact_roll_fingerprint, resolve
@@ -126,6 +127,28 @@ def test_slammer_fixture_keeps_distinct_same_hash_rolls_and_exact_copy():
     assert ds["6104"].note.endswith("dupe-lower, kept 6101")
 
 
+def test_narrower_contiguous_prefix_still_resolves_exact_duplicates():
+    rows = _roll_df(
+        _roll_row("1", **{"Masterwork Tier": "10"}),
+        _roll_row("2"),
+    ).drop(columns=[f"Perks {slot}" for slot in range(7, 21)])
+
+    decisions = resolve(rows, crafted_level_protect=10)
+
+    assert [(decision.id, decision.kept_id) for decision in decisions] == [
+        ("2", "1")
+    ]
+
+
+def test_wider_contiguous_prefix_remains_groupable():
+    row = pd.Series(_roll_row("1"))
+
+    fingerprint = exact_roll_fingerprint(row)
+
+    assert fingerprint is not None
+    assert len(fingerprint) == 6
+
+
 def test_reversing_slammer_rows_preserves_all_decision_fields():
     original = load_weapons(SLAMMER_FIXTURE)
     forward = resolve(original, crafted_level_protect=10)
@@ -168,6 +191,73 @@ def test_gapped_perk_headers_are_not_a_partial_identity():
     rows = _roll_df(row).drop(columns=["Perks 11"])
 
     assert exact_roll_fingerprint(rows.iloc[0]) is None
+
+
+def test_missing_perk_start_is_not_a_partial_identity():
+    row = _roll_df(_roll_row("1")).drop(columns=["Perks 0"])
+
+    assert exact_roll_fingerprint(row.iloc[0]) is None
+
+
+@pytest.mark.parametrize(
+    "tracker_cell",
+    ["Tracker Disabled,Kill Tracker", "Kill Tracker,Crucible Tracker"],
+)
+def test_comma_bearing_tracker_candidates_are_not_grouped(tracker_cell):
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 6": tracker_cell}),
+        _roll_row("2", **{"Perks 6": tracker_cell}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
+    assert exact_roll_fingerprint(rows.iloc[1]) is None
+    assert resolve(rows, crafted_level_protect=10) == []
+
+
+def test_internal_star_tracker_candidate_is_not_grouped():
+    tracker_cell = "Kill Tracker*,Tracker Disabled"
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 3": tracker_cell}),
+        _roll_row("2", **{"Perks 3": tracker_cell}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
+    assert exact_roll_fingerprint(rows.iloc[1]) is None
+    assert resolve(rows, crafted_level_protect=10) == []
+
+
+def test_comma_bearing_tracker_candidate_in_frame_is_not_grouped():
+    tracker_cell = "Kill Tracker*,Frame"
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 0": tracker_cell}),
+        _roll_row("2", **{"Perks 0": tracker_cell}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
+    assert exact_roll_fingerprint(rows.iloc[1]) is None
+    assert resolve(rows, crafted_level_protect=10) == []
+
+
+def test_legitimate_comma_name_is_groupable_and_resolves():
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 3": "Nail, Meet Hammer*"}),
+        _roll_row("2", **{"Perks 3": "Nail, Meet Hammer"}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is not None
+    assert [(decision.id, decision.kept_id) for decision in resolve(
+        rows, crafted_level_protect=10
+    )] == [("2", "1")]
+
+
+def test_legitimate_comma_frame_name_is_groupable_and_resolves():
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 0": "Frame, Variant*"}),
+        _roll_row("2", **{"Perks 0": "Frame, Variant"}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is not None
+    assert len(resolve(rows, crafted_level_protect=10)) == 1
 
 
 def test_same_name_different_hashes_do_not_group():
