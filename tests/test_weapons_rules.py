@@ -28,6 +28,10 @@ def weapon(id, hash, perks=(), **kv):
         "Crafted": "false", "Crafted Level": "0", "Tier": "5",
         "Masterwork Tier": "0", "Notes": "", "Owner": "Vault",
     }
+    # Match the measured DIM shape: named roll cells followed by a tracker
+    # boundary. Distinct perk prefixes on the same Hash must not compete.
+    base.update({f"Perks {i}": f"Roll {i}" for i in range(6)})
+    base["Perks 6"] = "Kill Tracker"
     for i, p in enumerate(perks):
         base[f"Perks {i}"] = p
     base.update(kv)
@@ -53,14 +57,24 @@ def test_keep_and_trash_matching():
     assert trash_match(300, frozenset({1}), WISHLIST) is None
 
 
-def test_keep_match_outranks_masterwork_in_dupes():
+def test_keep_match_does_not_compete_with_a_different_roll():
     weapons = df(
         weapon("A", 100, perks=["Perk A", "Perk B"]),  # keep-matched, MW 0
         weapon("B", 100, **{"Masterwork Tier": "10"}),  # unmatched, MW 10
     )
     decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
-    assert [(d.id, d.action) for d in decisions] == [("B", "junk")]
-    assert decisions[0].kept_id == "A"
+    assert decisions == []
+
+
+def test_keep_match_exact_duplicates_still_resolve_inside_their_group():
+    weapons = df(
+        weapon("A", 100, perks=["Perk A", "Perk B"]),
+        weapon("B", 100, perks=["Perk A", "Perk B"], **{"Masterwork Tier": "10"}),
+    )
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions] == [
+        ("A", "junk", "B")
+    ]
 
 
 def test_whole_item_trash_junked_locked_copy_reviewed():
@@ -109,25 +123,31 @@ def test_trash_junked_copy_never_survives_as_best():
     # The trash-matched copy outranks the clean one (MW 10 vs 0); it must be
     # excluded from dupe resolution, not crowned "kept" while leaving.
     weapons = df(
-        weapon("T", 300, perks=["Bad Perk"], **{"Masterwork Tier": "10"}),
+        weapon(
+            "T", 300, **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}
+        ),
         weapon("U", 300),
     )
     decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
     assert [(d.id, d.action) for d in decisions] == [("T", "junk")]
     assert "wishlist-trash roll" in decisions[0].note
-    # U survives untouched — the only remaining copy after T leaves
+    # U survives untouched — the only remaining copy after T leaves.
 
 
 def test_soft_reviewed_trash_copy_still_competes_in_dupes():
     # A locked trash-match is only flagged, so it stays in the dupe pool
     weapons = df(
-        weapon("T", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"}),
+        weapon(
+            "T", 300, Locked="true",
+            **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"},
+        ),
         weapon("U", 300),
     )
     d = {x.id: x for x in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
     assert d["T"].action == "review"
-    assert d["U"].action == "junk"  # dupe-lower vs the (staying) locked copy
+    assert d["U"].action == "junk"  # same exact roll, below the staying copy
     assert d["U"].kept_id == "T"
+    assert "dupe-lower" in d["U"].note
 
 
 def test_hard_protected_never_trash_tagged():

@@ -1,13 +1,26 @@
-"""Weapon dupe resolver (PLAN.md rule 3).
+"""Weapon exact-roll duplicate resolver (PLAN.md rule 3).
 
-Group strictly by item Hash — never Name: the same weapon name can exist
-under different hashes across seasonal reissues, and those are different
-weapons. Within a group the best copy survives untouched; lower copies are
-tagged junk, or note-flagged for review when soft-protected.
+DIM's weapon export flattens the frame and randomized socket options into
+named ``Perks N`` fields, followed by a tracker socket and mutable current
+state (origin/current socket choices, mods, masterwork, memento, and similar
+fields). The 2026-08-29 measurement found that the first tracker-labelled
+cell is a stable structural boundary. The exact-roll fingerprint therefore
+contains the normalized cells before that boundary, with DIM's trailing
+selected ``*`` marker and leading ``Enhanced `` decoration removed. Perk
+options remain in their measured socket order; no option reordering was
+observed, so the resolver does not invent equivalence for an unmeasured
+reordering.
+
+Exotics in that export have no randomized roll prefix, so their fixed Hash is
+the complete roll identity. A row with an unknown/incomplete identity is
+ungroupable and never enters automatic duplicate cleanup. Hash remains part
+of the grouping key (never Name): the same weapon name can exist under
+different hashes across seasonal reissues.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -16,8 +29,8 @@ import pandas as pd
 from vault_cleaner.rules import rails
 
 # Ranking order per PLAN.md: wishlist match (arrives in M3 via wishlist_key)
-# > gear tier > masterwork tier > crafted level > stat total. Stat total is a
-# same-hash tiebreaker only, so cross-archetype comparison never happens.
+# > gear tier > masterwork tier > crafted level > stat total. Stat total is an
+# exact-roll-group tiebreaker only, so cross-roll comparison never happens.
 RANK_COLUMNS = ["Tier", "Masterwork Tier", "Crafted Level"]
 
 STAT_COLUMNS = [
@@ -25,6 +38,78 @@ STAT_COLUMNS = [
     "Zoom", "Airborne Effectiveness", "Velocity", "Blast Radius", "ROF",
     "Accuracy", "Guard Resistance", "Guard Endurance", "Swing Speed",
 ]
+
+# The export's named fields, rather than dataframe positions, are the
+# measured weapon-roll prefix. ``Perks 0`` is the frame; later cells contain
+# available options for randomized sockets. The parser requires the measured
+# prefix fields, and the row-level extractor discovers any later named fields
+# to reach the tracker boundary without assuming a fixed export width.
+_PERK_HEADER = re.compile(r"^Perks ([0-9]+)$")
+
+# Tracker labels are the only structural boundary observed across this
+# export. Match the category suffix, rather than a brittle catalogue of
+# today's names (Kill Tracker, Crucible Tracker, etc.). Unknown labels do
+# not get guessed: without this boundary the row is ungroupable.
+_TRACKER_CELL = re.compile(r"(?:^|\s)tracker$", re.IGNORECASE)
+
+
+def _normalize_roll_cell(value: object) -> str:
+    """Canonicalize one measured immutable perk cell."""
+    cell = str(value).strip()
+    if cell.endswith("*"):
+        cell = cell[:-1].rstrip()
+    if cell.casefold().startswith("enhanced "):
+        cell = cell[len("Enhanced "):].lstrip()
+    return cell.casefold()
+
+
+def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
+    """Return the measured immutable roll key, or ``None`` if ungroupable.
+
+    Legendary rows use the complete non-empty prefix before the first
+    tracker-labelled cell. Cells at and after that boundary are mutable
+    current state and excluded. Optional trailing perk cells are therefore
+    not mistaken for missing identity. Exotic rows are fixed-roll in the
+    measured export and use a constant fingerprint, so catalyst/tracker
+    state cannot split copies. Other rarities, blank hashes, missing tracker
+    boundaries, and incomplete prefixes fail safe.
+    """
+    item_hash = str(row.get("Hash", "")).strip()
+    if not item_hash:
+        return None
+
+    rarity = str(row.get("Rarity", "")).strip().casefold()
+    if rarity == "exotic":
+        return ("fixed-exotic",)
+    if rarity != "legendary":
+        return None
+
+    keys = row.index if hasattr(row, "index") else row.keys()
+    columns = sorted(
+        (
+            column
+            for column in keys
+            if isinstance(column, str) and _PERK_HEADER.fullmatch(column)
+        ),
+        key=lambda column: int(_PERK_HEADER.fullmatch(column).group(1)),
+    )
+    if not columns or columns[0] != "Perks 0":
+        return None
+    values = tuple(_normalize_roll_cell(row[column]) for column in columns)
+    tracker_index = next(
+        (
+            index
+            for index, value in enumerate(values[1:], start=1)
+            if _TRACKER_CELL.search(value)
+        ),
+        None,
+    )
+    if tracker_index is None:
+        return None
+    prefix = values[:tracker_index]
+    if not prefix or any(not value for value in prefix):
+        return None
+    return prefix
 
 
 @dataclass
@@ -52,16 +137,24 @@ def resolve(
     wishlist_key: Callable | None = None,
 ) -> list[Decision]:
     decisions: list[Decision] = []
-    for _, group in weapons.groupby("Hash", sort=False):
+    groups: dict[tuple[str, tuple[str, ...]], list] = {}
+    for _, row in weapons.iterrows():
+        fingerprint = exact_roll_fingerprint(row)
+        if fingerprint is None:
+            continue
+        group_key = (str(row["Hash"]), fingerprint)
+        groups.setdefault(group_key, []).append(row)
+
+    # Sort group keys and then rank ties by opaque instance id so both the
+    # decision order and the survivor are independent of CSV row order.
+    for _, group in sorted(groups.items(), key=lambda item: item[0]):
         if len(group) < 2:
             continue
-        # Stable sort: on tied keys the earlier row in the export survives,
-        # so results are deterministic for a given export.
         keyed = sorted(
-            ((rank_key(row, wishlist_key), row) for _, row in group.iterrows()),
-            key=lambda kr: kr[0],
-            reverse=True,
+            ((rank_key(row, wishlist_key), row) for row in group),
+            key=lambda kr: str(kr[1]["Id"]),
         )
+        keyed = sorted(keyed, key=lambda kr: kr[0], reverse=True)
         best_key, best = keyed[0]
         for key, row in keyed[1:]:
             level, reason = rails.protection(row, crafted_level_protect)

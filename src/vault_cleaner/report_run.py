@@ -36,7 +36,7 @@ from vault_cleaner.rules.dupes import Decision
 SNAPSHOT_SCHEMA_VERSION = 1
 # Bump only when decision semantics change. Snapshot presentation/schema
 # changes are deliberately independent so they do not invalidate reviews.
-RULESET_VERSION = 2
+RULESET_VERSION = 3
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
     kind: str(Path(DEFAULT_INPUT_DIR) / filename)

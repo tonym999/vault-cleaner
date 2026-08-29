@@ -21,6 +21,11 @@ manual, in-game step via a `tag:junk` search in DIM.
 
 `data/` is personal vault data and is gitignored — it never leaves your machine.
 
+Weapon duplicate cleanup is deliberately conservative: it groups only copies
+with the same item `Hash` and a proven exact-roll fingerprint from the DIM
+export. Different perk rolls under one Hash, or rows whose roll identity is
+incomplete, survive independently; wishlist-trash remains a separate rule.
+
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:
 
