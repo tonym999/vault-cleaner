@@ -127,7 +127,7 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
     # never splits them. Before the first boundary, however, a comma-bearing
     # tracker candidate is an unmeasured combined-cell representation; reject
     # the row regardless of which tracker component appears last.
-    if any(_has_comma_tracker_candidate(value) for value in values[:tracker_index + 1]):
+    if any(_has_comma_tracker_candidate(value) for value in values[:tracker_index]):
         return None
     prefix = values[:tracker_index]
     if not prefix or any(not value for value in prefix):

@@ -3,6 +3,23 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-29 — #31 final review cleanup
+
+- Corrected the public `dupes` command summary: duplicate resolution keeps the
+  best exact copy while preserving distinct and uncertain rolls, rather than
+  keeping only one item per Hash.
+- Aligned the comma-bearing tracker-candidate scan with the exact measured
+  boundary invariant. The boundary cell is necessarily the exact normalized
+  `Kill Tracker` or `Crucible Tracker` label, so it cannot contain a comma and
+  is no longer included in the pre-boundary scan. The existing adversarial
+  tests still cover comma-bearing candidates before a later valid boundary.
+- Kept the hostile-Unicode report, renderer, and upload regressions in this PR.
+  They restore coverage lost when this ticket changed the hostile weapon
+  fixture's roll identity, so they are directly related regression protection
+  rather than unrelated feature work.
+- Validation passed with Ruff, the top-level CLI help smoke check, and all 752
+  tests in the full suite.
+
 ## 2026-08-29 — #31 review correction: preserve Enhanced perk names
 
 - Corrected the exact-roll normalizer to remove only DIM's trailing selected
