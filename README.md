@@ -27,11 +27,15 @@ export. Different perk rolls under one Hash, or rows whose roll identity is
 incomplete, survive independently; wishlist-trash remains a separate rule.
 The fingerprint keeps complete named pre-tracker perk cells (including any
 leading `Enhanced ` text), normalizing only DIM's trailing selected `*` marker.
-The `Perks N` header width follows the export: `Perks 0` is the minimal
-invariant, and gaps or incomplete tracker boundaries are left ungroupable.
-Perk cells are kept whole, including legitimate comma-bearing names.
-Comma-bearing cells containing tracker-labelled components are left
-ungroupable regardless of component order.
+The measured structural boundary is exactly `Kill Tracker` or `Crucible
+Tracker`, compared case-insensitively after removing one trailing marker.
+Unknown or future names that merely end in `Tracker` remain part of the
+identity until a later measured boundary; without one, the row is left
+ungroupable. The `Perks N` header width follows the export: `Perks 0` is the
+minimal invariant, and gaps or incomplete tracker boundaries are left
+ungroupable. Perk cells are kept whole, including legitimate comma-bearing
+names. Comma-bearing cells containing either measured tracker label are left
+ungroupable regardless of component order or marker placement.
 
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:

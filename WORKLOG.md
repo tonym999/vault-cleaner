@@ -12,8 +12,9 @@ surprises the next agent should know about.
   `Enhanced Battery` remain separate and produce no dupe decision.
 - Re-measured the private export after the correction: 665 rows remained
   groupable with contiguous named `Perks 0` through `Perks 20`; all 665 rows
-  had the measured tracker boundary (positions 4 through 15), and 25
-  pre-tracker `Enhanced ` occurrences were ordinary gameplay names. Aggregate
+  had a measured `Kill Tracker` or `Crucible Tracker` boundary (positions 4
+  through 15), and 25 pre-tracker `Enhanced ` occurrences were ordinary
+  gameplay names. Aggregate
   identity results were unchanged: 117 old same-Hash groups (346 rows, 229
   redundant), 1 exact group of 3 rows (2 redundant), and 2 review decisions
   with no automatic junk decisions. No real rows, ids, paths, or hashes are
@@ -32,10 +33,12 @@ surprises the next agent should know about.
 
 - Made weapon `Perks N` schema width export-dependent. The minimal load-time
   invariant is `Perks 0`; the extractor accepts any contiguous `0..N` header
-  range with a complete non-empty pre-tracker prefix and tracker boundary, so
-  gaps, missing starts/boundaries, or incomplete rows remain ungroupable
-  without blocking unrelated commands. Previous real-style fixtures measured
-  `Perks 0..19`; the current private export measures `Perks 0..20`.
+  range with a complete non-empty pre-tracker prefix and a measured `Kill
+  Tracker` or `Crucible Tracker` boundary, so gaps, missing starts/boundaries,
+  unknown tracker-looking labels without a measured boundary, or incomplete
+  rows remain ungroupable without blocking unrelated commands. Previous
+  real-style fixtures measured `Perks 0..19`; the current private export
+  measures `Perks 0..20`.
 - Restored the hostile fixture's exact prefix on the RTL-name row so its
   decision path carries the RLO/PDF name and U+2028/U+2029 Notes. Added report,
   renderer, and server-upload assertions for those values; no real data is
@@ -50,25 +53,32 @@ surprises the next agent should know about.
   legitimate full names (`Nail, Meet Hammer` or `Eyes Up, Guardian`), and no
   comma-bearing tracker cells. `row_perk_hashes` now keeps each cell whole;
   comma-bearing names resolve through the perk map without guessed splitting.
-  Any comma-bearing cell containing tracker-labelled components is rejected as
-  an unmeasured combined tracker, regardless of component order.
+  The measured tracker boundaries are exactly `Kill Tracker` (662 rows) and
+  `Crucible Tracker` (3 rows). Any comma-bearing cell containing either
+  measured tracker label is rejected as an unmeasured combined tracker,
+  regardless of component order or marker placement; unknown/future names that
+  merely end in `Tracker` stay identity cells until a later measured boundary,
+  or make the row ungroupable when no measured boundary exists. These are safe
+  aggregate counts only: no rows, IDs, hashes, or paths are recorded.
 - Snapshot regeneration via the repository script was byte-identical: the
   changed hostile fixture is not part of the fake golden, no decision payload
   changed, and `RULESET_VERSION` remains 3.
-- Focused validation passed: Ruff, diff-check, and 184 parser, dupe, weapon,
-  report, UI, server-upload, and export-discovery tests. The full suite passed
-  738 tests and skipped 1; 4 real-socket tests failed and 2 Chromium tests
-  errored because this sandbox denies sockets/browser startup (`Operation not
-  permitted`). The fake Slammer CLI dry run remained 1 junk / 0 review, and
-  the private no-wishlist report remained 0 junk / 2 review with no `--write`.
+- Final focused validation passed: Ruff and 201 parser, dupe, weapon, rail,
+  report, UI, server-upload, and export-discovery tests. Restricted full-suite
+  result: 745 passed, 1 skipped, 4 failed, and 2 errors; the failures/errors
+  were caused by documented socket/browser startup `Operation not permitted`
+  restrictions. An independent elevated full-suite run completed cleanly:
+  752 passed. The fake Slammer CLI dry run remained 1 junk / 0 review, and the
+  private no-wishlist report remained 0 junk / 2 review with no `--write`.
 
 ## 2026-08-29 — #31 weapon exact-roll measurement (pre-code)
 
 - Measured the current private DIM weapon export before finalizing the
   extractor: 665 rows, with contiguous named `Perks 0` through `Perks 20`.
-  The first tracker-labeled perk cell is a stable structural boundary in the
-  export: cells before it are the frame and randomized roll options; tracker,
-  origin, mod, masterwork, memento, and other current-state cells follow it.
+  The first `Kill Tracker` or `Crucible Tracker` perk cell is a stable
+  structural boundary in the export: cells before it are the frame and
+  randomized roll options; tracker, origin, mod, masterwork, memento, and
+  other current-state cells follow it.
 - The fingerprint will use `Hash` plus every pre-tracker perk cell by header
   name, stripping only DIM's trailing selected `*` marker. Leading `Enhanced `
   text is retained as part of the complete perk name: the measured occurrences
@@ -79,10 +89,11 @@ surprises the next agent should know about.
   their `Hash` alone is not a complete identity.
 - Mutable tracker, origin/current socket, mod, masterwork, memento, and later
   cells are excluded. `Hash` remains mandatory, and `Name` is never used.
-  Missing or empty pre-tracker identity cells, a missing tracker boundary, an
-  unknown rarity, or an otherwise incomplete prefix will be ungroupable and
-  cannot enter automatic duplicate cleanup. Cells at and after the tracker
-  boundary are excluded from identity and may legitimately be empty.
+  Missing or empty pre-tracker identity cells, a missing measured boundary, an
+  unknown tracker-looking label without a later measured boundary, an unknown
+  rarity, or an otherwise incomplete prefix will be ungroupable and cannot
+  enter automatic duplicate cleanup. Cells at and after the measured boundary
+  are excluded from identity and may legitimately be empty.
 - Aggregate baseline: 117 same-Hash groups of at least two rows (346 rows,
   229 redundant rows). The safe measured candidate has 1 exact group (3
   exotic rows, 2 redundant rows); no legendary exact group was present. The
@@ -96,11 +107,12 @@ surprises the next agent should know about.
 ## 2026-08-29 — #31 weapon exact-roll implementation
 
 - Implemented `exact_roll_fingerprint()` in `rules/dupes.py`: named `Perks N`
-  fields are normalized through the first tracker-labelled boundary, with
-  only the selected `*` marker removed. Leading `Enhanced ` text is retained
-  because measurement found it in ordinary gameplay perk names. Socket order
-  is preserved; exotic prefixes are included because Hash-only identity was
-  not supported by the measurement.
+  fields are normalized through the first measured `Kill Tracker` or
+  `Crucible Tracker` boundary, with only the selected `*` marker removed.
+  Unknown tracker-looking labels are not guessed as boundaries. Leading
+  `Enhanced ` text is retained because measurement found it in ordinary
+  gameplay perk names. Socket order is preserved; exotic prefixes are included
+  because Hash-only identity was not supported by the measurement.
   Blank hashes, unknown rarities, missing boundaries, and incomplete prefixes
   are ungroupable and never enter automatic dupe resolution. Mutable tracker,
   current socket, mod, masterwork, memento, and later state remain excluded.

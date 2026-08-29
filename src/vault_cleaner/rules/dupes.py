@@ -3,17 +3,21 @@
 DIM's weapon export flattens the frame and randomized socket options into
 named ``Perks N`` fields, followed by a tracker socket and mutable current
 state (origin/current socket choices, mods, masterwork, memento, and similar
-fields). The 2026-08-29 measurement found that the first tracker-labelled
-cell is a stable structural boundary. The exact-roll fingerprint therefore
-contains the normalized cells before that boundary, with DIM's trailing
-selected ``*`` marker removed. A leading ``Enhanced `` prefix is retained as
-part of the perk name: measurement found it on ordinary gameplay perk names,
-not as a safe display-only decoration. Perk options remain in their measured
-socket order; no option reordering was observed, so the resolver does not
-invent equivalence for an unmeasured reordering. A comma-bearing cell that
-contains tracker-labelled components is also treated as an unmeasured
-combined tracker and rejected as ungroupable; legitimate comma-bearing
-ordinary perk names remain whole identity cells.
+fields). The 2026-08-29 measurement found that the first ``Kill Tracker`` or
+``Crucible Tracker`` cell is a stable structural boundary. Those are the only
+measured boundary labels: they are compared case-insensitively after removing
+one trailing DIM-selected ``*`` marker. Unknown or future names that merely
+end in ``Tracker`` remain identity cells when a later measured boundary is
+present, and make a row ungroupable when no measured boundary exists. The
+exact-roll fingerprint therefore contains the normalized cells before that
+boundary. A leading ``Enhanced `` prefix is retained as part of the perk
+name: measurement found it on ordinary gameplay perk names, not as a safe
+display-only decoration. Perk options remain in their measured socket order;
+no option reordering was observed, so the resolver does not invent
+equivalence for an unmeasured reordering. A comma-bearing cell that contains
+measured tracker components is also treated as an unmeasured combined tracker
+and rejected as ungroupable; legitimate comma-bearing ordinary perk names
+remain whole identity cells.
 
 Exotic rows in that export also carry a measured pre-tracker prefix; their
 Hash alone is not a safe identity. A row with an unknown/incomplete identity
@@ -49,19 +53,16 @@ STAT_COLUMNS = [
 # export to reach the tracker boundary without assuming a fixed width.
 _PERK_HEADER = re.compile(r"^Perks ([0-9]+)$")
 
-# Tracker labels are the only structural boundary observed across this
-# export. Match the category suffix, rather than a brittle catalogue of
-# today's names (Kill Tracker, Crucible Tracker, etc.). Unknown labels do
-# not get guessed: without this boundary the row is ungroupable.
-_TRACKER_CELL = re.compile(r"(?:^|\s)tracker$", re.IGNORECASE)
+# These are the only structural boundary labels measured in the export. Do
+# not infer a boundary from arbitrary gameplay names ending in "Tracker";
+# unknown/future labels must remain identity cells or make the row ungroupable.
+_MEASURED_TRACKER_LABELS = frozenset({"kill tracker", "crucible tracker"})
 
 
 def _has_comma_tracker_candidate(value: str) -> bool:
     """Reject unmeasured combined tracker labels without splitting identity."""
     return "," in value and any(
-        _TRACKER_CELL.search(
-            component.strip().removesuffix("*").rstrip()
-        )
+        _normalize_roll_cell(component) in _MEASURED_TRACKER_LABELS
         for component in value.split(",")
     )
 
@@ -78,11 +79,12 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
     """Return the measured immutable roll key, or ``None`` if ungroupable.
 
     Legendary and exotic rows use the complete non-empty prefix before the
-    first tracker-labelled cell. Cells at and after that boundary are mutable
-    current state and excluded. Optional trailing perk cells are therefore
-    not mistaken for missing identity. Other rarities, blank hashes, missing
-    tracker boundaries, gapped/truncated headers, and incomplete prefixes
-    fail safe.
+    first measured ``Kill Tracker`` or ``Crucible Tracker`` cell (after the
+    same normalization described above). Cells at and after that boundary are
+    mutable current state and excluded. Optional trailing perk cells are
+    therefore not mistaken for missing identity. Other rarities, blank hashes,
+    missing measured boundaries, gapped/truncated headers, and incomplete
+    prefixes fail safe.
     """
     item_hash = str(row.get("Hash", "")).strip()
     if not item_hash:
@@ -115,7 +117,7 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
         (
             index
             for index, value in enumerate(values[1:], start=1)
-            if _TRACKER_CELL.search(value)
+            if value in _MEASURED_TRACKER_LABELS
         ),
         None,
     )

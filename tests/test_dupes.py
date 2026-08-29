@@ -249,6 +249,13 @@ def test_legitimate_comma_name_is_groupable_and_resolves():
         rows, crafted_level_protect=10
     )] == [("2", "1")]
 
+    arbitrary_tracker_rows = _roll_df(
+        _roll_row("3", **{"Perks 3": "Treasure Tracker, Variant"}),
+        _roll_row("4", **{"Perks 3": "Treasure Tracker, Variant"}),
+    )
+    assert exact_roll_fingerprint(arbitrary_tracker_rows.iloc[0]) is not None
+    assert len(resolve(arbitrary_tracker_rows, crafted_level_protect=10)) == 1
+
 
 def test_legitimate_comma_frame_name_is_groupable_and_resolves():
     rows = _roll_df(
@@ -327,3 +334,68 @@ def test_missing_or_unknown_roll_identity_fails_safe():
         _roll_df(missing_boundary, missing_prefix, unknown_rarity, blank_hash),
         crafted_level_protect=10,
     ) == []
+
+
+@pytest.mark.parametrize("gameplay_tracker", ["Treasure Tracker", "Resource Tracker"])
+def test_unknown_gameplay_tracker_name_stays_in_identity_before_valid_boundary(
+    gameplay_tracker,
+):
+    first = _roll_row(
+        "1",
+        **{
+            "Perks 3": gameplay_tracker,
+            "Perks 4": "Later Prefix A",
+            "Perks 6": "Kill Tracker",
+        },
+    )
+    second = _roll_row(
+        "2",
+        **{
+            "Perks 3": gameplay_tracker,
+            "Perks 4": "Later Prefix B",
+            "Perks 6": "Kill Tracker",
+        },
+    )
+
+    assert exact_roll_fingerprint(pd.Series(first)) != exact_roll_fingerprint(
+        pd.Series(second)
+    )
+    assert resolve(_roll_df(first, second), crafted_level_protect=10) == []
+
+
+def test_unknown_tracker_label_without_measured_boundary_is_ungroupable():
+    first = _roll_row("1", **{"Perks 6": "Vanguard Tracker"})
+    second = _roll_row("2", **{"Perks 6": "Vanguard Tracker"})
+
+    assert exact_roll_fingerprint(pd.Series(first)) is None
+    assert exact_roll_fingerprint(pd.Series(second)) is None
+    assert resolve(_roll_df(first, second), crafted_level_protect=10) == []
+
+
+@pytest.mark.parametrize("tracker_label", ["Kill Tracker", "Crucible Tracker"])
+def test_measured_tracker_labels_are_valid_boundaries(tracker_label):
+    first = _roll_row("1", **{"Perks 6": f"{tracker_label}*"})
+    second = _roll_row("2", **{"Perks 6": tracker_label.casefold()})
+
+    assert exact_roll_fingerprint(pd.Series(first)) is not None
+    assert len(resolve(_roll_df(first, second), crafted_level_protect=10)) == 1
+
+
+@pytest.mark.parametrize(
+    "tracker_cell",
+    [
+        "Kill Tracker*,Ordinary Name",
+        "Ordinary Name,Crucible Tracker*",
+    ],
+)
+def test_comma_measured_tracker_components_reject_any_order_and_marker(
+    tracker_cell,
+):
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 3": tracker_cell}),
+        _roll_row("2", **{"Perks 3": tracker_cell}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
+    assert exact_roll_fingerprint(rows.iloc[1]) is None
+    assert resolve(rows, crafted_level_protect=10) == []
