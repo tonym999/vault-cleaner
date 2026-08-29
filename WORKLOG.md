@@ -6,14 +6,14 @@ surprises the next agent should know about.
 ## 2026-08-29 — #31 review correction: preserve Enhanced perk names
 
 - Corrected the exact-roll normalizer to remove only DIM's trailing selected
-  `*` marker. Leading `Enhanced ` text is retained as part of the complete
+  `*` marker. Leading `Enhanced` text is retained as part of the complete
   gameplay perk name; collapsing it to a base name could falsely merge
   distinct rolls under one Hash. The regression now proves `Battery` and
   `Enhanced Battery` remain separate and produce no dupe decision.
 - Re-measured the private export after the correction: 665 rows remained
   groupable with contiguous named `Perks 0` through `Perks 20`; all 665 rows
   had a measured `Kill Tracker` or `Crucible Tracker` boundary (positions 4
-  through 15), and 25 pre-tracker `Enhanced ` occurrences were ordinary
+  through 15), and 25 pre-tracker `Enhanced` occurrences were ordinary
   gameplay names. Aggregate
   identity results were unchanged: 117 old same-Hash groups (346 rows, 229
   redundant), 1 exact group of 3 rows (2 redundant), and 2 review decisions
@@ -80,7 +80,7 @@ surprises the next agent should know about.
   randomized roll options; tracker, origin, mod, masterwork, memento, and
   other current-state cells follow it.
 - The fingerprint will use `Hash` plus every pre-tracker perk cell by header
-  name, stripping only DIM's trailing selected `*` marker. Leading `Enhanced `
+  name, stripping only DIM's trailing selected `*` marker. Leading `Enhanced`
   text is retained as part of the complete perk name: the measured occurrences
   were ordinary gameplay perk names, not a safe display-only decoration. Perk
   options are retained in their measured socket order: the export represents
@@ -110,7 +110,7 @@ surprises the next agent should know about.
   fields are normalized through the first measured `Kill Tracker` or
   `Crucible Tracker` boundary, with only the selected `*` marker removed.
   Unknown tracker-looking labels are not guessed as boundaries. Leading
-  `Enhanced ` text is retained because measurement found it in ordinary
+  `Enhanced` text is retained because measurement found it in ordinary
   gameplay perk names. Socket order is preserved; exotic prefixes are included
   because Hash-only identity was not supported by the measurement.
   Blank hashes, unknown rarities, missing boundaries, and incomplete prefixes
@@ -122,7 +122,7 @@ surprises the next agent should know about.
   validation/protection and all hard/soft rails remain unchanged.
 - Added a fake, synthetic Slammer-like export and behavioral coverage for
   distinct and exact same-Hash rolls, row reversal, selected markers,
-  multi-option cells, distinct leading-`Enhanced ` names, mutable state,
+  multi-option cells, distinct leading-`Enhanced` names, mutable state,
   unknown identity,
   wishlist behavior, and same-name/different-Hash safety. The parser then
   required the measured named perk-prefix headers; the later dynamic-width
