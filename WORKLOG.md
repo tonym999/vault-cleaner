@@ -18,10 +18,10 @@ surprises the next agent should know about.
   prefixes in this export, so their `Hash` alone is not a complete identity.
 - Mutable tracker, origin/current socket, mod, masterwork, memento, and later
   cells are excluded. `Hash` remains mandatory, and `Name` is never used.
-  Missing pre-tracker cells, a missing tracker boundary, an unknown rarity, or
-  an otherwise incomplete prefix will be ungroupable and cannot enter
-  automatic duplicate cleanup. Optional trailing perk columns before a valid
-  tracker are retained as empty values where DIM exports them.
+  Missing or empty pre-tracker identity cells, a missing tracker boundary, an
+  unknown rarity, or an otherwise incomplete prefix will be ungroupable and
+  cannot enter automatic duplicate cleanup. Cells at and after the tracker
+  boundary are excluded from identity and may legitimately be empty.
 - Aggregate baseline: 117 same-Hash groups of at least two rows (346 rows,
   229 redundant rows). The safe measured candidate has 1 exact group (3
   exotic rows, 2 redundant rows); no legendary exact group was present. The
@@ -62,6 +62,9 @@ surprises the next agent should know about.
   run has one four-copy Hash with three distinct fingerprints and one
   two-copy exact group; it emitted one junk decision from that exact pair and
   kept distinct rolls separate.
+- Snapshot inspection found no weapon decision payload changes; only the
+  ruleset/global fingerprint and the fake weapon source digest/fingerprint
+  metadata changed.
 - Focused validation passed: Ruff and 274 exact-dupe/weapon/rail/report,
   parser, review, server-finalize, and UI tests. The full suite result was
   721 passed, 1 skipped, 4 failed, and 2 errors;
