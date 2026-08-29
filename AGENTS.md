@@ -81,10 +81,10 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   hard rail.
 - Weapon exact-dupe identity uses the complete named `Perks N` prefix before
   the first tracker-labelled cell; tracker/current socket, mod, masterwork,
-  and memento cells are mutable and excluded. Selected `*` markers and the
-  complete perk names (including any leading `Enhanced ` text) are retained.
-  Missing boundaries or prefixes fail safe as ungroupable rather than
-  collapsing same-Hash rolls.
+  and memento cells are mutable and excluded. Selected trailing `*` markers
+  are normalized away, while complete perk names (including ordinary names
+  beginning with `Enhanced `) are retained. Missing boundaries or prefixes
+  fail safe as ungroupable rather than collapsing same-Hash rolls.
 - DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
   parse the *last* one (`report.reason_slug` does).
 - Python's `csv` module writes CRLF by default: generate fixtures with
