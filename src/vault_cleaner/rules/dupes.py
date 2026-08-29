@@ -11,10 +11,10 @@ options remain in their measured socket order; no option reordering was
 observed, so the resolver does not invent equivalence for an unmeasured
 reordering.
 
-Exotics in that export have no randomized roll prefix, so their fixed Hash is
-the complete roll identity. A row with an unknown/incomplete identity is
-ungroupable and never enters automatic duplicate cleanup. Hash remains part
-of the grouping key (never Name): the same weapon name can exist under
+Exotic rows in that export also carry a measured pre-tracker prefix; their
+Hash alone is not a safe identity. A row with an unknown/incomplete identity
+is ungroupable and never enters automatic duplicate cleanup. Hash remains
+part of the grouping key (never Name): the same weapon name can exist under
 different hashes across seasonal reissues.
 """
 
@@ -45,6 +45,10 @@ STAT_COLUMNS = [
 # prefix fields, and the row-level extractor discovers any later named fields
 # to reach the tracker boundary without assuming a fixed export width.
 _PERK_HEADER = re.compile(r"^Perks ([0-9]+)$")
+# The measured export is contiguous through Perks 20. Requiring that lower
+# bound prevents a truncated/gapped header set from becoming a partial key;
+# later contiguous fields are accepted so the boundary can move with DIM.
+_MIN_MEASURED_PERK_INDEX = 20
 
 # Tracker labels are the only structural boundary observed across this
 # export. Match the category suffix, rather than a brittle catalogue of
@@ -66,22 +70,19 @@ def _normalize_roll_cell(value: object) -> str:
 def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
     """Return the measured immutable roll key, or ``None`` if ungroupable.
 
-    Legendary rows use the complete non-empty prefix before the first
-    tracker-labelled cell. Cells at and after that boundary are mutable
+    Legendary and exotic rows use the complete non-empty prefix before the
+    first tracker-labelled cell. Cells at and after that boundary are mutable
     current state and excluded. Optional trailing perk cells are therefore
-    not mistaken for missing identity. Exotic rows are fixed-roll in the
-    measured export and use a constant fingerprint, so catalyst/tracker
-    state cannot split copies. Other rarities, blank hashes, missing tracker
-    boundaries, and incomplete prefixes fail safe.
+    not mistaken for missing identity. Other rarities, blank hashes, missing
+    tracker boundaries, gapped/truncated headers, and incomplete prefixes
+    fail safe.
     """
     item_hash = str(row.get("Hash", "")).strip()
     if not item_hash:
         return None
 
     rarity = str(row.get("Rarity", "")).strip().casefold()
-    if rarity == "exotic":
-        return ("fixed-exotic",)
-    if rarity != "legendary":
+    if rarity not in {"legendary", "exotic"}:
         return None
 
     keys = row.index if hasattr(row, "index") else row.keys()
@@ -93,7 +94,15 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
         ),
         key=lambda column: int(_PERK_HEADER.fullmatch(column).group(1)),
     )
-    if not columns or columns[0] != "Perks 0":
+    numbers = tuple(
+        int(_PERK_HEADER.fullmatch(column).group(1)) for column in columns
+    )
+    if (
+        not columns
+        or numbers[0] != 0
+        or numbers[-1] < _MIN_MEASURED_PERK_INDEX
+        or numbers != tuple(range(numbers[-1] + 1))
+    ):
         return None
     values = tuple(_normalize_roll_cell(row[column]) for column in columns)
     tracker_index = next(

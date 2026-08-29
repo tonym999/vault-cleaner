@@ -30,7 +30,7 @@ def weapon(id, hash, perks=(), **kv):
     }
     # Match the measured DIM shape: named roll cells followed by a tracker
     # boundary. Distinct perk prefixes on the same Hash must not compete.
-    base.update({f"Perks {i}": f"Roll {i}" for i in range(6)})
+    base.update({f"Perks {i}": f"Roll {i}" for i in range(21)})
     base["Perks 6"] = "Kill Tracker"
     for i, p in enumerate(perks):
         base[f"Perks {i}"] = p

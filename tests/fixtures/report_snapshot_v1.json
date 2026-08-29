@@ -1,5 +1,5 @@
 {
-  "fingerprint": "d1a0d8d247050b7753d459efb1ce29798a5260348fe0ea6413d464bd5077187f",
+  "fingerprint": "464312c4566b272c0021a07110953bba299f52b1160da41e18af97aaaf08dca3",
   "inputs": {
     "effective_config": {
       "armor": {
@@ -34,7 +34,7 @@
         "item_count": 18,
         "kind": "weapons",
         "path": "weapons_dupes.csv",
-        "sha256": "4529eae28623416cfe7dae8b57efb1bdc27e0a0615604910ec601a8b12c9f05c"
+        "sha256": "99625436af1fcc1e9012bba5a330986ff1f67a5dea7b701980780bae6c1da575"
       },
       {
         "item_count": 15,
@@ -197,7 +197,7 @@
         "item_count": 18,
         "kind": "weapons",
         "path": "weapons_dupes.csv",
-        "sha256": "4529eae28623416cfe7dae8b57efb1bdc27e0a0615604910ec601a8b12c9f05c"
+        "sha256": "99625436af1fcc1e9012bba5a330986ff1f67a5dea7b701980780bae6c1da575"
       }
     },
     {

@@ -107,7 +107,7 @@ def _roll_row(item_id, item_hash="900", *, rarity="Legendary", **values):
         "Notes": "",
         "Owner": "Vault",
     }
-    row.update({f"Perks {i}": f"Roll {i}" for i in range(6)})
+    row.update({f"Perks {i}": f"Roll {i}" for i in range(21)})
     row["Perks 6"] = "Kill Tracker"
     row.update(values)
     return row
@@ -145,6 +145,29 @@ def test_same_hash_different_roll_fingerprints_do_not_compete():
 
     assert exact_roll_fingerprint(rows.iloc[0]) != exact_roll_fingerprint(rows.iloc[1])
     assert resolve(rows, crafted_level_protect=10) == []
+
+
+def test_exotic_same_hash_different_roll_fingerprints_do_not_compete():
+    rows = _roll_df(
+        _roll_row(
+            "1", item_hash="950", rarity="Exotic", **{"Perks 0": "Frame A*"}
+        ),
+        _roll_row(
+            "2", item_hash="950", rarity="Exotic", **{"Perks 0": "Frame B*"}
+        ),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) != exact_roll_fingerprint(
+        rows.iloc[1]
+    )
+    assert resolve(rows, crafted_level_protect=10) == []
+
+
+def test_gapped_perk_headers_are_not_a_partial_identity():
+    row = _roll_row("1", **{"Perks 6": "Socket 6", "Perks 12": "Kill Tracker"})
+    rows = _roll_df(row).drop(columns=["Perks 11"])
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
 
 
 def test_same_name_different_hashes_do_not_group():

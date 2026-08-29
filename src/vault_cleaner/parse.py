@@ -36,12 +36,12 @@ REQUIRED_BASE_COLUMNS = frozenset(
 # silently loading through the weapons path. Crafted fields feed the hard
 # safety rail and are therefore part of the required safety-critical schema.
 # The measured weapon exact-roll fingerprint consumes this named prefix. Keep
-# these explicit so a DIM schema change cannot silently collapse rows into a
-# partial duplicate key; trailing perk values within a row may legitimately
-# be empty for fixed/shorter rolls.
+# the full contiguous measured header set explicit so a DIM schema change
+# cannot silently collapse rows into a partial duplicate key; trailing perk
+# values within a row may legitimately be empty for fixed/shorter rolls.
 REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {
     "Type", "Ammo", "Crafted", "Crafted Level",
-    *{f"Perks {slot}" for slot in range(11)},
+    *{f"Perks {slot}" for slot in range(21)},
 }
 # Ghost exports have no Type column. Loadouts is required because loadout
 # membership is a keep signal in the ghost cleanup pass.
