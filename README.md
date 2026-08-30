@@ -25,8 +25,9 @@ Weapon duplicate cleanup is deliberately conservative: it groups only copies
 with the same item `Hash` and a proven exact-roll fingerprint from the DIM
 export. Different perk rolls under one Hash, or rows whose roll identity is
 incomplete, survive independently; wishlist-trash remains a separate rule.
-The fingerprint keeps complete named pre-tracker perk cells (including any
-leading `Enhanced ` text), normalizing only DIM's trailing selected `*` marker.
+The fingerprint keeps complete named pre-tracker perk cells (including names
+beginning with the literal `Enhanced` followed by one separator space),
+normalizing only DIM's trailing selected `*` marker.
 The measured structural boundary is exactly `Kill Tracker` or `Crucible
 Tracker`, compared case-insensitively after removing one trailing marker.
 Unknown or future names that merely end in `Tracker` remain part of the

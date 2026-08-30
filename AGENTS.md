@@ -86,9 +86,10 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   Unknown/future names merely ending in `Tracker` remain identity cells until
   a later measured boundary, or make the row ungroupable when no measured
   boundary exists. Selected trailing `*` markers are normalized away, while
-  complete perk names (including ordinary names beginning with `Enhanced `)
-  are retained. Missing boundaries or prefixes fail safe as ungroupable rather
-  than collapsing same-Hash rolls. DIM's `Perks N` header width is
+  complete perk names (including ordinary names beginning with the literal
+  `Enhanced` followed by one separator space) are retained. Missing boundaries
+  or prefixes fail safe as ungroupable rather than collapsing same-Hash rolls.
+  DIM's `Perks N` header width is
   export-dependent: `Perks 0` is the minimal schema invariant, and any
   contiguous `0..N` range is accepted when the row has a complete prefix and
   tracker boundary. Perk cells stay whole (commas are not guessed as option

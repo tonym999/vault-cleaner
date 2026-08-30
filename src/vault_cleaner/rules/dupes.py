@@ -10,9 +10,10 @@ one trailing DIM-selected ``*`` marker. Unknown or future names that merely
 end in ``Tracker`` remain identity cells when a later measured boundary is
 present, and make a row ungroupable when no measured boundary exists. The
 exact-roll fingerprint therefore contains the normalized cells before that
-boundary. A leading ``Enhanced `` prefix is retained as part of the perk
-name: measurement found it on ordinary gameplay perk names, not as a safe
-display-only decoration. Perk options remain in their measured socket order;
+boundary. A leading literal ``Enhanced`` followed by one separator space is
+retained as part of the perk name: measurement found it on ordinary gameplay
+perk names, not as a safe display-only decoration. Perk options remain in
+their measured socket order;
 no option reordering was observed, so the resolver does not invent
 equivalence for an unmeasured reordering. A comma-bearing cell that contains
 measured tracker components is also treated as an unmeasured combined tracker

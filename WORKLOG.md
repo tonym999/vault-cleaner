@@ -3,6 +3,19 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-30 — #31 Enhanced-prefix documentation clarification
+
+- Reconciled every exact-roll description with the literal DIM prefix while
+  keeping the Markdown lint-safe: names begin with `Enhanced` followed by one
+  separator space, and both the word and that space remain part of the complete
+  perk name. This avoids relying on an invisible trailing space inside a code
+  span while preserving the measured distinction from the base perk name.
+- Updated AGENTS.md, PLAN.md, README.md, WORKLOG.md, and the duplicate-rule
+  module docstring only. Decision semantics, fixtures, ruleset version, and
+  report snapshots are unchanged.
+- Validation passed with Ruff, `git diff --check`, and all 752 tests in the
+  full suite.
+
 ## 2026-08-29 — #31 final review cleanup
 
 - Corrected the public `dupes` command summary: duplicate resolution keeps the
@@ -23,15 +36,16 @@ surprises the next agent should know about.
 ## 2026-08-29 — #31 review correction: preserve Enhanced perk names
 
 - Corrected the exact-roll normalizer to remove only DIM's trailing selected
-  `*` marker. Leading `Enhanced` text is retained as part of the complete
-  gameplay perk name; collapsing it to a base name could falsely merge
-  distinct rolls under one Hash. The regression now proves `Battery` and
-  `Enhanced Battery` remain separate and produce no dupe decision.
+  `*` marker. Names beginning with the literal `Enhanced` followed by one
+  separator space are retained as complete gameplay perk names; collapsing
+  them to base names could falsely merge distinct rolls under one Hash. The
+  regression now proves `Battery` and `Enhanced Battery` remain separate and
+  produce no dupe decision.
 - Re-measured the private export after the correction: 665 rows remained
   groupable with contiguous named `Perks 0` through `Perks 20`; all 665 rows
   had a measured `Kill Tracker` or `Crucible Tracker` boundary (positions 4
-  through 15), and 25 pre-tracker `Enhanced` occurrences were ordinary
-  gameplay names. Aggregate
+  through 15), and 25 pre-tracker names beginning with the literal `Enhanced`
+  followed by one separator space were ordinary gameplay names. Aggregate
   identity results were unchanged: 117 old same-Hash groups (346 rows, 229
   redundant), 1 exact group of 3 rows (2 redundant), and 2 review decisions
   with no automatic junk decisions. No real rows, ids, paths, or hashes are
@@ -97,10 +111,11 @@ surprises the next agent should know about.
   randomized roll options; tracker, origin, mod, masterwork, memento, and
   other current-state cells follow it.
 - The fingerprint will use `Hash` plus every pre-tracker perk cell by header
-  name, stripping only DIM's trailing selected `*` marker. Leading `Enhanced`
-  text is retained as part of the complete perk name: the measured occurrences
-  were ordinary gameplay perk names, not a safe display-only decoration. Perk
-  options are retained in their measured socket order: the export represents
+  name, stripping only DIM's trailing selected `*` marker. Names beginning
+  with the literal `Enhanced` followed by one separator space are retained as
+  complete perk names: the measured occurrences were ordinary gameplay perk
+  names, not a safe display-only decoration. Perk options are retained in
+  their measured socket order: the export represents
   multi-option sockets as adjacent named cells, and no order changes were
   observed. Exotic rows also carry pre-tracker prefixes in this export, so
   their `Hash` alone is not a complete identity.
@@ -126,10 +141,11 @@ surprises the next agent should know about.
 - Implemented `exact_roll_fingerprint()` in `rules/dupes.py`: named `Perks N`
   fields are normalized through the first measured `Kill Tracker` or
   `Crucible Tracker` boundary, with only the selected `*` marker removed.
-  Unknown tracker-looking labels are not guessed as boundaries. Leading
-  `Enhanced` text is retained because measurement found it in ordinary
-  gameplay perk names. Socket order is preserved; exotic prefixes are included
-  because Hash-only identity was not supported by the measurement.
+  Unknown tracker-looking labels are not guessed as boundaries. Names beginning
+  with the literal `Enhanced` followed by one separator space are retained
+  because measurement found them in ordinary gameplay perk names. Socket order
+  is preserved; exotic prefixes are included because Hash-only identity was
+  not supported by the measurement.
   Blank hashes, unknown rarities, missing boundaries, and incomplete prefixes
   are ungroupable and never enter automatic dupe resolution. Mutable tracker,
   current socket, mod, masterwork, memento, and later state remain excluded.
@@ -139,8 +155,8 @@ surprises the next agent should know about.
   validation/protection and all hard/soft rails remain unchanged.
 - Added a fake, synthetic Slammer-like export and behavioral coverage for
   distinct and exact same-Hash rolls, row reversal, selected markers,
-  multi-option cells, distinct leading-`Enhanced` names, mutable state,
-  unknown identity,
+  multi-option cells, distinct names beginning with the literal `Enhanced`
+  followed by one separator space, mutable state, unknown identity,
   wishlist behavior, and same-name/different-Hash safety. The parser then
   required the measured named perk-prefix headers; the later dynamic-width
   follow-up below reduces that to the minimal `Perks 0` invariant while the
