@@ -12,6 +12,10 @@ from pathlib import Path
 from vault_cleaner.duplicate_reference import note_tail, safe_fragment
 
 OUTPUT_COLUMNS = ["Id", "Hash", "Tag", "Notes"]
+# Generated duplicate tails contain a bounded reference plus a bounded detail
+# suffix. Keep the summary bound explicit, while leaving the selection reason
+# at the end visible when the reference reaches its own presentation limit.
+_SUMMARY_TAIL_LIMIT = 512
 
 # Tags DIM's importer understands. Empty string means "leave/clear tag" —
 # we only emit rows we have a reason for, so it shouldn't normally appear.
@@ -67,7 +71,10 @@ def summarize(sections: Iterable[tuple[str, list]]) -> str:
                 f"{safe_fragment(d.owner, limit=80)})"
             )
             if d.kept_id:
-                line += f" — {safe_fragment(note_tail(d.note), limit=220)}"
+                line += (
+                    " — "
+                    f"{safe_fragment(note_tail(d.note), limit=_SUMMARY_TAIL_LIMIT)}"
+                )
             lines.append(line)
     return "\n".join(lines)
 

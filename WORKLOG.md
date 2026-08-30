@@ -26,8 +26,8 @@ surprises the next agent should know about.
   determinism, and long-id snapshot regressions. Regenerated the schema-v1
   fake snapshot; its diff is limited to duplicate presentation Notes. Schema
   version remains 1 and ruleset version remains 3; no runtime dependency or
-  browser/server/review code changed. Validation: Ruff and 130 focused tests
-  pass; the full suite has 756 passing tests plus 1 skip, with 4 socket tests
+  browser/server/review code changed. Validation: Ruff and 132 focused tests
+  pass; the full suite has 758 passing tests plus 1 skip, with 4 socket tests
   failing and 2 Chromium tests erroring only because this sandbox denies socket
   and browser startup (`Operation not permitted`).
 
