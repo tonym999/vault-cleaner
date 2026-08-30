@@ -106,13 +106,14 @@ def short_id(
     # differing character, this remains meaningful when several group members
     # share the same first character.  Every member must use the same complete
     # comparison set so a referenced row's label is stable across notes.
-    for width in range(1, min(_MAX_ID_PREFIX_WIDTH, len(raw) - 4) + 1):
-        rendered = _id_prefix_suffix(raw, width)
-        if all(
-            rendered != _id_prefix_suffix(other, width)
-            for other in others
-        ):
-            return rendered
+    if len(raw) >= 6:
+        for width in range(1, min(_MAX_ID_PREFIX_WIDTH, len(raw) - 4) + 1):
+            rendered = _id_prefix_suffix(raw, width)
+            if all(
+                rendered != _id_prefix_suffix(other, width)
+                for other in others
+            ):
+                return rendered
 
     # Pathological ids can still share the bounded prefix and suffix.  A
     # stable group rank is a bounded deterministic discriminator while the
@@ -121,6 +122,8 @@ def short_id(
     members = sorted({raw, *others})
     rank = members.index(raw) + 1
     digest = sha256(raw.encode("utf-8")).hexdigest()[:8]
+    if len(raw) == 5:
+        return f"…{safe_fragment(raw[-4:], limit=8)}~{rank:x}-{digest}"
     return (
         f"{safe_fragment(raw[:1], limit=4)}…"
         f"{safe_fragment(raw[-4:], limit=8)}~{rank:x}-{digest}"

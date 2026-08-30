@@ -70,6 +70,18 @@ def test_short_id_never_emits_a_complete_sixteen_character_collision():
     assert len(rendered) < len(survivor)
 
 
+def test_short_id_five_character_collision_omits_the_leading_character():
+    survivor = "A1234"
+    candidate = "B1234"
+
+    rendered = short_id(survivor, distinguish_from=(candidate,))
+
+    assert rendered.startswith("…1234~")
+    assert survivor not in rendered
+    assert "A" not in rendered
+    assert rendered != short_id(candidate, distinguish_from=(survivor,))
+
+
 def test_short_id_uses_stable_bounded_discriminator_for_pathological_ids():
     ids = (
         "ABCDEFGH" + "A" * 10 + "1234567890123456",

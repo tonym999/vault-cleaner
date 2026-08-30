@@ -3,6 +3,24 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-30 — #29 five-character suffix boundary correction
+
+- Corrected the bounded collision presenter so prefix-plus-suffix displays
+  are used only when at least one source character is genuinely omitted.
+  Five-character collisions now use suffix plus the stable bounded
+  discriminator, without reintroducing the leading character; naturally
+  distinct ids of four characters or fewer remain unchanged.
+- Added a direct five-character regression while retaining the 16-character,
+  three-copy group-wide, and pathological stability coverage. No selection,
+  grouping, ranking, action/tag, audit-id, schema, or fingerprint semantics
+  changed.
+- Validation: Ruff passed; focused duplicate/reference/report tests passed
+  146 tests; full suite passed 772 tests and skipped 1. Four real-socket tests
+  failed and two Chromium tests errored only because this sandbox denies
+  socket/browser startup (`Operation not permitted`). Snapshot regeneration
+  was byte-identical; fake report/roundtrip dry-run checks passed; diff-check
+  and no-tracked-`data/` privacy checks passed.
+
 ## 2026-08-30 — #29 group-wide suffix collision correction
 
 - Corrected collision context so weapon exact-dupe and armour exact-dupe
