@@ -127,6 +127,10 @@ def test_writer_consumes_a_successful_generator_once_and_returns_count(tmp_path)
          ("review", "wishlist-trash roll")),
         ("pvp roll #vc-review: dupe-lower (locked), kept 2 #vc-junk: dupe-lower, kept 9",
          ("junk", "dupe-lower")),
+        ("#vc-review: armor-dominated by; compare [id …6001]; +5 total",
+         ("review", "armor-dominated by")),
+        ("#vc-review: armor-similar to; compare [id …6012]; max stat delta 2",
+         ("review", "armor-similar to")),
     ],
 )
 def test_reason_slug_from_every_note_shape(note, expected):
@@ -165,6 +169,19 @@ def test_summarize_groups_and_orders():
 
 def test_summarize_empty_sections():
     assert summarize([("weapons", [])]).startswith("would junk 0 item(s) and flag 0 for review")
+
+
+def test_summarize_shows_duplicate_candidate_and_reference_together():
+    decision = _d(
+        "6917530162665277292",
+        "Rifle B",
+        "#vc-junk: dupe-lower; keep [id …7291; owner Vault]; winner higher Tier",
+    )
+    decision.kept_id = "6917530162665277291"
+    out = summarize([("weapons", [decision])])
+
+    assert "Rifle B (id 6917530162665277292, Vault)" in out
+    assert "keep [id …7291; owner Vault]; winner higher Tier" in out
 
 
 def test_round_trip_export_to_import(tmp_path):

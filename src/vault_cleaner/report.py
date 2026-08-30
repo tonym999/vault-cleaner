@@ -9,6 +9,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from vault_cleaner.duplicate_reference import note_tail, safe_fragment
+
 OUTPUT_COLUMNS = ["Id", "Hash", "Tag", "Notes"]
 
 # Tags DIM's importer understands. Empty string means "leave/clear tag" —
@@ -59,7 +61,14 @@ def summarize(sections: Iterable[tuple[str, list]]) -> str:
         lines.append("")
         lines.append(f"{action.upper()} {slug} ({kind}) — {len(ds)} item(s)")
         for d in ds:
-            lines.append(f"  {d.name} (id {d.id}, {d.owner})")
+            line = (
+                f"  {safe_fragment(d.name, limit=120)} "
+                f"(id {safe_fragment(d.id, limit=48)}, "
+                f"{safe_fragment(d.owner, limit=80)})"
+            )
+            if d.kept_id:
+                line += f" — {safe_fragment(note_tail(d.note), limit=220)}"
+            lines.append(line)
     return "\n".join(lines)
 
 

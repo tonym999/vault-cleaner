@@ -3,6 +3,34 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-30 — #29 human-readable duplicate references
+
+- Added one shared presentation seam for weapon exact-dupe survivors, armour
+  exact-dupe survivors, and armour dominated/similar partners. Long opaque ids
+  render as a final-four-character suffix (`[id …0059]`); short synthetic ids
+  remain intact. Weapon references include Owner, Tier, MW, crafted level when
+  known, and the final two names from the existing measured pre-tracker roll
+  prefix. Armour references include Owner, MW, Power, Tuning Stat, and compact
+  Spirit names where present.
+- Notes retain the existing `#vc-junk:`/`#vc-review:` reason slugs and append a
+  bounded `keep`/`compare` reference plus a selector explanation. Weapon
+  explanations follow the current #31 Tier → Masterwork Tier → Crafted Level →
+  stat total → opaque-id ranking; wishlist and hard-rail state are not used to
+  select a survivor. Armour explanations follow the existing survivor rank,
+  and close-dupe explanations retain the current surplus/similarity detail.
+- Referenced-row display text collapses control whitespace, bounds each
+  fragment/reference, and neutralizes case-insensitive `#vc-` text. Raw row
+  values and the existing full `ReportDecision.id`/`kept_id` audit strings stay
+  unchanged. No survivor row is emitted merely for discoverability.
+- Added fake hostile-text, short-id, selector-reason, report-summary, reverse
+  determinism, and long-id snapshot regressions. Regenerated the schema-v1
+  fake snapshot; its diff is limited to duplicate presentation Notes. Schema
+  version remains 1 and ruleset version remains 3; no runtime dependency or
+  browser/server/review code changed. Validation: Ruff and 130 focused tests
+  pass; the full suite has 756 passing tests plus 1 skip, with 4 socket tests
+  failing and 2 Chromium tests erroring only because this sandbox denies socket
+  and browser startup (`Operation not permitted`).
+
 ## 2026-08-30 — #31 Enhanced-prefix documentation clarification
 
 - Reconciled every exact-roll description with the literal DIM prefix while

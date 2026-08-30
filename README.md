@@ -38,6 +38,13 @@ ungroupable. Perk cells are kept whole, including legitimate comma-bearing
 names. Comma-bearing cells containing either measured tracker label are left
 ungroupable regardless of component order or marker placement.
 
+Duplicate Notes and terminal reports identify the selected survivor or close
+partner with a concise reference such as `[id …0059; owner Vault; MW10; power
+450]`; long DIM ids are shortened only for this human-facing text. The complete
+candidate and survivor/partner ids remain in the machine-readable report data.
+Winner text describes the existing duplicate selector and does not change
+which item the rules choose.
+
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:
 

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from vault_cleaner.duplicate_reference import armor_reference
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
@@ -104,6 +105,20 @@ def _survivor_rank(row: pd.Series, crafted_level_protect: int) -> tuple:
     )
 
 
+def _winner_reason(best_rank: tuple, loser_rank: tuple) -> str:
+    labels = (
+        "hard protection",
+        "loadout membership",
+        "lock",
+        "Masterwork Tier",
+        "Power",
+    )
+    for index, label in enumerate(labels):
+        if best_rank[index] != loser_rank[index]:
+            return label
+    return "deterministic lowest id tie-break"
+
+
 def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
     decisions: list[Decision] = []
     groups: dict[tuple, list[pd.Series]] = {}
@@ -134,13 +149,25 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                 # Never junk a loadout member even when a twin survives:
                 # the loadout references this exact instance id.
                 action, tag = "review", row["Tag"]
-                hashtag = f"#vc-review: {rel} (loadout), kept {best['Id']}"
+                hashtag = (
+                    f"#vc-review: {rel} (loadout); keep "
+                    f"{armor_reference(best, spirit_signature(best))}; winner "
+                    f"{_winner_reason(best_rank, rank)}"
+                )
             elif level == rails.SOFT:
                 action, tag = "review", row["Tag"]
-                hashtag = f"#vc-review: {rel} ({reason}), kept {best['Id']}"
+                hashtag = (
+                    f"#vc-review: {rel} ({reason}); keep "
+                    f"{armor_reference(best, spirit_signature(best))}; winner "
+                    f"{_winner_reason(best_rank, rank)}"
+                )
             else:
                 action, tag = "junk", "junk"
-                hashtag = f"#vc-junk: {rel}, kept {best['Id']}"
+                hashtag = (
+                    f"#vc-junk: {rel}; keep "
+                    f"{armor_reference(best, spirit_signature(best))}; winner "
+                    f"{_winner_reason(best_rank, rank)}"
+                )
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
