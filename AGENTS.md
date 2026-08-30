@@ -79,6 +79,26 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   crafted-state helper rather than generic `is_true()`; unknown non-empty
   crafted-state tokens must fail schema validation instead of disabling the
   hard rail.
+- Weapon exact-dupe identity uses the complete named `Perks N` prefix before
+  the first measured tracker boundary (`Kill Tracker` or `Crucible Tracker`,
+  casefolded after removing one trailing selected `*`); tracker/current
+  socket, mod, masterwork, and memento cells are mutable and excluded.
+  Unknown/future names merely ending in `Tracker` remain identity cells until
+  a later measured boundary, or make the row ungroupable when no measured
+  boundary exists. Selected trailing `*` markers are normalized away, while
+  complete perk names (including ordinary names beginning with the literal
+  `Enhanced` followed by one separator space) are retained. Missing boundaries
+  or prefixes fail safe as ungroupable rather than collapsing same-Hash rolls.
+  DIM's `Perks N` header width is
+  export-dependent: `Perks 0` is the minimal schema invariant, and any
+  contiguous `0..N` range is accepted when the row has a complete prefix and
+  tracker boundary. Perk cells stay whole (commas are not guessed as option
+  separators); adjacent cells are the measured multi-option representation.
+  Comma-bearing cells containing either measured tracker label are ungroupable
+  regardless of component order or marker placement. Wishlist matches protect
+  trash decisions but do not rank exact duplicates, whose order is Tier >
+  Masterwork Tier > Crafted Level >
+  stat total > opaque Id.
 - DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
   parse the *last* one (`report.reason_slug` does).
 - Python's `csv` module writes CRLF by default: generate fixtures with

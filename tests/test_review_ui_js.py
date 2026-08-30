@@ -70,6 +70,7 @@ var out = {
     return typeof item.id === "string" && typeof item.hash === "string";
   }),
   hostileNames: items.map(function (item) { return item.name; }),
+  hostileNotes: items.map(function (item) { return item.note; }),
   groupLabels: api.groupItems(items).map(function (group) { return group.label; }),
   actionCounts: api.actionCounts(items),
   sortedById: ids(api.sortItems(items, "id", "asc")),
@@ -150,6 +151,7 @@ process.stdout.write(JSON.stringify(out));
 
 VIEW_HARNESS = r"""
 "use strict";
+var fs = require("fs");
 var api = require(process.argv[2]);
 
 function Node(tagName, ownerDocument) {
@@ -269,6 +271,13 @@ var items = [
     inLoadout: false, armor: null
   }
 ];
+var snapshotItems = process.argv[3]
+  ? api.itemsFromSnapshot(JSON.parse(fs.readFileSync(process.argv[3], "utf8")))
+  : [];
+var unicodeItem = snapshotItems.filter(function (item) {
+  return item.name.indexOf("\u202e") !== -1 &&
+    item.note.indexOf("\u2028") !== -1 && item.note.indexOf("\u2029") !== -1;
+})[0] || null;
 var state = {
   sort: { field: "name", direction: "asc" },
   expanded: Object.create(null), rows: Object.create(null),
@@ -291,6 +300,11 @@ if (inert.textContent !== hostile || hasTag(inert, "img")) {
 var table = view.table(items);
 if (!table.querySelector("table") || !table.querySelector("thead") ||
     !table.querySelector("tbody")) fail("table structure is incomplete");
+var unicodeTable = null;
+if (unicodeItem) {
+  state.expanded[unicodeItem.id] = true;
+  unicodeTable = view.table([unicodeItem]);
+}
 var header = view.headerRow();
 if (header.textContent.indexOf("Verdict") === -1) fail("Verdict header is missing");
 if (table.textContent.indexOf("Armor scoring") === -1 ||
@@ -360,7 +374,7 @@ if (readOnlyState.rows[items[0].id].approve !== null ||
     readOnlyState.rows[items[0].id].veto !== null) {
   fail("read-only rows must expose null verdict button handles");
 }
-process.stdout.write(JSON.stringify({
+var output = {
   hasHeader: header.textContent.indexOf("Verdict") !== -1,
   hasDetails: table.textContent.indexOf("Armor scoring") !== -1,
   hostileIsText: inert.textContent === hostile && !hasTag(table, "img"),
@@ -370,7 +384,13 @@ process.stdout.write(JSON.stringify({
   optionCount: oldStyle.length,
   readOnlyNullHandles: readOnlyState.rows[items[0].id].approve === null &&
     readOnlyState.rows[items[0].id].veto === null
-}));
+};
+if (unicodeTable) {
+  output.unicodeNameRendered = unicodeTable.textContent.indexOf("\u202e") !== -1;
+  output.unicodeNoteRendered = unicodeTable.textContent.indexOf("\u2028") !== -1 &&
+    unicodeTable.textContent.indexOf("\u2029") !== -1;
+}
+process.stdout.write(JSON.stringify(output));
 """
 
 
@@ -403,15 +423,18 @@ def run_shared(tmp_path: Path, builder=build_report):
     return Harness(run, json.loads(completed.stdout), tmp_path)
 
 
-def run_view(tmp_path: Path) -> dict:
+def run_view(tmp_path: Path, snapshot: Path | None = None) -> dict:
     """Run the reusable DOM-facing view against a tiny Node DOM stub."""
     harness = tmp_path / "view-harness.js"
     harness.write_text(VIEW_HARNESS, encoding="utf-8")
     resource = files("vault_cleaner.ui").joinpath("review_ui.js")
     with as_file(resource) as app:
         subprocess.run([NODE, "--check", str(app)], check=True, timeout=60)
+        command = [NODE, str(harness), str(app)]
+        if snapshot is not None:
+            command.append(str(snapshot))
         completed = subprocess.run(
-            [NODE, str(harness), str(app)],
+            command,
             capture_output=True,
             encoding="utf-8",
             check=False,
@@ -443,6 +466,13 @@ def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
         "readOnlyNullHandles": True,
         "paintedInPlace": True,
     }
+
+
+def test_hostile_unicode_values_render_as_text(tmp_path, hostile):
+    result = run_view(tmp_path, hostile.workdir / "snapshot.json")
+
+    assert result["unicodeNameRendered"]
+    assert result["unicodeNoteRendered"]
 
 
 def test_kept_items_requires_an_active_set_like_input(plain):
@@ -650,6 +680,13 @@ def test_active_persisted_veto_ids_are_applied_by_kept_items(plain):
 def test_hostile_names_are_data_not_executable_source(hostile):
     names = hostile.results["hostileNames"]
     assert any("</script>" in name or "<img" in name for name in names)
+
+
+def test_hostile_rtl_name_and_separator_note_reach_renderer(hostile):
+    assert any("\u202e" in name and "\u202c" in name
+               for name in hostile.results["hostileNames"])
+    assert any("\u2028" in note and "\u2029" in note
+               for note in hostile.results["hostileNotes"])
 
 
 def test_a_prototype_shaped_item_name_is_counted_not_absorbed(hostile):

@@ -26,6 +26,7 @@ from vault_cleaner.server.session import Session
 HOST = "127.0.0.1:43123"
 ORIGIN = f"http://{HOST}"
 FIXTURES = Path(__file__).parent / "fixtures"
+HOSTILE_EXPORT = FIXTURES / "weapons_hostile.csv"
 
 
 @contextmanager
@@ -98,6 +99,17 @@ def test_uploads_combine_using_canonical_names_and_keep_skip_warnings(tmp_path):
         assert {section["source"]["path"] for section in snapshot["sections"]} == {
             "destiny-weapon.csv"
         }
+
+
+def test_hostile_unicode_decision_survives_server_upload(tmp_path):
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(client, "weapons", HOSTILE_EXPORT.read_bytes())
+
+        assert response.status_code == 200
+        decisions = response.json["snapshot"]["sections"][0]["decisions"]
+        hostile = next(decision for decision in decisions if decision["id"] == "7006")
+        assert "\u202e" in hostile["name"] and "\u202c" in hostile["name"]
+        assert "\u2028" in hostile["note"] and "\u2029" in hostile["note"]
 
 
 def test_all_three_uploads_combine_into_one_report(tmp_path):

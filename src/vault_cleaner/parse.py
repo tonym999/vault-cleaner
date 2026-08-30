@@ -35,8 +35,12 @@ REQUIRED_BASE_COLUMNS = frozenset(
 # Ammo is weapons-only: it keeps an armor export (which also has Type) from
 # silently loading through the weapons path. Crafted fields feed the hard
 # safety rail and are therefore part of the required safety-critical schema.
+# The measured weapon exact-roll fingerprint consumes this named prefix. Keep
+# the first named perk field as the minimal invariant; the extractor validates
+# the contiguous header range and identity boundary per row so narrower and
+# wider DIM exports can load without creating partial duplicate keys.
 REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {
-    "Type", "Ammo", "Crafted", "Crafted Level"
+    "Type", "Ammo", "Crafted", "Crafted Level", "Perks 0",
 }
 # Ghost exports have no Type column. Loadouts is required because loadout
 # membership is a keep signal in the ghost cleanup pass.

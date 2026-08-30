@@ -610,13 +610,19 @@ def main(argv: list[str] | None = None) -> int:
     rt.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     rt.set_defaults(func=_cmd_roundtrip)
 
-    dp = sub.add_parser("dupes", help="resolve weapon dupes: best copy per Hash survives, rest junk/review")
+    dp = sub.add_parser(
+        "dupes",
+        help=(
+            "resolve weapon dupes: keep the best exact copy; "
+            "preserve distinct/uncertain rolls"
+        ),
+    )
     dp.add_argument("--input", default=None, help=WEAPONS_INPUT_HELP)
     dp.add_argument("--output", default=None, help=IMPORT_OUTPUT_HELP)
     dp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     dp.add_argument("--write", action="store_true", help="actually write the output CSV (default is dry run)")
     dp.add_argument("--no-wishlists", action="store_true",
-                    help="skip the wishlist pass (trash tagging + keep-roll ranking)")
+                    help="skip the wishlist pass (trash tagging + keep-roll protection)")
     dp.set_defaults(func=_cmd_dupes)
 
     ap = sub.add_parser("armor", help="armor pipeline: exact dupes then archetype scoring; junk with reasons")

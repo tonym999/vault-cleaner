@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import review
-from vault_cleaner.report_run import run_report
+from vault_cleaner.report_run import RULESET_VERSION, run_report
 from vault_cleaner.review import (
     FingerprintMismatchError,
     OverridesError,
@@ -54,7 +54,7 @@ def manifest_payload(run, vetoed_ids=()):
         "generated_at": "2026-07-25T12:00:00Z",
         "snapshot": {
             "schema_version": 1,
-            "ruleset_version": 2,
+            "ruleset_version": RULESET_VERSION,
             "fingerprint": run.fingerprint,
         },
         "decisions": [

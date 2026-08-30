@@ -3,9 +3,8 @@
 Wishlist semantics (rule 2):
 - trash match (whole-item entry, or a roll subset of the item's perks) →
   candidate junk, unless hard-protected or the item also matches a keep roll.
-- keep-roll match → protected from wishlist-trash, and prepended to the dupe
-  ranking (match count), but NOT blanket keep: dupes among matched copies
-  still resolve to the best copy.
+- keep-roll match → protected from wishlist-trash, but NOT blanket keep: exact
+  dupes among matched copies still resolve by gear/rank/stat order.
 """
 
 from __future__ import annotations
@@ -27,17 +26,19 @@ class RunResult:
 
 
 def row_perk_hashes(row: pd.Series, perk_map: dict[str, frozenset[int]]) -> frozenset[int]:
-    """All perk hashes present on an item, resolved from the Perks N column
-    names. A trailing * (DIM's selected/active marker) is stripped; a name
-    maps to every hash variant (base + enhanced) sharing it."""
+    """All perk hashes present on an item, resolved from complete Perks N cells.
+
+    DIM's measured cells contain one complete perk name, including legitimate
+    commas. Only the single trailing ``*`` selected marker is removed; names
+    are never split into guessed options.
+    """
     hashes: set[int] = set()
     for col in row.index:
         if not col.startswith("Perks "):
             continue
-        for name in str(row[col]).split(","):
-            name = name.strip().removesuffix("*").strip().casefold()
-            if name:
-                hashes |= perk_map.get(name, frozenset())
+        name = str(row[col]).strip().removesuffix("*").strip().casefold()
+        if name:
+            hashes |= perk_map.get(name, frozenset())
     return frozenset(hashes)
 
 
@@ -103,7 +104,6 @@ def run(
     pool = weapons[~weapons["Id"].isin(trash_junk_ids)]
     dupe_decisions = dupes.resolve(
         pool, crafted_level_protect,
-        wishlist_key=lambda row: keep_counts.get(row["Id"], 0),
     )
     decisions.extend(d for d in dupe_decisions if d.id not in trash_ids)
     return result

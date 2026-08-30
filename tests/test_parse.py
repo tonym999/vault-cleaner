@@ -134,6 +134,16 @@ def _drop_column(column):
     return mutate
 
 
+def _drop_columns(*columns):
+    def mutate(rows):
+        indexes = sorted((rows[0].index(column) for column in columns), reverse=True)
+        for row in rows:
+            for index in indexes:
+                row.pop(index)
+
+    return mutate
+
+
 def _duplicate_first_item():
     def mutate(rows):
         rows[2:] = [rows[1], rows[1]]
@@ -176,6 +186,7 @@ INVALID_EXPORT_CASES = [
     ("weapons", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Notes")),
     ("weapons-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted")),
     ("weapons-crafted-level", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted Level")),
+    ("weapons-roll-start", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Perks 0")),
     ("weapons-unknown-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _set_first_value("Crafted", "true")),
     (
         "weapons-level-decimal",
@@ -271,6 +282,33 @@ INVALID_EXPORT_CASES = [
         _set_first_value("Power", "-5"),
     ),
 ]
+
+
+def test_narrower_contiguous_weapon_perk_headers_load(tmp_path):
+    content = _rewrite_csv(
+        FIXTURE.read_bytes(),
+        _drop_columns(*(f"Perks {slot}" for slot in range(7, 21))),
+    )
+    path = tmp_path / "narrow-weapons.csv"
+    path.write_bytes(content)
+
+    loaded = load_weapons(path)
+
+    assert len(loaded) == 3
+    assert set(loaded.columns) >= {"Perks 0", "Perks 6"}
+    assert not {f"Perks {slot}" for slot in range(7, 21)} & set(loaded.columns)
+
+
+def test_gapped_weapon_perk_headers_load_for_safe_degraded_commands(tmp_path):
+    content = _rewrite_csv(FIXTURE.read_bytes(), _drop_column("Perks 11"))
+    path = tmp_path / "gapped-weapons.csv"
+    path.write_bytes(content)
+
+    loaded = load_weapons(path)
+
+    assert len(loaded) == 3
+    assert "Perks 0" in loaded.columns
+    assert "Perks 11" not in loaded.columns
 
 
 @pytest.mark.parametrize(
