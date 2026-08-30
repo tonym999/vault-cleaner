@@ -73,7 +73,7 @@ def summarize(sections: Iterable[tuple[str, list]]) -> str:
             if d.kept_id:
                 line += (
                     " — "
-                    f"{safe_fragment(note_tail(d.note), limit=_SUMMARY_TAIL_LIMIT)}"
+                    f"{safe_fragment(note_tail(d.note), limit=_SUMMARY_TAIL_LIMIT, escape_structure=False)}"
                 )
             lines.append(line)
     return "\n".join(lines)

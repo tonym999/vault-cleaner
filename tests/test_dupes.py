@@ -187,6 +187,41 @@ def test_same_hash_different_roll_fingerprints_do_not_compete():
     assert resolve(rows, crafted_level_protect=10) == []
 
 
+def test_only_one_trailing_marker_is_removed_from_identity_cells():
+    one_marker = _roll_df(
+        _roll_row("1", **{"Perks 3": "Trait*"})
+    ).iloc[0]
+    two_markers = _roll_df(
+        _roll_row("2", **{"Perks 3": "Trait**"})
+    ).iloc[0]
+
+    first = exact_roll_fingerprint(one_marker)
+    second = exact_roll_fingerprint(two_markers)
+
+    assert first is not None and second is not None
+    assert first != second
+    assert first[3] == "trait"
+    assert second[3] == "trait*"
+    assert resolve(
+        _roll_df(
+            _roll_row("1", **{"Perks 3": "Trait*"}),
+            _roll_row("2", **{"Perks 3": "Trait**"}),
+        ),
+        crafted_level_protect=10,
+    ) == []
+
+
+def test_double_marker_tracker_is_not_a_measured_boundary():
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 6": "Kill Tracker**"}),
+        _roll_row("2", **{"Perks 6": "Kill Tracker**"}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
+    assert exact_roll_fingerprint(rows.iloc[1]) is None
+    assert resolve(rows, crafted_level_protect=10) == []
+
+
 def test_exotic_same_hash_different_roll_fingerprints_do_not_compete():
     rows = _roll_df(
         _roll_row(

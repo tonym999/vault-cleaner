@@ -3,6 +3,33 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-30 — #29 presentation safety corrections
+
+- Corrected exact-roll identity normalization to remove only one selected
+  trailing `*` from the original DIM cell. Display casing is derived
+  separately, so `Trait*` and `Trait**` remain distinct and `Kill Tracker**`
+  cannot become a measured boundary; the regression also confirms the
+  fingerprint remains at the established #31 semantics.
+- Escaped untrusted reference delimiters (`[`, `]`, `;`) as full-width
+  presentation characters while retaining raw audit values. Generated
+  Notes grammar remains ASCII and report summaries preserve the generated
+  `keep`/`compare` and winner/partner suffix. Added hostile weapon and armor
+  exact/close regressions for marker, structural, newline, and forged-clause
+  safety.
+- Added presentation-only survivor/partner suffix disambiguation: final four
+  characters remain the default, colliding candidate/survivor suffixes grow
+  by bounded string comparison, and pathological shared suffixes use a
+  bounded differing-character fallback. Full `ReportDecision.id` and
+  `kept_id` remain unchanged; no identity, grouping, ranking, or action
+  semantics changed.
+- Validation: Ruff passed; the focused duplicate/reference/report suite
+  passed 139 tests; the full suite passed 765 tests and skipped 1. Four
+  real-socket tests failed and two Chromium tests errored only because this
+  sandbox denies socket/browser startup (`Operation not permitted`).
+  `git diff --check` passed, no files are tracked under `data/`, the fake
+  report snapshot regeneration was byte-identical, and fake `report` plus
+  `roundtrip` dry-run checks completed successfully.
+
 ## 2026-08-30 — #29 human-readable duplicate references
 
 - Added one shared presentation seam for weapon exact-dupe survivors, armour

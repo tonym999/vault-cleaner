@@ -151,21 +151,21 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                 action, tag = "review", row["Tag"]
                 hashtag = (
                     f"#vc-review: {rel} (loadout); keep "
-                    f"{armor_reference(best, spirit_signature(best))}; winner "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=(row['Id'],))}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
             elif level == rails.SOFT:
                 action, tag = "review", row["Tag"]
                 hashtag = (
                     f"#vc-review: {rel} ({reason}); keep "
-                    f"{armor_reference(best, spirit_signature(best))}; winner "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=(row['Id'],))}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
             else:
                 action, tag = "junk", "junk"
                 hashtag = (
                     f"#vc-junk: {rel}; keep "
-                    f"{armor_reference(best, spirit_signature(best))}; winner "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=(row['Id'],))}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
             decisions.append(

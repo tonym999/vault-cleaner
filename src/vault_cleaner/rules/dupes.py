@@ -121,7 +121,7 @@ def _exact_roll_prefix_parts(row) -> tuple[tuple[str, ...], tuple[str, ...]] | N
         or numbers != tuple(range(numbers[-1] + 1))
     ):
         return None
-    raw_values = tuple(_display_roll_cell(row[column]) for column in columns)
+    raw_values = tuple(str(row[column]).strip() for column in columns)
     values = tuple(_normalize_roll_cell(value) for value in raw_values)
     tracker_index = next(
         (
@@ -142,7 +142,8 @@ def _exact_roll_prefix_parts(row) -> tuple[tuple[str, ...], tuple[str, ...]] | N
     prefix = values[:tracker_index]
     if not prefix or any(not value for value in prefix):
         return None
-    return raw_values[:tracker_index], prefix
+    display_values = tuple(_display_roll_cell(value) for value in raw_values)
+    return display_values[:tracker_index], prefix
 
 
 def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
@@ -229,7 +230,7 @@ def resolve(
                 tag = row["Tag"]  # preserve whatever tag it has — import must not change it
                 hashtag = (
                     f"#vc-review: {rel} ({reason}); keep "
-                    f"{weapon_reference(best, exact_roll_display_prefix(best))}; "
+                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=(row['Id'],))}; "
                     f"winner {_winner_reason(best_key, key)}"
                 )
             else:
@@ -237,7 +238,7 @@ def resolve(
                 tag = "junk"
                 hashtag = (
                     f"#vc-junk: {rel}; keep "
-                    f"{weapon_reference(best, exact_roll_display_prefix(best))}; "
+                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=(row['Id'],))}; "
                     f"winner {_winner_reason(best_key, key)}"
                 )
             note = f"{row['Notes']} {hashtag}".strip()
