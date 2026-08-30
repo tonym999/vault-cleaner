@@ -3,6 +3,31 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-30 — #29 group-wide suffix collision correction
+
+- Corrected collision context so weapon exact-dupe and armour exact-dupe
+  survivors receive every id in their exact group, while armour close-dupe
+  partners receive every id in the compatibility group. A referenced row now
+  has one stable presentation label across all notes that cite it.
+- Kept the final four characters as the normal label and bounded suffix
+  expansion strictly below the complete long id. A truthful leading-prefix /
+  suffix projection handles group-unique collisions; pathological shared
+  projections use a bounded deterministic group-rank plus target digest.
+  Short synthetic ids remain intact, and no opaque id is parsed numerically by
+  the presenter or emitted in full.
+- Added three-copy weapon and armour exact-group regressions, repeated
+  armour-close partner stability coverage, 16-character collision protection,
+  and pathological-prefix/suffix fallback coverage. Selection, grouping,
+  ranking, actions, tags, full audit ids, and all other #29 semantics are
+  unchanged.
+- Validation: Ruff passed; the focused duplicate/reference/report suite
+  passed 145 tests; the full suite passed 771 tests and skipped 1. Four
+  real-socket tests failed and two Chromium tests errored only because this
+  sandbox denies socket/browser startup (`Operation not permitted`). Snapshot
+  regeneration was byte-identical; fake `report` and `roundtrip` dry-run
+  checks passed; `git diff --check` passed; no files are tracked under
+  `data/`.
+
 ## 2026-08-30 — #29 presentation safety corrections
 
 - Corrected exact-roll identity normalization to remove only one selected

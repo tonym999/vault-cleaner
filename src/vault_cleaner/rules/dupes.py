@@ -219,6 +219,9 @@ def resolve(
         )
         keyed = sorted(keyed, key=lambda kr: kr[0], reverse=True)
         best_key, best = keyed[0]
+        survivor_group_ids = tuple(
+            candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]
+        )
         for key, row in keyed[1:]:
             level, reason = rails.protection(row, crafted_level_protect)
             if level == rails.HARD:
@@ -230,7 +233,7 @@ def resolve(
                 tag = row["Tag"]  # preserve whatever tag it has — import must not change it
                 hashtag = (
                     f"#vc-review: {rel} ({reason}); keep "
-                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=(row['Id'],))}; "
+                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=survivor_group_ids)}; "
                     f"winner {_winner_reason(best_key, key)}"
                 )
             else:
@@ -238,7 +241,7 @@ def resolve(
                 tag = "junk"
                 hashtag = (
                     f"#vc-junk: {rel}; keep "
-                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=(row['Id'],))}; "
+                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=survivor_group_ids)}; "
                     f"winner {_winner_reason(best_key, key)}"
                 )
             note = f"{row['Notes']} {hashtag}".strip()

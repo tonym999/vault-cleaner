@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+import pandas as pd
+
 from vault_cleaner.config import load_config
 from vault_cleaner.duplicate_reference import (
     armor_reference,
@@ -32,6 +34,57 @@ def test_short_id_expands_only_for_a_display_suffix_collision():
     assert rendered == "1…1234"
     assert rendered != short_id(candidate)
     assert survivor not in rendered
+
+
+def test_short_id_is_group_wide_and_truthful_for_three_shared_suffixes():
+    ids = (
+        "1000000000000001234",
+        "1100000000000001234",
+        "2000000000000001234",
+    )
+
+    rendered = {
+        item_id: short_id(
+            item_id,
+            distinguish_from=tuple(other for other in ids if other != item_id),
+        )
+        for item_id in ids
+    }
+
+    assert rendered == {
+        ids[0]: "10…1234",
+        ids[1]: "11…1234",
+        ids[2]: "2…1234",
+    }
+    assert len(set(rendered.values())) == len(ids)
+
+
+def test_short_id_never_emits_a_complete_sixteen_character_collision():
+    survivor = "1000000000001234"
+    candidate = "2000000000001234"
+
+    rendered = short_id(survivor, distinguish_from=(candidate,))
+
+    assert rendered == "1…1234"
+    assert survivor not in rendered
+    assert len(rendered) < len(survivor)
+
+
+def test_short_id_uses_stable_bounded_discriminator_for_pathological_ids():
+    ids = (
+        "ABCDEFGH" + "A" * 10 + "1234567890123456",
+        "ABCDEFGH" + "B" * 10 + "1234567890123456",
+    )
+
+    first = short_id(ids[0], distinguish_from=(ids[1],))
+    reordered = short_id(ids[0], distinguish_from=(ids[1], ids[1]))
+    second = short_id(ids[1], distinguish_from=(ids[0],))
+
+    assert first == reordered
+    assert first != second
+    assert first.startswith("A…3456~")
+    assert all(item_id not in rendered for item_id, rendered in ((ids[0], first), (ids[1], second)))
+    assert len(first) <= 24
 
 
 def test_display_fragments_are_single_line_bounded_and_marker_safe():
@@ -148,6 +201,27 @@ def test_weapon_exact_reference_expands_a_colliding_survivor_suffix():
     assert decision.kept_id == survivor_id
 
 
+def test_weapon_exact_reference_uses_the_same_group_wide_survivor_label():
+    ids = (
+        "1000000000000001234",
+        "1100000000000001234",
+        "2000000000000001234",
+    )
+    weapons = load_weapons(FIXTURES / "weapons_dupes.csv")
+    weapons = weapons[weapons["Id"].isin(["3001", "3002", "3003"])].copy()
+    weapons["Id"] = weapons["Id"].replace(dict(zip(["3001", "3002", "3003"], ids)))
+
+    decisions = dupes.resolve(weapons, crafted_level_protect=10)
+    labels = {
+        re.search(r"; keep \[id ([^;]+)", decision.note).group(1)
+        for decision in decisions
+    }
+
+    assert labels == {"10…1234"}
+    assert {decision.id for decision in decisions} == set(ids[1:])
+    assert {decision.kept_id for decision in decisions} == {ids[0]}
+
+
 def test_armour_exact_reference_expands_a_colliding_survivor_suffix():
     survivor_id = "1000000000000001234"
     candidate_id = "2000000000000001234"
@@ -166,6 +240,30 @@ def test_armour_exact_reference_expands_a_colliding_survivor_suffix():
     assert decision.kept_id == survivor_id
 
 
+def test_armour_exact_reference_uses_all_group_ids_for_stable_suffixes():
+    ids = (
+        "1000000000000001234",
+        "1100000000000001234",
+        "2000000000000001234",
+    )
+    armor = load_armor(FIXTURES / "armor_dupes.csv")
+    armor = armor[armor["Id"].isin(["5001", "5002"])].copy()
+    extra = armor.iloc[[1]].copy()
+    extra["Id"] = ids[2]
+    armor["Id"] = armor["Id"].replace({"5001": ids[0], "5002": ids[1]})
+    armor = pd.concat([armor, extra], ignore_index=True)
+
+    decisions = armor_dupes.run(armor, crafted_level_protect=10)
+    labels = {
+        re.search(r"; keep \[id ([^;]+)", decision.note).group(1)
+        for decision in decisions
+    }
+
+    assert labels == {"10…1234"}
+    assert {decision.id for decision in decisions} == set(ids[1:])
+    assert {decision.kept_id for decision in decisions} == {ids[0]}
+
+
 def test_armour_close_reference_expands_a_colliding_partner_suffix():
     candidate_id = "1000000000000001234"
     partner_id = "2000000000000001234"
@@ -182,3 +280,30 @@ def test_armour_close_reference_expands_a_colliding_partner_suffix():
     assert "[id 2…1234" in decision.note
     assert partner_id not in decision.note
     assert decision.kept_id == partner_id
+
+
+def test_armour_close_reference_keeps_partner_label_stable_across_group_rows():
+    candidate_id = "1000000000000001234"
+    partner_id = "2000000000000001234"
+    other_id = "3000000000000001234"
+    armor = load_armor(FIXTURES / "armor_close.csv")
+    armor = armor[armor["Id"].isin(["6011", "6012"])].copy()
+    extra = armor.iloc[[1]].copy()
+    extra["Id"] = other_id
+    armor["Id"] = armor["Id"].replace({"6011": candidate_id, "6012": partner_id})
+    armor = pd.concat([armor, extra], ignore_index=True)
+
+    decisions = armor_close.run(armor, load_config(Path("nonexistent.toml")))
+    partner_decisions = [
+        decision for decision in decisions if decision.kept_id == partner_id
+    ]
+    labels = {
+        re.search(r"; compare \[id ([^;]+)", decision.note).group(1)
+        for decision in partner_decisions
+    }
+
+    assert {decision.id for decision in partner_decisions} == {
+        candidate_id,
+        other_id,
+    }
+    assert labels == {"2…1234"}

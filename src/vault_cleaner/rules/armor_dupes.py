@@ -137,6 +137,9 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
             key=lambda r: (_survivor_rank(r, crafted_level_protect), -int(r["Id"])),
         )
         best_rank = _survivor_rank(best, crafted_level_protect)
+        survivor_group_ids = tuple(
+            candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]
+        )
         for row in group:
             if row["Id"] == best["Id"]:
                 continue
@@ -151,21 +154,21 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                 action, tag = "review", row["Tag"]
                 hashtag = (
                     f"#vc-review: {rel} (loadout); keep "
-                    f"{armor_reference(best, spirit_signature(best), distinguish_from=(row['Id'],))}; winner "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
             elif level == rails.SOFT:
                 action, tag = "review", row["Tag"]
                 hashtag = (
                     f"#vc-review: {rel} ({reason}); keep "
-                    f"{armor_reference(best, spirit_signature(best), distinguish_from=(row['Id'],))}; winner "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
             else:
                 action, tag = "junk", "junk"
                 hashtag = (
                     f"#vc-junk: {rel}; keep "
-                    f"{armor_reference(best, spirit_signature(best), distinguish_from=(row['Id'],))}; winner "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
             decisions.append(

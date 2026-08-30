@@ -109,10 +109,13 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
                     if same_surplus
                     else "largest stat surplus"
                 )
+                partner_group_ids = tuple(
+                    candidate_id for candidate_id, _, _ in rows if candidate_id != oid
+                )
                 reference = armor_reference(
                     other,
                     other.get("_spirits", ()),
-                    distinguish_from=(rid,),
+                    distinguish_from=partner_group_ids,
                 )
                 hashtag = (
                     f"#vc-review: armor-dominated by; compare {reference}; "
@@ -132,10 +135,13 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
                     )
                     else "closest stat distance"
                 )
+                partner_group_ids = tuple(
+                    candidate_id for candidate_id, _, _ in rows if candidate_id != oid
+                )
                 reference = armor_reference(
                     other,
                     other.get("_spirits", ()),
-                    distinguish_from=(rid,),
+                    distinguish_from=partner_group_ids,
                 )
                 hashtag = (
                     f"#vc-review: armor-similar to; compare {reference}; "

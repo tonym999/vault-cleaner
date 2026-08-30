@@ -42,6 +42,11 @@ Duplicate Notes and terminal reports identify the selected survivor or close
 partner with a concise reference such as `[id …0059; owner Vault; MW10; power
 450]`; long DIM ids are shortened only for this human-facing text. The complete
 candidate and survivor/partner ids remain in the machine-readable report data.
+The final four characters remain the normal id label; when that suffix collides
+inside an exact/close compatibility group, the presenter grows it only within
+a bounded limit, then uses a truthful leading-prefix/suffix projection or a
+stable bounded discriminator. The same referenced row therefore has one label
+throughout the group, without exposing a complete long id.
 Winner text describes the existing duplicate selector and does not change
 which item the rules choose.
 

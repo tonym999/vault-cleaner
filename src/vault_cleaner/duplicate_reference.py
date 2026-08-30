@@ -12,11 +12,14 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Iterable
+from hashlib import sha256
 
 _TOOL_MARKER_RE = re.compile(r"#vc-", re.IGNORECASE)
 _STRUCTURAL_CHARS = str.maketrans({"[": "［", "]": "］", ";": "；"})
 _MAX_FRAGMENT = 48
 _MAX_REFERENCE = 220
+_MAX_ID_SUFFIX_WIDTH = 16
+_MAX_ID_PREFIX_WIDTH = 8
 
 
 def safe_fragment(
@@ -57,39 +60,70 @@ def _id_suffix(raw: str, width: int) -> str:
     return "…" + safe_fragment(raw[-width:], limit=24)
 
 
+def _id_prefix_suffix(raw: str, prefix_width: int) -> str:
+    suffix = raw[-4:]
+    # The caller only asks for this projection when the raw id is longer than
+    # the four-character suffix.  Keep the two source slices disjoint so the
+    # display can never become the complete long id.
+    max_prefix = max(1, len(raw) - len(suffix) - 1)
+    prefix = raw[: min(prefix_width, max_prefix)]
+    return (
+        f"{safe_fragment(prefix, limit=12)}…"
+        f"{safe_fragment(suffix, limit=8)}"
+    )
+
+
 def short_id(
     value: object, *, distinguish_from: Iterable[object] = ()
 ) -> str:
     """Render an opaque DIM id without parsing it as a number.
 
     The normal form is the final four characters.  When that presentation
-    collides with the current candidate's suffix, grow the suffix by string
-    comparison only.  Extremely shared suffixes use one differing character
-    (or a bounded length marker) so the reference remains concise.
+    collides within the supplied compatibility group, grow the suffix by
+    string comparison only.  Extremely shared suffixes use a truthful
+    leading-prefix projection or a bounded group discriminator so the
+    reference remains concise and stable.
     """
     raw = _raw_id(value)
-    others = tuple(_raw_id(other) for other in distinguish_from)
+    others = tuple(
+        other_raw
+        for other_raw in (_raw_id(other) for other in distinguish_from)
+        if other_raw != raw
+    )
     rendered = _id_suffix(raw, 4)
     if not any(rendered == _id_suffix(other, 4) for other in others):
         return rendered
 
-    for width in range(5, min(len(raw), 16) + 1):
+    # Keep every suffix expansion strictly shorter than the source id.  In
+    # particular, a 16-character id must not be emitted in full just because
+    # its first character is the only distinguishing position.
+    for width in range(5, min(_MAX_ID_SUFFIX_WIDTH, len(raw) - 1) + 1):
         rendered = _id_suffix(raw, width)
         if all(rendered != _id_suffix(other, width) for other in others):
             return rendered
 
-    # If the ids share every bounded suffix, expose a single differing source
-    # character rather than leaking an unbounded/full instance id.
-    for other in others:
-        for index, (left, right) in enumerate(zip(raw, other)):
-            if left != right:
-                return (
-                    f"{safe_fragment(left, limit=4)}…"
-                    f"{safe_fragment(raw[-4:], limit=8)}"
-                )
+    # Prefer a truthful leading prefix plus suffix.  Unlike an unpositioned
+    # differing character, this remains meaningful when several group members
+    # share the same first character.  Every member must use the same complete
+    # comparison set so a referenced row's label is stable across notes.
+    for width in range(1, min(_MAX_ID_PREFIX_WIDTH, len(raw) - 4) + 1):
+        rendered = _id_prefix_suffix(raw, width)
+        if all(
+            rendered != _id_prefix_suffix(other, width)
+            for other in others
+        ):
+            return rendered
+
+    # Pathological ids can still share the bounded prefix and suffix.  A
+    # stable group rank is a bounded deterministic discriminator while the
+    # visible prefix/suffix remain truthful; the digest makes the target
+    # projection explicit without exposing the complete opaque id.
+    members = sorted({raw, *others})
+    rank = members.index(raw) + 1
+    digest = sha256(raw.encode("utf-8")).hexdigest()[:8]
     return (
         f"{safe_fragment(raw[:1], limit=4)}…"
-        f"{safe_fragment(raw[-4:], limit=8)}~{len(raw)}"
+        f"{safe_fragment(raw[-4:], limit=8)}~{rank:x}-{digest}"
     )
 
 
