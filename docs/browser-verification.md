@@ -41,6 +41,17 @@ Workflow and keyboard checks:
 - [ ] **Reset / Start new review** returns to an upload-ready idle state.
 - [ ] **Shutdown** ends the local session and leaves clear terminal guidance.
 
+Issue #104 focused check:
+
+- [ ] Ordinary Proposals shows a labelled `Tuning Mod Slot` pair for an armor
+      candidate and its selected survivor/partner before expansion or hover;
+      equal and `none/unknown` values remain explicitly labelled on both sides.
+- [ ] The tuning text is distinct from the six-stat armor-scoring display and
+      remains legible in desktop light/dark appearances and at approximately
+      390×844; horizontal table scrolling is contained when needed.
+- [ ] The field is rendered as text, not only by color, and remains readable
+      after acknowledgement and in finalised/read-only state.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -54,6 +65,28 @@ Required multi-tab check:
 Record the pass/fail result, any defects found, corrections made, and remaining
 limitations. End every run with **Shutdown** or stop the server from its
 terminal.
+
+## 2026-08-31 — issue #104 focused check
+
+- Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
+  151.0.7922.34 (Playwright Chromium revision 1234), headless.
+- Viewports: 1440×1000 desktop and 390×844 narrow; both light and dark
+  appearances were captured.
+- Fixture: `tests/fixtures/armor_close.csv`; no real vault data and no wishlist
+  or manifest network access.
+- Visual result: pass. Ordinary Proposals showed the labelled pair before
+  expansion or hover, including `Candidate: Melee · Selected: Grenade` and
+  `Candidate: none/unknown · Selected: none/unknown`. The text remained
+  distinct from armor scoring details and readable in desktop light/dark and
+  narrow layouts; the table's horizontal overflow stayed contained.
+- Workflow result: upload, flat view, finalised/read-only rendering, frozen
+  controls, and shutdown passed. Acknowledgement state remained correct and
+  the row stayed in place. The existing mutation gate disables all verdict
+  buttons while an acknowledgement is in flight, so a button that was itself
+  focused is blurred by the browser; this is pre-existing server UI behavior
+  and was not changed by #104. Keyboard `a`/`v`/`u` review from the row control
+  remained usable and repainted the row in place.
+- The Armor duplicates group view was not tested or claimed; it remains #102.
 
 ## 2026-08-27 — issue #90 execution record
 

@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from vault_cleaner.config import ConfigError, load_config
+from vault_cleaner.duplicate_reference import tuning_mod_slot
 from vault_cleaner.export_discovery import (
     EXPORT_FILENAMES,
     MissingExportError,
@@ -98,6 +99,8 @@ class ReportDecision:
     locked: bool
     equipped: bool
     in_loadout: bool
+    candidate_tuning_mod_slot: str | None = None
+    selected_tuning_mod_slot: str | None = None
 
     def import_row(self) -> dict[str, str]:
         return {
@@ -264,6 +267,19 @@ def _decision_records(
     records = []
     for decision in decisions:
         row = rows[str(decision.id)]
+        candidate_tuning = selected_tuning = None
+        if kind == "armor" and decision.kept_id:
+            try:
+                selected_row = rows[str(decision.kept_id)]
+            except KeyError as e:
+                raise ValueError(
+                    "armor comparison selected id is absent from the loaded export: "
+                    f"{decision.kept_id}"
+                ) from e
+            candidate_tuning = tuning_mod_slot(row.get("Tuning Stat", ""))
+            selected_tuning = tuning_mod_slot(
+                selected_row.get("Tuning Stat", "")
+            )
         if kind == "ghosts":
             # ghost_rules only returns unprotected rows. Exotic rarity is
             # deliberately not a ghost rail, so the generic rails helper
@@ -299,6 +315,8 @@ def _decision_records(
                 locked=rails.is_true(row.get("Locked", "")),
                 equipped=rails.is_true(row.get("Equipped", "")),
                 in_loadout=bool(str(row.get("Loadouts", "")).strip()),
+                candidate_tuning_mod_slot=candidate_tuning,
+                selected_tuning_mod_slot=selected_tuning,
             )
         )
     return tuple(records)

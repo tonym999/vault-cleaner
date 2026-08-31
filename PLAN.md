@@ -118,6 +118,8 @@ new decisions. Delivery is sequenced as:
     ↓
 #101 authoritative armour exact-duplicate group report projection
     ↓
+#104 pairwise Tuning Mod Slot presentation across Notes, reports and Proposals
+    ↓
 #102 Armor duplicates browser view
 ```
 
@@ -125,6 +127,12 @@ Issue `#29` owns the shared human-readable survivor/partner references and the
 existing full `ReportDecision.id`/`kept_id` audit values. #101 owns the
 authoritative armour exact-duplicate and same-stat group projections, and #102
 owns their browser rendering; neither downstream surface is part of #29.
+Issue #104 owns the pairwise candidate/survivor-or-partner Tuning Mod Slot
+presentation across generated Notes, terminal output, structured report/server
+snapshots, and the ordinary Proposals table. It keeps the fixed six-value
+vocabulary plus explicit `none/unknown` and introduces no tuning preference.
+The #102 Armor duplicates view remains responsible for rendering the existing
+authoritative exact-group projection and is not delivered by #104.
 The snapshot remains schema v2, but the decision ruleset is v4, so its
 fingerprint intentionally invalidates persisted veto identity from ruleset v3.
 No review/session schema or server lifecycle format changes are part of this

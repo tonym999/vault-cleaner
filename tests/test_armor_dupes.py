@@ -14,87 +14,48 @@ from vault_cleaner.rules.armor_dupes import (
 FIXTURE = Path(__file__).parent / "fixtures" / "armor_dupes.csv"
 
 # Static semantic capture from origin/main (190e8473), before the group
-# projection refactor. Every Decision field and its parsed reason is included
-# so the projection cannot silently alter the authoritative exact pass.
+# projection refactor. Every unchanged Decision field is captured except Note:
+# #104 intentionally extends presentation text while the identity/action/
+# reference contract must remain unchanged.
 BASELINE_DECISIONS = (
     (
         "5002", "700", "Dupe Plate", "Vault", "Titan", "junk", "junk",
-        (
-            "old note #vc-junk: armor-exact-dupe; keep [id 5001; location Vault; "
-            "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
-        ),
         "5001", ("junk", "armor-exact-dupe"),
     ),
     (
         "5012", "710", "Loadout Plate", "Vault", "Titan", "review", "",
-        (
-            "#vc-review: armor-exact-dupe (loadout); keep [id 5011; location Vault; "
-            "MW0; power 0; tuning grenade]; winner hard protection"
-        ),
         "5011", ("review", "armor-exact-dupe"),
     ),
     (
         "5022", "720", "Tie Plate", "Vault", "Titan", "junk", "junk",
-        (
-            "#vc-junk: armor-exact-dupe-tie; keep [id 5021; location Vault; "
-            "MW0; power 0; tuning class]; winner deterministic id tie-break"
-        ),
         "5021", ("junk", "armor-exact-dupe-tie"),
     ),
     (
         "5032", "730", "Exotic Mark", "Vault", "Titan", "junk", "junk",
-        (
-            "#vc-junk: armor-exotic-class-dupe; keep [id 5031; location Vault; "
-            "MW1; power 0; spirits Contact + Assassin]; winner higher Masterwork Tier"
-        ),
         "5031", ("junk", "armor-exotic-class-dupe"),
     ),
     (
         "5061", "770", "Equipped Plate", "Vault", "Titan", "junk", "junk",
-        (
-            "#vc-junk: armor-exact-dupe; keep [id 5062; location Vault; "
-            "MW0; power 0; tuning weapons]; winner hard protection"
-        ),
         "5062", ("junk", "armor-exact-dupe"),
     ),
     (
         "5072", "780", "Power Plate", "Vault", "Titan", "junk", "junk",
-        (
-            "#vc-junk: armor-exact-dupe; keep [id 5071; location Vault; "
-            "MW3; power 460; tuning super]; winner higher Power"
-        ),
         "5071", ("junk", "armor-exact-dupe"),
     ),
     (
         "5082", "790", "Loadout Beats MW", "Vault", "Titan", "junk", "junk",
-        (
-            "#vc-junk: armor-exact-dupe; keep [id 5081; location Vault; "
-            "MW0; power 400; tuning health]; winner loadout membership"
-        ),
         "5081", ("junk", "armor-exact-dupe"),
     ),
     (
         "5092", "800", "Lock Beats MW", "Vault", "Titan", "junk", "junk",
-        (
-            "#vc-junk: armor-exact-dupe; keep [id 5091; location Vault; "
-            "MW0; power 0; tuning melee]; winner lock"
-        ),
         "5091", ("junk", "armor-exact-dupe"),
     ),
     (
         "5102", "810", "Locked Pair", "Vault", "Titan", "review", "",
-        (
-            "#vc-review: armor-exact-dupe (locked); keep [id 5101; location Vault; "
-            "MW3; power 0; tuning class]; winner higher Masterwork Tier"
-        ),
         "5101", ("review", "armor-exact-dupe"),
     ),
     (
         "5122", "830", "Plain Exotic", "Vault", "Titan", "review", "",
-        (
-            "#vc-review: armor-exact-dupe (exotic); keep [id 5121; location Vault; "
-            "MW1; power 0]; winner higher Masterwork Tier"
-        ),
         "5121", ("review", "armor-exact-dupe"),
     ),
 )
@@ -118,7 +79,6 @@ def test_exact_decisions_match_origin_main_capture():
             decision.guardian_class,
             decision.action,
             decision.tag,
-            decision.note,
             decision.kept_id,
             reason_slug(decision.note),
         )
@@ -134,7 +94,8 @@ def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
     assert d["5002"].tag == "junk"
     assert d["5002"].note == (
         "old note #vc-junk: armor-exact-dupe; keep [id 5001; location Vault; "
-        "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
+        "MW5; power 450]; winner higher Masterwork Tier; "
+        "Candidate Tuning Mod Slot: Melee; Survivor Tuning Mod Slot: Melee"
     )
     assert "winner higher Masterwork Tier" in d["5002"].note
 

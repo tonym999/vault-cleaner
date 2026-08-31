@@ -186,6 +186,24 @@ def test_summarize_shows_duplicate_candidate_and_reference_together():
     assert "keep [id …7291; location Vault]; winner higher Tier" in out
 
 
+def test_summarize_exposes_pairwise_tuning_labels():
+    decision = _d(
+        "6917530162665277292",
+        "Plate B",
+        "#vc-review: armor-similar to; compare [id …7291]; "
+        "identical stats; partner closest stat distance; "
+        "Candidate Tuning Mod Slot: Melee; Partner Tuning Mod Slot: Grenade",
+    )
+    decision.kept_id = "6917530162665277291"
+
+    out = summarize([("armor", [decision])])
+
+    assert (
+        "Candidate Tuning Mod Slot: Melee; Partner Tuning Mod Slot: Grenade"
+        in out
+    )
+
+
 def test_summarize_preserves_winner_after_maximal_weapon_reference():
     row = {
         "Id": "6917530162665277291",

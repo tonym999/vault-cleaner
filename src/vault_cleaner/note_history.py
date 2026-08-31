@@ -28,6 +28,15 @@ _ARMOR_SCORE = (
     r"armor-score -?[0-9]+(?:\.[0-9]+)? < floor -?[0-9]+(?:\.[0-9]+)? "
     r"\(best: [^()\r\n]+, rank [0-9]+/[0-9]+ [^()\r\n]+\)"
 )
+_TUNING_VALUE = r"(?:Weapons|Health|Class|Grenade|Super|Melee|none/unknown)"
+_EXACT_TUNING = (
+    rf"; Candidate Tuning Mod Slot: {_TUNING_VALUE}"
+    rf"; Survivor Tuning Mod Slot: {_TUNING_VALUE}"
+)
+_CLOSE_TUNING = (
+    rf"; Candidate Tuning Mod Slot: {_TUNING_VALUE}"
+    rf"; Partner Tuning Mod Slot: {_TUNING_VALUE}"
+)
 
 _GENERATED_CLAUSE_RES = tuple(
     re.compile(pattern) for pattern in (
@@ -35,6 +44,7 @@ _GENERATED_CLAUSE_RES = tuple(
         (
             rf"#vc-(?:junk|review): {_EXACT_REASON}; keep "
             rf"\[[^\]\r\n]*\]; winner {_WINNER_REASON}"
+            rf"(?:{_EXACT_TUNING})?"
         ),
         # Legacy exact-dupe notes retained for migration from older exports.
         rf"#vc-(?:junk|review): {_EXACT_REASON}, kept [^\s]+",
@@ -43,11 +53,13 @@ _GENERATED_CLAUSE_RES = tuple(
             r"#vc-review: armor-dominated by; compare \[[^\]\r\n]*\]; "
             r"\+[0-9]+ total; partner "
             r"(?:largest stat surplus|deterministic id tie-break)"
+            rf"(?:{_CLOSE_TUNING})?"
         ),
         (
             r"#vc-review: armor-similar to; compare \[[^\]\r\n]*\]; "
             r"[^;\r\n]+; partner "
             r"(?:closest stat distance|deterministic id tie-break)"
+            rf"(?:{_CLOSE_TUNING})?"
         ),
         r"#vc-review: armor-dominated by [^\s]+ \(\+[0-9]+ total\)",
         r"#vc-review: armor-similar to [^\s]+ \([^()\r\n]+\)",

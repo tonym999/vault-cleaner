@@ -91,6 +91,80 @@ def test_report_run_contains_sections_sources_decisions_and_config():
     assert locked.original_notes == ""
 
 
+def test_armor_decisions_project_pairwise_tuning_from_selected_ids():
+    exact = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=ARMOR_DUPES,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    exact_decisions = {
+        decision.id: decision
+        for decision in exact.sections[0].decisions
+    }
+    assert exact_decisions["5002"].kept_id == "5001"
+    assert exact_decisions["5002"].candidate_tuning_mod_slot == "Melee"
+    assert exact_decisions["5002"].selected_tuning_mod_slot == "Melee"
+
+    close = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=FIXTURES / "armor_close.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    close_decisions = {
+        decision.id: decision
+        for decision in close.sections[0].decisions
+    }
+    assert close_decisions["6081"].kept_id == "6082"
+    assert close_decisions["6081"].candidate_tuning_mod_slot == "Melee"
+    assert close_decisions["6081"].selected_tuning_mod_slot == "Grenade"
+    assert close_decisions["6002"].kept_id == "6001"
+    assert close_decisions["6002"].candidate_tuning_mod_slot == "Melee"
+    assert close_decisions["6002"].selected_tuning_mod_slot == "Melee"
+
+    document = snapshot_dict(close)
+    snap_decision = next(
+        decision
+        for decision in document["sections"][0]["decisions"]
+        if decision["id"] == "6081"
+    )
+    assert snap_decision["candidate_tuning_mod_slot"] == "Melee"
+    assert snap_decision["selected_tuning_mod_slot"] == "Grenade"
+
+    all_values = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=ARMOR_DUPES,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    projected_values = {
+        value
+        for decision in all_values.sections[0].decisions
+        if decision.candidate_tuning_mod_slot is not None
+        for value in (
+            decision.candidate_tuning_mod_slot,
+            decision.selected_tuning_mod_slot,
+        )
+    }
+    assert projected_values == {
+        "Weapons", "Health", "Class", "Grenade", "Super", "Melee",
+        "none/unknown",
+    }
+
+
+def test_non_comparison_decisions_have_null_tuning_projection():
+    result = build_report()
+    for section in result.sections:
+        for decision in section.decisions:
+            if section.kind != "armor" or not decision.kept_id:
+                assert decision.candidate_tuning_mod_slot is None
+                assert decision.selected_tuning_mod_slot is None
+
+
 def test_hostile_rtl_name_and_unicode_notes_reach_a_decision():
     result = run_report(
         config_path="nonexistent.toml",

@@ -39,13 +39,17 @@ from types import MappingProxyType
 
 import pandas as pd
 
-from vault_cleaner.duplicate_reference import armor_reference, safe_fragment
+from vault_cleaner.duplicate_reference import (
+    armor_reference,
+    format_tuning_comparison,
+    safe_fragment,
+    tuning_mod_slot,
+)
 from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor_dupes import (
     spirit_signature,
-    tuning_mod_slot,
     unknown_spirit_roll,
 )
 from vault_cleaner.rules.dupes import Decision
@@ -54,9 +58,6 @@ from vault_cleaner.rules.id_order import instance_id_order
 
 def _similar_detail(row: pd.Series, partner: pd.Series, mx: int, sm: int) -> str:
     if mx == 0:
-        ours, theirs = row["Tuning Stat"], partner["Tuning Stat"]
-        if ours != theirs:
-            return f"identical stats, tuning {ours or 'none'} vs {theirs or 'none'}"
         return "identical stats"
     return f"max stat delta {mx}, total {sm}"
 
@@ -197,9 +198,13 @@ def _close_decisions(armor: pd.DataFrame, cfg: dict) -> _CloseDecisionResult:
                     other.get("_spirits", ()),
                     distinguish_from=partner_group_ids,
                 )
+                tuning_comparison = format_tuning_comparison(
+                    row["Tuning Stat"], other["Tuning Stat"], selected_label="Partner"
+                )
                 hashtag = (
                     f"#vc-review: armor-dominated by; compare {reference}; "
-                    f"+{surplus} total; partner {partner_reason}"
+                    f"+{surplus} total; partner {partner_reason}; "
+                    f"{tuning_comparison}"
                 )
                 partner_id = oid
             elif best_sim is not None:
@@ -224,9 +229,13 @@ def _close_decisions(armor: pd.DataFrame, cfg: dict) -> _CloseDecisionResult:
                     other.get("_spirits", ()),
                     distinguish_from=partner_group_ids,
                 )
+                tuning_comparison = format_tuning_comparison(
+                    row["Tuning Stat"], other["Tuning Stat"], selected_label="Partner"
+                )
                 hashtag = (
                     f"#vc-review: armor-similar to; compare {reference}; "
-                    f"{detail}; partner {partner_reason}"
+                    f"{detail}; partner {partner_reason}; "
+                    f"{tuning_comparison}"
                 )
                 partner_id = oid
             else:

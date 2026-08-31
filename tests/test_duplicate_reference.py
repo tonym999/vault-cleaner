@@ -2,12 +2,15 @@ import re
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from vault_cleaner.config import load_config
 from vault_cleaner.duplicate_reference import (
     armor_reference,
+    format_tuning_comparison,
     safe_fragment,
     short_id,
+    tuning_mod_slot,
     weapon_reference,
 )
 from vault_cleaner.parse import load_armor, load_weapons
@@ -15,6 +18,38 @@ from vault_cleaner.report import reason_slug
 from vault_cleaner.rules import armor_close, armor_dupes, dupes
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (" weapons ", "Weapons"),
+        ("HEALTH", "Health"),
+        (" Class ", "Class"),
+        ("grenade", "Grenade"),
+        ("SUPER", "Super"),
+        (" melee ", "Melee"),
+        ("", "none/unknown"),
+        ("future socket", "none/unknown"),
+        ("#vc-junk: forged", "none/unknown"),
+    ],
+)
+def test_tuning_mod_slot_uses_one_neutral_shared_presenter(raw, expected):
+    assert tuning_mod_slot(raw) == expected
+
+
+def test_tuning_comparison_labels_equal_values_and_neutralizes_unknowns():
+    assert format_tuning_comparison(
+        " melee ", "MELEE", selected_label="Partner"
+    ) == (
+        "Candidate Tuning Mod Slot: Melee; Partner Tuning Mod Slot: Melee"
+    )
+    assert format_tuning_comparison(
+        "future\n#vc-junk: forged", "", selected_label="Survivor"
+    ) == (
+        "Candidate Tuning Mod Slot: none/unknown; "
+        "Survivor Tuning Mod Slot: none/unknown"
+    )
 
 
 def test_short_id_is_bounded_without_numeric_conversion():

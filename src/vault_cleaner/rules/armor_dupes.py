@@ -33,7 +33,11 @@ from types import MappingProxyType
 
 import pandas as pd
 
-from vault_cleaner.duplicate_reference import armor_reference
+from vault_cleaner.duplicate_reference import (
+    armor_reference,
+    format_tuning_comparison,
+    tuning_mod_slot,
+)
 from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
@@ -171,28 +175,12 @@ class ArmorExactDupeAnalysis:
     groups: tuple[ArmorExactDuplicateGroup, ...]
 
 
-_TUNING_MOD_SLOTS = {
-    "weapons": "Weapons",
-    "health": "Health",
-    "class": "Class",
-    "grenade": "Grenade",
-    "super": "Super",
-    "melee": "Melee",
-}
-TUNING_MOD_SLOT_UNKNOWN = "none/unknown"
-
-
 _DISPOSITION_ORDER = {
     "preferred_survivor": 0,
     "retained_protected": 1,
     "proposed_junk": 2,
     "proposed_review": 3,
 }
-
-
-def tuning_mod_slot(value: object) -> str:
-    """Label the raw fingerprint tuning value without changing its identity."""
-    return _TUNING_MOD_SLOTS.get(str(value).strip().casefold(), TUNING_MOD_SLOT_UNKNOWN)
 
 
 def _is_complete_exotic_class_item(row: pd.Series) -> bool:
@@ -375,6 +363,9 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                 if _is_complete_exotic_class_item(row)
                 else "armor-exact-dupe-tie" if rank == best_rank else "armor-exact-dupe"
             )
+            tuning_comparison = format_tuning_comparison(
+                row["Tuning Stat"], best["Tuning Stat"], selected_label="Survivor"
+            )
             if in_loadout(row):
                 # Never junk a loadout member even when a twin survives:
                 # the loadout references this exact instance id.
@@ -382,21 +373,24 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                 hashtag = (
                     f"#vc-review: {rel} (loadout); keep "
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
-                    f"{_winner_reason(best_rank, rank)}"
+                    f"{_winner_reason(best_rank, rank)}; "
+                    f"{tuning_comparison}"
                 )
             elif level == rails.SOFT:
                 action, tag = "review", row["Tag"]
                 hashtag = (
                     f"#vc-review: {rel} ({reason}); keep "
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
-                    f"{_winner_reason(best_rank, rank)}"
+                    f"{_winner_reason(best_rank, rank)}; "
+                    f"{tuning_comparison}"
                 )
             else:
                 action, tag = "junk", "junk"
                 hashtag = (
                     f"#vc-junk: {rel}; keep "
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
-                    f"{_winner_reason(best_rank, rank)}"
+                    f"{_winner_reason(best_rank, rank)}; "
+                    f"{tuning_comparison}"
                 )
             member_projections.append(
                 _member_projection(

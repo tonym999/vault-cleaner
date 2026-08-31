@@ -60,6 +60,7 @@
       "decisions": [
         {
           "action": "review",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "500",
@@ -76,10 +77,12 @@
           "protection_level": "soft",
           "protection_reason": "locked",
           "reason": "dupe-lower",
+          "selected_tuning_mod_slot": null,
           "tag": ""
         },
         {
           "action": "junk",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "500",
@@ -96,10 +99,12 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "dupe-lower",
+          "selected_tuning_mod_slot": null,
           "tag": "junk"
         },
         {
           "action": "review",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "600",
@@ -116,10 +121,12 @@
           "protection_level": "soft",
           "protection_reason": "exotic",
           "reason": "dupe-lower",
+          "selected_tuning_mod_slot": null,
           "tag": ""
         },
         {
           "action": "junk",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "800",
@@ -136,10 +143,12 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "dupe-lower",
+          "selected_tuning_mod_slot": null,
           "tag": "junk"
         },
         {
           "action": "junk",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "900",
@@ -156,10 +165,12 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "dupe-lower",
+          "selected_tuning_mod_slot": null,
           "tag": "junk"
         },
         {
           "action": "junk",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "950",
@@ -176,10 +187,12 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "dupe-tie",
+          "selected_tuning_mod_slot": null,
           "tag": "junk"
         },
         {
           "action": "review",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "960",
@@ -196,6 +209,7 @@
           "protection_level": "soft",
           "protection_reason": "exotic",
           "reason": "dupe-tie",
+          "selected_tuning_mod_slot": null,
           "tag": ""
         }
       ],
@@ -562,6 +576,7 @@
       "decisions": [
         {
           "action": "review",
+          "candidate_tuning_mod_slot": "none/unknown",
           "equipped": false,
           "guardian_class": "Titan",
           "hash": "555001",
@@ -572,16 +587,18 @@
           "location": "Vault",
           "locked": false,
           "name": "Guard Plate A",
-          "note": "#vc-review: armor-similar to; compare [id 4052; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break",
+          "note": "#vc-review: armor-similar to; compare [id 4052; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break; Candidate Tuning Mod Slot: none/unknown; Partner Tuning Mod Slot: none/unknown",
           "original_notes": "",
           "original_tag": "",
           "protection_level": null,
           "protection_reason": "",
           "reason": "armor-similar to",
+          "selected_tuning_mod_slot": "none/unknown",
           "tag": ""
         },
         {
           "action": "review",
+          "candidate_tuning_mod_slot": "none/unknown",
           "equipped": false,
           "guardian_class": "Titan",
           "hash": "555001",
@@ -592,16 +609,18 @@
           "location": "Vault",
           "locked": false,
           "name": "Guard Plate B",
-          "note": "#vc-review: armor-similar to; compare [id 4051; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break",
+          "note": "#vc-review: armor-similar to; compare [id 4051; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break; Candidate Tuning Mod Slot: none/unknown; Partner Tuning Mod Slot: none/unknown",
           "original_notes": "",
           "original_tag": "",
           "protection_level": null,
           "protection_reason": "",
           "reason": "armor-similar to",
+          "selected_tuning_mod_slot": "none/unknown",
           "tag": ""
         },
         {
           "action": "review",
+          "candidate_tuning_mod_slot": "none/unknown",
           "equipped": false,
           "guardian_class": "Titan",
           "hash": "555001",
@@ -612,16 +631,18 @@
           "location": "Vault",
           "locked": false,
           "name": "Guard Plate C",
-          "note": "#vc-review: armor-similar to; compare [id 4051; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break",
+          "note": "#vc-review: armor-similar to; compare [id 4051; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break; Candidate Tuning Mod Slot: none/unknown; Partner Tuning Mod Slot: none/unknown",
           "original_notes": "",
           "original_tag": "",
           "protection_level": null,
           "protection_reason": "",
           "reason": "armor-similar to",
+          "selected_tuning_mod_slot": "none/unknown",
           "tag": ""
         },
         {
           "action": "review",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "Titan",
           "hash": "102619",
@@ -638,10 +659,12 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "armor-last-archetype",
+          "selected_tuning_mod_slot": null,
           "tag": ""
         },
         {
           "action": "review",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "Titan",
           "hash": "682991",
@@ -658,6 +681,7 @@
           "protection_level": "soft",
           "protection_reason": "locked",
           "reason": "armor-score",
+          "selected_tuning_mod_slot": null,
           "tag": ""
         }
       ],
@@ -673,6 +697,7 @@
       "decisions": [
         {
           "action": "junk",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "953629",
@@ -689,10 +714,12 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "ghost-unprotected-surplus",
+          "selected_tuning_mod_slot": null,
           "tag": "junk"
         },
         {
           "action": "junk",
+          "candidate_tuning_mod_slot": null,
           "equipped": false,
           "guardian_class": "",
           "hash": "444005",
@@ -709,6 +736,7 @@
           "protection_level": null,
           "protection_reason": "",
           "reason": "ghost-unprotected-surplus",
+          "selected_tuning_mod_slot": null,
           "tag": "junk"
         }
       ],

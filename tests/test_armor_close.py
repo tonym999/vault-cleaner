@@ -74,12 +74,18 @@ def test_caps_are_inclusive_boundaries(cfg):
     assert "6071" not in d and "6072" not in d  # 14 breaks the total cap
 
 
-def test_tuning_twins_name_each_other_and_the_tuning(cfg):
+def test_tuning_twins_name_each_other_and_both_tuning_slots(cfg):
     d = by_id(close_decisions(cfg))
     assert "#vc-review: armor-similar to; compare [id 6082" in d["6081"].note
-    assert "identical stats, tuning melee vs grenade" in d["6081"].note
+    assert (
+        "Candidate Tuning Mod Slot: Melee; Partner Tuning Mod Slot: Grenade"
+        in d["6081"].note
+    )
     assert "#vc-review: armor-similar to; compare [id 6081" in d["6082"].note
-    assert "identical stats, tuning grenade vs melee" in d["6082"].note
+    assert (
+        "Candidate Tuning Mod Slot: Grenade; Partner Tuning Mod Slot: Melee"
+        in d["6082"].note
+    )
 
 
 def test_hard_protected_gets_no_note_but_still_dominates_and_partners(cfg):

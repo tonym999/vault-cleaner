@@ -32,6 +32,21 @@ from vault_cleaner.note_history import (
             "#vc-review: armor-similar to; compare [id …6012; owner Vault]; "
             "max stat delta 2, total 4; partner closest stat distance"
         ),
+        (
+            "#vc-junk: armor-exact-dupe; keep [id …5001]; "
+            "winner higher Power; Candidate Tuning Mod Slot: Melee; "
+            "Survivor Tuning Mod Slot: Melee"
+        ),
+        (
+            "#vc-review: armor-dominated by; compare [id …6001]; +5 total; "
+            "partner largest stat surplus; Candidate Tuning Mod Slot: none/unknown; "
+            "Partner Tuning Mod Slot: none/unknown"
+        ),
+        (
+            "#vc-review: armor-similar to; compare [id …6012]; "
+            "identical stats; partner closest stat distance; "
+            "Candidate Tuning Mod Slot: Health; Partner Tuning Mod Slot: Super"
+        ),
         "#vc-junk: wishlist-trash whole-item",
         "#vc-review: wishlist-trash roll (exotic)",
         (

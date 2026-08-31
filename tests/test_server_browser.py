@@ -28,6 +28,7 @@ from vault_cleaner.server.session import Session
 FIXTURES = Path(__file__).parent / "fixtures"
 HOSTILE_EXPORT = FIXTURES / "weapons_hostile.csv"
 CLASS_ARMOR_EXPORT = FIXTURES / "armor_classes.csv"
+ARMOR_CLOSE_EXPORT = FIXTURES / "armor_close.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
@@ -184,7 +185,7 @@ def test_review_smoke_downloads_server_finalized_bytes(
     expect(class_filter.locator('option[value="Warlock"]')).to_have_text("Warlock (1)")
     expect(page.locator("#vc-f-owner")).to_have_count(0)
     headers = page.locator("#vc-list thead th")
-    expect(headers).to_have_count(9)
+    expect(headers).to_have_count(10)
     expect(page.locator("#vc-list thead")).to_contain_text("Class")
     expect(page.locator("#vc-list thead")).to_contain_text("Location")
     expect(page.locator("#vc-list tr[data-id]")).to_have_count(2)
@@ -229,3 +230,34 @@ def test_review_smoke_downloads_server_finalized_bytes(
     finalized = live_server.session.finalized_csv_bytes
     assert finalized is not None
     assert Path(download.path()).read_bytes() == finalized
+
+
+@pytest.mark.browser
+def test_armor_tuning_slots_are_visible_in_unexpanded_proposals(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Pairwise tuning is ordinary text in the existing Proposals table."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_CLOSE_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-report")).to_be_visible()
+    page.locator("#vc-f-group").select_option("flat")
+    expect(page.locator("#vc-list thead")).to_contain_text("Tuning Mod Slot")
+
+    different = page.locator('#vc-list tr[data-id="6081"]')
+    equal_unknown = page.locator('#vc-list tr[data-id="6101"]')
+    expect(different).to_be_visible()
+    expect(equal_unknown).to_be_visible()
+
+    # Name, id, kind, class, location, action, reason, tuning, protection,
+    # verdict. The pair is visible before any row expansion or hover.
+    different_tuning = different.locator("td").nth(7)
+    unknown_tuning = equal_unknown.locator("td").nth(7)
+    expect(different_tuning).to_have_text("Candidate: Melee · Selected: Grenade")
+    expect(unknown_tuning).to_have_text(
+        "Candidate: none/unknown · Selected: none/unknown"
+    )
+    assert different.locator("td").nth(7).locator("span").count() == 0
+    assert page.locator('#vc-detail-6081').count() == 0
+    assert page.locator('#vc-detail-6101').count() == 0

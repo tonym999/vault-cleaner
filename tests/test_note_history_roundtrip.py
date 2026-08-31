@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from vault_cleaner.config import load_config
+from vault_cleaner.duplicate_reference import format_tuning_comparison
 from vault_cleaner.note_history import strip_trailing_tool_clauses
 from vault_cleaner.parse import load_armor, load_ghosts, load_weapons
 from vault_cleaner.report import reason_slug
@@ -33,6 +34,17 @@ def _decision(decisions, item_id: str):
     matching = [decision for decision in decisions if decision.id == item_id]
     assert len(matching) == 1
     return matching[0]
+
+
+def _comparison_from_selected_id(
+    frame: pd.DataFrame, decision: dupes.Decision, *, selected_label: str
+) -> str:
+    rows = {str(row["Id"]): row for _, row in frame.iterrows()}
+    return format_tuning_comparison(
+        rows[decision.id]["Tuning Stat"],
+        rows[decision.kept_id]["Tuning Stat"],
+        selected_label=selected_label,
+    )
 
 
 def _assert_round_trip(
@@ -416,7 +428,13 @@ def test_exact_dupe_winner_labels_round_trip(
     frame, produce, item_id, action, reason, winner
 ):
     first = _assert_round_trip(frame, produce, item_id, action, reason)
-    assert first.note.endswith(f"; winner {winner}")
+    if reason.startswith("armor-"):
+        expected = _comparison_from_selected_id(
+            frame, first, selected_label="Survivor"
+        )
+        assert first.note.endswith(f"; winner {winner}; {expected}")
+    else:
+        assert first.note.endswith(f"; winner {winner}")
 
 
 @pytest.mark.parametrize(
@@ -447,4 +465,7 @@ def test_armor_close_partner_tie_labels_round_trip(
     # similar partners (4052 and 4053).
     first = _assert_round_trip(frame, _armor_close, item_id, "review", reason)
     assert first.kept_id == partner_id
-    assert first.note.endswith("; partner deterministic id tie-break")
+    expected = _comparison_from_selected_id(
+        frame, first, selected_label="Partner"
+    )
+    assert first.note.endswith(f"; partner deterministic id tie-break; {expected}")

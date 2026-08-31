@@ -23,6 +23,36 @@ _MAX_REFERENCE = 220
 _MAX_ID_SUFFIX_WIDTH = 16
 _MAX_ID_PREFIX_WIDTH = 8
 
+_TUNING_MOD_SLOTS = {
+    "weapons": "Weapons",
+    "health": "Health",
+    "class": "Class",
+    "grenade": "Grenade",
+    "super": "Super",
+    "melee": "Melee",
+}
+TUNING_MOD_SLOT_UNKNOWN = "none/unknown"
+
+
+def tuning_mod_slot(value: object) -> str:
+    """Present a DIM tuning value using the fixed, neutral vocabulary."""
+    return _TUNING_MOD_SLOTS.get(
+        str(value).strip().casefold(), TUNING_MOD_SLOT_UNKNOWN
+    )
+
+
+def format_tuning_comparison(
+    candidate: object,
+    selected: object,
+    *,
+    selected_label: str,
+) -> str:
+    """Render both sides of an existing armour comparison as fixed text."""
+    return (
+        f"Candidate Tuning Mod Slot: {tuning_mod_slot(candidate)}; "
+        f"{selected_label} Tuning Mod Slot: {tuning_mod_slot(selected)}"
+    )
+
 
 def safe_fragment(
     value: object,
@@ -188,9 +218,6 @@ def armor_reference(
     power = safe_fragment(row.get("Power", ""), limit=12)
     if power:
         parts.append(f"power {power}")
-    tuning = safe_fragment(row.get("Tuning Stat", ""))
-    if tuning:
-        parts.append(f"tuning {tuning}")
     spirit_names = []
     for spirit in spirits:
         rendered = safe_fragment(spirit)
