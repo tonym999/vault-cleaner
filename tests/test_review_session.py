@@ -58,8 +58,26 @@ def verdicts_for(*decisions, verdict="vetoed"):
 def test_same_proposal_ignores_display_metadata_but_compares_all_identity_fields():
     run = build_report()
     decision = proposals(run)[0]
-    display_only = replace(decision, name="renamed", location="another vault")
+    display_only = replace(
+        decision,
+        name="renamed",
+        location="another vault",
+        guardian_class="display-only class",
+    )
     assert same_proposal(decision, display_only)
+    retained = retain_verdicts(
+        verdicts_for(decision),
+        run,
+        replace_proposal(
+            run,
+            decision.id,
+            name=display_only.name,
+            location=display_only.location,
+            guardian_class=display_only.guardian_class,
+        ),
+    )
+    assert retained.retained_ids == (decision.id,)
+    assert retained.discarded_ids == ()
     assert not same_proposal(decision, replace(decision, id="different-id"))
 
     for field in ("kind", "hash", "action", "reason"):

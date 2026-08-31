@@ -141,6 +141,74 @@ def test_session_envelope_seam_preserves_local_presentation_state(tmp_path: Path
     }
 
 
+def test_authoritative_envelope_retains_valid_class_filter_and_local_state(
+    tmp_path: Path,
+):
+    harness = tmp_path / "server-ui-class-retention-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+var state = server.createState();
+function envelope(reportRevision) {
+  return {
+    schema_version: 1, state: "reviewing", report_revision: reportRevision,
+    verdict_revision: 0, fingerprint: "fingerprint-" + reportRevision,
+    snapshot: { sections: [{ kind: "armor", decisions: [
+      { id: "1", hash: "2", name: "Hunter Plate", kind: "armor",
+        guardian_class: "Hunter", location: "Titan(550)",
+        action: "review", reason: "armor-score" }
+    ] }] },
+    verdicts: [], override_status: []
+  };
+}
+server.applySessionEnvelope(envelope(1), state);
+state.sort = { field: "location", direction: "desc" };
+state.grouped = false;
+state.query.text = "Hunter";
+state.query.action = "review";
+state.query.kind = "armor";
+state.query.reason = "armor-score";
+state.query.classFacet = "Hunter";
+state.expanded["1"] = true;
+server.applySessionEnvelope(envelope(2), state);
+process.stdout.write(JSON.stringify({
+  sort: state.sort,
+  grouped: state.grouped,
+  query: state.query,
+  expanded: state.expanded["1"],
+  invalidated: state.reconciliation.invalidated
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "sort": {"field": "location", "direction": "desc"},
+        "grouped": False,
+        "query": {
+            "text": "Hunter",
+            "action": "review",
+            "kind": "armor",
+            "reason": "armor-score",
+            "classFacet": "Hunter",
+            "protection": "",
+            "verdict": "",
+        },
+        "expanded": True,
+        "invalidated": [],
+    }
+
+
 def test_session_envelope_rejects_unknown_schema_without_mutating_state(tmp_path: Path):
     harness = tmp_path / "server-ui-schema-harness.js"
     harness.write_text(
