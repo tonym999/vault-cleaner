@@ -13,14 +13,19 @@ surprises the next agent should know about.
   longer grow across runs.
 - Kept last-marker parsing for migrated or manually edited Notes, routed
   crafted-state display through the shared strict parser, and aligned armour
-  winner wording with weapon winner wording. Corrected the M9 issue reference
-  so Markdown treats it as prose rather than a heading.
+  winner wording with weapon winner wording. Corrected the M9 issue
+  reference, so Markdown treats it as prose rather than a heading.
 - This is presentation/history handling only: rule order, selection, action,
   tag, reason slug, full audit ids, report schema, fingerprint, and ruleset
   version remain unchanged. Snapshot regeneration was byte-identical.
-- Validation: Ruff passed; focused review-follow-up tests passed 213 tests;
-  the full suite passed 800 tests. `git diff --check` and the no-tracked-`data/`
-  privacy check passed.
+- Validation: Ruff passed. The focused review-follow-up command was
+  `.venv/bin/pytest -q tests/test_note_history.py tests/test_dupes.py
+  tests/test_armor_dupes.py tests/test_armor_close.py
+  tests/test_duplicate_reference.py tests/test_weapons_rules.py
+  tests/test_armor_rules.py tests/test_ghost_rules.py tests/test_report.py
+  tests/test_report_run.py tests/test_cli_report.py`; it passed 213 tests.
+  The unrestricted `.venv/bin/pytest -q` suite passed 800 tests. `git diff
+  --check` and the no-tracked-`data/` privacy check passed.
 
 ## 2026-08-30 — #29 five-character suffix boundary correction
 
