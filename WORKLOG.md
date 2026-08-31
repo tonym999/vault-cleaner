@@ -3,6 +3,39 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #101 amended replan: opaque ids, exotic class dupes, same-stat groups
+
+- Applied one shared string-only `instance_id_order` helper across armor exact
+  survivor selection and group/member projection, armor close partners, armor
+  scoring ranks, and weapon exact-dupe ties. Raw ids remain unchanged for
+  leading-zero, arbitrarily large, variable-length, and non-digit values;
+  rank-first decision emission order remains stable while equal-rank ties are
+  row-order independent.
+- Bumped `RULESET_VERSION` to 4 while keeping snapshot schema v2. The
+  fingerprint change is intentional and invalidates persisted veto identity
+  from ruleset v3; review/session schemas and persistence formats are
+  unchanged.
+- Complete exotic class items now require exactly two distinct visible Spirit
+  perks. Matching exact groups retain hard-protected losers, review loadout or
+  locked losers, and junk otherwise unprotected losers with the dedicated
+  `armor-exotic-class-dupe` reason; ordinary exotic armor rails are unchanged.
+  Notes history recognizes every new exact emitter branch.
+- Extended the authoritative armor close analysis to return review-only
+  `same_stat_groups` alongside its existing pairwise decisions. Groups use
+  Hash + Tier + six stats + complete Spirit signature, ignore tuning/seasonal/
+  holofoil for membership, suppress exact-only groups, and expose raw and
+  presented variation plus each member's truthful proposal/partner and safety
+  state. The pipeline supplies the full comparison frame, and report/server
+  snapshots pass the projection through without reconstruction.
+- Updated PLAN/README, added full behavioral and parity coverage, and
+  regenerated `report_snapshot_v2.json` twice for byte-stable output. Focused
+  exact/close/armor/weapon/report/review/note-history/server/id-order tests
+  passed 457 tests; Ruff passed. The unrestricted full suite passed 880 tests
+  including real-socket and Chromium acceptance. The earlier restricted run
+  could not start those six environment-gated checks (`Operation not
+  permitted`), but no code or test failure remained. No browser production
+  code or PR was changed/opened.
+
 ## 2026-08-31 — #101 authoritative armor exact-duplicate groups
 
 - Refactored the armor exact-dupe rule into one analysis pass that returns the

@@ -42,12 +42,12 @@ BASELINE_DECISIONS = (
         "5021", ("junk", "armor-exact-dupe-tie"),
     ),
     (
-        "5032", "730", "Exotic Mark", "Vault", "Titan", "review", "",
+        "5032", "730", "Exotic Mark", "Vault", "Titan", "junk", "junk",
         (
-            "#vc-review: armor-exact-dupe (exotic); keep [id 5031; location Vault; "
+            "#vc-junk: armor-exotic-class-dupe; keep [id 5031; location Vault; "
             "MW1; power 0; spirits Contact + Assassin]; winner higher Masterwork Tier"
         ),
-        "5031", ("review", "armor-exact-dupe"),
+        "5031", ("junk", "armor-exotic-class-dupe"),
     ),
     (
         "5061", "770", "Equipped Plate", "Vault", "Titan", "junk", "junk",
@@ -178,11 +178,11 @@ def test_reversing_the_csv_changes_nothing():
     assert forward == reversed_
 
 
-def test_exotic_loser_reviews_and_spirit_roll_splits_the_group():
+def test_complete_exotic_class_loser_junks_and_spirit_roll_splits_the_group():
     d = by_id(decisions())
     assert "5031" not in d  # best exotic copy survives
-    assert d["5032"].action == "review"
-    assert "#vc-review: armor-exact-dupe (exotic); keep [id 5031" in d["5032"].note
+    assert d["5032"].action == "junk"
+    assert "#vc-junk: armor-exotic-class-dupe; keep [id 5031" in d["5032"].note
     assert "5033" not in d  # different Spirit combo — a different roll
 
 
@@ -249,6 +249,45 @@ def test_truncated_spirit_signatures_never_group():
     # two distinct rolls sharing their first Spirit must not merge
     d = by_id(decisions())
     assert "5131" not in d and "5132" not in d
+
+
+def test_more_than_two_spirit_perks_is_unknown_and_never_groups():
+    armor = load_armor(FIXTURE)
+    armor.loc[armor["Id"] == "5031", "Perks 2"] = "Spirit of Alpha Lupi"
+    result = analyse(armor, crafted_level_protect=10)
+    assert "730" not in {group.hash for group in result.groups}
+    assert "5031" not in {decision.id for decision in result.decisions}
+    assert "5032" not in {decision.id for decision in result.decisions}
+
+
+@pytest.mark.parametrize("state", ["hard", "loadout", "locked"])
+def test_complete_exotic_class_loser_respects_narrow_protection_rails(state):
+    armor = load_armor(FIXTURE)
+    # An equipped survivor makes the state under test unambiguously a loser;
+    # the complete Spirit pair remains the exact identity.
+    armor.loc[armor["Id"] == "5031", "Equipped"] = "true"
+    if state == "hard":
+        armor.loc[armor["Id"] == "5032", "Equipped"] = "true"
+    elif state == "loadout":
+        armor.loc[armor["Id"] == "5032", "Loadouts"] = "PvE Build"
+    else:
+        armor.loc[armor["Id"] == "5032", "Locked"] = "true"
+
+    result = analyse(armor, crafted_level_protect=10)
+    decisions_by_id = {decision.id: decision for decision in result.decisions}
+    group = next(group for group in result.groups if group.hash == "730")
+    member_by_id = {member.id: member for member in group.members}
+    if state == "hard":
+        assert "5032" not in decisions_by_id
+        assert member_by_id["5032"].disposition == "retained_protected"
+        assert member_by_id["5032"].protection_level == "hard"
+    else:
+        assert decisions_by_id["5032"].action == "review"
+        assert reason_slug(decisions_by_id["5032"].note) == (
+            "review", "armor-exotic-class-dupe"
+        )
+        assert member_by_id["5032"].disposition == "proposed_review"
+        assert member_by_id["5032"].protection_reason == state
 
 
 def test_plain_exotics_without_spirits_still_group():
@@ -319,8 +358,10 @@ def test_analysis_projects_complete_groups_and_decision_dispositions():
     assert len(result.decisions) == 10
     assert len(result.groups) == 10
     group = next(group for group in result.groups if group.hash == "710")
+    assert group.group_kind == "exact_duplicate"
     assert group.group_id == "5011"
     assert group.preferred_survivor_id == "5011"
+    assert group.tier == 5
     assert group.stats == {
         "weapons": 5,
         "health": 20,
@@ -330,14 +371,15 @@ def test_analysis_projects_complete_groups_and_decision_dispositions():
         "melee": 30,
     }
     assert group.tuning_mod_slot == "Grenade"
-    assert [member.id for member in group.members] == ["5011", "5013", "5012"]
-    assert [member.disposition for member in group.members] == [
-        "preferred_survivor",
-        "retained_protected",
-        "proposed_review",
-    ]
-    retained = group.members[1]
-    survivor = group.members[0]
+    assert [member.id for member in group.members] == ["5011", "5012", "5013"]
+    dispositions = {member.id: member.disposition for member in group.members}
+    assert dispositions == {
+        "5011": "preferred_survivor",
+        "5012": "proposed_review",
+        "5013": "retained_protected",
+    }
+    retained = next(member for member in group.members if member.id == "5013")
+    survivor = next(member for member in group.members if member.id == "5011")
     assert survivor.location == "Vault"
     assert survivor.protection_level == "hard"
     assert survivor.protection_reason == "dim-tag:keep"
@@ -356,7 +398,7 @@ def test_analysis_projects_complete_groups_and_decision_dispositions():
     assert retained.masterwork_tier == 0
     assert retained.power == 0
     assert retained.proposal_action is None
-    proposal = group.members[2]
+    proposal = next(member for member in group.members if member.id == "5012")
     assert proposal.location == "Vault"
     assert proposal.protection_level is None
     assert proposal.protection_reason == ""

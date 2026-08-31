@@ -38,6 +38,7 @@ from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
+from vault_cleaner.rules.id_order import instance_id_order
 
 SPIRIT_PREFIX = "Spirit of "
 
@@ -45,17 +46,20 @@ SPIRIT_PREFIX = "Spirit of "
 # kind whose roll identity lives in the Perks columns (Spirit perks).
 CLASS_ITEM_TYPES = frozenset({"Titan Mark", "Warlock Bond", "Hunter Cloak"})
 
-# A complete exotic class item roll carries exactly this many Spirit perks
-# (measured: 38/38 real copies). Fewer means the identity is truncated —
-# e.g. a Perks column beyond the schema-required Perks 0 vanished — and a
-# truncated signature could merge distinct rolls that share their first
-# Spirit. Longer can't false-merge anything, so only shorter is rejected.
+# A complete exotic class item roll carries exactly this many distinct Spirit
+# perks (measured: 38/38 real copies). Any other cardinality is unknown: a
+# truncated or future export must not accidentally merge a different roll.
 SPIRIT_ROLL_SIZE = 2
 
 
 def spirit_signature(row: pd.Series) -> tuple[str, ...]:
     """Sorted exotic-class-item Spirit perks — roll identity, unlike the
     rest of the Perks columns (swappable mods, masterwork-gated)."""
+    if (
+        row.get("Rarity", "") != "Exotic"
+        or row.get("Type", "") not in CLASS_ITEM_TYPES
+    ):
+        return ()
     spirits = set()
     for col in row.index:
         if not col.startswith("Perks "):
@@ -68,15 +72,12 @@ def spirit_signature(row: pd.Series) -> tuple[str, ...]:
 
 
 def unknown_spirit_roll(row: pd.Series) -> bool:
-    """An exotic class item exporting fewer than SPIRIT_ROLL_SIZE Spirit
-    perks is an unknown (or truncated) roll: it can't be proven identical
-    to anything, so the dupe passes must not group or compare it.
-    (Measured: every real copy shows exactly two spirits, so this only
-    fires on data we haven't seen — better silent than wrong.)"""
+    """Reject an exotic class item unless its complete two-Spirit roll is
+    visible. Unknown, truncated, and future (>2) signatures fail safe."""
     return (
         row["Rarity"] == "Exotic"
         and row["Type"] in CLASS_ITEM_TYPES
-        and len(spirit_signature(row)) < SPIRIT_ROLL_SIZE
+        and len(spirit_signature(row)) != SPIRIT_ROLL_SIZE
     )
 
 
@@ -146,12 +147,14 @@ class ArmorExactDuplicateMember:
 class ArmorExactDuplicateGroup:
     """The complete authoritative exact-dupe group for report consumers."""
 
+    group_kind: str
     group_id: str
     hash: str
     name: str
     type: str
     guardian_class: str
     item_archetype: str
+    tier: int
     stats: Mapping[str, int]
     tuning_mod_slot: str
     seasonal_mod: str
@@ -178,26 +181,39 @@ _TUNING_MOD_SLOTS = {
     "melee": "Melee",
 }
 TUNING_MOD_SLOT_UNKNOWN = "none/unknown"
-_DISPOSITION_ORDER = {
-    "preferred_survivor": 0,
-    "retained_protected": 1,
-    "proposed_junk": 2,
-    "proposed_review": 3,
-}
-
-
 def tuning_mod_slot(value: object) -> str:
     """Label the raw fingerprint tuning value without changing its identity."""
     return _TUNING_MOD_SLOTS.get(str(value).strip().casefold(), TUNING_MOD_SLOT_UNKNOWN)
 
 
-def _id_order(value: object) -> tuple[int, object]:
-    """Order opaque ids like the existing numeric tie-break, with a fallback."""
-    raw = str(value)
-    try:
-        return (0, int(raw))
-    except ValueError:
-        return (1, raw)
+def _is_complete_exotic_class_item(row: pd.Series) -> bool:
+    return (
+        row.get("Rarity", "") == "Exotic"
+        and row.get("Type", "") in CLASS_ITEM_TYPES
+        and not unknown_spirit_roll(row)
+    )
+
+
+def _effective_protection(
+    row: pd.Series, crafted_level_protect: int
+) -> tuple[str | None, str]:
+    """Apply the exact-pass exception for complete exotic class rolls.
+
+    The global rail intentionally still reports every exotic as soft
+    protected.  Exact duplicates need a narrower truth: rarity alone does
+    not protect a complete class-item loser, while a lock/loadout remains a
+    review rail and hard rails remain untouched.
+    """
+    level, reason = rails.protection(row, crafted_level_protect)
+    if not _is_complete_exotic_class_item(row):
+        return level, reason
+    if level == rails.HARD:
+        return level, reason
+    if in_loadout(row):
+        return rails.SOFT, "loadout"
+    if rails.is_true(row.get("Locked", "")):
+        return rails.SOFT, "locked"
+    return None, ""
 
 
 def _member_projection(
@@ -233,18 +249,20 @@ def _group_projection(
     # Group identity is member-derived and therefore does not move when
     # mutable ranking fields change.  It is intentionally not Hash/Name:
     # several exact groups can legitimately share either display value.
-    group_id = min((str(row["Id"]) for row in group), key=_id_order)
+    group_id = min((str(row["Id"]) for row in group), key=instance_id_order)
     stats = {
         name: rails.to_int(best[column])
         for name, column in ARMOR_STATS.items()
     }
     return ArmorExactDuplicateGroup(
+        group_kind="exact_duplicate",
         group_id=group_id,
         hash=str(best["Hash"]),
         name=str(best["Name"]),
         type=str(best["Type"]),
         guardian_class=str(best.get("Equippable", "")),
         item_archetype=str(best.get("Archetype", "")),
+        tier=rails.to_int(best.get("Tier", "")),
         stats=MappingProxyType(stats),
         tuning_mod_slot=tuning_mod_slot(best["Tuning Stat"]),
         seasonal_mod=str(best["Seasonal Mod"]),
@@ -254,10 +272,7 @@ def _group_projection(
         members=tuple(
             sorted(
                 members,
-                key=lambda member: (
-                    _DISPOSITION_ORDER[member.disposition],
-                    _id_order(member.id),
-                ),
+                key=lambda member: instance_id_order(member.id),
             )
         ),
     )
@@ -281,31 +296,42 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
         groups.values(),
         key=lambda group: (
             str(group[0]["Hash"]),
-            min((str(row["Id"]) for row in group), key=_id_order),
+            min((str(row["Id"]) for row in group), key=instance_id_order),
         ),
     )
     for group in ordered_groups:
         if len(group) < 2:
             continue
-        # int(Id) tie-break, not row position: reordering the CSV must never
-        # change the survivor.
+        # Rank first, then choose the lowest opaque instance id.  The latter
+        # is a magnitude-aware string order and never parses or rewrites Id.
+        best_rank = max(
+            _survivor_rank(row, crafted_level_protect) for row in group
+        )
+        best = min(
+            (
+                row for row in group
+                if _survivor_rank(row, crafted_level_protect) == best_rank
+            ),
+            key=lambda row: instance_id_order(row["Id"]),
+        )
+        # Preserve rank-first decision order while using the shared id order
+        # to make equal-rank rows independent of CSV order.
         keyed = sorted(
             group,
-            key=lambda r: (
-                _survivor_rank(r, crafted_level_protect),
-                -int(r["Id"]),
-            ),
+            key=lambda row: instance_id_order(row["Id"]),
+        )
+        keyed = sorted(
+            keyed,
+            key=lambda row: _survivor_rank(row, crafted_level_protect),
             reverse=True,
         )
-        best = keyed[0]
-        best_rank = _survivor_rank(best, crafted_level_protect)
         survivor_group_ids = tuple(
             sorted(
                 (str(candidate["Id"]) for candidate in group if candidate["Id"] != best["Id"]),
-                key=_id_order,
+                key=instance_id_order,
             )
         )
-        best_level, best_reason = rails.protection(best, crafted_level_protect)
+        best_level, best_reason = _effective_protection(best, crafted_level_protect)
         member_projections = [
             _member_projection(
                 best,
@@ -317,7 +343,7 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
         for row in keyed[1:]:
             if row["Id"] == best["Id"]:
                 continue
-            level, reason = rails.protection(row, crafted_level_protect)
+            level, reason = _effective_protection(row, crafted_level_protect)
             if level == rails.HARD:
                 member_projections.append(
                     _member_projection(
@@ -329,7 +355,11 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                 )
                 continue
             rank = _survivor_rank(row, crafted_level_protect)
-            rel = "armor-exact-dupe-tie" if rank == best_rank else "armor-exact-dupe"
+            rel = (
+                "armor-exotic-class-dupe"
+                if _is_complete_exotic_class_item(row)
+                else "armor-exact-dupe-tie" if rank == best_rank else "armor-exact-dupe"
+            )
             if in_loadout(row):
                 # Never junk a loadout member even when a twin survives:
                 # the loadout references this exact instance id.
@@ -377,9 +407,18 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
             )
         exact_groups.append(_group_projection(best, group, member_projections))
 
+    ordered_exact_groups = tuple(
+        sorted(
+            exact_groups,
+            key=lambda group: (
+                instance_id_order(group.group_id),
+                group.hash,
+            ),
+        )
+    )
     return ArmorExactDupeAnalysis(
         decisions=tuple(decisions),
-        groups=tuple(exact_groups),
+        groups=ordered_exact_groups,
     )
 
 

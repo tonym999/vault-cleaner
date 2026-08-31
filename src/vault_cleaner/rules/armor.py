@@ -33,6 +33,7 @@ from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
+from vault_cleaner.rules.id_order import instance_id_order
 
 N_STATS = len(ARMOR_STATS)
 
@@ -144,7 +145,9 @@ def run(
             )
             score = base + bonus
             scored_rows.append((score, base, bonus, archetype, stats, row))
-        scored_rows.sort(key=lambda t: t[0], reverse=True)
+        scored_rows.sort(
+            key=lambda t: (-t[0], instance_id_order(t[5]["Id"]))
+        )
 
         for rank, (score, base, bonus, archetype, stats, row) in enumerate(
             scored_rows, start=1
@@ -195,7 +198,7 @@ def run(
     # Phase 2: junk, except the best-scoring copy of a combo that would
     # otherwise vanish — that one is demoted to review (id breaks score
     # ties so CSV order never decides who is spared).
-    junk_bound.sort(key=lambda t: (-t[0], int(t[1]["Id"])))
+    junk_bound.sort(key=lambda t: (-t[0], instance_id_order(t[1]["Id"])))
     for score, row, detail in junk_bound:
         if survivors[_combo(row)] == 0:
             survivors[_combo(row)] += 1

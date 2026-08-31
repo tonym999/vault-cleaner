@@ -37,6 +37,7 @@ import pandas as pd
 from vault_cleaner.duplicate_reference import weapon_reference
 from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import rails
+from vault_cleaner.rules.id_order import instance_id_order
 
 # Ranking order per PLAN.md: gear tier > masterwork tier > crafted level > stat
 # total. Stat total is an exact-roll-group tiebreaker only, so cross-roll
@@ -215,14 +216,23 @@ def resolve(
     for _, group in sorted(groups.items(), key=lambda item: item[0]):
         if len(group) < 2:
             continue
+        best_key = max(rank_key(row) for row in group)
+        best = min(
+            (row for row in group if rank_key(row) == best_key),
+            key=lambda row: instance_id_order(row["Id"]),
+        )
+        # Preserve the established rank-first decision order while making
+        # equal-rank rows deterministic through the shared id order.
         keyed = sorted(
             ((rank_key(row), row) for row in group),
-            key=lambda kr: str(kr[1]["Id"]),
+            key=lambda kr: instance_id_order(kr[1]["Id"]),
         )
         keyed = sorted(keyed, key=lambda kr: kr[0], reverse=True)
-        best_key, best = keyed[0]
         survivor_group_ids = tuple(
-            candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]
+            sorted(
+                (candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]),
+                key=instance_id_order,
+            )
         )
         for key, row in keyed[1:]:
             level, reason = rails.protection(row, crafted_level_protect)

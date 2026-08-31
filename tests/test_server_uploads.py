@@ -130,11 +130,12 @@ def test_armor_exact_duplicate_groups_pass_through_server_unchanged(tmp_path):
         assert group["preferred_survivor_id"] == "5011"
         assert [member["id"] for member in group["members"]] == [
             "5011",
-            "5013",
             "5012",
+            "5013",
         ]
-        assert group["members"][1]["disposition"] == "retained_protected"
-        assert group["members"][1]["proposal_action"] is None
+        member_by_id = {member["id"]: member for member in group["members"]}
+        assert member_by_id["5013"]["disposition"] == "retained_protected"
+        assert member_by_id["5013"]["proposal_action"] is None
         assert all(isinstance(item["group_id"], str) for item in groups)
         assert all(
             isinstance(member["id"], str)
@@ -150,6 +151,31 @@ def test_armor_exact_duplicate_groups_pass_through_server_unchanged(tmp_path):
             if section["kind"] == "armor"
         )["armor"]["exact_duplicate_groups"]
         assert report_group == groups
+
+
+def test_armor_same_stat_groups_pass_through_server_unchanged(tmp_path):
+    content = (FIXTURES / "armor_close.csv").read_bytes()
+    expected = run_report(
+        config_path="config.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=FIXTURES / "armor_close.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    expected_groups = snapshot_dict(expected)["sections"][0]["armor"][
+        "same_stat_groups"
+    ]
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(client, "armor", content)
+        assert response.status_code == 200
+        armor = response.json["snapshot"]["sections"][0]["armor"]
+        assert armor["same_stat_groups"] == expected_groups
+
+        report = client.get("/api/report", base_url=ORIGIN)
+        assert report.status_code == 200
+        assert report.json["snapshot"]["sections"][0]["armor"][
+            "same_stat_groups"
+        ] == expected_groups
 
 
 def test_all_three_uploads_combine_into_one_report(tmp_path):

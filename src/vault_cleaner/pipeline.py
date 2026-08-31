@@ -21,6 +21,7 @@ from vault_cleaner.rules import armor as armor_rules
 from vault_cleaner.rules import armor_close, armor_dupes, dupes
 from vault_cleaner.rules import weapons as weapons_rules
 from vault_cleaner.rules.armor import ArmorEvaluation
+from vault_cleaner.rules.armor_close import ArmorSameStatGroup
 from vault_cleaner.rules.armor_dupes import ArmorExactDuplicateGroup
 from vault_cleaner.rules.dupes import Decision
 from vault_cleaner.wishlist import WishlistSourceData, load_all_with_sources
@@ -56,6 +57,7 @@ class ArmorPipelineResult:
     cited_ids: frozenset[str]
     kept_elsewhere: frozenset[tuple[str, str]]
     exact_duplicate_groups: tuple[ArmorExactDuplicateGroup, ...] = ()
+    same_stat_groups: tuple[ArmorSameStatGroup, ...] = ()
 
 
 def json_safe(value: object) -> object:
@@ -164,7 +166,12 @@ def resolve_armor(armor: pd.DataFrame, cfg: dict) -> ArmorPipelineResult:
     decisions = list(exact_result.decisions)
     remaining = armor[~armor["Id"].isin({decision.id for decision in decisions})]
 
-    close_decisions = armor_close.run(remaining, cfg)
+    close_result = armor_close.analyse(
+        remaining,
+        cfg,
+        group_frame=armor,
+    )
+    close_decisions = list(close_result.decisions)
     decisions += close_decisions
     remaining = remaining[
         ~remaining["Id"].isin({decision.id for decision in close_decisions})
@@ -194,4 +201,5 @@ def resolve_armor(armor: pd.DataFrame, cfg: dict) -> ArmorPipelineResult:
         cited_ids=frozenset(cited),
         kept_elsewhere=kept_elsewhere,
         exact_duplicate_groups=exact_result.groups,
+        same_stat_groups=close_result.same_stat_groups,
     )
