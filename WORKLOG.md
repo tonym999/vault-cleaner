@@ -3,6 +3,16 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #101 PR review follow-up: truthful CLI exact counts
+
+- Replaced the armor command's note-substring summary classification with the
+  shared last-marker `reason_slug` parser and explicit exact/close reason
+  families. Complete exotic class-item duplicate decisions now contribute to
+  the exact-pass count without trusting stale or user-authored earlier markers.
+- Added a CLI regression proving the full armor duplicate fixture reports all
+  ten exact-pass decisions, including `armor-exotic-class-dupe`, and documented
+  the close pass's wider `group_frame` projection contract following review.
+
 ## 2026-08-31 — #101 review regression: exact protection reaches reports
 
 - Threaded an optional effective-protection classification through the

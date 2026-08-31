@@ -348,7 +348,13 @@ def analyse(
     *,
     group_frame: pd.DataFrame | None = None,
 ) -> ArmorCloseAnalysis:
-    """Run close decisions and project same-stat groups from the same pass."""
+    """Run close decisions and project same-stat groups from the same pass.
+
+    Decisions always come from ``armor``. ``group_frame`` supplies the wider
+    comparison frame for the review-only projection, so a projected member
+    may be a row that an earlier pass already decided; such a member carries
+    no close proposal metadata.
+    """
     decision_result = _close_decisions(armor, cfg)
     source = armor if group_frame is None else group_frame
     groups = _same_stat_groups(
