@@ -4,11 +4,13 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import report_run
-from vault_cleaner.config import DEFAULTS, ConfigError
+from vault_cleaner.config import DEFAULTS, ConfigError, load_config
+from vault_cleaner.parse import load_armor
 from vault_cleaner.pipeline import (
     ManifestIdentity,
     WeaponPipelineResult,
     WishlistSourceIdentity,
+    resolve_armor,
 )
 from vault_cleaner.report_run import (
     NoExportsError,
@@ -23,6 +25,7 @@ from vault_cleaner.rules import armor as armor_rules
 FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = FIXTURES / "weapons_dupes.csv"
 ARMOR = FIXTURES / "armor.csv"
+ARMOR_DUPES = FIXTURES / "armor_dupes.csv"
 CLASS_ARMOR = FIXTURES / "armor_classes.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
 HOSTILE = FIXTURES / "weapons_hostile.csv"
@@ -226,6 +229,125 @@ def test_regeneration_script_reproduces_the_committed_golden(tmp_path):
 
 def test_snapshot_matches_schema_v2_golden():
     assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
+
+
+def test_snapshot_contains_authoritative_complete_armor_duplicate_groups():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=ARMOR_DUPES,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    section = result.sections[0]
+    assert section.armor is not None
+    assert len(section.armor.exact_duplicate_groups) == 10
+
+    document = snapshot_dict(result)
+    armor = document["sections"][0]
+    groups = armor["armor"]["exact_duplicate_groups"]
+    group = next(group for group in groups if group["hash"] == "710")
+    assert group["group_id"] == "5011"
+    assert group["preferred_survivor_id"] == "5011"
+    assert group["guardian_class"] == "Titan"
+    assert group["item_archetype"] == ""
+    assert group["tuning_mod_slot"] == "Grenade"
+    assert group["spirit_signature"] == []
+    assert [member["id"] for member in group["members"]] == [
+        "5011",
+        "5013",
+        "5012",
+    ]
+    assert group["members"][1]["disposition"] == "retained_protected"
+    assert group["members"][2]["proposal_action"] == "review"
+    assert all(isinstance(group["group_id"], str) for group in groups)
+    assert all(
+        isinstance(member["id"], str)
+        for group in groups
+        for member in group["members"]
+    )
+
+
+def test_duplicate_group_snapshot_is_deterministic_and_keeps_ids_as_strings():
+    armor = load_armor(ARMOR_DUPES)
+
+    cfg = load_config("nonexistent.toml")
+    forward = resolve_armor(armor, cfg)
+    reversed_ = resolve_armor(armor.iloc[::-1], cfg)
+    assert forward.exact_duplicate_groups == reversed_.exact_duplicate_groups
+    assert snapshot_json(
+        run_report(
+            config_path="nonexistent.toml",
+            weapons_path=FIXTURES / "does-not-exist.csv",
+            armor_path=ARMOR_DUPES,
+            ghosts_path=FIXTURES / "does-not-exist.csv",
+            no_wishlists=True,
+        )
+    ) == snapshot_json(
+        run_report(
+            config_path="nonexistent.toml",
+            weapons_path=FIXTURES / "does-not-exist.csv",
+            armor_path=ARMOR_DUPES,
+            ghosts_path=FIXTURES / "does-not-exist.csv",
+            no_wishlists=True,
+        )
+    )
+
+
+def test_hostile_armor_group_text_is_preserved_as_json_data(tmp_path):
+    armor = load_armor(ARMOR_DUPES)
+    armor.loc[armor["Id"] == "5001", "Name"] = "<b>Dupe</b> & name"
+    armor.loc[armor["Id"] == "5001", "Owner"] = '<script>alert("x")</script>'
+    armor.loc[armor["Id"] == "5001", "Archetype"] = "<img src=x>"
+    hostile = tmp_path / "hostile-armor.csv"
+    armor.to_csv(hostile, index=False, lineterminator="\n")
+
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=hostile,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    group = snapshot_dict(result)["sections"][0]["armor"][
+        "exact_duplicate_groups"
+    ][0]
+    assert group["name"] == "<b>Dupe</b> & name"
+    assert group["item_archetype"] == "<img src=x>"
+    assert group["members"][0]["location"] == '<script>alert("x")</script>'
+
+
+def test_large_armor_group_ids_and_hashes_remain_json_strings(tmp_path):
+    survivor_id = "6917530162665277291"
+    candidate_id = "6917530162665277292"
+    large_hash = "6917530162665277001"
+    source = tmp_path / "long-armor-ids.csv"
+    source.write_text(
+        ARMOR_DUPES.read_text()
+        .replace('"""5001"""', f'"""{survivor_id}"""')
+        .replace('"""5002"""', f'"""{candidate_id}"""')
+        .replace("Dupe Plate,700,", f"Dupe Plate,{large_hash},")
+    )
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=source,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    group = snapshot_dict(result)["sections"][0]["armor"][
+        "exact_duplicate_groups"
+    ][0]
+    assert group["group_id"] == survivor_id
+    assert group["preferred_survivor_id"] == survivor_id
+    assert group["hash"] == large_hash
+    assert isinstance(group["group_id"], str)
+    assert isinstance(group["hash"], str)
+    assert all(isinstance(member["id"], str) for member in group["members"])
+    assert {member["id"] for member in group["members"]} == {
+        survivor_id,
+        candidate_id,
+    }
 
 
 def test_large_instance_ids_remain_exact_json_strings(tmp_path):

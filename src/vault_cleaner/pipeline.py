@@ -21,6 +21,7 @@ from vault_cleaner.rules import armor as armor_rules
 from vault_cleaner.rules import armor_close, armor_dupes, dupes
 from vault_cleaner.rules import weapons as weapons_rules
 from vault_cleaner.rules.armor import ArmorEvaluation
+from vault_cleaner.rules.armor_dupes import ArmorExactDuplicateGroup
 from vault_cleaner.rules.dupes import Decision
 from vault_cleaner.wishlist import WishlistSourceData, load_all_with_sources
 
@@ -54,6 +55,7 @@ class ArmorPipelineResult:
     evaluations: tuple[ArmorEvaluation, ...]
     cited_ids: frozenset[str]
     kept_elsewhere: frozenset[tuple[str, str]]
+    exact_duplicate_groups: tuple[ArmorExactDuplicateGroup, ...] = ()
 
 
 def json_safe(value: object) -> object:
@@ -156,7 +158,10 @@ def resolve_weapons(
 
 def resolve_armor(armor: pd.DataFrame, cfg: dict) -> ArmorPipelineResult:
     """Run rails → exact dupes → close dupes → score, earlier rules first."""
-    decisions = armor_dupes.run(armor, cfg["rails"]["crafted_level_protect"])
+    exact_result = armor_dupes.analyse(
+        armor, cfg["rails"]["crafted_level_protect"]
+    )
+    decisions = list(exact_result.decisions)
     remaining = armor[~armor["Id"].isin({decision.id for decision in decisions})]
 
     close_decisions = armor_close.run(remaining, cfg)
@@ -188,4 +193,5 @@ def resolve_armor(armor: pd.DataFrame, cfg: dict) -> ArmorPipelineResult:
         evaluations=tuple(score_result.evaluations),
         cited_ids=frozenset(cited),
         kept_elsewhere=kept_elsewhere,
+        exact_duplicate_groups=exact_result.groups,
     )

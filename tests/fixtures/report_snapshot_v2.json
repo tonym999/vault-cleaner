@@ -545,6 +545,7 @@
             }
           }
         ],
+        "exact_duplicate_groups": [],
         "kept_elsewhere": [
           {
             "archetype": "",

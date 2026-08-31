@@ -31,6 +31,7 @@ from vault_cleaner.report import reason_slug
 from vault_cleaner.rules import ghosts as ghost_rules
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor import ArmorEvaluation
+from vault_cleaner.rules.armor_dupes import ArmorExactDuplicateGroup
 from vault_cleaner.rules.dupes import Decision
 
 SNAPSHOT_SCHEMA_VERSION = 2
@@ -111,6 +112,7 @@ class ArmorSectionDetails:
     evaluations: tuple[ArmorEvaluation, ...]
     cited_ids: frozenset[str]
     kept_elsewhere: frozenset[tuple[str, str]]
+    exact_duplicate_groups: tuple[ArmorExactDuplicateGroup, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -307,6 +309,43 @@ def _evaluation_snapshot(
     return data
 
 
+def _exact_duplicate_group_snapshot(
+    group: ArmorExactDuplicateGroup,
+) -> dict:
+    """Serialize the rule-produced exact group without rebuilding its data."""
+    return {
+        "group_id": str(group.group_id),
+        "hash": str(group.hash),
+        "name": group.name,
+        "type": group.type,
+        "guardian_class": group.guardian_class,
+        "item_archetype": group.item_archetype,
+        "stats": {name: int(value) for name, value in group.stats.items()},
+        "tuning_mod_slot": group.tuning_mod_slot,
+        "seasonal_mod": group.seasonal_mod,
+        "holofoil": group.holofoil,
+        "spirit_signature": list(group.spirit_signature),
+        "preferred_survivor_id": str(group.preferred_survivor_id),
+        "members": [
+            {
+                "id": str(member.id),
+                "location": member.location,
+                "protection_level": member.protection_level,
+                "protection_reason": member.protection_reason,
+                "equipped": member.equipped,
+                "in_loadout": member.in_loadout,
+                "locked": member.locked,
+                "masterwork_tier": member.masterwork_tier,
+                "power": member.power,
+                "disposition": member.disposition,
+                "proposal_action": member.proposal_action,
+                "proposal_reason": member.proposal_reason,
+            }
+            for member in group.members
+        ],
+    }
+
+
 def snapshot_dict(run: ReportRun) -> dict:
     """Return the stable, JSON-safe schema consumed by later M7 tickets."""
     sections = []
@@ -331,6 +370,10 @@ def snapshot_dict(run: ReportRun) -> dict:
                 "kept_elsewhere": [
                     {"hash": item_hash, "archetype": archetype}
                     for item_hash, archetype in sorted(section.armor.kept_elsewhere)
+                ],
+                "exact_duplicate_groups": [
+                    _exact_duplicate_group_snapshot(group)
+                    for group in section.armor.exact_duplicate_groups
                 ],
             }
         sections.append(section_data)
@@ -462,6 +505,7 @@ def run_report(
                 evaluations=armor_result.evaluations,
                 cited_ids=armor_result.cited_ids,
                 kept_elsewhere=armor_result.kept_elsewhere,
+                exact_duplicate_groups=armor_result.exact_duplicate_groups,
             )
         else:
             decisions = ghost_rules.run(items)

@@ -3,6 +3,34 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #101 authoritative armor exact-duplicate groups
+
+- Refactored the armor exact-dupe rule into one analysis pass that returns the
+  existing decisions together with complete immutable exact-group/member
+  projections. Group ids use the lowest member id, groups and members have
+  deterministic ordering, and additional hard-protected copies are represented
+  as `retained_protected` rather than a second survivor.
+- Projected the existing Hash/stats/raw identity fields plus explicit generic
+  Tuning Mod Slot labels (`Weapons`, `Health`, `Class`, `Grenade`, `Super`,
+  `Melee`, or `none/unknown`) through the armor pipeline and report snapshot.
+  Proposed members carry the exact branch action/reason; no decision, ruleset,
+  fingerprint, pass ordering, or later-pass filtering semantics changed.
+- Kept the coordinated #105 compatibility boundary: snapshot schema remains
+  v2, ruleset remains v3, and the decision fingerprint inputs remain unchanged.
+  Regenerated `report_snapshot_v2.json` deliberately; its only change is the
+  empty `exact_duplicate_groups` projection for the standard report fixture.
+  Added report, server pass-through, reversal, disposition, string-id, and
+  inert hostile-text regressions. No server production, UI, review, persistence,
+  or lifecycle code changed.
+- Follow-up review added a static origin/main decision capture covering every
+  Decision field and reason slug, plus complete group metadata/state, all
+  tuning labels, Spirit/Hash safety boundaries, and 64-bit-ish hash strings.
+- Validation: focused armor/report/server/Ruff gate passed (193 tests), and
+  golden regeneration was byte-stable (report-run suite: 27 tests). The full
+  local suite reached 849 passed and 1 skipped; its 4 socket failures and 2
+  Chromium startup errors were environment-only `Operation not permitted`
+  restrictions from the sandbox, so Sol should rerun those tests unrestricted.
+
 ## 2026-08-31 — #105 location and Guardian class split
 
 - Measured one fresh private armour export using aggregates only: 891 rows;

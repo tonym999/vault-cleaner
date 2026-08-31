@@ -112,6 +112,46 @@ def test_hostile_unicode_decision_survives_server_upload(tmp_path):
         assert "\u2028" in hostile["note"] and "\u2029" in hostile["note"]
 
 
+def test_armor_exact_duplicate_groups_pass_through_server_unchanged(tmp_path):
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(
+            client,
+            "armor",
+            (FIXTURES / "armor_dupes.csv").read_bytes(),
+        )
+
+        assert response.status_code == 200
+        snapshot = response.json["snapshot"]
+        armor = next(
+            section for section in snapshot["sections"] if section["kind"] == "armor"
+        )
+        groups = armor["armor"]["exact_duplicate_groups"]
+        group = next(group for group in groups if group["hash"] == "710")
+        assert group["preferred_survivor_id"] == "5011"
+        assert [member["id"] for member in group["members"]] == [
+            "5011",
+            "5013",
+            "5012",
+        ]
+        assert group["members"][1]["disposition"] == "retained_protected"
+        assert group["members"][1]["proposal_action"] is None
+        assert all(isinstance(item["group_id"], str) for item in groups)
+        assert all(
+            isinstance(member["id"], str)
+            for item in groups
+            for member in item["members"]
+        )
+
+        report = client.get("/api/report", base_url=ORIGIN)
+        assert report.status_code == 200
+        report_group = next(
+            section
+            for section in report.json["snapshot"]["sections"]
+            if section["kind"] == "armor"
+        )["armor"]["exact_duplicate_groups"]
+        assert report_group == groups
+
+
 def test_all_three_uploads_combine_into_one_report(tmp_path):
     with make_client(tmp_path) as (client, session):
         for kind, fixture in (

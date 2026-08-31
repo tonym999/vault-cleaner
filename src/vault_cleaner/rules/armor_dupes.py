@@ -27,6 +27,10 @@ locked > masterwork tier > power, then lowest instance id.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
+
 import pandas as pd
 
 from vault_cleaner.duplicate_reference import armor_reference
@@ -120,32 +124,209 @@ def _winner_reason(best_rank: tuple, loser_rank: tuple) -> str:
     return "deterministic id tie-break"
 
 
-def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
+@dataclass(frozen=True)
+class ArmorExactDuplicateMember:
+    """A stable, read-only projection of one member of an exact group."""
+
+    id: str
+    location: str
+    protection_level: str | None
+    protection_reason: str
+    equipped: bool
+    in_loadout: bool
+    locked: bool
+    masterwork_tier: int
+    power: int
+    disposition: str
+    proposal_action: str | None
+    proposal_reason: str | None
+
+
+@dataclass(frozen=True)
+class ArmorExactDuplicateGroup:
+    """The complete authoritative exact-dupe group for report consumers."""
+
+    group_id: str
+    hash: str
+    name: str
+    type: str
+    guardian_class: str
+    item_archetype: str
+    stats: Mapping[str, int]
+    tuning_mod_slot: str
+    seasonal_mod: str
+    holofoil: str
+    spirit_signature: tuple[str, ...]
+    preferred_survivor_id: str
+    members: tuple[ArmorExactDuplicateMember, ...]
+
+
+@dataclass(frozen=True)
+class ArmorExactDupeAnalysis:
+    """One exact-dupe pass result: decisions and their complete groups."""
+
+    decisions: tuple[Decision, ...]
+    groups: tuple[ArmorExactDuplicateGroup, ...]
+
+
+_TUNING_MOD_SLOTS = {
+    "weapons": "Weapons",
+    "health": "Health",
+    "class": "Class",
+    "grenade": "Grenade",
+    "super": "Super",
+    "melee": "Melee",
+}
+TUNING_MOD_SLOT_UNKNOWN = "none/unknown"
+_DISPOSITION_ORDER = {
+    "preferred_survivor": 0,
+    "retained_protected": 1,
+    "proposed_junk": 2,
+    "proposed_review": 3,
+}
+
+
+def tuning_mod_slot(value: object) -> str:
+    """Label the raw fingerprint tuning value without changing its identity."""
+    return _TUNING_MOD_SLOTS.get(str(value).strip().casefold(), TUNING_MOD_SLOT_UNKNOWN)
+
+
+def _id_order(value: object) -> tuple[int, object]:
+    """Order opaque ids like the existing numeric tie-break, with a fallback."""
+    raw = str(value)
+    try:
+        return (0, int(raw))
+    except ValueError:
+        return (1, raw)
+
+
+def _member_projection(
+    row: pd.Series,
+    *,
+    level: str | None,
+    protection_reason: str,
+    disposition: str,
+    proposal_action: str | None = None,
+    proposal_reason: str | None = None,
+) -> ArmorExactDuplicateMember:
+    return ArmorExactDuplicateMember(
+        id=str(row["Id"]),
+        location=str(row.get("Owner", "")),
+        protection_level=level,
+        protection_reason=str(protection_reason),
+        equipped=rails.is_true(row.get("Equipped", "")),
+        in_loadout=in_loadout(row),
+        locked=rails.is_true(row.get("Locked", "")),
+        masterwork_tier=rails.to_int(row["Masterwork Tier"]),
+        power=rails.to_int(row["Power"]),
+        disposition=disposition,
+        proposal_action=proposal_action,
+        proposal_reason=proposal_reason,
+    )
+
+
+def _group_projection(
+    best: pd.Series,
+    group: list[pd.Series],
+    members: list[ArmorExactDuplicateMember],
+) -> ArmorExactDuplicateGroup:
+    # Group identity is member-derived and therefore does not move when
+    # mutable ranking fields change.  It is intentionally not Hash/Name:
+    # several exact groups can legitimately share either display value.
+    group_id = min((str(row["Id"]) for row in group), key=_id_order)
+    stats = {
+        name: rails.to_int(best[column])
+        for name, column in ARMOR_STATS.items()
+    }
+    return ArmorExactDuplicateGroup(
+        group_id=group_id,
+        hash=str(best["Hash"]),
+        name=str(best["Name"]),
+        type=str(best["Type"]),
+        guardian_class=str(best.get("Equippable", "")),
+        item_archetype=str(best.get("Archetype", "")),
+        stats=MappingProxyType(stats),
+        tuning_mod_slot=tuning_mod_slot(best["Tuning Stat"]),
+        seasonal_mod=str(best["Seasonal Mod"]),
+        holofoil=str(best["Holofoil"]),
+        spirit_signature=spirit_signature(best),
+        preferred_survivor_id=str(best["Id"]),
+        members=tuple(
+            sorted(
+                members,
+                key=lambda member: (
+                    _DISPOSITION_ORDER[member.disposition],
+                    _id_order(member.id),
+                ),
+            )
+        ),
+    )
+
+
+def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAnalysis:
+    """Run the exact pass once and return decisions plus complete groups."""
     decisions: list[Decision] = []
+    exact_groups: list[ArmorExactDuplicateGroup] = []
     groups: dict[tuple, list[pd.Series]] = {}
     for _, row in armor.iterrows():
         if unknown_spirit_roll(row):
             continue
         groups.setdefault(fingerprint(row), []).append(row)
 
-    for group in groups.values():
+    # Group and member order must not depend on the incoming CSV order.  The
+    # key deliberately includes the existing fingerprint (including Hash),
+    # while the member-derived id makes the ordering easy for consumers to
+    # reason about and keeps group ids stable across mutable rank changes.
+    ordered_groups = sorted(
+        groups.values(),
+        key=lambda group: (
+            str(group[0]["Hash"]),
+            min((str(row["Id"]) for row in group), key=_id_order),
+        ),
+    )
+    for group in ordered_groups:
         if len(group) < 2:
             continue
         # int(Id) tie-break, not row position: reordering the CSV must never
         # change the survivor.
-        best = max(
+        keyed = sorted(
             group,
-            key=lambda r: (_survivor_rank(r, crafted_level_protect), -int(r["Id"])),
+            key=lambda r: (
+                _survivor_rank(r, crafted_level_protect),
+                -int(r["Id"]),
+            ),
+            reverse=True,
         )
+        best = keyed[0]
         best_rank = _survivor_rank(best, crafted_level_protect)
         survivor_group_ids = tuple(
-            candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]
+            sorted(
+                (str(candidate["Id"]) for candidate in group if candidate["Id"] != best["Id"]),
+                key=_id_order,
+            )
         )
-        for row in group:
+        best_level, best_reason = rails.protection(best, crafted_level_protect)
+        member_projections = [
+            _member_projection(
+                best,
+                level=best_level,
+                protection_reason=best_reason,
+                disposition="preferred_survivor",
+            )
+        ]
+        for row in keyed[1:]:
             if row["Id"] == best["Id"]:
                 continue
             level, reason = rails.protection(row, crafted_level_protect)
             if level == rails.HARD:
+                member_projections.append(
+                    _member_projection(
+                        row,
+                        level=level,
+                        protection_reason=reason,
+                        disposition="retained_protected",
+                    )
+                )
                 continue
             rank = _survivor_rank(row, crafted_level_protect)
             rel = "armor-exact-dupe-tie" if rank == best_rank else "armor-exact-dupe"
@@ -172,6 +353,18 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}"
                 )
+            member_projections.append(
+                _member_projection(
+                    row,
+                    level=level,
+                    protection_reason=reason,
+                    disposition=(
+                        "proposed_review" if action == "review" else "proposed_junk"
+                    ),
+                    proposal_action=action,
+                    proposal_reason=rel,
+                )
+            )
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
@@ -182,4 +375,14 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                     kept_id=best["Id"],
                 )
             )
-    return decisions
+        exact_groups.append(_group_projection(best, group, member_projections))
+
+    return ArmorExactDupeAnalysis(
+        decisions=tuple(decisions),
+        groups=tuple(exact_groups),
+    )
+
+
+def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
+    """Compatibility wrapper returning only the existing decisions."""
+    return list(analyse(armor, crafted_level_protect).decisions)

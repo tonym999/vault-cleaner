@@ -3,9 +3,101 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner.parse import SchemaError, load_armor
-from vault_cleaner.rules.armor_dupes import fingerprint, run, spirit_signature
+from vault_cleaner.report import reason_slug
+from vault_cleaner.rules.armor_dupes import (
+    analyse,
+    fingerprint,
+    run,
+    spirit_signature,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "armor_dupes.csv"
+
+# Static semantic capture from origin/main (190e8473), before the group
+# projection refactor. Every Decision field and its parsed reason is included
+# so the projection cannot silently alter the authoritative exact pass.
+BASELINE_DECISIONS = (
+    (
+        "5002", "700", "Dupe Plate", "Vault", "Titan", "junk", "junk",
+        (
+            "old note #vc-junk: armor-exact-dupe; keep [id 5001; location Vault; "
+            "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
+        ),
+        "5001", ("junk", "armor-exact-dupe"),
+    ),
+    (
+        "5012", "710", "Loadout Plate", "Vault", "Titan", "review", "",
+        (
+            "#vc-review: armor-exact-dupe (loadout); keep [id 5011; location Vault; "
+            "MW0; power 0; tuning grenade]; winner hard protection"
+        ),
+        "5011", ("review", "armor-exact-dupe"),
+    ),
+    (
+        "5022", "720", "Tie Plate", "Vault", "Titan", "junk", "junk",
+        (
+            "#vc-junk: armor-exact-dupe-tie; keep [id 5021; location Vault; "
+            "MW0; power 0; tuning class]; winner deterministic id tie-break"
+        ),
+        "5021", ("junk", "armor-exact-dupe-tie"),
+    ),
+    (
+        "5032", "730", "Exotic Mark", "Vault", "Titan", "review", "",
+        (
+            "#vc-review: armor-exact-dupe (exotic); keep [id 5031; location Vault; "
+            "MW1; power 0; spirits Contact + Assassin]; winner higher Masterwork Tier"
+        ),
+        "5031", ("review", "armor-exact-dupe"),
+    ),
+    (
+        "5061", "770", "Equipped Plate", "Vault", "Titan", "junk", "junk",
+        (
+            "#vc-junk: armor-exact-dupe; keep [id 5062; location Vault; "
+            "MW0; power 0; tuning weapons]; winner hard protection"
+        ),
+        "5062", ("junk", "armor-exact-dupe"),
+    ),
+    (
+        "5072", "780", "Power Plate", "Vault", "Titan", "junk", "junk",
+        (
+            "#vc-junk: armor-exact-dupe; keep [id 5071; location Vault; "
+            "MW3; power 460; tuning super]; winner higher Power"
+        ),
+        "5071", ("junk", "armor-exact-dupe"),
+    ),
+    (
+        "5082", "790", "Loadout Beats MW", "Vault", "Titan", "junk", "junk",
+        (
+            "#vc-junk: armor-exact-dupe; keep [id 5081; location Vault; "
+            "MW0; power 400; tuning health]; winner loadout membership"
+        ),
+        "5081", ("junk", "armor-exact-dupe"),
+    ),
+    (
+        "5092", "800", "Lock Beats MW", "Vault", "Titan", "junk", "junk",
+        (
+            "#vc-junk: armor-exact-dupe; keep [id 5091; location Vault; "
+            "MW0; power 0; tuning melee]; winner lock"
+        ),
+        "5091", ("junk", "armor-exact-dupe"),
+    ),
+    (
+        "5102", "810", "Locked Pair", "Vault", "Titan", "review", "",
+        (
+            "#vc-review: armor-exact-dupe (locked); keep [id 5101; location Vault; "
+            "MW3; power 0; tuning class]; winner higher Masterwork Tier"
+        ),
+        "5101", ("review", "armor-exact-dupe"),
+    ),
+    (
+        "5122", "830", "Plain Exotic", "Vault", "Titan", "review", "",
+        (
+            "#vc-review: armor-exact-dupe (exotic); keep [id 5121; location Vault; "
+            "MW1; power 0]; winner higher Masterwork Tier"
+        ),
+        "5121", ("review", "armor-exact-dupe"),
+    ),
+)
 
 
 def decisions(frame=None):
@@ -14,6 +106,25 @@ def decisions(frame=None):
 
 def by_id(ds):
     return {d.id: d for d in ds}
+
+
+def test_exact_decisions_match_origin_main_capture():
+    actual = tuple(
+        (
+            decision.id,
+            decision.hash,
+            decision.name,
+            decision.location,
+            decision.guardian_class,
+            decision.action,
+            decision.tag,
+            decision.note,
+            decision.kept_id,
+            reason_slug(decision.note),
+        )
+        for decision in decisions()
+    )
+    assert actual == BASELINE_DECISIONS
 
 
 def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
@@ -200,3 +311,151 @@ def test_empty_ranking_cells_stay_legitimate(tmp_path):
     ok = tmp_path / "ok.csv"
     ok.write_text("\n".join([lines[0], ",".join(row)] + lines[2:]) + "\n")
     assert len(load_armor(ok)) == len(load_armor(FIXTURE))
+
+
+def test_analysis_projects_complete_groups_and_decision_dispositions():
+    result = analyse(load_armor(FIXTURE), crafted_level_protect=10)
+
+    assert len(result.decisions) == 10
+    assert len(result.groups) == 10
+    group = next(group for group in result.groups if group.hash == "710")
+    assert group.group_id == "5011"
+    assert group.preferred_survivor_id == "5011"
+    assert group.stats == {
+        "weapons": 5,
+        "health": 20,
+        "class": 10,
+        "grenade": 5,
+        "super": 5,
+        "melee": 30,
+    }
+    assert group.tuning_mod_slot == "Grenade"
+    assert [member.id for member in group.members] == ["5011", "5013", "5012"]
+    assert [member.disposition for member in group.members] == [
+        "preferred_survivor",
+        "retained_protected",
+        "proposed_review",
+    ]
+    retained = group.members[1]
+    survivor = group.members[0]
+    assert survivor.location == "Vault"
+    assert survivor.protection_level == "hard"
+    assert survivor.protection_reason == "dim-tag:keep"
+    assert survivor.equipped is False
+    assert survivor.in_loadout is False
+    assert survivor.locked is False
+    assert survivor.masterwork_tier == 0
+    assert survivor.power == 0
+    assert survivor.proposal_action is None
+    assert survivor.proposal_reason is None
+    assert retained.protection_level == "hard"
+    assert retained.protection_reason == "equipped"
+    assert retained.equipped is True
+    assert retained.in_loadout is False
+    assert retained.locked is False
+    assert retained.masterwork_tier == 0
+    assert retained.power == 0
+    assert retained.proposal_action is None
+    proposal = group.members[2]
+    assert proposal.location == "Vault"
+    assert proposal.protection_level is None
+    assert proposal.protection_reason == ""
+    assert proposal.equipped is False
+    assert proposal.in_loadout is True
+    assert proposal.locked is False
+    assert proposal.masterwork_tier == 0
+    assert proposal.power == 0
+    assert proposal.proposal_action == "review"
+    assert proposal.proposal_reason == "armor-exact-dupe"
+
+    decisions_by_id = {decision.id: decision for decision in result.decisions}
+    for member in group.members:
+        if member.disposition.startswith("proposed_"):
+            decision = decisions_by_id[member.id]
+            assert member.proposal_action == decision.action
+        else:
+            assert member.id not in decisions_by_id
+
+
+def test_analysis_group_and_member_order_is_stable_under_reversal():
+    forward = analyse(load_armor(FIXTURE), crafted_level_protect=10)
+    reversed_ = analyse(
+        load_armor(FIXTURE).iloc[::-1], crafted_level_protect=10
+    )
+    assert forward.groups == reversed_.groups
+    assert [
+        (decision.id, decision.action, decision.note)
+        for decision in forward.decisions
+    ] == [
+        (decision.id, decision.action, decision.note)
+        for decision in reversed_.decisions
+    ]
+
+
+def test_tuning_mod_slot_uses_explicit_unknown_label_for_unrecognised_values():
+    armor = load_armor(FIXTURE)
+    armor.loc[armor["Id"] == "5001", "Tuning Stat"] = "future socket"
+    armor.loc[armor["Id"] == "5002", "Tuning Stat"] = "future socket"
+    group = next(
+        group
+        for group in analyse(armor, crafted_level_protect=10).groups
+        if group.hash == "700"
+    )
+    assert group.tuning_mod_slot == "none/unknown"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("weapons", "Weapons"),
+        ("health", "Health"),
+        ("class", "Class"),
+        ("grenade", "Grenade"),
+        ("super", "Super"),
+        ("melee", "Melee"),
+        ("", "none/unknown"),
+        ("future socket", "none/unknown"),
+    ],
+)
+def test_tuning_mod_slot_projects_all_supported_values(raw, expected):
+    armor = load_armor(FIXTURE)
+    armor.loc[armor["Id"].isin(["5001", "5002"]), "Tuning Stat"] = raw
+    group = next(
+        group
+        for group in analyse(armor, crafted_level_protect=10).groups
+        if group.hash == "700"
+    )
+    assert group.tuning_mod_slot == expected
+
+
+def test_group_projection_includes_spirit_identity_and_display_metadata():
+    armor = load_armor(FIXTURE)
+    mask = armor["Id"].isin(["5031", "5032"])
+    armor.loc[mask, "Seasonal Mod"] = "seasonal-7"
+    armor.loc[mask, "Holofoil"] = "artifice"
+    armor.loc[mask, "Archetype"] = "melee-primary"
+    group = next(
+        group
+        for group in analyse(armor, crafted_level_protect=10).groups
+        if group.hash == "730"
+    )
+    assert group.name == "Exotic Mark"
+    assert group.type == "Titan Mark"
+    assert group.guardian_class == "Titan"
+    assert group.item_archetype == "melee-primary"
+    assert group.seasonal_mod == "seasonal-7"
+    assert group.holofoil == "artifice"
+    assert group.spirit_signature == (
+        "Spirit of Contact",
+        "Spirit of the Assassin",
+    )
+    assert group.preferred_survivor_id == "5031"
+
+
+def test_group_projection_preserves_hash_and_spirit_safety_boundaries():
+    result = analyse(load_armor(FIXTURE), crafted_level_protect=10)
+    hashes = {group.hash for group in result.groups}
+    assert "830" in hashes  # plain exotics legitimately group without Spirits
+    assert "740" not in hashes and "741" not in hashes  # same name, new Hash
+    assert "820" not in hashes  # spiritless exotic class items are unknown
+    assert "840" not in hashes  # truncated Spirit signatures are unknown
