@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
 
@@ -47,7 +48,7 @@ def run(ghosts: pd.DataFrame) -> list[Decision]:
             Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
                 owner=row.get("Owner", ""), action="junk", tag="junk",
-                note=f"{row['Notes']} {hashtag}".strip(), kept_id="",
+                note=append_tool_clause(row["Notes"], hashtag), kept_id="",
             )
         )
     return decisions

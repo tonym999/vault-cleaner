@@ -31,9 +31,9 @@ _REASON_RE = re.compile(r"#vc-(junk|review): ([a-z-]+(?: [a-z-]+)*)")
 def reason_slug(note: str) -> tuple[str, str]:
     """(action, slug) parsed from the #vc- hashtag in a Notes value.
 
-    The LAST match wins: rules append hashtags to existing notes and DIM
-    round-trips them, so after an import/re-export cycle a note may carry a
-    stale hashtag from an earlier run ahead of the current one."""
+    The LAST match wins. Rules replace complete known tool clauses at the
+    Notes tail, but ambiguous historical or user-authored marker text is
+    deliberately preserved ahead of the current generated clause."""
     matches = list(_REASON_RE.finditer(note))
     if not matches:
         return "unknown", "unknown"

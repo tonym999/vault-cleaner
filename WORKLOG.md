@@ -3,6 +3,25 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #29 current-only generated Notes
+
+- Replaced complete, known vault-cleaner clauses at the trailing `Notes`
+  boundary before appending the current clause across weapon, armour, armour
+  close-duplicate, and ghost rules. User-authored prefixes, ambiguous
+  tool-looking fragments, and text following them remain untouched; a
+  five-cycle DIM-style round-trip regression confirms generated Notes no
+  longer grow across runs.
+- Kept last-marker parsing for migrated or manually edited Notes, routed
+  crafted-state display through the shared strict parser, and aligned armour
+  winner wording with weapon winner wording. Corrected the M9 issue reference
+  so Markdown treats it as prose rather than a heading.
+- This is presentation/history handling only: rule order, selection, action,
+  tag, reason slug, full audit ids, report schema, fingerprint, and ruleset
+  version remain unchanged. Snapshot regeneration was byte-identical.
+- Validation: Ruff passed; focused review-follow-up tests passed 213 tests;
+  the full suite passed 800 tests. `git diff --check` and the no-tracked-`data/`
+  privacy check passed.
+
 ## 2026-08-30 — #29 five-character suffix boundary correction
 
 - Corrected the bounded collision presenter so prefix-plus-suffix displays

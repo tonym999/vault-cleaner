@@ -37,6 +37,7 @@ from __future__ import annotations
 import pandas as pd
 
 from vault_cleaner.duplicate_reference import armor_reference, safe_fragment
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor_dupes import spirit_signature, unknown_spirit_roll
@@ -154,7 +155,8 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
                 Decision(
                     id=rid, hash=row["Hash"], name=row["Name"],
                     owner=row.get("Owner", ""), action="review", tag=row["Tag"],
-                    note=f"{row['Notes']} {hashtag}".strip(), kept_id=partner_id,
+                    note=append_tool_clause(row["Notes"], hashtag),
+                    kept_id=partner_id,
                 )
             )
     return decisions

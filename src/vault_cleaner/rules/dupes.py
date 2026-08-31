@@ -35,6 +35,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from vault_cleaner.duplicate_reference import weapon_reference
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import rails
 
 # Ranking order per PLAN.md: gear tier > masterwork tier > crafted level > stat
@@ -185,7 +186,7 @@ class Decision:
     owner: str
     action: str  # "junk" | "review"
     tag: str  # what the output row will carry
-    note: str  # full Notes cell (existing notes + our hashtag)
+    note: str  # user Notes plus the current generated clause
     kept_id: str  # the surviving copy this one lost (or tied) against
 
 
@@ -244,7 +245,7 @@ def resolve(
                     f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=survivor_group_ids)}; "
                     f"winner {_winner_reason(best_key, key)}"
                 )
-            note = f"{row['Notes']} {hashtag}".strip()
+            note = append_tool_clause(row["Notes"], hashtag)
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],

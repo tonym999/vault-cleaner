@@ -14,6 +14,8 @@ import unicodedata
 from collections.abc import Iterable
 from hashlib import sha256
 
+from vault_cleaner.parse import is_crafted
+
 _TOOL_MARKER_RE = re.compile(r"#vc-", re.IGNORECASE)
 _STRUCTURAL_CHARS = str.maketrans({"[": "［", "]": "］", ";": "；"})
 _MAX_FRAGMENT = 48
@@ -159,7 +161,7 @@ def weapon_reference(
     if masterwork:
         parts.append(f"MW{masterwork}")
     crafted = safe_fragment(row.get("Crafted Level", ""), limit=12)
-    if str(row.get("Crafted", "")).strip().casefold() == "crafted" and crafted:
+    if is_crafted(row.get("Crafted", "")) and crafted:
         parts.append(f"crafted lv{crafted}")
     perks = [safe_fragment(perk) for perk in perk_prefix if str(perk).strip()]
     if perks:

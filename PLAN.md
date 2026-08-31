@@ -113,10 +113,13 @@ authoritative. Delivery is sequenced as:
 #102 Armor duplicates browser view
 ```
 
-#29 owns the shared human-readable survivor/partner references and the
+Issue `#29` owns the shared human-readable survivor/partner references and the
 existing full `ReportDecision.id`/`kept_id` audit values. #101 owns the
 authoritative armour exact-duplicate group projection, and #102 owns its
 browser rendering; neither downstream surface is part of #29.
+Complete known vault-cleaner clauses at the trailing `Notes` boundary are
+replaced on a later run, so only the current tool-generated explanation is
+retained while user-authored and ambiguous text is preserved.
 
 ## Risks & mitigations
 

@@ -23,9 +23,9 @@ def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
     assert d["5002"].tag == "junk"
     assert d["5002"].note == (
         "old note #vc-junk: armor-exact-dupe; keep [id 5001; owner Vault; "
-        "MW5; power 450; tuning melee]; winner Masterwork Tier"
+        "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
     )
-    assert "winner Masterwork Tier" in d["5002"].note
+    assert "winner higher Masterwork Tier" in d["5002"].note
 
 
 def test_loadout_referenced_loser_reviews_never_junk():
@@ -45,7 +45,7 @@ def test_tie_survivor_is_lowest_id_not_row_order():
     assert "5021" not in d
     assert d["5022"].action == "junk"
     assert "#vc-junk: armor-exact-dupe-tie; keep [id 5021" in d["5022"].note
-    assert "winner deterministic lowest id tie-break" in d["5022"].note
+    assert "winner deterministic id tie-break" in d["5022"].note
 
 
 def test_reversing_the_csv_changes_nothing():
@@ -90,7 +90,7 @@ def test_power_breaks_masterwork_tie():
     assert "5071" not in d
     assert d["5072"].action == "junk"
     assert d["5072"].kept_id == "5071"
-    assert "winner Power" in d["5072"].note
+    assert "winner higher Power" in d["5072"].note
 
 
 def test_loadout_membership_outranks_masterwork():

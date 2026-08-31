@@ -34,6 +34,37 @@ def test_junk_note_appends_to_existing_notes():
     )
 
 
+def test_current_note_replaces_trailing_generated_history():
+    weapons = load_weapons(FIXTURE)
+    old = (
+        "manual build note #vc-junk: dupe-lower; keep "
+        "[id 9999; owner Old]; winner higher Tier"
+    )
+    weapons.loc[weapons["Id"] == "3002", "Notes"] = old
+
+    decision = by_id(resolve(weapons, crafted_level_protect=10))["3002"]
+
+    assert decision.note.startswith("manual build note #vc-junk: dupe-lower;")
+    assert decision.note.count("#vc-junk:") == 1
+    assert "owner Old" not in decision.note
+    assert "owner Vault" in decision.note
+
+
+def test_repeated_round_trips_keep_one_current_tool_clause():
+    weapons = load_weapons(FIXTURE)
+    weapons.loc[weapons["Id"] == "3002", "Notes"] = "manual build note"
+    lengths = []
+
+    for _ in range(5):
+        decision = by_id(resolve(weapons, crafted_level_protect=10))["3002"]
+        lengths.append(len(decision.note))
+        weapons.loc[weapons["Id"] == "3002", "Notes"] = decision.note
+
+    assert len(set(lengths)) == 1
+    assert decision.note.count("#vc-junk:") == 1
+    assert decision.note.startswith("manual build note #vc-junk:")
+
+
 def test_locked_dupe_is_review_not_junk():
     d = by_id(decisions())
     assert d["3003"].action == "review"

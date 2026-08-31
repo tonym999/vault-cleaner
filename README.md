@@ -50,6 +50,11 @@ throughout the group, without exposing a complete long id.
 Winner text describes the existing duplicate selector and does not change
 which item the rules choose.
 
+When DIM re-exports a prior result, vault-cleaner replaces complete known
+tool-generated clauses at the end of `Notes` before appending the current
+reason. User-authored text and ambiguous marker-like text remain untouched,
+so repeated runs do not accumulate another expanded duplicate reference.
+
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:
 

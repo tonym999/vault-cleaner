@@ -120,6 +120,16 @@ def test_weapon_reference_has_only_a_short_id_and_bounded_roll_detail():
     assert "roll Frame A / Trait A" in rendered
 
 
+def test_weapon_reference_uses_the_shared_crafted_state_parser():
+    row = load_weapons(FIXTURES / "weapons_dupes.csv").iloc[0]
+    row["Crafted"] = " CRAFTED "
+    row["Crafted Level"] = "4"
+
+    rendered = weapon_reference(row)
+
+    assert "crafted lv4" in rendered
+
+
 def test_armour_reference_compacts_spirit_names():
     row = load_armor(FIXTURES / "armor_dupes.csv").iloc[7]
     row["Id"] = "6917530162665277291"

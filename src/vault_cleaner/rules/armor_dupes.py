@@ -30,6 +30,7 @@ from __future__ import annotations
 import pandas as pd
 
 from vault_cleaner.duplicate_reference import armor_reference
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
@@ -110,13 +111,13 @@ def _winner_reason(best_rank: tuple, loser_rank: tuple) -> str:
         "hard protection",
         "loadout membership",
         "lock",
-        "Masterwork Tier",
-        "Power",
+        "higher Masterwork Tier",
+        "higher Power",
     )
     for index, label in enumerate(labels):
         if best_rank[index] != loser_rank[index]:
             return label
-    return "deterministic lowest id tie-break"
+    return "deterministic id tie-break"
 
 
 def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
@@ -175,7 +176,8 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
                     owner=row.get("Owner", ""), action=action, tag=tag,
-                    note=f"{row['Notes']} {hashtag}".strip(), kept_id=best["Id"],
+                    note=append_tool_clause(row["Notes"], hashtag),
+                    kept_id=best["Id"],
                 )
             )
     return decisions
