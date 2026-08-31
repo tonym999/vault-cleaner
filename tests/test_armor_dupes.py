@@ -21,7 +21,11 @@ def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
     assert "5001" not in d  # survivor: no output row
     assert d["5002"].action == "junk"
     assert d["5002"].tag == "junk"
-    assert d["5002"].note == "old note #vc-junk: armor-exact-dupe, kept 5001"
+    assert d["5002"].note == (
+        "old note #vc-junk: armor-exact-dupe; keep [id 5001; owner Vault; "
+        "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
+    )
+    assert "winner higher Masterwork Tier" in d["5002"].note
 
 
 def test_loadout_referenced_loser_reviews_never_junk():
@@ -31,7 +35,7 @@ def test_loadout_referenced_loser_reviews_never_junk():
     assert "5011" not in d  # hard-protected survivor (tagged keep)
     assert d["5012"].action == "review"
     assert d["5012"].tag == ""  # existing tag preserved
-    assert "#vc-review: armor-exact-dupe (loadout), kept 5011" in d["5012"].note
+    assert "#vc-review: armor-exact-dupe (loadout); keep [id 5011" in d["5012"].note
     assert "5013" not in d  # equipped copy loses the id tie-break but is hard: no row
 
 
@@ -40,7 +44,8 @@ def test_tie_survivor_is_lowest_id_not_row_order():
     d = by_id(decisions())
     assert "5021" not in d
     assert d["5022"].action == "junk"
-    assert "#vc-junk: armor-exact-dupe-tie, kept 5021" in d["5022"].note
+    assert "#vc-junk: armor-exact-dupe-tie; keep [id 5021" in d["5022"].note
+    assert "winner deterministic id tie-break" in d["5022"].note
 
 
 def test_reversing_the_csv_changes_nothing():
@@ -53,7 +58,7 @@ def test_exotic_loser_reviews_and_spirit_roll_splits_the_group():
     d = by_id(decisions())
     assert "5031" not in d  # best exotic copy survives
     assert d["5032"].action == "review"
-    assert "#vc-review: armor-exact-dupe (exotic), kept 5031" in d["5032"].note
+    assert "#vc-review: armor-exact-dupe (exotic); keep [id 5031" in d["5032"].note
     assert "5033" not in d  # different Spirit combo — a different roll
 
 
@@ -85,6 +90,7 @@ def test_power_breaks_masterwork_tie():
     assert "5071" not in d
     assert d["5072"].action == "junk"
     assert d["5072"].kept_id == "5071"
+    assert "winner higher Power" in d["5072"].note
 
 
 def test_loadout_membership_outranks_masterwork():
@@ -92,6 +98,7 @@ def test_loadout_membership_outranks_masterwork():
     assert "5081" not in d  # in a loadout, mw 0: still the survivor
     assert d["5082"].action == "junk"
     assert d["5082"].kept_id == "5081"
+    assert "winner loadout membership" in d["5082"].note
 
 
 def test_lock_outranks_masterwork_and_locked_loser_reviews():
@@ -99,10 +106,11 @@ def test_lock_outranks_masterwork_and_locked_loser_reviews():
     assert "5091" not in d  # locked, mw 0: survivor over mw 5
     assert d["5092"].action == "junk"
     assert d["5092"].kept_id == "5091"
+    assert "winner lock" in d["5092"].note
     # all-locked group: loser is soft-protected, reviews with the lock named
     assert "5101" not in d
     assert d["5102"].action == "review"
-    assert "#vc-review: armor-exact-dupe (locked), kept 5101" in d["5102"].note
+    assert "#vc-review: armor-exact-dupe (locked); keep [id 5101" in d["5102"].note
 
 
 def test_spiritless_exotic_class_items_never_group():
@@ -125,7 +133,7 @@ def test_plain_exotics_without_spirits_still_group():
     d = by_id(decisions())
     assert "5121" not in d  # survivor
     assert d["5122"].action == "review"
-    assert "#vc-review: armor-exact-dupe (exotic), kept 5121" in d["5122"].note
+    assert "#vc-review: armor-exact-dupe (exotic); keep [id 5121" in d["5122"].note
 
 
 def test_fingerprint_ignores_mutable_state():

@@ -207,6 +207,36 @@ def test_large_instance_ids_remain_exact_json_strings(tmp_path):
     assert str(tmp_path) not in snapshot_json(result)
 
 
+def test_duplicate_snapshot_keeps_full_candidate_and_survivor_ids(tmp_path):
+    candidate_id = "6917530162665277292"
+    survivor_id = "6917530162665277291"
+    source = tmp_path / "long-ids.csv"
+    source.write_text(
+        WEAPONS.read_text()
+        .replace('"""3001"""', f'"""{survivor_id}"""')
+        .replace('"""3002"""', f'"""{candidate_id}"""')
+    )
+
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=source,
+        armor_path=tmp_path / "missing-armor.csv",
+        ghosts_path=tmp_path / "missing-ghosts.csv",
+        no_wishlists=True,
+    )
+    document = json.loads(snapshot_json(result))
+    decision = next(
+        item
+        for item in document["sections"][0]["decisions"]
+        if item["id"] == candidate_id
+    )
+
+    assert decision["id"] == candidate_id
+    assert decision["kept_id"] == survivor_id
+    assert survivor_id not in decision["note"]
+    assert "[id …7291" in decision["note"]
+
+
 def test_unknown_config_is_normalized_internally_but_omitted_from_snapshot(tmp_path):
     config = tmp_path / "dated.toml"
     config.write_text(

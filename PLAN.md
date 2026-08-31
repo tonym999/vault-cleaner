@@ -99,6 +99,28 @@ all live report, upload, snapshot, fingerprint, and verdict data). Revisions
 remain monotonic across reset and shutdown; `closed` cannot be revived by any
 mutation.
 
+### M9 duplicate presentation and review UX
+
+M9 is presentation-only: the existing duplicate identity, survivor/partner
+ranking, safety rails, ordered decisions, and review semantics remain
+authoritative. Delivery is sequenced as:
+
+```text
+#29 shared survivor/partner presentation and full-id audit preservation
+    ↓
+#101 authoritative armour exact-duplicate group report projection
+    ↓
+#102 Armor duplicates browser view
+```
+
+Issue `#29` owns the shared human-readable survivor/partner references and the
+existing full `ReportDecision.id`/`kept_id` audit values. #101 owns the
+authoritative armour exact-duplicate group projection, and #102 owns its
+browser rendering; neither downstream surface is part of #29.
+Complete known vault-cleaner clauses at the trailing `Notes` boundary are
+replaced on a later run, so only the current tool-generated explanation is
+retained while user-authored and ambiguous text is preserved.
+
 ## Risks & mitigations
 
 - **DIM CSV format drift** — header-name access, a schema-sanity check on load that fails loudly, fixture tests pinned to a real export.

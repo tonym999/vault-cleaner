@@ -99,8 +99,15 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   trash decisions but do not rank exact duplicates, whose order is Tier >
   Masterwork Tier > Crafted Level >
   stat total > opaque Id.
-- DIM round-trips Notes, so `#vc-` hashtags stack across runs — always
-  parse the *last* one (`report.reason_slug` does).
+- DIM round-trips Notes. Before appending the current reason, replace only
+  complete known vault-cleaner clauses at the trailing Notes boundary;
+  preserve ambiguous/user text. Always parse the *last* `#vc-` marker
+  (`report.reason_slug` does) for migrated or manually edited Notes.
+- Generated Notes clauses are an emitter contract: any new or changed clause
+  format—including each winner or partner label in every emitting branch—must
+  add or update an emitter-driven round-trip test for the rule that produces
+  it and its `note_history` recognizer, so the suite catches drift between
+  production output and history cleanup.
 - Python's `csv` module writes CRLF by default: generate fixtures with
   `lineterminator="\n"` or `git diff --check` will flag them.
 - Review manifests and server payloads are untrusted input. Validate strictly

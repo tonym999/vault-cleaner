@@ -3,6 +3,163 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #29 emitter-driven Notes round-trip coverage
+
+- Added emitter-driven regressions for current Notes clauses from weapon and
+  armour exact dupes, armour close dupes, wishlist trash (whole-item and
+  roll, junk and soft-review rails), armour scoring (junk, soft review, and
+  last-of-archetype), and ghosts. Each case feeds the exact emitted note
+  through three further rule runs and asserts the user prefix, action, reason,
+  and complete note remain stable with one current vault-cleaner marker.
+- Extended the exact-dupe emitter coverage to exercise every current winner
+  label: weapon higher Tier, Crafted Level, and stat total, plus armour
+  loadout membership, lock, and higher Power. The cases use fixture rows or
+  a minimal fixture-derived pair and assert the label in the actual emitted
+  note without reconstructing its grammar.
+- Kept the literal `note_history` tests for legacy migration formats. Added a
+  maintenance obligation to keep emitter tests and recognizer patterns in
+  sync whenever a generated clause changes. No production mismatch was found
+  and no rule or decision semantics were changed.
+- Added emitter-driven partner tie-break coverage for both armor-close
+  branches: dominated `6033` selects the lower-id `6031` among equal-surplus
+  `6031`/`6032`, and similar Guard Plate `4051` selects `4052` among the
+  equally close `4052`/`4053`. Each test checks the actual reason slug and
+  structured selected partner plus the exact emitted `; partner deterministic
+  id tie-break` tail through the shared round-trip helper; the strict
+  recognizer remains unchanged.
+- Validation: `.venv/bin/ruff check src tests scripts` passed;
+  `.venv/bin/pytest -q tests/test_note_history_roundtrip.py
+  tests/test_note_history.py tests/test_dupes.py tests/test_armor_dupes.py
+  tests/test_armor_close.py tests/test_weapons_rules.py
+  tests/test_armor_rules.py tests/test_ghost_rules.py` passed 170 tests.
+  The unrestricted `.venv/bin/pytest -q` suite passed 826 tests, including
+  the real-socket and Chromium coverage. Independent renames of the dominated
+  and similar armour-close tie-break literals each failed only their targeted
+  emitter/recognizer guard; the earlier armour lock and weapon Tier mutations
+  remained guarded. Production sources were restored byte-for-byte afterward.
+
+## 2026-08-31 — #29 current-only generated Notes
+
+- Replaced complete, known vault-cleaner clauses at the trailing `Notes`
+  boundary before appending the current clause across weapon, armour, armour
+  close-duplicate, and ghost rules. User-authored prefixes, ambiguous
+  tool-looking fragments, and text following them remain untouched; a
+  five-cycle DIM-style round-trip regression confirms generated Notes no
+  longer grow across runs.
+- Kept last-marker parsing for migrated or manually edited Notes, routed
+  crafted-state display through the shared strict parser, and aligned armour
+  winner wording with weapon winner wording. Corrected the M9 issue
+  reference, so Markdown treats it as prose rather than a heading.
+- This is presentation/history handling only: rule order, selection, action,
+  tag, reason slug, full audit ids, report schema, fingerprint, and ruleset
+  version remain unchanged. Snapshot regeneration was byte-identical.
+- Validation: Ruff passed. The focused review-follow-up command was
+  `.venv/bin/pytest -q tests/test_note_history.py tests/test_dupes.py
+  tests/test_armor_dupes.py tests/test_armor_close.py
+  tests/test_duplicate_reference.py tests/test_weapons_rules.py
+  tests/test_armor_rules.py tests/test_ghost_rules.py tests/test_report.py
+  tests/test_report_run.py tests/test_cli_report.py`; it passed 213 tests.
+  The unrestricted `.venv/bin/pytest -q` suite passed 800 tests. `git diff
+  --check` and the no-tracked-`data/` privacy check passed.
+
+## 2026-08-30 — #29 five-character suffix boundary correction
+
+- Corrected the bounded collision presenter so prefix-plus-suffix displays
+  are used only when at least one source character is genuinely omitted.
+  Five-character collisions now use suffix plus the stable bounded
+  discriminator, without reintroducing the leading character; naturally
+  distinct ids of four characters or fewer remain unchanged.
+- Added a direct five-character regression while retaining the 16-character,
+  three-copy group-wide, and pathological stability coverage. No selection,
+  grouping, ranking, action/tag, audit-id, schema, or fingerprint semantics
+  changed.
+- Validation: Ruff passed; focused duplicate/reference/report tests passed
+  146 tests; full suite passed 772 tests and skipped 1. Four real-socket tests
+  failed and two Chromium tests errored only because this sandbox denies
+  socket/browser startup (`Operation not permitted`). Snapshot regeneration
+  was byte-identical; fake report/roundtrip dry-run checks passed; diff-check
+  and no-tracked-`data/` privacy checks passed.
+
+## 2026-08-30 — #29 group-wide suffix collision correction
+
+- Corrected collision context so weapon exact-dupe and armour exact-dupe
+  survivors receive every id in their exact group, while armour close-dupe
+  partners receive every id in the compatibility group. A referenced row now
+  has one stable presentation label across all notes that cite it.
+- Kept the final four characters as the normal label and bounded suffix
+  expansion strictly below the complete long id. A truthful leading-prefix /
+  suffix projection handles group-unique collisions; pathological shared
+  projections use a bounded deterministic group-rank plus target digest.
+  Short synthetic ids remain intact, and no opaque id is parsed numerically by
+  the presenter or emitted in full.
+- Added three-copy weapon and armour exact-group regressions, repeated
+  armour-close partner stability coverage, 16-character collision protection,
+  and pathological-prefix/suffix fallback coverage. Selection, grouping,
+  ranking, actions, tags, full audit ids, and all other #29 semantics are
+  unchanged.
+- Validation: Ruff passed; the focused duplicate/reference/report suite
+  passed 145 tests; the full suite passed 771 tests and skipped 1. Four
+  real-socket tests failed and two Chromium tests errored only because this
+  sandbox denies socket/browser startup (`Operation not permitted`). Snapshot
+  regeneration was byte-identical; fake `report` and `roundtrip` dry-run
+  checks passed; `git diff --check` passed; no files are tracked under
+  `data/`.
+
+## 2026-08-30 — #29 presentation safety corrections
+
+- Corrected exact-roll identity normalization to remove only one selected
+  trailing `*` from the original DIM cell. Display casing is derived
+  separately, so `Trait*` and `Trait**` remain distinct and `Kill Tracker**`
+  cannot become a measured boundary; the regression also confirms the
+  fingerprint remains at the established #31 semantics.
+- Escaped untrusted reference delimiters (`[`, `]`, `;`) as full-width
+  presentation characters while retaining raw audit values. Generated
+  Notes grammar remains ASCII and report summaries preserve the generated
+  `keep`/`compare` and winner/partner suffix. Added hostile weapon and armor
+  exact/close regressions for marker, structural, newline, and forged-clause
+  safety.
+- Added presentation-only survivor/partner suffix disambiguation: final four
+  characters remain the default, colliding candidate/survivor suffixes grow
+  by bounded string comparison, and pathological shared suffixes use a
+  bounded differing-character fallback. Full `ReportDecision.id` and
+  `kept_id` remain unchanged; no identity, grouping, ranking, or action
+  semantics changed.
+- Validation: Ruff passed; the focused duplicate/reference/report suite
+  passed 139 tests; the full suite passed 765 tests and skipped 1. Four
+  real-socket tests failed and two Chromium tests errored only because this
+  sandbox denies socket/browser startup (`Operation not permitted`).
+  `git diff --check` passed, no files are tracked under `data/`, the fake
+  report snapshot regeneration was byte-identical, and fake `report` plus
+  `roundtrip` dry-run checks completed successfully.
+
+## 2026-08-30 — #29 human-readable duplicate references
+
+- Added one shared presentation seam for weapon exact-dupe survivors, armour
+  exact-dupe survivors, and armour dominated/similar partners. Long opaque ids
+  render as a final-four-character suffix (`[id …0059]`); short synthetic ids
+  remain intact. Weapon references include Owner, Tier, MW, crafted level when
+  known, and the final two names from the existing measured pre-tracker roll
+  prefix. Armour references include Owner, MW, Power, Tuning Stat, and compact
+  Spirit names where present.
+- Notes retain the existing `#vc-junk:`/`#vc-review:` reason slugs and append a
+  bounded `keep`/`compare` reference plus a selector explanation. Weapon
+  explanations follow the current #31 Tier → Masterwork Tier → Crafted Level →
+  stat total → opaque-id ranking; wishlist and hard-rail state are not used to
+  select a survivor. Armour explanations follow the existing survivor rank,
+  and close-dupe explanations retain the current surplus/similarity detail.
+- Referenced-row display text collapses control whitespace, bounds each
+  fragment/reference, and neutralizes case-insensitive `#vc-` text. Raw row
+  values and the existing full `ReportDecision.id`/`kept_id` audit strings stay
+  unchanged. No survivor row is emitted merely for discoverability.
+- Added fake hostile-text, short-id, selector-reason, report-summary, reverse
+  determinism, and long-id snapshot regressions. Regenerated the schema-v1
+  fake snapshot; its diff is limited to duplicate presentation Notes. Schema
+  version remains 1 and ruleset version remains 3; no runtime dependency or
+  browser/server/review code changed. Validation: Ruff and 132 focused tests
+  pass; the full suite has 758 passing tests plus 1 skip, with 4 socket tests
+  failing and 2 Chromium tests erroring only because this sandbox denies socket
+  and browser startup (`Operation not permitted`).
+
 ## 2026-08-30 — #31 Enhanced-prefix documentation clarification
 
 - Reconciled every exact-roll description with the literal DIM prefix while

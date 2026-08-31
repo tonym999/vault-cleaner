@@ -9,7 +9,13 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from vault_cleaner.duplicate_reference import note_tail, safe_fragment
+
 OUTPUT_COLUMNS = ["Id", "Hash", "Tag", "Notes"]
+# Generated duplicate tails contain a bounded reference plus a bounded detail
+# suffix. Keep the summary bound explicit, while leaving the selection reason
+# at the end visible when the reference reaches its own presentation limit.
+_SUMMARY_TAIL_LIMIT = 512
 
 # Tags DIM's importer understands. Empty string means "leave/clear tag" —
 # we only emit rows we have a reason for, so it shouldn't normally appear.
@@ -25,9 +31,9 @@ _REASON_RE = re.compile(r"#vc-(junk|review): ([a-z-]+(?: [a-z-]+)*)")
 def reason_slug(note: str) -> tuple[str, str]:
     """(action, slug) parsed from the #vc- hashtag in a Notes value.
 
-    The LAST match wins: rules append hashtags to existing notes and DIM
-    round-trips them, so after an import/re-export cycle a note may carry a
-    stale hashtag from an earlier run ahead of the current one."""
+    The LAST match wins. Rules replace complete known tool clauses at the
+    Notes tail, but ambiguous historical or user-authored marker text is
+    deliberately preserved ahead of the current generated clause."""
     matches = list(_REASON_RE.finditer(note))
     if not matches:
         return "unknown", "unknown"
@@ -59,7 +65,17 @@ def summarize(sections: Iterable[tuple[str, list]]) -> str:
         lines.append("")
         lines.append(f"{action.upper()} {slug} ({kind}) — {len(ds)} item(s)")
         for d in ds:
-            lines.append(f"  {d.name} (id {d.id}, {d.owner})")
+            line = (
+                f"  {safe_fragment(d.name, limit=120)} "
+                f"(id {safe_fragment(d.id, limit=48)}, "
+                f"{safe_fragment(d.owner, limit=80)})"
+            )
+            if d.kept_id:
+                line += (
+                    " — "
+                    f"{safe_fragment(note_tail(d.note), limit=_SUMMARY_TAIL_LIMIT, escape_structure=False)}"
+                )
+            lines.append(line)
     return "\n".join(lines)
 
 

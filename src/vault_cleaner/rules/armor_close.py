@@ -36,6 +36,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from vault_cleaner.duplicate_reference import armor_reference, safe_fragment
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor_dupes import spirit_signature, unknown_spirit_roll
@@ -74,30 +76,78 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
             if level == rails.HARD:
                 continue
             best_dom = best_sim = None
+            dom_candidates = []
+            sim_candidates = []
             for oid, ostats, other in rows:
                 if oid == rid:
                     continue
                 delta = [o - s for o, s in zip(ostats, rstats)]
                 if all(d >= 0 for d in delta) and any(d > 0 for d in delta):
                     # Largest surplus wins; id breaks ties (never row order)
+                    dom_candidates.append((oid, sum(delta)))
                     key = (sum(delta), -int(oid))
                     if best_dom is None or key > best_dom[0]:
-                        best_dom = (key, oid, sum(delta))
+                        best_dom = (key, oid, sum(delta), other)
                 elif all(d <= 0 for d in delta) and any(d < 0 for d in delta):
                     continue  # this piece dominates the other: no advice here
                 else:
                     mx, sm = max(abs(d) for d in delta), sum(abs(d) for d in delta)
                     if mx <= stat_cap and sm <= total_cap:
+                        sim_candidates.append((oid, mx, sm))
                         key = (mx, sm, int(oid))  # closest partner wins
                         if best_sim is None or key < best_sim[0]:
                             best_sim = (key, oid, other, mx, sm)
             if best_dom is not None:
-                _, oid, surplus = best_dom
-                hashtag = f"#vc-review: armor-dominated by {oid} (+{surplus} total)"
+                _, oid, surplus, other = best_dom
+                # The existing key is (largest surplus, lowest id).  Explain
+                # its first decisive dimension without rerunning selection.
+                same_surplus = any(
+                    candidate_id != oid and candidate_surplus == surplus
+                    for candidate_id, candidate_surplus in dom_candidates
+                )
+                partner_reason = (
+                    "deterministic id tie-break"
+                    if same_surplus
+                    else "largest stat surplus"
+                )
+                partner_group_ids = tuple(
+                    candidate_id for candidate_id, _, _ in rows if candidate_id != oid
+                )
+                reference = armor_reference(
+                    other,
+                    other.get("_spirits", ()),
+                    distinguish_from=partner_group_ids,
+                )
+                hashtag = (
+                    f"#vc-review: armor-dominated by; compare {reference}; "
+                    f"+{surplus} total; partner {partner_reason}"
+                )
                 partner_id = oid
             elif best_sim is not None:
                 _, oid, other, mx, sm = best_sim
-                hashtag = f"#vc-review: armor-similar to {oid} ({_similar_detail(row, other, mx, sm)})"
+                detail = safe_fragment(_similar_detail(row, other, mx, sm), limit=96)
+                partner_reason = (
+                    "deterministic id tie-break"
+                    if any(
+                        candidate_id != oid
+                        and candidate_mx == mx
+                        and candidate_sm == sm
+                        for candidate_id, candidate_mx, candidate_sm in sim_candidates
+                    )
+                    else "closest stat distance"
+                )
+                partner_group_ids = tuple(
+                    candidate_id for candidate_id, _, _ in rows if candidate_id != oid
+                )
+                reference = armor_reference(
+                    other,
+                    other.get("_spirits", ()),
+                    distinguish_from=partner_group_ids,
+                )
+                hashtag = (
+                    f"#vc-review: armor-similar to; compare {reference}; "
+                    f"{detail}; partner {partner_reason}"
+                )
                 partner_id = oid
             else:
                 continue
@@ -105,7 +155,8 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
                 Decision(
                     id=rid, hash=row["Hash"], name=row["Name"],
                     owner=row.get("Owner", ""), action="review", tag=row["Tag"],
-                    note=f"{row['Notes']} {hashtag}".strip(), kept_id=partner_id,
+                    note=append_tool_clause(row["Notes"], hashtag),
+                    kept_id=partner_id,
                 )
             )
     return decisions

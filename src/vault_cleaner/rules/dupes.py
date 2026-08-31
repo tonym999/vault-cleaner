@@ -34,6 +34,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from vault_cleaner.duplicate_reference import weapon_reference
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import rails
 
 # Ranking order per PLAN.md: gear tier > masterwork tier > crafted level > stat
@@ -76,8 +78,15 @@ def _normalize_roll_cell(value: object) -> str:
     return cell.casefold()
 
 
-def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
-    """Return the measured immutable roll key, or ``None`` if ungroupable.
+def _display_roll_cell(value: object) -> str:
+    cell = str(value).strip()
+    if cell.endswith("*"):
+        cell = cell[:-1].rstrip()
+    return cell
+
+
+def _exact_roll_prefix_parts(row) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Return source-facing and normalized values for one measured prefix.
 
     Legendary and exotic rows use the complete non-empty prefix before the
     first measured ``Kill Tracker`` or ``Crucible Tracker`` cell (after the
@@ -113,7 +122,8 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
         or numbers != tuple(range(numbers[-1] + 1))
     ):
         return None
-    values = tuple(_normalize_roll_cell(row[column]) for column in columns)
+    raw_values = tuple(str(row[column]).strip() for column in columns)
+    values = tuple(_normalize_roll_cell(value) for value in raw_values)
     tracker_index = next(
         (
             index
@@ -133,7 +143,39 @@ def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
     prefix = values[:tracker_index]
     if not prefix or any(not value for value in prefix):
         return None
-    return prefix
+    display_values = tuple(_display_roll_cell(value) for value in raw_values)
+    return display_values[:tracker_index], prefix
+
+
+def exact_roll_fingerprint(row) -> tuple[str, ...] | None:
+    """Return the measured immutable roll key, or ``None`` if ungroupable."""
+    parts = _exact_roll_prefix_parts(row)
+    return None if parts is None else parts[1]
+
+
+def exact_roll_display_prefix(row) -> tuple[str, ...]:
+    """Return source-facing names from the proven exact-roll prefix.
+
+    This is presentation-only: the grouping contract remains the normalized
+    tuple returned by :func:`exact_roll_fingerprint`.  Reuse that function to
+    prove the row is groupable, then retain the source casing and measured
+    order for a concise label.
+    """
+    parts = _exact_roll_prefix_parts(row)
+    return () if parts is None else parts[0]
+
+
+def _winner_reason(best_key: tuple, loser_key: tuple) -> str:
+    labels = (
+        "higher Tier",
+        "higher Masterwork Tier",
+        "higher Crafted Level",
+        "higher stat total",
+    )
+    for index, label in enumerate(labels):
+        if best_key[index] != loser_key[index]:
+            return label
+    return "deterministic id tie-break"
 
 
 @dataclass
@@ -144,7 +186,7 @@ class Decision:
     owner: str
     action: str  # "junk" | "review"
     tag: str  # what the output row will carry
-    note: str  # full Notes cell (existing notes + our hashtag)
+    note: str  # user Notes plus the current generated clause
     kept_id: str  # the surviving copy this one lost (or tied) against
 
 
@@ -178,6 +220,9 @@ def resolve(
         )
         keyed = sorted(keyed, key=lambda kr: kr[0], reverse=True)
         best_key, best = keyed[0]
+        survivor_group_ids = tuple(
+            candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]
+        )
         for key, row in keyed[1:]:
             level, reason = rails.protection(row, crafted_level_protect)
             if level == rails.HARD:
@@ -187,12 +232,20 @@ def resolve(
             if level == rails.SOFT:
                 action = "review"
                 tag = row["Tag"]  # preserve whatever tag it has — import must not change it
-                hashtag = f"#vc-review: {rel} ({reason}), kept {best['Id']}"
+                hashtag = (
+                    f"#vc-review: {rel} ({reason}); keep "
+                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=survivor_group_ids)}; "
+                    f"winner {_winner_reason(best_key, key)}"
+                )
             else:
                 action = "junk"
                 tag = "junk"
-                hashtag = f"#vc-junk: {rel}, kept {best['Id']}"
-            note = f"{row['Notes']} {hashtag}".strip()
+                hashtag = (
+                    f"#vc-junk: {rel}; keep "
+                    f"{weapon_reference(best, exact_roll_display_prefix(best), distinguish_from=survivor_group_ids)}; "
+                    f"winner {_winner_reason(best_key, key)}"
+                )
+            note = append_tool_clause(row["Notes"], hashtag)
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],

@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from vault_cleaner.duplicate_reference import armor_reference
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
@@ -104,6 +106,20 @@ def _survivor_rank(row: pd.Series, crafted_level_protect: int) -> tuple:
     )
 
 
+def _winner_reason(best_rank: tuple, loser_rank: tuple) -> str:
+    labels = (
+        "hard protection",
+        "loadout membership",
+        "lock",
+        "higher Masterwork Tier",
+        "higher Power",
+    )
+    for index, label in enumerate(labels):
+        if best_rank[index] != loser_rank[index]:
+            return label
+    return "deterministic id tie-break"
+
+
 def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
     decisions: list[Decision] = []
     groups: dict[tuple, list[pd.Series]] = {}
@@ -122,6 +138,9 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
             key=lambda r: (_survivor_rank(r, crafted_level_protect), -int(r["Id"])),
         )
         best_rank = _survivor_rank(best, crafted_level_protect)
+        survivor_group_ids = tuple(
+            candidate["Id"] for candidate in group if candidate["Id"] != best["Id"]
+        )
         for row in group:
             if row["Id"] == best["Id"]:
                 continue
@@ -134,18 +153,31 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
                 # Never junk a loadout member even when a twin survives:
                 # the loadout references this exact instance id.
                 action, tag = "review", row["Tag"]
-                hashtag = f"#vc-review: {rel} (loadout), kept {best['Id']}"
+                hashtag = (
+                    f"#vc-review: {rel} (loadout); keep "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
+                    f"{_winner_reason(best_rank, rank)}"
+                )
             elif level == rails.SOFT:
                 action, tag = "review", row["Tag"]
-                hashtag = f"#vc-review: {rel} ({reason}), kept {best['Id']}"
+                hashtag = (
+                    f"#vc-review: {rel} ({reason}); keep "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
+                    f"{_winner_reason(best_rank, rank)}"
+                )
             else:
                 action, tag = "junk", "junk"
-                hashtag = f"#vc-junk: {rel}, kept {best['Id']}"
+                hashtag = (
+                    f"#vc-junk: {rel}; keep "
+                    f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
+                    f"{_winner_reason(best_rank, rank)}"
+                )
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
                     owner=row.get("Owner", ""), action=action, tag=tag,
-                    note=f"{row['Notes']} {hashtag}".strip(), kept_id=best["Id"],
+                    note=append_tool_clause(row["Notes"], hashtag),
+                    kept_id=best["Id"],
                 )
             )
     return decisions

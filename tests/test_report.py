@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from vault_cleaner.duplicate_reference import armor_reference, weapon_reference
 from vault_cleaner.parse import load_weapons
 from vault_cleaner.report import (
     reason_slug,
@@ -127,6 +128,10 @@ def test_writer_consumes_a_successful_generator_once_and_returns_count(tmp_path)
          ("review", "wishlist-trash roll")),
         ("pvp roll #vc-review: dupe-lower (locked), kept 2 #vc-junk: dupe-lower, kept 9",
          ("junk", "dupe-lower")),
+        ("#vc-review: armor-dominated by; compare [id …6001]; +5 total",
+         ("review", "armor-dominated by")),
+        ("#vc-review: armor-similar to; compare [id …6012]; max stat delta 2",
+         ("review", "armor-similar to")),
     ],
 )
 def test_reason_slug_from_every_note_shape(note, expected):
@@ -165,6 +170,69 @@ def test_summarize_groups_and_orders():
 
 def test_summarize_empty_sections():
     assert summarize([("weapons", [])]).startswith("would junk 0 item(s) and flag 0 for review")
+
+
+def test_summarize_shows_duplicate_candidate_and_reference_together():
+    decision = _d(
+        "6917530162665277292",
+        "Rifle B",
+        "#vc-junk: dupe-lower; keep [id …7291; owner Vault]; winner higher Tier",
+    )
+    decision.kept_id = "6917530162665277291"
+    out = summarize([("weapons", [decision])])
+
+    assert "Rifle B (id 6917530162665277292, Vault)" in out
+    assert "keep [id …7291; owner Vault]; winner higher Tier" in out
+
+
+def test_summarize_preserves_winner_after_maximal_weapon_reference():
+    row = {
+        "Id": "6917530162665277291",
+        "Owner": "Owner " + "O" * 600,
+        "Tier": "5",
+        "Masterwork Tier": "10",
+        "Crafted": "crafted",
+        "Crafted Level": "4",
+    }
+    reference = weapon_reference(row, ("Perk " + "P" * 200,) * 2)
+    decision = _d(
+        "6917530162665277292",
+        "Rifle B",
+        f"#vc-junk: dupe-lower; keep {reference}; winner higher Masterwork Tier",
+        owner="Owner " + "C" * 600,
+    )
+    decision.kept_id = row["Id"]
+
+    line = summarize([("weapons", [decision])]).splitlines()[-1]
+
+    assert "winner higher Masterwork Tier" in line
+    assert "\n" not in line
+    assert len(line) <= 600
+
+
+def test_summarize_preserves_close_partner_reason_after_maximal_reference():
+    row = {
+        "Id": "6917530162665277291",
+        "Owner": "Owner " + "O" * 600,
+        "Masterwork Tier": "10",
+        "Power": "450",
+        "Tuning Stat": "melee",
+    }
+    reference = armor_reference(row, ("Spirit of " + "S" * 200,) * 2)
+    decision = _d(
+        "6917530162665277292",
+        "Plate B",
+        f"#vc-review: armor-similar to; compare {reference}; max stat delta 2, "
+        "total 4; partner closest stat distance",
+        owner="Owner " + "C" * 600,
+    )
+    decision.kept_id = row["Id"]
+
+    line = summarize([("armor", [decision])]).splitlines()[-1]
+
+    assert "partner closest stat distance" in line
+    assert "\n" not in line
+    assert len(line) <= 600
 
 
 def test_round_trip_export_to_import(tmp_path):

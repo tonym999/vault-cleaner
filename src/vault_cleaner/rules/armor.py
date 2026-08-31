@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.parse import ARMOR_STATS
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import Decision
@@ -206,7 +207,7 @@ def run(
             Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
                 owner=row.get("Owner", ""), action=action, tag=tag,
-                note=f"{row['Notes']} {hashtag}".strip(), kept_id="",
+                note=append_tool_clause(row["Notes"], hashtag), kept_id="",
             )
         )
     for row, detail, reason in soft_reviews:
@@ -214,7 +215,10 @@ def run(
             Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
                 owner=row.get("Owner", ""), action="review", tag=row["Tag"],
-                note=f"{row['Notes']} #vc-review: {detail} ({reason})".strip(), kept_id="",
+                note=append_tool_clause(
+                    row["Notes"], f"#vc-review: {detail} ({reason})"
+                ),
+                kept_id="",
             )
         )
     return result

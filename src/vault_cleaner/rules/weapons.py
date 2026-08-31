@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import dupes, rails
 from vault_cleaner.wishlist import Wishlist
 
@@ -92,7 +93,7 @@ def run(
             dupes.Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
                 owner=row.get("Owner", ""), action=action, tag=tag,
-                note=f"{row['Notes']} {hashtag}".strip(), kept_id="",
+                note=append_tool_clause(row["Notes"], hashtag), kept_id="",
             )
         )
         trash_ids.add(row["Id"])

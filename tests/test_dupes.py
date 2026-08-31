@@ -28,14 +28,48 @@ def test_best_copy_survives_and_lower_plain_copy_is_junked():
 
 def test_junk_note_appends_to_existing_notes():
     d = by_id(decisions())
-    assert d["3002"].note == "old note #vc-junk: dupe-lower, kept 3001"
+    assert d["3002"].note == (
+        "old note #vc-junk: dupe-lower; keep [id 3001; owner Vault; Tier 5; "
+        "MW10; roll Mag B / Trait A]; winner higher Masterwork Tier"
+    )
+
+
+def test_current_note_replaces_trailing_generated_history():
+    weapons = load_weapons(FIXTURE)
+    old = (
+        "manual build note #vc-junk: dupe-lower; keep "
+        "[id 9999; owner Old]; winner higher Tier"
+    )
+    weapons.loc[weapons["Id"] == "3002", "Notes"] = old
+
+    decision = by_id(resolve(weapons, crafted_level_protect=10))["3002"]
+
+    assert decision.note.startswith("manual build note #vc-junk: dupe-lower;")
+    assert decision.note.count("#vc-junk:") == 1
+    assert "owner Old" not in decision.note
+    assert "owner Vault" in decision.note
+
+
+def test_repeated_round_trips_keep_one_current_tool_clause():
+    weapons = load_weapons(FIXTURE)
+    weapons.loc[weapons["Id"] == "3002", "Notes"] = "manual build note"
+    lengths = []
+
+    for _ in range(5):
+        decision = by_id(resolve(weapons, crafted_level_protect=10))["3002"]
+        lengths.append(len(decision.note))
+        weapons.loc[weapons["Id"] == "3002", "Notes"] = decision.note
+
+    assert len(set(lengths)) == 1
+    assert decision.note.count("#vc-junk:") == 1
+    assert decision.note.startswith("manual build note #vc-junk:")
 
 
 def test_locked_dupe_is_review_not_junk():
     d = by_id(decisions())
     assert d["3003"].action == "review"
     assert d["3003"].tag == ""  # existing (empty) tag preserved
-    assert "#vc-review: dupe-lower (locked), kept 3001" in d["3003"].note
+    assert "#vc-review: dupe-lower (locked); keep [id 3001" in d["3003"].note
 
 
 def test_hard_protected_copies_get_no_row():
@@ -67,6 +101,19 @@ def test_gear_tier_outranks_masterwork():
     assert "3031" not in d  # Tier 5 beats Tier 4 despite MW 0 vs 10
     assert d["3032"].action == "junk"
     assert d["3032"].kept_id == "3031"
+    assert "winner higher Tier" in d["3032"].note
+
+
+def test_crafted_level_is_explained_after_tier_and_masterwork():
+    rows = _roll_df(
+        _roll_row("1", Crafted="crafted", **{"Crafted Level": "4"}),
+        _roll_row("2", Crafted="crafted", **{"Crafted Level": "3"}),
+    )
+
+    decisions = by_id(resolve(rows, crafted_level_protect=10))
+
+    assert decisions["2"].kept_id == "1"
+    assert "winner higher Crafted Level" in decisions["2"].note
 
 
 def test_groups_are_by_hash_never_name():
@@ -81,14 +128,15 @@ def test_tied_plain_copies_earlier_kept_later_junked_as_tie():
     d = by_id(decisions())
     assert "3041" not in d  # lowest opaque id wins the deterministic tie
     assert d["3042"].action == "junk"
-    assert "#vc-junk: dupe-tie, kept 3041" in d["3042"].note
+    assert "#vc-junk: dupe-tie; keep [id 3041" in d["3042"].note
+    assert "winner deterministic id tie-break" in d["3042"].note
 
 
 def test_tied_exotics_review_flagged_as_tie_not_lower():
     d = by_id(decisions())
     assert "3051" not in d
     assert d["3052"].action == "review"
-    assert "#vc-review: dupe-tie (exotic), kept 3051" in d["3052"].note
+    assert "#vc-review: dupe-tie (exotic); keep [id 3051" in d["3052"].note
 
 
 def _roll_row(item_id, item_hash="900", *, rarity="Legendary", **values):
@@ -124,7 +172,7 @@ def test_slammer_fixture_keeps_distinct_same_hash_rolls_and_exact_copy():
     assert set(ds) == {"6104"}
     assert ds["6104"].action == "junk"
     assert ds["6104"].kept_id == "6101"
-    assert ds["6104"].note.endswith("dupe-lower, kept 6101")
+    assert "dupe-lower; keep [id 6101" in ds["6104"].note
 
 
 def test_narrower_contiguous_prefix_still_resolves_exact_duplicates():
@@ -167,6 +215,41 @@ def test_same_hash_different_roll_fingerprints_do_not_compete():
     )
 
     assert exact_roll_fingerprint(rows.iloc[0]) != exact_roll_fingerprint(rows.iloc[1])
+    assert resolve(rows, crafted_level_protect=10) == []
+
+
+def test_only_one_trailing_marker_is_removed_from_identity_cells():
+    one_marker = _roll_df(
+        _roll_row("1", **{"Perks 3": "Trait*"})
+    ).iloc[0]
+    two_markers = _roll_df(
+        _roll_row("2", **{"Perks 3": "Trait**"})
+    ).iloc[0]
+
+    first = exact_roll_fingerprint(one_marker)
+    second = exact_roll_fingerprint(two_markers)
+
+    assert first is not None and second is not None
+    assert first != second
+    assert first[3] == "trait"
+    assert second[3] == "trait*"
+    assert resolve(
+        _roll_df(
+            _roll_row("1", **{"Perks 3": "Trait*"}),
+            _roll_row("2", **{"Perks 3": "Trait**"}),
+        ),
+        crafted_level_protect=10,
+    ) == []
+
+
+def test_double_marker_tracker_is_not_a_measured_boundary():
+    rows = _roll_df(
+        _roll_row("1", **{"Perks 6": "Kill Tracker**"}),
+        _roll_row("2", **{"Perks 6": "Kill Tracker**"}),
+    )
+
+    assert exact_roll_fingerprint(rows.iloc[0]) is None
+    assert exact_roll_fingerprint(rows.iloc[1]) is None
     assert resolve(rows, crafted_level_protect=10) == []
 
 

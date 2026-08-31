@@ -31,14 +31,16 @@ def test_dominated_piece_reviews_with_surplus(cfg):
     d = by_id(close_decisions(cfg))
     assert d["6002"].action == "review"
     assert d["6002"].tag == ""  # never junk, tag preserved
-    assert "#vc-review: armor-dominated by 6001 (+5 total)" in d["6002"].note
+    assert "#vc-review: armor-dominated by; compare [id 6001" in d["6002"].note
+    assert "+5 total; partner largest stat surplus" in d["6002"].note
     assert "6001" not in d  # the dominator gets no note
 
 
 def test_mutual_tradeoff_is_similar_both_ways_never_dominated(cfg):
     d = by_id(close_decisions(cfg))
-    assert "#vc-review: armor-similar to 6012 (max stat delta 2, total 4)" in d["6011"].note
-    assert "#vc-review: armor-similar to 6011 (max stat delta 2, total 4)" in d["6012"].note
+    assert "#vc-review: armor-similar to; compare [id 6012" in d["6011"].note
+    assert "max stat delta 2, total 4" in d["6011"].note
+    assert "#vc-review: armor-similar to; compare [id 6011" in d["6012"].note
 
 
 def test_different_hash_never_compared(cfg):
@@ -61,7 +63,7 @@ def test_advice_cites_the_exact_pass_survivor_not_the_junked_twin(cfg):
     assert exact["6032"].action == "junk"
     d = by_id(close_decisions(cfg))
     assert "6032" not in d
-    assert "#vc-review: armor-dominated by 6031" in d["6033"].note
+    assert "#vc-review: armor-dominated by; compare [id 6031" in d["6033"].note
 
 
 def test_caps_are_inclusive_boundaries(cfg):
@@ -74,15 +76,17 @@ def test_caps_are_inclusive_boundaries(cfg):
 
 def test_tuning_twins_name_each_other_and_the_tuning(cfg):
     d = by_id(close_decisions(cfg))
-    assert "#vc-review: armor-similar to 6082 (identical stats, tuning melee vs grenade)" in d["6081"].note
-    assert "#vc-review: armor-similar to 6081 (identical stats, tuning grenade vs melee)" in d["6082"].note
+    assert "#vc-review: armor-similar to; compare [id 6082" in d["6081"].note
+    assert "identical stats, tuning melee vs grenade" in d["6081"].note
+    assert "#vc-review: armor-similar to; compare [id 6081" in d["6082"].note
+    assert "identical stats, tuning grenade vs melee" in d["6082"].note
 
 
 def test_hard_protected_gets_no_note_but_still_dominates_and_partners(cfg):
     d = by_id(close_decisions(cfg))
     assert "6091" not in d  # equipped: untouched
-    assert "#vc-review: armor-dominated by 6091" in d["6092"].note
-    assert "#vc-review: armor-similar to 6091" in d["6093"].note
+    assert "#vc-review: armor-dominated by; compare [id 6091" in d["6092"].note
+    assert "#vc-review: armor-similar to; compare [id 6091" in d["6093"].note
 
 
 def test_spirit_rolls_are_compatibility_boundaries(cfg):
@@ -90,8 +94,8 @@ def test_spirit_rolls_are_compatibility_boundaries(cfg):
     # exotics, never compared even at identical stats. No visible spirits:
     # unknown roll, compared with nothing.
     d = by_id(close_decisions(cfg))
-    assert "#vc-review: armor-similar to 6102" in d["6101"].note
-    assert "#vc-review: armor-similar to 6101" in d["6102"].note
+    assert "#vc-review: armor-similar to; compare [id 6102" in d["6101"].note
+    assert "#vc-review: armor-similar to; compare [id 6101" in d["6102"].note
     assert "6103" not in d  # identical stats to 6101, different spirits
     assert "6104" not in d  # spiritless: unknown roll
     assert "6105" not in d  # one Spirit of a measured two: truncated identity
@@ -124,7 +128,7 @@ def test_score_pass_never_junks_a_cited_dominator(cfg):
     cfg["armor"]["score_floor"] = 200
     decisions, _ = _resolve_armor(load_armor(FIXTURE), cfg)
     d = {x.id: x for x in decisions}
-    assert "armor-dominated by 6001" in d["6002"].note
+    assert "armor-dominated by; compare [id 6001" in d["6002"].note
     assert "6001" not in d  # shielded from score junking
     # 6121/6122 share a (Hash, Archetype) but are too far apart for the
     # close pass: the last-of-kind guard (#30) spares the better-scoring
@@ -143,7 +147,7 @@ def test_cited_dominator_counts_as_combo_survivor(cfg):
     cfg["armor"]["score_floor"] = 200
     decisions, _ = _resolve_armor(load_armor(FIXTURE), cfg)
     d = {x.id: x for x in decisions}
-    assert "armor-dominated by 6131" in d["6132"].note
+    assert "armor-dominated by; compare [id 6131" in d["6132"].note
     assert "6131" not in d  # shielded from score junking, no demotion note
     assert d["6133"].action == "junk"
 
