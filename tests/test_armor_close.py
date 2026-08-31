@@ -5,7 +5,7 @@ import pytest
 from vault_cleaner.cli import _resolve_armor
 from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.parse import SchemaError, load_armor
-from vault_cleaner.rules.armor_close import run
+from vault_cleaner.rules.armor_close import analyse, run
 from vault_cleaner.rules.armor_dupes import run as run_exact
 
 FIXTURE = Path(__file__).parent / "fixtures" / "armor_close.csv"
@@ -108,9 +108,116 @@ def test_one_note_per_piece(cfg):
 
 
 def test_reversing_the_csv_changes_nothing(cfg):
-    forward = {(d.id, d.note) for d in close_decisions(cfg)}
-    reversed_ = {(d.id, d.note) for d in close_decisions(cfg, load_armor(FIXTURE).iloc[::-1])}
+    frame = load_armor(FIXTURE)
+
+    def decision_fields(decisions):
+        return [
+            (
+                d.id, d.hash, d.name, d.location, d.guardian_class,
+                d.action, d.tag, d.note, d.kept_id,
+            )
+            for d in decisions
+        ]
+
+    forward = decision_fields(analyse(frame, cfg).decisions)
+    reversed_ = decision_fields(analyse(frame.iloc[::-1], cfg).decisions)
     assert forward == reversed_
+
+
+def test_same_stat_tier_identity_matches_close_compatibility_boundary(cfg):
+    armor = load_armor(FIXTURE)
+    rows = armor[armor["Id"].isin(["6081", "6082"])].copy()
+    rows.loc[rows["Id"] == "6081", "Tier"] = "01"
+    rows.loc[rows["Id"] == "6082", "Tier"] = "1"
+
+    forward = analyse(rows, cfg)
+    reversed_ = analyse(rows.iloc[::-1], cfg)
+
+    # Close compatibility keeps the raw Tier identity, so these rows are not
+    # compared or projected as one group even though their display tiers
+    # would both normalize to 1.
+    assert forward.decisions == ()
+    assert forward.same_stat_groups == ()
+    assert reversed_ == forward
+
+
+def test_same_stat_projection_is_authoritative_and_exposes_variation(cfg):
+    armor = load_armor(FIXTURE)
+    analysis = analyse(armor, cfg)
+    group = next(group for group in analysis.same_stat_groups if group.hash == "990")
+
+    assert group.group_kind == "same_stat"
+    assert group.group_id == "6081"
+    assert group.tier == 5
+    assert group.stats == {
+        "weapons": 5,
+        "health": 20,
+        "class": 10,
+        "grenade": 5,
+        "super": 5,
+        "melee": 30,
+    }
+    assert [member.id for member in group.members] == ["6081", "6082"]
+    assert [member.tuning_mod_slot for member in group.members] == [
+        "Melee", "Grenade"
+    ]
+    assert [member.proposal_action for member in group.members] == [
+        "review", "review"
+    ]
+    assert [member.selected_partner_id for member in group.members] == [
+        "6082", "6081"
+    ]
+
+
+@pytest.mark.parametrize("variation", ["Tuning Stat", "Seasonal Mod", "Holofoil"])
+def test_same_stat_membership_ignores_display_variation_field(cfg, variation):
+    armor = load_armor(FIXTURE)
+    mask = armor["Id"].isin(["6081", "6082"])
+    armor.loc[mask, "Tuning Stat"] = "melee"
+    armor.loc[mask, "Seasonal Mod"] = ""
+    armor.loc[mask, "Holofoil"] = "false"
+    armor.loc[armor["Id"] == "6082", variation] = (
+        "grenade" if variation == "Tuning Stat" else "seasonal-variant"
+        if variation == "Seasonal Mod" else "artifice"
+    )
+    groups = analyse(armor, cfg).same_stat_groups
+    assert len(groups) == 1
+    group = groups[0]
+    assert group.hash == "990"
+    assert len(group.members) == 2
+    if variation == "Seasonal Mod":
+        assert [member.seasonal_mod for member in group.members] == [
+            "", "seasonal-variant"
+        ]
+    elif variation == "Holofoil":
+        assert [member.holofoil for member in group.members] == ["false", "artifice"]
+
+
+def test_exact_only_groups_are_suppressed_from_same_stat_projection(cfg):
+    armor = load_armor(Path(__file__).parent / "fixtures" / "armor_dupes.csv")
+    armor = armor[armor["Hash"].isin(["700", "710"])]
+    analysis = analyse(armor, cfg)
+    assert analysis.same_stat_groups == ()
+
+
+def test_same_stat_group_uses_hash_not_display_name_or_class(cfg):
+    armor = load_armor(FIXTURE)
+    armor.loc[armor["Id"] == "6082", "Name"] = "Different seasonal name"
+    armor.loc[armor["Id"] == "6082", "Type"] = "Helmet"
+    armor.loc[armor["Id"] == "6082", "Equippable"] = "Warlock"
+    armor.loc[armor["Id"] == "6082", "Archetype"] = "different"
+    groups = analyse(armor, cfg).same_stat_groups
+    assert len(groups) == 1
+    assert groups[0].hash == "990"
+
+
+def test_unknown_spirit_rows_are_absent_from_same_stat_groups(cfg):
+    armor = load_armor(FIXTURE)
+    rows = armor[armor["Id"].isin(["6101", "6102"])].copy()
+    rows.loc[rows["Id"] == "6102", "Perks 1"] = ""
+    rows.loc[rows["Id"] == "6102", "Tuning Stat"] = "grenade"
+    analysis = analyse(rows, cfg)
+    assert analysis.same_stat_groups == ()
 
 
 def test_tighter_caps_drop_the_wide_pairs(cfg):

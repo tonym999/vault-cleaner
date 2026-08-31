@@ -15,7 +15,7 @@ import re
 _MARKER_RE = re.compile(r"(?i)(?:^|\s)(#vc-(?:junk|review): )")
 
 _EXACT_REASON = (
-    r"(?:dupe-(?:lower|tie)|armor-exact-dupe(?:-tie)?)"
+    r"(?:dupe-(?:lower|tie)|armor-exact-dupe(?:-tie)?|armor-exotic-class-dupe)"
     r"(?: \((?:loadout|locked|exotic)\))?"
 )
 _WINNER_REASON = (

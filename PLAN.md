@@ -101,9 +101,17 @@ mutation.
 
 ### M9 duplicate presentation and review UX
 
-M9 is presentation-only: the existing duplicate identity, survivor/partner
-ranking, safety rails, ordered decisions, and review semantics remain
-authoritative. Delivery is sequenced as:
+M9 exposes authoritative duplicate comparison data while preserving the
+review pipeline. Instance ids remain opaque strings and use one shared
+magnitude-aware string ordering for every decision tie-break; this is an
+intentional ruleset change (ruleset v4, snapshot schema v2). Complete exotic
+class-item rolls require exactly two distinct visible Spirit perks. Matching
+rolls use the existing exact identity, but exotic rarity alone does not
+protect an otherwise unprotected losing copy; hard, loadout, and lock rails
+remain effective. The close pass also projects review-only same-stat groups
+(Hash + Tier + six stats + complete Spirit signature), exposing tuning,
+Seasonal Mod, and Holofoil variation without selecting a survivor or creating
+new decisions. Delivery is sequenced as:
 
 ```text
 #29 shared survivor/partner presentation and full-id audit preservation
@@ -115,8 +123,12 @@ authoritative. Delivery is sequenced as:
 
 Issue `#29` owns the shared human-readable survivor/partner references and the
 existing full `ReportDecision.id`/`kept_id` audit values. #101 owns the
-authoritative armour exact-duplicate group projection, and #102 owns its
-browser rendering; neither downstream surface is part of #29.
+authoritative armour exact-duplicate and same-stat group projections, and #102
+owns their browser rendering; neither downstream surface is part of #29.
+The snapshot remains schema v2, but the decision ruleset is v4, so its
+fingerprint intentionally invalidates persisted veto identity from ruleset v3.
+No review/session schema or server lifecycle format changes are part of this
+work.
 Complete known vault-cleaner clauses at the trailing `Notes` boundary are
 replaced on a later run, so only the current tool-generated explanation is
 retained while user-authored and ambiguous text is preserved.

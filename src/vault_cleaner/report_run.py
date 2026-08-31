@@ -31,13 +31,16 @@ from vault_cleaner.report import reason_slug
 from vault_cleaner.rules import ghosts as ghost_rules
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor import ArmorEvaluation
+from vault_cleaner.rules.armor_close import ArmorSameStatGroup
+from vault_cleaner.rules.armor_dupes import ArmorExactDuplicateGroup
 from vault_cleaner.rules.dupes import Decision
 
 SNAPSHOT_SCHEMA_VERSION = 2
 # Snapshot schema changes are independent of rule decision semantics and do
-# not change RULESET_VERSION, fingerprint inputs, or persisted-veto identity;
-# saved review manifests nevertheless pin and reject mismatched schemas.
-RULESET_VERSION = 3
+# not change RULESET_VERSION; saved review manifests nevertheless pin and
+# reject mismatched schemas. Ruleset v4 intentionally captures the shared
+# opaque-id ordering and complete exotic class-item disposition semantics.
+RULESET_VERSION = 4
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
     kind: str(Path(DEFAULT_INPUT_DIR) / filename)
@@ -111,6 +114,8 @@ class ArmorSectionDetails:
     evaluations: tuple[ArmorEvaluation, ...]
     cited_ids: frozenset[str]
     kept_elsewhere: frozenset[tuple[str, str]]
+    exact_duplicate_groups: tuple[ArmorExactDuplicateGroup, ...] = ()
+    same_stat_groups: tuple[ArmorSameStatGroup, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -264,6 +269,12 @@ def _decision_records(
             # deliberately not a ghost rail, so the generic rails helper
             # cannot be used here.
             level, protection_reason = None, ""
+        elif decision.effective_protection is not None:
+            # Armor exact decisions carry the pass's effective rail result,
+            # including an explicit unprotected (None, "") classification.
+            # Other passes leave this unset and retain the existing global
+            # rails projection below.
+            level, protection_reason = decision.effective_protection
         else:
             level, protection_reason = rails.protection(
                 row, crafted_level_protect
@@ -307,6 +318,82 @@ def _evaluation_snapshot(
     return data
 
 
+def _exact_duplicate_group_snapshot(
+    group: ArmorExactDuplicateGroup,
+) -> dict:
+    """Serialize the rule-produced exact group without rebuilding its data."""
+    return {
+        "group_kind": group.group_kind,
+        "group_id": str(group.group_id),
+        "hash": str(group.hash),
+        "name": group.name,
+        "type": group.type,
+        "guardian_class": group.guardian_class,
+        "item_archetype": group.item_archetype,
+        "tier": int(group.tier),
+        "stats": {name: int(value) for name, value in group.stats.items()},
+        "tuning_mod_slot": group.tuning_mod_slot,
+        "seasonal_mod": group.seasonal_mod,
+        "holofoil": group.holofoil,
+        "spirit_signature": list(group.spirit_signature),
+        "preferred_survivor_id": str(group.preferred_survivor_id),
+        "members": [
+            {
+                "id": str(member.id),
+                "location": member.location,
+                "protection_level": member.protection_level,
+                "protection_reason": member.protection_reason,
+                "equipped": member.equipped,
+                "in_loadout": member.in_loadout,
+                "locked": member.locked,
+                "masterwork_tier": member.masterwork_tier,
+                "power": member.power,
+                "disposition": member.disposition,
+                "proposal_action": member.proposal_action,
+                "proposal_reason": member.proposal_reason,
+            }
+            for member in group.members
+        ],
+    }
+
+
+def _same_stat_group_snapshot(group: ArmorSameStatGroup) -> dict:
+    """Serialize the rule-produced same-stat group without rebuilding it."""
+    return {
+        "group_kind": group.group_kind,
+        "group_id": str(group.group_id),
+        "hash": str(group.hash),
+        "name": group.name,
+        "type": group.type,
+        "guardian_class": group.guardian_class,
+        "item_archetype": group.item_archetype,
+        "tier": int(group.tier),
+        "stats": {name: int(value) for name, value in group.stats.items()},
+        "spirit_signature": list(group.spirit_signature),
+        "members": [
+            {
+                "id": str(member.id),
+                "location": member.location,
+                "protection_level": member.protection_level,
+                "protection_reason": member.protection_reason,
+                "equipped": member.equipped,
+                "in_loadout": member.in_loadout,
+                "locked": member.locked,
+                "masterwork_tier": member.masterwork_tier,
+                "power": member.power,
+                "tuning_stat": member.tuning_stat,
+                "tuning_mod_slot": member.tuning_mod_slot,
+                "seasonal_mod": member.seasonal_mod,
+                "holofoil": member.holofoil,
+                "proposal_action": member.proposal_action,
+                "proposal_reason": member.proposal_reason,
+                "selected_partner_id": member.selected_partner_id,
+            }
+            for member in group.members
+        ],
+    }
+
+
 def snapshot_dict(run: ReportRun) -> dict:
     """Return the stable, JSON-safe schema consumed by later M7 tickets."""
     sections = []
@@ -331,6 +418,14 @@ def snapshot_dict(run: ReportRun) -> dict:
                 "kept_elsewhere": [
                     {"hash": item_hash, "archetype": archetype}
                     for item_hash, archetype in sorted(section.armor.kept_elsewhere)
+                ],
+                "exact_duplicate_groups": [
+                    _exact_duplicate_group_snapshot(group)
+                    for group in section.armor.exact_duplicate_groups
+                ],
+                "same_stat_groups": [
+                    _same_stat_group_snapshot(group)
+                    for group in section.armor.same_stat_groups
                 ],
             }
         sections.append(section_data)
@@ -462,6 +557,8 @@ def run_report(
                 evaluations=armor_result.evaluations,
                 cited_ids=armor_result.cited_ids,
                 kept_elsewhere=armor_result.kept_elsewhere,
+                exact_duplicate_groups=armor_result.exact_duplicate_groups,
+                same_stat_groups=armor_result.same_stat_groups,
             )
         else:
             decisions = ghost_rules.run(items)

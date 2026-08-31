@@ -17,7 +17,7 @@ from vault_cleaner.export_discovery import ExportDiscoveryError, select_export
 from vault_cleaner.manifest import ManifestError
 from vault_cleaner.parse import SchemaError, load_armor, load_ghosts, load_weapons
 from vault_cleaner.pipeline import resolve_armor, resolve_weapons
-from vault_cleaner.report import VALID_TAGS, summarize, write_import_csv
+from vault_cleaner.report import VALID_TAGS, reason_slug, summarize, write_import_csv
 from vault_cleaner.report_run import (
     NoExportsError,
     ReportRun,
@@ -60,6 +60,12 @@ ARMOR_INPUT_HELP = (
 GHOST_INPUT_HELP = (
     "DIM ghost export (default: [paths].input_dir/destiny-ghost.csv)"
 )
+_ARMOR_EXACT_REASONS = frozenset({
+    "armor-exact-dupe",
+    "armor-exact-dupe-tie",
+    "armor-exotic-class-dupe",
+})
+_ARMOR_CLOSE_REASONS = frozenset({"armor-dominated by", "armor-similar to"})
 COMBINED_OUTPUT_HELP = (
     "combined import CSV to write (default: [paths].output_dir/dim-import.csv)"
 )
@@ -245,8 +251,9 @@ def _cmd_armor(args: argparse.Namespace) -> int:
     decisions, scored = _resolve_armor(armor, cfg)
     junk = [d for d in decisions if d.action == "junk"]
     review = [d for d in decisions if d.action == "review"]
-    dupe_rows = [d for d in decisions if "armor-exact-dupe" in d.note]
-    close_rows = [d for d in decisions if "armor-dominated" in d.note or "armor-similar" in d.note]
+    reasons = [reason_slug(d.note)[1] for d in decisions]
+    dupe_rows = [reason for reason in reasons if reason in _ARMOR_EXACT_REASONS]
+    close_rows = [reason for reason in reasons if reason in _ARMOR_CLOSE_REASONS]
     print(f"parsed {len(armor)} armor pieces from {input_path} ({scored} legendaries scored)")
     print(
         f"resolved: {len(junk)} junk, {len(review)} review "

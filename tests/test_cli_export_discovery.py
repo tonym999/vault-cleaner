@@ -9,6 +9,7 @@ from vault_cleaner.export_discovery import EXPORT_PATTERNS
 FIXTURES = (Path(__file__).parent / "fixtures").resolve()
 WEAPONS = FIXTURES / "weapons_dupes.csv"
 ARMOR = FIXTURES / "armor.csv"
+ARMOR_DUPES = FIXTURES / "armor_dupes.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
 
 
@@ -59,6 +60,22 @@ def test_single_kind_commands_discover_the_only_numbered_export(
     out = capsys.readouterr().out
     assert expected in out
     assert str(Path("data/in") / filename) in out
+
+
+def test_armor_summary_counts_exotic_class_duplicates_as_exact(capsys):
+    assert cli.main([
+        "armor",
+        "--input",
+        str(ARMOR_DUPES),
+        "--config",
+        "nonexistent.toml",
+    ]) == 0
+
+    assert (
+        "resolved: 7 junk, 7 review "
+        "(10 from exact dupes, 4 close-dupe reviews)"
+        in capsys.readouterr().out
+    )
 
 
 def test_combined_command_uses_numbered_export_and_warns_for_missing_kinds(

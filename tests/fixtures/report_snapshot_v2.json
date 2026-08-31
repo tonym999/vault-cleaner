@@ -1,5 +1,5 @@
 {
-  "fingerprint": "464312c4566b272c0021a07110953bba299f52b1160da41e18af97aaaf08dca3",
+  "fingerprint": "f27109c4e57b7c0564d88744305d0a5766b0d798484e866301d3717254469e94",
   "inputs": {
     "effective_config": {
       "armor": {
@@ -53,7 +53,7 @@
     "wishlists_used": false
   },
   "keep_trash_conflicts": 0,
-  "ruleset_version": 3,
+  "ruleset_version": 4,
   "schema_version": 2,
   "sections": [
     {
@@ -545,6 +545,7 @@
             }
           }
         ],
+        "exact_duplicate_groups": [],
         "kept_elsewhere": [
           {
             "archetype": "",
@@ -555,6 +556,7 @@
             "hash": "555001"
           }
         ],
+        "same_stat_groups": [],
         "scored": 11
       },
       "decisions": [

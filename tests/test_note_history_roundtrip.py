@@ -101,6 +101,20 @@ def _armor_exact(frame):
     return armor_dupes.run(frame, crafted_level_protect=10)
 
 
+def _armor_exotic_class_loadout(frame):
+    frame = frame.copy()
+    frame.loc[frame["Id"] == "5031", "Equipped"] = "true"
+    frame.loc[frame["Id"] == "5032", "Loadouts"] = "PvE Build"
+    return _armor_exact(frame)
+
+
+def _armor_exotic_class_locked(frame):
+    frame = frame.copy()
+    frame.loc[frame["Id"] == "5031", "Equipped"] = "true"
+    frame.loc[frame["Id"] == "5032", "Locked"] = "true"
+    return _armor_exact(frame)
+
+
 def _close_cfg() -> dict:
     return load_config(Path("nonexistent.toml"))
 
@@ -215,9 +229,25 @@ def _wishlist_roll_review(frame):
             load_armor(ARMOR_DUPES_FIXTURE),
             _armor_exact,
             "5032",
+            "junk",
+            "armor-exotic-class-dupe",
+            id="armor-exact-exotic-class-junk",
+        ),
+        pytest.param(
+            load_armor(ARMOR_DUPES_FIXTURE),
+            _armor_exotic_class_loadout,
+            "5032",
             "review",
-            "armor-exact-dupe",
-            id="armor-exact-soft-review",
+            "armor-exotic-class-dupe",
+            id="armor-exact-exotic-class-loadout-review",
+        ),
+        pytest.param(
+            load_armor(ARMOR_DUPES_FIXTURE),
+            _armor_exotic_class_locked,
+            "5032",
+            "review",
+            "armor-exotic-class-dupe",
+            id="armor-exact-exotic-class-locked-review",
         ),
         pytest.param(
             load_armor(ARMOR_DUPES_FIXTURE),

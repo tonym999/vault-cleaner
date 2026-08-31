@@ -1,14 +1,17 @@
 import json
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from vault_cleaner import report_run
-from vault_cleaner.config import DEFAULTS, ConfigError
+from vault_cleaner.config import DEFAULTS, ConfigError, load_config
+from vault_cleaner.parse import load_armor
 from vault_cleaner.pipeline import (
     ManifestIdentity,
     WeaponPipelineResult,
     WishlistSourceIdentity,
+    resolve_armor,
 )
 from vault_cleaner.report_run import (
     NoExportsError,
@@ -23,6 +26,7 @@ from vault_cleaner.rules import armor as armor_rules
 FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = FIXTURES / "weapons_dupes.csv"
 ARMOR = FIXTURES / "armor.csv"
+ARMOR_DUPES = FIXTURES / "armor_dupes.csv"
 CLASS_ARMOR = FIXTURES / "armor_classes.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
 HOSTILE = FIXTURES / "weapons_hostile.csv"
@@ -186,7 +190,7 @@ def test_snapshot_serialization_is_deterministic():
     assert snapshot_json(first) == snapshot_json(second)
     document = json.loads(snapshot_json(first))
     assert document["schema_version"] == 2
-    assert document["ruleset_version"] == 3
+    assert document["ruleset_version"] == 4
     assert document["fingerprint"] == first.fingerprint
 
 
@@ -228,9 +232,267 @@ def test_snapshot_matches_schema_v2_golden():
     assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
 
 
+def test_snapshot_contains_authoritative_complete_armor_duplicate_groups():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=ARMOR_DUPES,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    section = result.sections[0]
+    assert section.armor is not None
+    assert len(section.armor.exact_duplicate_groups) == 10
+
+    document = snapshot_dict(result)
+    armor = document["sections"][0]
+    groups = armor["armor"]["exact_duplicate_groups"]
+    group = next(group for group in groups if group["hash"] == "710")
+    assert group["group_id"] == "5011"
+    assert group["preferred_survivor_id"] == "5011"
+    assert group["guardian_class"] == "Titan"
+    assert group["item_archetype"] == ""
+    assert group["tier"] == 5
+    assert group["tuning_mod_slot"] == "Grenade"
+    assert group["spirit_signature"] == []
+    assert [member["id"] for member in group["members"]] == [
+        "5011",
+        "5013",
+        "5012",
+    ]
+    member_by_id = {member["id"]: member for member in group["members"]}
+    assert member_by_id["5013"]["disposition"] == "retained_protected"
+    assert member_by_id["5012"]["proposal_action"] == "review"
+    assert all(isinstance(group["group_id"], str) for group in groups)
+    assert all(
+        isinstance(member["id"], str)
+        for group in groups
+        for member in group["members"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_action", "expected_level", "expected_reason"),
+    [
+        ("plain", "junk", None, ""),
+        ("loadout", "review", "soft", "loadout"),
+        ("locked", "review", "soft", "locked"),
+    ],
+)
+def test_report_uses_authoritative_exact_exotic_protection(
+    tmp_path, state, expected_action, expected_level, expected_reason
+):
+    armor = load_armor(ARMOR_DUPES)
+    # Keep 5032 as the loser in every branch under test, including when its
+    # mutable state would otherwise outrank the normal MW-based survivor.
+    armor.loc[armor["Id"] == "5031", "Equipped"] = "true"
+    if state == "loadout":
+        armor.loc[armor["Id"] == "5032", "Loadouts"] = "PvE Build"
+    elif state == "locked":
+        armor.loc[armor["Id"] == "5032", "Locked"] = "true"
+    path = tmp_path / f"armor-{state}.csv"
+    armor.to_csv(path, index=False, lineterminator="\n")
+
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=path,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    decision = next(
+        decision
+        for decision in result.sections[0].decisions
+        if decision.id == "5032"
+    )
+
+    assert decision.action == expected_action
+    assert decision.protection_level == expected_level
+    assert decision.protection_reason == expected_reason
+
+
+def test_report_keeps_global_protection_for_ordinary_exotic_dupes():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=ARMOR_DUPES,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    decision = next(
+        decision
+        for decision in result.sections[0].decisions
+        if decision.id == "5122"
+    )
+
+    assert decision.action == "review"
+    assert decision.protection_level == "soft"
+    assert decision.protection_reason == "exotic"
+
+
+def test_snapshot_contains_authoritative_same_stat_groups():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=FIXTURES / "armor_close.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    section = result.sections[0]
+    assert section.armor is not None
+    assert len(section.armor.same_stat_groups) == 1
+
+    armor = snapshot_dict(result)["sections"][0]["armor"]
+    groups = armor["same_stat_groups"]
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["group_kind"] == "same_stat"
+    assert group["group_id"] == "6081"
+    assert group["hash"] == "990"
+    assert [member["id"] for member in group["members"]] == ["6081", "6082"]
+    assert [member["selected_partner_id"] for member in group["members"]] == [
+        "6082", "6081"
+    ]
+    assert [member["tuning_mod_slot"] for member in group["members"]] == [
+        "Melee", "Grenade"
+    ]
+
+
+def test_pipeline_same_stat_group_keeps_full_exact_variant_comparison_set():
+    armor = load_armor(ARMOR_DUPES)
+    variant = armor.iloc[[0]].copy()
+    variant["Id"] = "5003"
+    variant["Tuning Stat"] = "grenade"
+    variant["Notes"] = ""
+    armor = pd.concat([armor, variant], ignore_index=True)
+    result = resolve_armor(armor, load_config("nonexistent.toml"))
+
+    group = next(group for group in result.same_stat_groups if group.hash == "700")
+    assert [member.id for member in group.members] == ["5001", "5002", "5003"]
+    # The exact loser is authoritative and therefore has no close proposal;
+    # the variant survives into the close comparison set.
+    member_by_id = {member.id: member for member in group.members}
+    assert member_by_id["5002"].proposal_action is None
+    assert member_by_id["5003"].proposal_action == "review"
+    assert member_by_id["5003"].selected_partner_id == "5001"
+
+
+def test_pipeline_close_decision_order_is_stable_under_row_reversal():
+    armor = load_armor(FIXTURES / "armor_close.csv")
+    cfg = load_config("nonexistent.toml")
+    forward = resolve_armor(armor, cfg)
+    reversed_ = resolve_armor(armor.iloc[::-1], cfg)
+
+    def decision_fields(decisions):
+        return [
+            (
+                decision.id,
+                decision.hash,
+                decision.name,
+                decision.location,
+                decision.guardian_class,
+                decision.action,
+                decision.tag,
+                decision.note,
+                decision.kept_id,
+            )
+            for decision in decisions
+        ]
+
+    assert decision_fields(forward.decisions) == decision_fields(reversed_.decisions)
+    assert forward.same_stat_groups == reversed_.same_stat_groups
+
+
+def test_duplicate_group_snapshot_is_deterministic_and_keeps_ids_as_strings():
+    armor = load_armor(ARMOR_DUPES)
+
+    cfg = load_config("nonexistent.toml")
+    forward = resolve_armor(armor, cfg)
+    reversed_ = resolve_armor(armor.iloc[::-1], cfg)
+    assert forward.exact_duplicate_groups == reversed_.exact_duplicate_groups
+    assert snapshot_json(
+        run_report(
+            config_path="nonexistent.toml",
+            weapons_path=FIXTURES / "does-not-exist.csv",
+            armor_path=ARMOR_DUPES,
+            ghosts_path=FIXTURES / "does-not-exist.csv",
+            no_wishlists=True,
+        )
+    ) == snapshot_json(
+        run_report(
+            config_path="nonexistent.toml",
+            weapons_path=FIXTURES / "does-not-exist.csv",
+            armor_path=ARMOR_DUPES,
+            ghosts_path=FIXTURES / "does-not-exist.csv",
+            no_wishlists=True,
+        )
+    )
+
+
+def test_hostile_armor_group_text_is_preserved_as_json_data(tmp_path):
+    armor = load_armor(ARMOR_DUPES)
+    armor.loc[armor["Id"] == "5001", "Name"] = "<b>Dupe</b> & name"
+    armor.loc[armor["Id"] == "5001", "Owner"] = '<script>alert("x")</script>'
+    armor.loc[armor["Id"] == "5001", "Archetype"] = "<img src=x>"
+    hostile = tmp_path / "hostile-armor.csv"
+    armor.to_csv(hostile, index=False, lineterminator="\n")
+
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=hostile,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    group = snapshot_dict(result)["sections"][0]["armor"][
+        "exact_duplicate_groups"
+    ][0]
+    assert group["name"] == "<b>Dupe</b> & name"
+    assert group["item_archetype"] == "<img src=x>"
+    assert group["members"][0]["location"] == '<script>alert("x")</script>'
+
+
+def test_large_armor_group_ids_and_hashes_remain_json_strings(tmp_path):
+    survivor_id = "6917530162665277291"
+    candidate_id = "6917530162665277292"
+    large_hash = "6917530162665277001"
+    source = tmp_path / "long-armor-ids.csv"
+    source.write_text(
+        ARMOR_DUPES.read_text()
+        .replace('"""5001"""', f'"""{survivor_id}"""')
+        .replace('"""5002"""', f'"""{candidate_id}"""')
+        .replace("Dupe Plate,700,", f"Dupe Plate,{large_hash},")
+    )
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=source,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    groups = snapshot_dict(result)["sections"][0]["armor"][
+        "exact_duplicate_groups"
+    ]
+    group = next(group for group in groups if group["hash"] == large_hash)
+    assert group["group_id"] == survivor_id
+    assert group["preferred_survivor_id"] == survivor_id
+    assert group["hash"] == large_hash
+    assert isinstance(group["group_id"], str)
+    assert isinstance(group["hash"], str)
+    assert all(isinstance(member["id"], str) for member in group["members"])
+    assert {member["id"] for member in group["members"]} == {
+        survivor_id,
+        candidate_id,
+    }
+
+
 def test_large_instance_ids_remain_exact_json_strings(tmp_path):
     large_ids = tmp_path / "large-ids.csv"
-    large_ids.write_text(WEAPONS.read_text().replace("3002", "1000000000000000002"))
+    large_ids.write_text(
+        WEAPONS.read_text()
+        .replace("3002", "1000000000000000002")
+        .replace(",500,", ",18446744073709551615,")
+    )
     result = run_report(
         config_path="nonexistent.toml",
         weapons_path=large_ids,
@@ -244,6 +506,7 @@ def test_large_instance_ids_remain_exact_json_strings(tmp_path):
         if item["id"] == "1000000000000000002"
     )
     assert decision["id"] == "1000000000000000002"
+    assert decision["hash"] == "18446744073709551615"
     assert isinstance(decision["id"], str)
     assert isinstance(decision["hash"], str)
     assert document["inputs"]["sources"][0]["path"] == "large-ids.csv"
@@ -365,6 +628,14 @@ def test_fingerprint_changes_for_every_input_category():
         manifest,
         ruleset_version=1,
     ) != baseline
+
+
+def test_ruleset_v4_fingerprint_intentionally_differs_from_v3():
+    sources = {"armor": "export"}
+    config = {"armor": {"score_floor": 65}}
+    assert compute_fingerprint(sources, config, ruleset_version=4) != compute_fingerprint(
+        sources, config, ruleset_version=3
+    )
 
 
 def test_fingerprint_ignores_paths_covered_by_content_identities():

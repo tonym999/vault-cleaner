@@ -157,7 +157,7 @@ comes from a browser, and no filesystem path is ever read out of one.
 {
   "schema_version": 1,
   "generated_at": "2026-07-25T12:00:00Z",
-  "snapshot": { "schema_version": 2, "ruleset_version": 3, "fingerprint": "<from the report run>" },
+  "snapshot": { "schema_version": 2, "ruleset_version": 4, "fingerprint": "<from the report run>" },
   "decisions": [
     { "id": "6917529027641981542", "kind": "weapons", "hash": "500",
       "name": "Dupe Rifle", "action": "junk", "reason": "dupe-lower",

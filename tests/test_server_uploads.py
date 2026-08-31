@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from vault_cleaner.parse import load_armor
 from vault_cleaner.report_run import run_report, snapshot_dict
 from vault_cleaner.review import save_overrides
 from vault_cleaner.review_session import OverrideStore, Veto
@@ -110,6 +111,110 @@ def test_hostile_unicode_decision_survives_server_upload(tmp_path):
         hostile = next(decision for decision in decisions if decision["id"] == "7006")
         assert "\u202e" in hostile["name"] and "\u202c" in hostile["name"]
         assert "\u2028" in hostile["note"] and "\u2029" in hostile["note"]
+
+
+def test_armor_exact_duplicate_groups_pass_through_server_unchanged(tmp_path):
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(
+            client,
+            "armor",
+            (FIXTURES / "armor_dupes.csv").read_bytes(),
+        )
+
+        assert response.status_code == 200
+        snapshot = response.json["snapshot"]
+        armor = next(
+            section for section in snapshot["sections"] if section["kind"] == "armor"
+        )
+        groups = armor["armor"]["exact_duplicate_groups"]
+        group = next(group for group in groups if group["hash"] == "710")
+        assert group["preferred_survivor_id"] == "5011"
+        assert [member["id"] for member in group["members"]] == [
+            "5011",
+            "5013",
+            "5012",
+        ]
+        member_by_id = {member["id"]: member for member in group["members"]}
+        assert member_by_id["5013"]["disposition"] == "retained_protected"
+        assert member_by_id["5013"]["proposal_action"] is None
+        assert all(isinstance(item["group_id"], str) for item in groups)
+        assert all(
+            isinstance(member["id"], str)
+            for item in groups
+            for member in item["members"]
+        )
+
+        report = client.get("/api/report", base_url=ORIGIN)
+        assert report.status_code == 200
+        report_group = next(
+            section
+            for section in report.json["snapshot"]["sections"]
+            if section["kind"] == "armor"
+        )["armor"]["exact_duplicate_groups"]
+        assert report_group == groups
+
+
+def test_armor_same_stat_groups_pass_through_server_unchanged(tmp_path):
+    content = (FIXTURES / "armor_close.csv").read_bytes()
+    expected = run_report(
+        config_path="config.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=FIXTURES / "armor_close.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    expected_groups = snapshot_dict(expected)["sections"][0]["armor"][
+        "same_stat_groups"
+    ]
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(client, "armor", content)
+        assert response.status_code == 200
+        armor = response.json["snapshot"]["sections"][0]["armor"]
+        assert armor["same_stat_groups"] == expected_groups
+
+        report = client.get("/api/report", base_url=ORIGIN)
+        assert report.status_code == 200
+        assert report.json["snapshot"]["sections"][0]["armor"][
+            "same_stat_groups"
+        ] == expected_groups
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_action", "expected_level", "expected_reason"),
+    [
+        ("plain", "junk", None, ""),
+        ("loadout", "review", "soft", "loadout"),
+        ("locked", "review", "soft", "locked"),
+    ],
+)
+def test_exact_exotic_protection_passes_through_server(
+    tmp_path, state, expected_action, expected_level, expected_reason
+):
+    armor = load_armor(FIXTURES / "armor_dupes.csv")
+    # Keep 5032 as the loser in every branch under test, including when its
+    # mutable state would otherwise outrank the normal MW-based survivor.
+    armor.loc[armor["Id"] == "5031", "Equipped"] = "true"
+    if state == "loadout":
+        armor.loc[armor["Id"] == "5032", "Loadouts"] = "PvE Build"
+    elif state == "locked":
+        armor.loc[armor["Id"] == "5032", "Locked"] = "true"
+    source = tmp_path / f"armor-{state}.csv"
+    armor.to_csv(source, index=False, lineterminator="\n")
+
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(client, "armor", source.read_bytes())
+
+        assert response.status_code == 200
+        decisions = response.json["snapshot"]["sections"][0]["decisions"]
+        decision = next(item for item in decisions if item["id"] == "5032")
+        assert decision["action"] == expected_action
+        assert decision["protection_level"] == expected_level
+        assert decision["protection_reason"] == expected_reason
+
+        ordinary = next(item for item in decisions if item["id"] == "5122")
+        assert ordinary["action"] == "review"
+        assert ordinary["protection_level"] == "soft"
+        assert ordinary["protection_reason"] == "exotic"
 
 
 def test_all_three_uploads_combine_into_one_report(tmp_path):
