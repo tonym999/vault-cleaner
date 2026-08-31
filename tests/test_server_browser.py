@@ -27,7 +27,7 @@ from vault_cleaner.server.session import Session
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HOSTILE_EXPORT = FIXTURES / "weapons_hostile.csv"
-ARMOR_EXPORT = FIXTURES / "armor.csv"
+CLASS_ARMOR_EXPORT = FIXTURES / "armor_classes.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
@@ -173,10 +173,37 @@ def test_review_smoke_downloads_server_finalized_bytes(
     page: Page, live_server: LiveServer
 ) -> None:
     authenticate(page, live_server)
-    page.locator("#vc-upload-armor").set_input_files(ARMOR_EXPORT)
+    page.locator("#vc-upload-armor").set_input_files(CLASS_ARMOR_EXPORT)
 
     expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
     expect(page.locator("#vc-report")).to_be_visible()
+    expect(page.locator("#vc-f-kind")).to_be_visible()
+    class_filter = page.locator("#vc-f-classFacet")
+    expect(class_filter).to_be_visible()
+    expect(class_filter.locator('option[value="Hunter"]')).to_have_text("Hunter (1)")
+    expect(class_filter.locator('option[value="Warlock"]')).to_have_text("Warlock (1)")
+    expect(page.locator("#vc-f-owner")).to_have_count(0)
+    headers = page.locator("#vc-list thead th")
+    expect(headers).to_have_count(9)
+    expect(page.locator("#vc-list thead")).to_contain_text("Class")
+    expect(page.locator("#vc-list thead")).to_contain_text("Location")
+    expect(page.locator("#vc-list tr[data-id]")).to_have_count(2)
+    class_location_row = page.locator('#vc-list tr[data-id="9002"]')
+    expect(class_location_row).to_be_visible()
+    cells = class_location_row.locator("td")
+    expect(cells.nth(3)).to_have_text("Hunter")
+    expect(cells.nth(4)).to_have_text("Vault")
+    warlock_location_row = page.locator('#vc-list tr[data-id="9012"]')
+    expect(warlock_location_row).to_be_visible()
+    warlock_cells = warlock_location_row.locator("td")
+    expect(warlock_cells.nth(3)).to_have_text("Warlock")
+    expect(warlock_cells.nth(4)).to_have_text("Hunter(550)")
+    class_filter.select_option("Hunter")
+    expect(page.locator("#vc-list tr[data-id]")).to_have_count(1)
+    expect(page.locator('#vc-list tr[data-id="9002"]')).to_be_visible()
+    expect(page.locator('#vc-list tr[data-id="9012"]')).to_have_count(0)
+    page.get_by_role("button", name="Reset filters").click()
+    expect(class_filter).to_have_value("")
     row = page.locator("#vc-list tr[data-id]").first
     expect(row).to_be_visible()
 

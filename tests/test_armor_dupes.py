@@ -22,10 +22,23 @@ def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
     assert d["5002"].action == "junk"
     assert d["5002"].tag == "junk"
     assert d["5002"].note == (
-        "old note #vc-junk: armor-exact-dupe; keep [id 5001; owner Vault; "
+        "old note #vc-junk: armor-exact-dupe; keep [id 5001; location Vault; "
         "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
     )
     assert "winner higher Masterwork Tier" in d["5002"].note
+
+
+def test_legacy_owner_duplicate_reference_is_replaced_with_location():
+    armor = load_armor(FIXTURE)
+    armor.loc[armor["Id"] == "5002", "Notes"] = (
+        "manual context #vc-junk: armor-exact-dupe; keep "
+        "[id 5001; owner Old]; winner higher Masterwork Tier"
+    )
+    decision = by_id(decisions(armor))["5002"]
+    assert decision.note.startswith("manual context #vc-junk: armor-exact-dupe;")
+    assert decision.note.count("#vc-junk:") == 1
+    assert "owner Old" not in decision.note
+    assert "location Vault" in decision.note
 
 
 def test_loadout_referenced_loser_reviews_never_junk():

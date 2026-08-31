@@ -71,6 +71,9 @@ var out = {
   }),
   hostileNames: items.map(function (item) { return item.name; }),
   hostileNotes: items.map(function (item) { return item.note; }),
+  classFacets: items.map(function (item) { return item.classFacet; }),
+  guardianClasses: items.map(function (item) { return item.guardianClass; }),
+  locations: items.map(function (item) { return item.location; }),
   groupLabels: api.groupItems(items).map(function (group) { return group.label; }),
   actionCounts: api.actionCounts(items),
   sortedById: ids(api.sortItems(items, "id", "asc")),
@@ -93,7 +96,7 @@ var out = {
     junk: ids(api.filterItems(items, { action: "junk" })),
     weaponsJunk: ids(api.filterItems(items, { action: "junk", kind: "weapons" })),
     byReason: ids(api.filterItems(items, { reason: first.reason })),
-    byOwner: ids(api.filterItems(items, { owner: first.owner })),
+    byClass: ids(api.filterItems(items, { classFacet: first.classFacet })),
     protectedOnly: ids(api.filterItems(items, { protection: "protected" })),
     unprotectedOnly: ids(api.filterItems(items, { protection: "unprotected" })),
     soft: ids(api.filterItems(items, { protection: "soft" })),
@@ -253,7 +256,8 @@ var hostile = "<img src=x onerror=alert(1)>";
 var items = [
   {
     id: "18446744073709551615", hash: "900", name: hostile,
-    kind: "weapons", owner: "Titan", action: "junk", reason: "dupe-lower",
+    kind: "weapons", location: "Titan", guardianClass: "", classFacet: "weapons",
+    action: "junk", reason: "dupe-lower",
     protectionLevel: "", protectionReason: "", tag: "junk", note: "#vc-junk",
     keptId: "9", originalTag: "", originalNotes: "", locked: false,
     equipped: false, inLoadout: false,
@@ -264,7 +268,8 @@ var items = [
     }
   },
   {
-    id: "9", hash: "901", name: "Keep roll", kind: "weapons", owner: "Titan",
+    id: "9", hash: "901", name: "Keep roll", kind: "weapons",
+    location: "Titan", guardianClass: "", classFacet: "weapons",
     action: "review", reason: "wishlist", protectionLevel: "soft",
     protectionReason: "locked", tag: "", note: "#vc-review", keptId: "",
     originalTag: "", originalNotes: "", locked: true, equipped: false,
@@ -307,6 +312,9 @@ if (unicodeItem) {
 }
 var header = view.headerRow();
 if (header.textContent.indexOf("Verdict") === -1) fail("Verdict header is missing");
+if (header.textContent.indexOf("Class") === -1 ||
+    header.textContent.indexOf("Location") === -1 ||
+    header.textContent.indexOf("Owner") !== -1) fail("Class/Location headers are incorrect");
 if (table.textContent.indexOf("Armor scoring") === -1 ||
     table.textContent.indexOf(hostile) === -1 || hasTag(table, "img")) {
   fail("rows/details must render data through text nodes");
@@ -376,6 +384,9 @@ if (readOnlyState.rows[items[0].id].approve !== null ||
 }
 var output = {
   hasHeader: header.textContent.indexOf("Verdict") !== -1,
+  hasClassAndLocation: header.textContent.indexOf("Class") !== -1 &&
+    header.textContent.indexOf("Location") !== -1 &&
+    header.textContent.indexOf("Owner") === -1,
   hasDetails: table.textContent.indexOf("Armor scoring") !== -1,
   hostileIsText: inert.textContent === hostile && !hasTag(table, "img"),
   callbackState: toggles.length === 2 && renders === 2,
@@ -458,6 +469,7 @@ def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
     result = run_view(tmp_path)
     assert result == {
         "hasHeader": True,
+        "hasClassAndLocation": True,
         "hasDetails": True,
         "hostileIsText": True,
         "callbackState": True,
@@ -539,6 +551,57 @@ def test_every_decision_becomes_an_item(plain):
     decisions = proposals(plain.run)
     assert plain.results["itemCount"] == len(decisions)
     assert sorted(plain.results["ids"]) == sorted(decision.id for decision in decisions)
+
+
+def test_class_and_location_axes_are_mapped_independently(plain):
+    decisions = proposals(plain.run)
+    first_class = decisions[0].guardian_class or decisions[0].kind
+    assert set(plain.results["filters"]["byClass"]) == {
+        decision.id for decision in decisions
+        if (decision.guardian_class or decision.kind) == first_class
+    }
+    for item, decision in zip(plain.results["classFacets"], decisions):
+        assert item == (decision.guardian_class or decision.kind)
+    assert all(
+        item == decision.guardian_class
+        for item, decision in zip(plain.results["guardianClasses"], decisions)
+    )
+    assert all(
+        item == decision.location
+        for item, decision in zip(plain.results["locations"], decisions)
+    )
+
+
+def test_unknown_and_empty_guardian_classes_use_honest_presentation_values(tmp_path):
+    snapshot = tmp_path / "class-values.json"
+    snapshot.write_text(json.dumps({
+        "sections": [{"kind": "armor", "decisions": [
+            {"id": "1", "hash": "2", "kind": "armor", "guardian_class": "Spectre", "location": "Vault"},
+            {"id": "3", "hash": "4", "kind": "ghosts", "guardian_class": "", "location": "Titan(550)"},
+        ]}],
+    }), encoding="utf-8")
+    script = tmp_path / "class-values.js"
+    script.write_text(
+        'var fs = require("fs");\n'
+        'var api = require(process.argv[2]);\n'
+        'var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));\n'
+        'var items = api.itemsFromSnapshot(snapshot);\n'
+        'process.stdout.write(JSON.stringify(items.map(function (item) {\n'
+        '  return [item.guardianClass, item.classFacet, item.location];\n'
+        '})));\n',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app), str(snapshot)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == [
+        ["Spectre", "Spectre", "Vault"],
+        ["", "ghosts", "Titan(550)"],
+    ]
 
 
 def test_ids_and_hashes_stay_strings_in_the_browser(plain, hostile):

@@ -151,9 +151,9 @@ def weapon_reference(
     parts = [
         f"id {short_id(row.get('Id', ''), distinguish_from=distinguish_from)}"
     ]
-    owner = safe_fragment(row.get("Owner", ""))
-    if owner:
-        parts.append(f"owner {owner}")
+    location = safe_fragment(row.get("Owner", ""))
+    if location:
+        parts.append(f"location {location}")
     tier = safe_fragment(row.get("Tier", ""), limit=12)
     if tier:
         parts.append(f"Tier {tier}")
@@ -179,9 +179,9 @@ def armor_reference(
     parts = [
         f"id {short_id(row.get('Id', ''), distinguish_from=distinguish_from)}"
     ]
-    owner = safe_fragment(row.get("Owner", ""))
-    if owner:
-        parts.append(f"owner {owner}")
+    location = safe_fragment(row.get("Owner", ""))
+    if location:
+        parts.append(f"location {location}")
     masterwork = safe_fragment(row.get("Masterwork Tier", ""), limit=12)
     if masterwork:
         parts.append(f"MW{masterwork}")

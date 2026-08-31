@@ -3,6 +3,42 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #105 location and Guardian class split
+
+- Measured one fresh private armour export using aggregates only: 891 rows;
+  Equippable Hunter 186, Titan 429, Warlock 276, empty 0; exotics Hunter 53,
+  Titan 115, Warlock 65; class-item types Hunter Cloak 38, Titan Mark 101,
+  Warlock Bond 48; exotic class-item rows Hunter 9, Titan 41, Warlock 9.
+- Replaced the decision/evaluation `owner` model field with `location` from
+  DIM `Owner`, added verbatim armour `guardian_class` from `Equippable`, and
+  kept weapon/ghost classes empty. Updated the snapshot to schema v2 (the
+  single v1→v2 bump is owned by #105), regenerated the v2 golden, and left the
+  ruleset, fingerprint inputs, review-manifest outer schema, override schema,
+  and session schema unchanged.
+- Added independent browser Kind/Class facets with a presentation-only
+  class-neutral fallback, retained Location as a secondary column, relabeled
+  duplicate references and terminal output, and covered legacy `owner` plus
+  current `location` Notes replacement. Added fake Hunter, mismatched
+  location/class, empty, and unrecognised-class coverage; no class validation
+  or weapon/ghost schema change was introduced.
+- Valid current-schema manifests continue to parse and pre-upgrade nested
+  schema-v1 manifests are rejected. The before/after fake semantic capture
+  diff is empty (fingerprint, action/tag/reason, membership, and selected
+  references unchanged).
+- Review follow-up coverage now exercises same-revision Class-control
+  resynchronisation through the live no-rebuild path, including invalid-filter
+  clearing, list repaint, and preservation of search/focus/local state. The
+  fake browser armour input now has deterministic Hunter and Warlock proposal
+  rows, proving class filtering removes the other class while locations remain
+  visibly independent.
+- Validation: baseline before edits passed Ruff and had 819 passing/1 skipped
+  with 4 socket and 2 Chromium startup failures under the restricted sandbox;
+  the final exact focused gate passed 375 tests, golden/report-run passed 23 tests,
+  real-browser acceptance passed 2 tests, and the unrestricted full suite
+  passed 837 tests. Final Ruff, diff-check, and no-tracked-`data/` checks
+  passed; the full/browser reruns used the permitted socket/browser execution
+  environment.
+
 ## 2026-08-31 — #29 emitter-driven Notes round-trip coverage
 
 - Added emitter-driven regressions for current Notes clauses from weapon and

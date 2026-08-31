@@ -26,7 +26,7 @@ state.sort = { field: "id", direction: "desc" };
 state.grouped = false;
 state.query.text = "hostile";
 state.query.kind = "weapons";
-state.query.owner = "missing-owner";
+state.query.classFacet = "missing-class";
 state.expanded["18446744073709551615"] = true;
 state.expanded.stale = true;
 var envelope = {
@@ -64,7 +64,7 @@ process.stdout.write(JSON.stringify({
   grouped: state.grouped,
   query: state.query.text,
   kind: state.query.kind,
-  owner: state.query.owner,
+  classFacet: state.query.classFacet,
   expandedKept: state.expanded["18446744073709551615"],
   expandedStale: state.expanded.stale === undefined,
   invalidated: {
@@ -123,7 +123,7 @@ def test_session_envelope_seam_preserves_local_presentation_state(tmp_path: Path
         "grouped": False,
         "query": "hostile",
         "kind": "weapons",
-        "owner": "",
+        "classFacet": "",
         "expandedKept": True,
         "expandedStale": True,
         "invalidated": {
@@ -138,6 +138,74 @@ def test_session_envelope_seam_preserves_local_presentation_state(tmp_path: Path
             "armor": "idle",
             "ghosts": "idle",
         },
+    }
+
+
+def test_authoritative_envelope_retains_valid_class_filter_and_local_state(
+    tmp_path: Path,
+):
+    harness = tmp_path / "server-ui-class-retention-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+var state = server.createState();
+function envelope(reportRevision) {
+  return {
+    schema_version: 1, state: "reviewing", report_revision: reportRevision,
+    verdict_revision: 0, fingerprint: "fingerprint-" + reportRevision,
+    snapshot: { sections: [{ kind: "armor", decisions: [
+      { id: "1", hash: "2", name: "Hunter Plate", kind: "armor",
+        guardian_class: "Hunter", location: "Titan(550)",
+        action: "review", reason: "armor-score" }
+    ] }] },
+    verdicts: [], override_status: []
+  };
+}
+server.applySessionEnvelope(envelope(1), state);
+state.sort = { field: "location", direction: "desc" };
+state.grouped = false;
+state.query.text = "Hunter";
+state.query.action = "review";
+state.query.kind = "armor";
+state.query.reason = "armor-score";
+state.query.classFacet = "Hunter";
+state.expanded["1"] = true;
+server.applySessionEnvelope(envelope(2), state);
+process.stdout.write(JSON.stringify({
+  sort: state.sort,
+  grouped: state.grouped,
+  query: state.query,
+  expanded: state.expanded["1"],
+  invalidated: state.reconciliation.invalidated
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "sort": {"field": "location", "direction": "desc"},
+        "grouped": False,
+        "query": {
+            "text": "Hunter",
+            "action": "review",
+            "kind": "armor",
+            "reason": "armor-score",
+            "classFacet": "Hunter",
+            "protection": "",
+            "verdict": "",
+        },
+        "expanded": True,
+        "invalidated": [],
     }
 
 
@@ -1091,12 +1159,24 @@ function envelope(verdictRevision, verdicts, state) {
   return { schema_version: 1, state: state || "reviewing", report_revision: 1,
     verdict_revision: verdictRevision, fingerprint: "opaque-fingerprint",
     snapshot: { sections: [{ kind: "weapons", decisions: [
-      { id: id, hash: "18446744073709551614", name: "<img>", owner: "Titan",
+      { id: id, hash: "18446744073709551614", name: "<img>", location: "Titan",
+        guardian_class: "",
         action: "junk", reason: "dupe-lower" },
-      { id: "2", hash: "500", name: "Second", owner: "Hunter",
+      { id: "2", hash: "500", name: "Second", location: "Hunter",
+        guardian_class: "",
         action: "review", reason: "wishlist" }
     ] }] }, verdicts: verdicts || [],
     override_status: [{ id: id, status: "active", detail: "suppresses this item" }] };
+}
+function classChangedEnvelope(verdicts) {
+  var next = envelope(1, verdicts);
+  next.snapshot.sections[0].kind = "armor";
+  next.snapshot.sections[0].decisions.forEach(function (decision, index) {
+    decision.kind = "armor";
+    decision.guardian_class = index === 0 ? "Hunter" : "Warlock";
+    decision.location = index === 0 ? "Vault" : "Hunter(550)";
+  });
+  return next;
 }
 function response(payload, status) {
   return { ok: (status || 200) < 300, status: status || 200,
@@ -1144,6 +1224,9 @@ if (scenario === "bulk") queue.push(response(envelope(1, [
   { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
 ])));
 if (scenario === "filter-cleared-search") queue.push(response(envelope(1, [
+  { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
+])));
+if (scenario === "filter-cleared-class") queue.push(response(classChangedEnvelope([
   { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
 ])));
 if (scenario === "verdict-filter-approved") {
@@ -1253,14 +1336,18 @@ function finish() {
     revoked: revoked, downloads: document.downloads,
     finalizeHeaders: state.finalizeHeaders,
     filterValue: document.nodes["vc-f-verdict"] ? document.nodes["vc-f-verdict"].value : null,
+    classFilterValue: document.nodes["vc-f-classFacet"] ? document.nodes["vc-f-classFacet"].value : null,
     sessionNote: document.nodes["vc-session-note"].textContent,
     searchValue: document.nodes["vc-search"] ? document.nodes["vc-search"].value : null,
     searchFocused: document.activeElement === document.nodes["vc-search"],
     searchSelectionStart: document.nodes["vc-search"] ? document.nodes["vc-search"].selectionStart : null,
     searchSelectionEnd: document.nodes["vc-search"] ? document.nodes["vc-search"].selectionEnd : null,
     queryVerdict: state.query.verdict,
+    queryClassFacet: state.query.classFacet,
+    viewInvalidated: state.viewInvalidated,
     searchSame: document.nodes["vc-search"] === beforeSearch,
     bulkSame: document.nodes["vc-bulk-veto"] === beforeBulk,
+    classFilterSame: document.nodes["vc-f-classFacet"] === beforeClassFilter,
     rowIds: Object.keys(state.rows).sort(),
     actionRole: document.nodes["vc-actions"].getAttribute("role"),
     actionsReachable: document.nodes["vc-actions"].parentNode === document.main,
@@ -1293,7 +1380,7 @@ function finish() {
   process.stdout.write(JSON.stringify(output));
 }
 var beforeRow = null, beforeFocus = null, beforeFinalize = null, uploadBulkDisabled = null;
-var beforeSearch = null, beforeBulk = null;
+var beforeSearch = null, beforeBulk = null, beforeClassFilter = null;
 setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   if (scenario === "single" || scenario === "clear" || scenario === "failure" || scenario === "stale" || scenario === "stale-failure") {
@@ -1317,6 +1404,20 @@ setTimeout(function () {
     search.selectionEnd = 4;
     search.dispatch("input", { target: search });
     search.focus();
+    beforeBulk = document.nodes["vc-bulk-veto"];
+    beforeBulk.dispatch("click");
+  } else if (scenario === "filter-cleared-class") {
+    var classFilter = document.nodes["vc-f-classFacet"];
+    beforeClassFilter = classFilter;
+    classFilter.value = "weapons";
+    classFilter.dispatch("change", { target: classFilter });
+    var classSearch = document.nodes["vc-search"];
+    beforeSearch = classSearch;
+    classSearch.value = "Second";
+    classSearch.selectionStart = 1;
+    classSearch.selectionEnd = 4;
+    classSearch.dispatch("input", { target: classSearch });
+    classSearch.focus();
     beforeBulk = document.nodes["vc-bulk-veto"];
     beforeBulk.dispatch("click");
   } else if (scenario === "verdict-filter-approved" || scenario === "verdict-filter-vetoed" || scenario === "verdict-filter-unreviewed") {
@@ -1387,6 +1488,7 @@ setTimeout(function () {
         ("failure", "/api/verdicts", None),
         ("bulk", "/api/verdicts", "vetoed"),
         ("filter-cleared-search", "/api/verdicts", "vetoed"),
+        ("filter-cleared-class", "/api/verdicts", "vetoed"),
         ("verdict-filter-approved", "/api/verdicts", "approved"),
         ("verdict-filter-vetoed", "/api/verdicts", "vetoed"),
         ("verdict-filter-unreviewed", "/api/verdicts", None),
@@ -1496,6 +1598,19 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["queryVerdict"] == ""
         assert result["searchSame"] is True
         assert result["bulkSame"] is True
+    if scenario == "filter-cleared-class":
+        assert result["paths"] == ["/api/report", "/api/verdicts"]
+        assert result["classFilterValue"] == ""
+        assert result["queryClassFacet"] == ""
+        assert result["viewInvalidated"] == ["filter classFacet weapons"]
+        assert result["classFilterSame"] is True
+        assert result["searchValue"] == "Second"
+        assert result["searchFocused"] is True
+        assert result["searchSelectionStart"] == 1
+        assert result["searchSelectionEnd"] == 4
+        assert result["searchSame"] is True
+        assert result["bulkSame"] is True
+        assert result["rowIds"] == ["2"]
     if scenario in {"verdict-filter-approved", "verdict-filter-vetoed", "verdict-filter-unreviewed"}:
         assert result["paths"] == ["/api/report", "/api/verdicts"]
         assert result["row"]["same"] is True

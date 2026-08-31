@@ -33,9 +33,10 @@ from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor import ArmorEvaluation
 from vault_cleaner.rules.dupes import Decision
 
-SNAPSHOT_SCHEMA_VERSION = 1
-# Bump only when decision semantics change. Snapshot presentation/schema
-# changes are deliberately independent so they do not invalidate reviews.
+SNAPSHOT_SCHEMA_VERSION = 2
+# Snapshot schema changes are independent of rule decision semantics and do
+# not change RULESET_VERSION, fingerprint inputs, or persisted-veto identity;
+# saved review manifests nevertheless pin and reject mismatched schemas.
 RULESET_VERSION = 3
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
@@ -80,7 +81,8 @@ class ReportDecision:
     kind: str
     hash: str
     name: str
-    owner: str
+    location: str
+    guardian_class: str
     action: str
     tag: str
     note: str
@@ -272,7 +274,8 @@ def _decision_records(
                 kind=kind,
                 hash=str(decision.hash),
                 name=str(decision.name),
-                owner=str(decision.owner),
+                location=str(decision.location),
+                guardian_class=str(decision.guardian_class),
                 action=decision.action,
                 tag=decision.tag,
                 note=decision.note,

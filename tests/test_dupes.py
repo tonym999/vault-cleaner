@@ -29,7 +29,7 @@ def test_best_copy_survives_and_lower_plain_copy_is_junked():
 def test_junk_note_appends_to_existing_notes():
     d = by_id(decisions())
     assert d["3002"].note == (
-        "old note #vc-junk: dupe-lower; keep [id 3001; owner Vault; Tier 5; "
+        "old note #vc-junk: dupe-lower; keep [id 3001; location Vault; Tier 5; "
         "MW10; roll Mag B / Trait A]; winner higher Masterwork Tier"
     )
 
@@ -47,7 +47,7 @@ def test_current_note_replaces_trailing_generated_history():
     assert decision.note.startswith("manual build note #vc-junk: dupe-lower;")
     assert decision.note.count("#vc-junk:") == 1
     assert "owner Old" not in decision.note
-    assert "owner Vault" in decision.note
+    assert "location Vault" in decision.note
 
 
 def test_repeated_round_trips_keep_one_current_tool_clause():

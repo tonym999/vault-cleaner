@@ -10,7 +10,11 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import cli
-from vault_cleaner.report_run import RULESET_VERSION, run_report
+from vault_cleaner.report_run import (
+    RULESET_VERSION,
+    SNAPSHOT_SCHEMA_VERSION,
+    run_report,
+)
 from vault_cleaner.review import OverridesError, save_overrides
 from vault_cleaner.review_session import OverrideStore, Veto
 from vault_cleaner.server import app as server_app
@@ -368,7 +372,7 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
                 "schema_version": 1,
                 "generated_at": "2026-08-25T00:00:00Z",
                 "snapshot": {
-                    "schema_version": 1,
+                    "schema_version": SNAPSHOT_SCHEMA_VERSION,
                     "ruleset_version": RULESET_VERSION,
                     "fingerprint": report.fingerprint,
                 },

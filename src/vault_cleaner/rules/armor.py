@@ -44,7 +44,8 @@ class ArmorEvaluation:
     id: str
     hash: str
     name: str
-    owner: str
+    location: str
+    guardian_class: str
     original_tag: str
     original_notes: str
     equippable: str
@@ -156,7 +157,8 @@ def run(
                     id=row["Id"],
                     hash=row["Hash"],
                     name=row["Name"],
-                    owner=row.get("Owner", ""),
+                    location=row.get("Owner", ""),
+                    guardian_class=row["Equippable"],
                     original_tag=row["Tag"],
                     original_notes=row["Notes"],
                     equippable=row["Equippable"],
@@ -206,7 +208,8 @@ def run(
         result.decisions.append(
             Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
-                owner=row.get("Owner", ""), action=action, tag=tag,
+                location=row.get("Owner", ""), guardian_class=row["Equippable"],
+                action=action, tag=tag,
                 note=append_tool_clause(row["Notes"], hashtag), kept_id="",
             )
         )
@@ -214,7 +217,8 @@ def run(
         result.decisions.append(
             Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
-                owner=row.get("Owner", ""), action="review", tag=row["Tag"],
+                location=row.get("Owner", ""), guardian_class=row["Equippable"],
+                action="review", tag=row["Tag"],
                 note=append_tool_clause(
                     row["Notes"], f"#vc-review: {detail} ({reason})"
                 ),

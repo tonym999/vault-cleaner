@@ -73,7 +73,7 @@
       grouped: true,
       expanded: emptyMap(),
       query: {
-        text: "", action: "", kind: "", reason: "", owner: "",
+        text: "", action: "", kind: "", reason: "", classFacet: "",
         protection: "", verdict: ""
       },
       // DOM row handles are local presentation state, not part of an envelope.
@@ -213,7 +213,7 @@
         invalidated.push("expanded item " + id);
       }
     });
-    ["action", "kind", "reason", "owner", "protection", "verdict"].forEach(
+    ["action", "kind", "reason", "classFacet", "protection", "verdict"].forEach(
       function (field) {
         if (state.query[field] &&
             !valueStillExists(nextItems, nextVerdicts, field, state.query[field])) {
@@ -689,7 +689,7 @@
           } } })
       ]));
       [["vc-f-action", "Action", "action", "any action"], ["vc-f-kind", "Kind", "kind", "any kind"],
-       ["vc-f-reason", "Reason", "reason", "any reason"], ["vc-f-owner", "Owner", "owner", "any owner"]].forEach(function (spec) {
+       ["vc-f-reason", "Reason", "reason", "any reason"], ["vc-f-classFacet", "Class", "classFacet", "any class"]].forEach(function (spec) {
         view.addSelect(host, spec[0], spec[1], view.optionsFor(state.items, spec[2], spec[3]), spec[2], state.query[spec[2]], queryChange);
       });
       view.addSelect(host, "vc-f-protection", "Protection", [

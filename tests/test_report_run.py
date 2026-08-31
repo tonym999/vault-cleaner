@@ -18,13 +18,15 @@ from vault_cleaner.report_run import (
     snapshot_dict,
     snapshot_json,
 )
+from vault_cleaner.rules import armor as armor_rules
 
 FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = FIXTURES / "weapons_dupes.csv"
 ARMOR = FIXTURES / "armor.csv"
+CLASS_ARMOR = FIXTURES / "armor_classes.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
 HOSTILE = FIXTURES / "weapons_hostile.csv"
-GOLDEN = FIXTURES / "report_snapshot_v1.json"
+GOLDEN = FIXTURES / "report_snapshot_v2.json"
 
 
 def build_report():
@@ -125,12 +127,65 @@ def test_snapshot_contains_complete_armor_score_metadata():
     assert "combo_kept_elsewhere" in armor_doc["armor"]["evaluations"][0]
 
 
+def test_location_and_guardian_class_are_separate_and_verbatim():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=WEAPONS,
+        armor_path=CLASS_ARMOR,
+        ghosts_path=GHOSTS,
+        no_wishlists=True,
+    )
+    armor_section = next(section for section in result.sections if section.kind == "armor")
+    assert [(decision.id, decision.guardian_class) for decision in armor_section.decisions] == [
+        ("9002", "Hunter"),
+        ("9012", "Warlock"),
+    ]
+    decision = armor_section.decisions[0]
+    assert decision.location == "Vault"
+    assert decision.guardian_class == "Hunter"
+    assert not hasattr(decision, "owner")
+
+    evaluations = {evaluation.id: evaluation for evaluation in armor_section.armor.evaluations}
+    assert evaluations["9001"].location == "Titan(550)"
+    assert evaluations["9001"].guardian_class == "Hunter"
+    document = snapshot_dict(result)
+    armor_doc = next(section for section in document["sections"] if section["kind"] == "armor")
+    snap_decision = armor_doc["decisions"][0]
+    assert snap_decision["location"] == "Vault"
+    assert snap_decision["guardian_class"] == "Hunter"
+    assert "owner" not in snap_decision
+    evaluation = next(item for item in armor_doc["armor"]["evaluations"] if item["id"] == "9001")
+    assert evaluation["location"] == "Titan(550)"
+    assert evaluation["guardian_class"] == "Hunter"
+    assert "owner" not in evaluation
+
+
+def test_weapon_and_ghost_models_are_class_neutral():
+    result = build_report()
+    for section in result.sections:
+        if section.kind in {"weapons", "ghosts"}:
+            assert all(decision.guardian_class == "" for decision in section.decisions)
+            assert all(decision.location for decision in section.decisions)
+
+
+def test_empty_and_unrecognised_armor_classes_are_carried_without_validation():
+    from vault_cleaner.parse import load_armor
+
+    armor = load_armor(CLASS_ARMOR)
+    armor.loc[0, "Equippable"] = "Spectre"
+    armor.loc[1, "Equippable"] = ""
+    result = armor_rules.run(armor, {"armor": {"archetypes": {}, "top_n_per_slot": 1, "score_floor": 65, "set_bonus": 0, "favored_set_perks": []}, "rails": {"crafted_level_protect": 10}})
+    evaluations = {evaluation.id: evaluation for evaluation in result.evaluations}
+    assert evaluations["9001"].guardian_class == "Spectre"
+    assert evaluations["9002"].guardian_class == ""
+
+
 def test_snapshot_serialization_is_deterministic():
     first = build_report()
     second = build_report()
     assert snapshot_json(first) == snapshot_json(second)
     document = json.loads(snapshot_json(first))
-    assert document["schema_version"] == 1
+    assert document["schema_version"] == 2
     assert document["ruleset_version"] == 3
     assert document["fingerprint"] == first.fingerprint
 
@@ -169,7 +224,7 @@ def test_regeneration_script_reproduces_the_committed_golden(tmp_path):
     assert regenerated.read_bytes() == GOLDEN.read_bytes()
 
 
-def test_snapshot_matches_schema_v1_golden():
+def test_snapshot_matches_schema_v2_golden():
     assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
 
 
@@ -395,9 +450,11 @@ def test_snapshot_fingerprint_is_recomputable_from_recorded_inputs(tmp_path):
 
 def test_snapshot_schema_version_does_not_change_input_fingerprint(monkeypatch):
     before = build_report()
-    monkeypatch.setattr(report_run, "SNAPSHOT_SCHEMA_VERSION", 2)
+    monkeypatch.setattr(
+        report_run, "SNAPSHOT_SCHEMA_VERSION", report_run.SNAPSHOT_SCHEMA_VERSION + 1
+    )
     after = build_report()
-    assert snapshot_dict(after)["schema_version"] == 2
+    assert snapshot_dict(after)["schema_version"] == report_run.SNAPSHOT_SCHEMA_VERSION
     assert after.fingerprint == before.fingerprint
 
 

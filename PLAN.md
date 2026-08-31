@@ -120,6 +120,9 @@ browser rendering; neither downstream surface is part of #29.
 Complete known vault-cleaner clauses at the trailing `Notes` boundary are
 replaced on a later run, so only the current tool-generated explanation is
 retained while user-authored and ambiguous text is preserved.
+Review presentation keeps current DIM `Owner` as a `location` axis and exposes
+armor `guardian_class` verbatim from `Equippable`; weapons and ghosts remain
+class-neutral and use their kind only as a browser Class fallback.
 
 ## Risks & mitigations
 

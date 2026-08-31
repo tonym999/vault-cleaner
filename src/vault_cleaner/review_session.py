@@ -172,8 +172,8 @@ def same_proposal(a: object, b: object) -> bool:
     """Return whether two proposals have the same cross-run identity.
 
     Only the five fields that define the proposal's decision identity are
-    compared.  Display metadata such as ``name`` and ``owner`` deliberately
-    does not participate.
+    compared.  Display metadata such as ``name``, ``location`` and
+    ``guardian_class`` deliberately does not participate.
     """
     return tuple(_required_field(a, field) for field in _IDENTITY_FIELDS) == tuple(
         _required_field(b, field) for field in _IDENTITY_FIELDS

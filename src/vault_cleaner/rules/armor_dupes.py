@@ -3,7 +3,7 @@
 Fingerprint (identity — same group ⇔ same values): Hash, the six base stats
 via ARMOR_STATS, Tuning Stat, Seasonal Mod, Holofoil, and the sorted
 "Spirit of ..." perk signature. Everything else on the row is mutable state
-(mods, masterwork, power, tags, locks, owner) — it decides who survives,
+(mods, masterwork, power, tags, locks, location) — it decides who survives,
 never who matches.
 
 Why exactly these (measured on the real export, #16):
@@ -95,7 +95,7 @@ def in_loadout(row: pd.Series) -> bool:
 def _survivor_rank(row: pd.Series, crafted_level_protect: int) -> tuple:
     """Higher wins. DIM loadouts pin instance ids, so a loadout member must
     survive over a plain twin or the loadout breaks; lock outranks
-    masterwork because it's the owner's explicit signal."""
+    masterwork because it's the owner's explicit lock signal."""
     level, _ = rails.protection(row, crafted_level_protect)
     return (
         level == rails.HARD,
@@ -175,7 +175,9 @@ def run(armor: pd.DataFrame, crafted_level_protect: int) -> list[Decision]:
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
-                    owner=row.get("Owner", ""), action=action, tag=tag,
+                    location=row.get("Owner", ""),
+                    guardian_class=row.get("Equippable", ""),
+                    action=action, tag=tag,
                     note=append_tool_clause(row["Notes"], hashtag),
                     kept_id=best["Id"],
                 )

@@ -1,6 +1,6 @@
 """Ghost shell cleanup pass (#8).
 
-Policy (owner decision, PR #15): ghosts carry no quality signal — mods move
+Policy (maintainer decision, PR #15): ghosts carry no quality signal — mods move
 freely between shells, DIM's Energy Capacity / Masterwork Tier columns are
 empty in current exports (retired system), and dismantled shells can be
 reacquired from Collections. So there is no "best" to rank, and this pass
@@ -47,7 +47,8 @@ def run(ghosts: pd.DataFrame) -> list[Decision]:
         decisions.append(
             Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
-                owner=row.get("Owner", ""), action="junk", tag="junk",
+                location=row.get("Owner", ""), guardian_class="",
+                action="junk", tag="junk",
                 note=append_tool_clause(row["Notes"], hashtag), kept_id="",
             )
         )

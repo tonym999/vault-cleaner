@@ -6,7 +6,11 @@ from types import SimpleNamespace
 import pytest
 
 from vault_cleaner import review
-from vault_cleaner.report_run import RULESET_VERSION, run_report
+from vault_cleaner.report_run import (
+    RULESET_VERSION,
+    SNAPSHOT_SCHEMA_VERSION,
+    run_report,
+)
 from vault_cleaner.review_session import (
     VERDICTS,
     ManifestDecision,
@@ -54,8 +58,26 @@ def verdicts_for(*decisions, verdict="vetoed"):
 def test_same_proposal_ignores_display_metadata_but_compares_all_identity_fields():
     run = build_report()
     decision = proposals(run)[0]
-    display_only = replace(decision, name="renamed", owner="another vault")
+    display_only = replace(
+        decision,
+        name="renamed",
+        location="another vault",
+        guardian_class="display-only class",
+    )
     assert same_proposal(decision, display_only)
+    retained = retain_verdicts(
+        verdicts_for(decision),
+        run,
+        replace_proposal(
+            run,
+            decision.id,
+            name=display_only.name,
+            location=display_only.location,
+            guardian_class=display_only.guardian_class,
+        ),
+    )
+    assert retained.retained_ids == (decision.id,)
+    assert retained.discarded_ids == ()
     assert not same_proposal(decision, replace(decision, id="different-id"))
 
     for field in ("kind", "hash", "action", "reason"):
@@ -141,7 +163,7 @@ def test_manifest_merge_deliberately_ignores_mutated_display_fields():
     )
     manifest = review.ReviewManifest(
         schema_version=1,
-        snapshot_schema_version=1,
+        snapshot_schema_version=SNAPSHOT_SCHEMA_VERSION,
         ruleset_version=RULESET_VERSION,
         fingerprint=run.fingerprint,
         decisions=(manifest_decision,),
@@ -174,7 +196,7 @@ def test_manifest_adapter_and_manifest_free_core_have_the_same_result():
     )
     manifest = review.ReviewManifest(
         schema_version=1,
-        snapshot_schema_version=1,
+        snapshot_schema_version=SNAPSHOT_SCHEMA_VERSION,
         ruleset_version=RULESET_VERSION,
         fingerprint=run.fingerprint,
         decisions=manifest_decisions,
@@ -280,7 +302,7 @@ def test_manifest_adapter_and_core_cover_categories_and_diagnostics():
     )
     manifest = review.ReviewManifest(
         schema_version=1,
-        snapshot_schema_version=1,
+        snapshot_schema_version=SNAPSHOT_SCHEMA_VERSION,
         ruleset_version=RULESET_VERSION,
         fingerprint=run.fingerprint,
         decisions=entries,

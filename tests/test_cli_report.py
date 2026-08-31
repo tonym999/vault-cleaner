@@ -26,6 +26,13 @@ def test_report_dry_run_over_all_fixtures(capsys):
     assert "dry run — pass --write" in out
 
 
+def test_combined_report_labels_class_and_location_separately(capsys):
+    assert run_report() == 0
+    out = capsys.readouterr().out
+    assert "class Titan; location Vault" in out
+    assert "owner Vault" not in out
+
+
 def test_report_missing_export_skipped_not_fatal(capsys, tmp_path):
     rc = cli.main([
         "report", "--weapons", str(tmp_path / "nope.csv"), "--armor", ARMOR,

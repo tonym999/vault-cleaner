@@ -138,8 +138,9 @@ def test_reason_slug_from_every_note_shape(note, expected):
     assert reason_slug(note) == expected
 
 
-def _d(id, name, note, owner="Vault"):
-    return Decision(id=id, hash="1", name=name, owner=owner,
+def _d(id, name, note, location="Vault", guardian_class=""):
+    return Decision(id=id, hash="1", name=name, location=location,
+                    guardian_class=guardian_class,
                     action="junk" if "#vc-junk" in note else "review",
                     tag="", note=note, kept_id="")
 
@@ -164,8 +165,8 @@ def test_summarize_groups_and_orders():
     assert out.index("JUNK dupe-lower (weapons) — 2 item(s)") < out.index("JUNK armor-score (armor) — 1 item(s)")
     assert out.index("JUNK ghost-unprotected-surplus (ghosts)") < out.index("REVIEW dupe-lower (weapons) — 1 item(s)")
     # per-item lines beneath their group
-    assert "  Rifle A (id 1, Vault)" in out
-    assert "  Shell (id 5, Vault)" in out
+    assert "  Rifle A (id 1, class weapons; location Vault)" in out
+    assert "  Shell (id 5, class ghosts; location Vault)" in out
 
 
 def test_summarize_empty_sections():
@@ -176,13 +177,13 @@ def test_summarize_shows_duplicate_candidate_and_reference_together():
     decision = _d(
         "6917530162665277292",
         "Rifle B",
-        "#vc-junk: dupe-lower; keep [id …7291; owner Vault]; winner higher Tier",
+        "#vc-junk: dupe-lower; keep [id …7291; location Vault]; winner higher Tier",
     )
     decision.kept_id = "6917530162665277291"
     out = summarize([("weapons", [decision])])
 
-    assert "Rifle B (id 6917530162665277292, Vault)" in out
-    assert "keep [id …7291; owner Vault]; winner higher Tier" in out
+    assert "Rifle B (id 6917530162665277292, class weapons; location Vault)" in out
+    assert "keep [id …7291; location Vault]; winner higher Tier" in out
 
 
 def test_summarize_preserves_winner_after_maximal_weapon_reference():
@@ -199,7 +200,7 @@ def test_summarize_preserves_winner_after_maximal_weapon_reference():
         "6917530162665277292",
         "Rifle B",
         f"#vc-junk: dupe-lower; keep {reference}; winner higher Masterwork Tier",
-        owner="Owner " + "C" * 600,
+        location="Owner " + "C" * 600,
     )
     decision.kept_id = row["Id"]
 
@@ -224,7 +225,7 @@ def test_summarize_preserves_close_partner_reason_after_maximal_reference():
         "Plate B",
         f"#vc-review: armor-similar to; compare {reference}; max stat delta 2, "
         "total 4; partner closest stat distance",
-        owner="Owner " + "C" * 600,
+        location="Owner " + "C" * 600,
     )
     decision.kept_id = row["Id"]
 
