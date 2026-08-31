@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from vault_cleaner import review
-from vault_cleaner.report_run import RULESET_VERSION, run_report
+from vault_cleaner.report_run import (
+    RULESET_VERSION,
+    SNAPSHOT_SCHEMA_VERSION,
+    run_report,
+)
 from vault_cleaner.review import (
     FingerprintMismatchError,
     OverridesError,
@@ -53,7 +57,7 @@ def manifest_payload(run, vetoed_ids=()):
         "schema_version": 1,
         "generated_at": "2026-07-25T12:00:00Z",
         "snapshot": {
-            "schema_version": 1,
+            "schema_version": SNAPSHOT_SCHEMA_VERSION,
             "ruleset_version": RULESET_VERSION,
             "fingerprint": run.fingerprint,
         },
@@ -109,6 +113,14 @@ def test_valid_manifest_splits_vetoed_from_approved(tmp_path):
     assert [d.id for d in manifest.vetoed] == ids
     assert len(manifest.approved) == len(proposals(run)) - 2
     assert all(isinstance(d.id, str) for d in manifest.decisions)
+
+
+def test_manifest_rejects_pre_upgrade_snapshot_schema(tmp_path):
+    run = build_report()
+    payload = manifest_payload(run)
+    payload["snapshot"]["schema_version"] = 1
+    with pytest.raises(ReviewManifestError, match="schema_version 1"):
+        parse_manifest(write_manifest(tmp_path, payload))
 
 
 @pytest.mark.parametrize(

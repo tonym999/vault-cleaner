@@ -33,7 +33,7 @@ from vault_cleaner.rules import rails
 from vault_cleaner.rules.armor import ArmorEvaluation
 from vault_cleaner.rules.dupes import Decision
 
-SNAPSHOT_SCHEMA_VERSION = 1
+SNAPSHOT_SCHEMA_VERSION = 2
 # Bump only when decision semantics change. Snapshot presentation/schema
 # changes are deliberately independent so they do not invalidate reviews.
 RULESET_VERSION = 3
@@ -80,7 +80,8 @@ class ReportDecision:
     kind: str
     hash: str
     name: str
-    owner: str
+    location: str
+    guardian_class: str
     action: str
     tag: str
     note: str
@@ -272,7 +273,8 @@ def _decision_records(
                 kind=kind,
                 hash=str(decision.hash),
                 name=str(decision.name),
-                owner=str(decision.owner),
+                location=str(decision.location),
+                guardian_class=str(decision.guardian_class),
                 action=decision.action,
                 tag=decision.tag,
                 note=decision.note,

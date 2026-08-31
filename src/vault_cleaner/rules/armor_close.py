@@ -154,7 +154,9 @@ def run(armor: pd.DataFrame, cfg: dict) -> list[Decision]:
             decisions.append(
                 Decision(
                     id=rid, hash=row["Hash"], name=row["Name"],
-                    owner=row.get("Owner", ""), action="review", tag=row["Tag"],
+                    location=row.get("Owner", ""),
+                    guardian_class=row.get("Equippable", ""),
+                    action="review", tag=row["Tag"],
                     note=append_tool_clause(row["Notes"], hashtag),
                     kept_id=partner_id,
                 )

@@ -26,7 +26,7 @@ state.sort = { field: "id", direction: "desc" };
 state.grouped = false;
 state.query.text = "hostile";
 state.query.kind = "weapons";
-state.query.owner = "missing-owner";
+state.query.classFacet = "missing-class";
 state.expanded["18446744073709551615"] = true;
 state.expanded.stale = true;
 var envelope = {
@@ -64,7 +64,7 @@ process.stdout.write(JSON.stringify({
   grouped: state.grouped,
   query: state.query.text,
   kind: state.query.kind,
-  owner: state.query.owner,
+  classFacet: state.query.classFacet,
   expandedKept: state.expanded["18446744073709551615"],
   expandedStale: state.expanded.stale === undefined,
   invalidated: {
@@ -123,7 +123,7 @@ def test_session_envelope_seam_preserves_local_presentation_state(tmp_path: Path
         "grouped": False,
         "query": "hostile",
         "kind": "weapons",
-        "owner": "",
+        "classFacet": "",
         "expandedKept": True,
         "expandedStale": True,
         "invalidated": {
@@ -1091,9 +1091,11 @@ function envelope(verdictRevision, verdicts, state) {
   return { schema_version: 1, state: state || "reviewing", report_revision: 1,
     verdict_revision: verdictRevision, fingerprint: "opaque-fingerprint",
     snapshot: { sections: [{ kind: "weapons", decisions: [
-      { id: id, hash: "18446744073709551614", name: "<img>", owner: "Titan",
+      { id: id, hash: "18446744073709551614", name: "<img>", location: "Titan",
+        guardian_class: "",
         action: "junk", reason: "dupe-lower" },
-      { id: "2", hash: "500", name: "Second", owner: "Hunter",
+      { id: "2", hash: "500", name: "Second", location: "Hunter",
+        guardian_class: "",
         action: "review", reason: "wishlist" }
     ] }] }, verdicts: verdicts || [],
     override_status: [{ id: id, status: "active", detail: "suppresses this item" }] };

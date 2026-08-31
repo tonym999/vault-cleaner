@@ -120,6 +120,24 @@ def test_weapon_reference_has_only_a_short_id_and_bounded_roll_detail():
     assert "roll Frame A / Trait A" in rendered
 
 
+def test_duplicate_references_label_owner_as_location_without_class():
+    weapon = load_weapons(FIXTURES / "weapons_dupes.csv").iloc[0]
+    weapon["Owner"] = "Titan(550)"
+    weapon["Equippable"] = "Warlock"
+    weapon_rendered = weapon_reference(weapon)
+    assert "location Titan(550)" in weapon_rendered
+    assert "owner Titan(550)" not in weapon_rendered
+    assert "Warlock" not in weapon_rendered
+
+    armor = load_armor(FIXTURES / "armor_dupes.csv").iloc[0]
+    armor["Owner"] = "Titan(550)"
+    armor["Equippable"] = "Warlock"
+    armor_rendered = armor_reference(armor)
+    assert "location Titan(550)" in armor_rendered
+    assert "owner Titan(550)" not in armor_rendered
+    assert "Warlock" not in armor_rendered
+
+
 def test_weapon_reference_uses_the_shared_crafted_state_parser():
     row = load_weapons(FIXTURES / "weapons_dupes.csv").iloc[0]
     row["Crafted"] = " CRAFTED "

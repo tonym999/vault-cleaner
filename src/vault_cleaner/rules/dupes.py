@@ -183,7 +183,8 @@ class Decision:
     id: str
     hash: str
     name: str
-    owner: str
+    location: str
+    guardian_class: str
     action: str  # "junk" | "review"
     tag: str  # what the output row will carry
     note: str  # user Notes plus the current generated clause
@@ -249,7 +250,8 @@ def resolve(
             decisions.append(
                 Decision(
                     id=row["Id"], hash=row["Hash"], name=row["Name"],
-                    owner=row.get("Owner", ""), action=action, tag=tag,
+                    location=row.get("Owner", ""), guardian_class="",
+                    action=action, tag=tag,
                     note=note, kept_id=best["Id"],
                 )
             )

@@ -92,7 +92,8 @@ def run(
         decisions.append(
             dupes.Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
-                owner=row.get("Owner", ""), action=action, tag=tag,
+                location=row.get("Owner", ""), guardian_class="",
+                action=action, tag=tag,
                 note=append_tool_clause(row["Notes"], hashtag), kept_id="",
             )
         )

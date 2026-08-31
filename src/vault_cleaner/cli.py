@@ -142,7 +142,7 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
 
     print(f"parsed {len(items)} {args.kind} from {input_path}")
     for row, (_, r) in zip(rows, matches.iterrows()):
-        print(f"  would tag {args.tag!r}: {r['Name']} (id {r['Id']}, owner {r.get('Owner', '?')})")
+        print(f"  would tag {args.tag!r}: {r['Name']} (id {r['Id']}, location {r.get('Owner', '?')})")
 
     if not args.write:
         print("dry run — pass --write to write the import CSV")
@@ -203,7 +203,7 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
         )
     for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
-        print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+        print(f"  {marker} {d.name} (id {d.id}, location {d.location}) — {d.note.split('#vc-')[-1]}")
 
     if not args.write:
         print("dry run — pass --write to write the import CSV")
@@ -254,7 +254,7 @@ def _cmd_armor(args: argparse.Namespace) -> int:
     )
     for d in decisions:
         marker = "junk  " if d.action == "junk" else "review"
-        print(f"  {marker} {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+        print(f"  {marker} {d.name} (id {d.id}, class {d.guardian_class or 'armor'}, location {d.location}) — {d.note.split('#vc-')[-1]}")
 
     if not args.write:
         print("dry run — pass --write to write the import CSV")
@@ -289,7 +289,7 @@ def _cmd_ghosts(args: argparse.Namespace) -> int:
     print(f"parsed {len(ghosts)} ghosts from {input_path}")
     print(f"resolved: {len(decisions)} junk ({kept} protected: equipped/locked/tagged/in-loadout)")
     for d in decisions:
-        print(f"  junk   {d.name} (id {d.id}, {d.owner}) — {d.note.split('#vc-')[-1]}")
+        print(f"  junk   {d.name} (id {d.id}, location {d.location}) — {d.note.split('#vc-')[-1]}")
 
     if not args.write:
         print("dry run — pass --write to write the import CSV")

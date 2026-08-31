@@ -68,7 +68,8 @@ def summarize(sections: Iterable[tuple[str, list]]) -> str:
             line = (
                 f"  {safe_fragment(d.name, limit=120)} "
                 f"(id {safe_fragment(d.id, limit=48)}, "
-                f"{safe_fragment(d.owner, limit=80)})"
+                f"class {safe_fragment(d.guardian_class or kind, limit=80)}; "
+                f"location {safe_fragment(d.location, limit=80)})"
             )
             if d.kept_id:
                 line += (

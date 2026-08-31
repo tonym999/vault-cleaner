@@ -39,7 +39,7 @@ names. Comma-bearing cells containing either measured tracker label are left
 ungroupable regardless of component order or marker placement.
 
 Duplicate Notes and terminal reports identify the selected survivor or close
-partner with a concise reference such as `[id …0059; owner Vault; MW10; power
+partner with a concise reference such as `[id …0059; location Vault; MW10; power
 450]`; long DIM ids are shortened only for this human-facing text. The complete
 candidate and survivor/partner ids remain in the machine-readable report data.
 The final four characters remain the normal id label; when that suffix collides
@@ -157,7 +157,7 @@ comes from a browser, and no filesystem path is ever read out of one.
 {
   "schema_version": 1,
   "generated_at": "2026-07-25T12:00:00Z",
-  "snapshot": { "schema_version": 1, "ruleset_version": 1, "fingerprint": "<from the report run>" },
+  "snapshot": { "schema_version": 2, "ruleset_version": 3, "fingerprint": "<from the report run>" },
   "decisions": [
     { "id": "6917529027641981542", "kind": "weapons", "hash": "500",
       "name": "Dupe Rifle", "action": "junk", "reason": "dupe-lower",
@@ -190,7 +190,10 @@ it carries a short-lived, one-use token that establishes the authenticated
 browser session. Upload any combination of DIM weapons, armor, and ghost CSVs;
 the browser submits file bytes and never submits a filesystem path. The report
 uses the shared search, filters, grouping, sorting, detail, armor-scoring, and
-count views.
+count views. Kind and Guardian Class are independent facets: armor class comes
+from DIM's `Equippable` field, while current DIM `Owner` is shown separately as
+Location. Weapons and ghosts remain class-neutral in the stored report and are
+shown under their kind when browsing Class.
 
 Review proposals with **Approve**, **Veto**, and **Unset** (or <kbd>a</kbd>,
 <kbd>v</kbd>, and <kbd>u</kbd> from a focused row). Acknowledged verdicts live

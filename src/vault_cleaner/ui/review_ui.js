@@ -16,7 +16,7 @@
     return value !== null && typeof value === "object" && !Array.isArray(value);
   }
 
-  // Data-keyed maps only: ids, reasons, and owners come from the vault, so
+  // Data-keyed maps only: ids, reasons, classes, and locations come from the vault, so
   // an item named "__proto__" must not be able to reach Object.prototype.
   function emptyMap() {
     return Object.create(null);
@@ -81,7 +81,11 @@
           hash: decision.hash,
           kind: str(decision.kind) || str(section.kind),
           name: str(decision.name),
-          owner: str(decision.owner),
+          location: str(decision.location),
+          guardianClass: str(decision.guardian_class),
+          // Class-neutral sections remain browseable from the Class facet
+          // without writing a synthetic class into the snapshot model.
+          classFacet: str(decision.guardian_class) || str(decision.kind) || str(section.kind),
           action: str(decision.action),
           reason: str(decision.reason),
           tag: str(decision.tag),
@@ -179,7 +183,7 @@
       if (q.action && item.action !== q.action) return false;
       if (q.kind && item.kind !== q.kind) return false;
       if (q.reason && item.reason !== q.reason) return false;
-      if (q.owner && item.owner !== q.owner) return false;
+      if (q.classFacet && item.classFacet !== q.classFacet) return false;
       if (!matchesProtection(item, q.protection)) return false;
       if (q.verdict) {
         var verdict = verdictOf(verdicts, item.id);
@@ -191,7 +195,7 @@
     });
   }
 
-  var SORT_FIELDS = ["name", "id", "kind", "action", "reason", "owner"];
+  var SORT_FIELDS = ["name", "id", "kind", "classFacet", "location", "action", "reason"];
 
   function sortItems(items, field, direction) {
     var key = SORT_FIELDS.indexOf(field) === -1 ? "name" : field;
@@ -278,7 +282,8 @@
     };
     var COLUMNS = context.columns || [
       ["name", "Name"], ["id", "Instance id"], ["kind", "Kind"],
-      ["owner", "Owner"], ["action", "Action"], ["reason", "Reason"]
+      ["classFacet", "Class"], ["location", "Location"],
+      ["action", "Action"], ["reason", "Reason"]
     ];
     // Every node is built with createElement/textContent, and no snapshot
     // value is concatenated into innerHTML or into an href/src, so hostile
@@ -483,7 +488,8 @@
         ]),
         el("td", { class: "mono", text: item.id }),
         el("td", { text: item.kind }),
-        el("td", { text: item.owner }),
+        el("td", { text: item.classFacet }),
+        el("td", { text: item.location }),
         el("td", null, [el("span", {
           class: "badge " + (item.action === "junk" ? "junk" : "review"),
           text: item.action
@@ -545,7 +551,8 @@
 
   return {
     COLUMNS: [["name", "Name"], ["id", "Instance id"], ["kind", "Kind"],
-      ["owner", "Owner"], ["action", "Action"], ["reason", "Reason"]],
+      ["classFacet", "Class"], ["location", "Location"],
+      ["action", "Action"], ["reason", "Reason"]],
     actionCounts: actionCounts, compareIds: compareIds, compareText: compareText,
     countBy: countBy, filterItems: filterItems, groupItems: groupItems, groupLabel: groupLabel,
     isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, keptItems: keptItems,
