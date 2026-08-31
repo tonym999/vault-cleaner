@@ -34,8 +34,9 @@ from vault_cleaner.rules.armor import ArmorEvaluation
 from vault_cleaner.rules.dupes import Decision
 
 SNAPSHOT_SCHEMA_VERSION = 2
-# Bump only when decision semantics change. Snapshot presentation/schema
-# changes are deliberately independent so they do not invalidate reviews.
+# Snapshot schema changes are independent of rule decision semantics and do
+# not change RULESET_VERSION, fingerprint inputs, or persisted-veto identity;
+# saved review manifests nevertheless pin and reject mismatched schemas.
 RULESET_VERSION = 3
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {

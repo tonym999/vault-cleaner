@@ -136,6 +136,10 @@ def test_location_and_guardian_class_are_separate_and_verbatim():
         no_wishlists=True,
     )
     armor_section = next(section for section in result.sections if section.kind == "armor")
+    assert [(decision.id, decision.guardian_class) for decision in armor_section.decisions] == [
+        ("9002", "Hunter"),
+        ("9012", "Warlock"),
+    ]
     decision = armor_section.decisions[0]
     assert decision.location == "Vault"
     assert decision.guardian_class == "Hunter"

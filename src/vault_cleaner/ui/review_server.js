@@ -689,7 +689,7 @@
           } } })
       ]));
       [["vc-f-action", "Action", "action", "any action"], ["vc-f-kind", "Kind", "kind", "any kind"],
-       ["vc-f-reason", "Reason", "reason", "any reason"], ["vc-f-class", "Class", "classFacet", "any class"]].forEach(function (spec) {
+       ["vc-f-reason", "Reason", "reason", "any reason"], ["vc-f-classFacet", "Class", "classFacet", "any class"]].forEach(function (spec) {
         view.addSelect(host, spec[0], spec[1], view.optionsFor(state.items, spec[2], spec[3]), spec[2], state.query[spec[2]], queryChange);
       });
       view.addSelect(host, "vc-f-protection", "Protection", [

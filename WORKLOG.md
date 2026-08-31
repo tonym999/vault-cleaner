@@ -25,11 +25,17 @@ surprises the next agent should know about.
   schema-v1 manifests are rejected. The before/after fake semantic capture
   diff is empty (fingerprint, action/tag/reason, membership, and selected
   references unchanged).
+- Review follow-up coverage now exercises same-revision Class-control
+  resynchronisation through the live no-rebuild path, including invalid-filter
+  clearing, list repaint, and preservation of search/focus/local state. The
+  fake browser armour input now has deterministic Hunter and Warlock proposal
+  rows, proving class filtering removes the other class while locations remain
+  visibly independent.
 - Validation: baseline before edits passed Ruff and had 819 passing/1 skipped
   with 4 socket and 2 Chromium startup failures under the restricted sandbox;
-  the exact focused gate passed 373 tests, golden/report-run passed 23 tests,
+  the final exact focused gate passed 375 tests, golden/report-run passed 23 tests,
   real-browser acceptance passed 2 tests, and the unrestricted full suite
-  passed 835 tests. Final Ruff, diff-check, and no-tracked-`data/` checks
+  passed 837 tests. Final Ruff, diff-check, and no-tracked-`data/` checks
   passed; the full/browser reruns used the permitted socket/browser execution
   environment.
 

@@ -1168,6 +1168,16 @@ function envelope(verdictRevision, verdicts, state) {
     ] }] }, verdicts: verdicts || [],
     override_status: [{ id: id, status: "active", detail: "suppresses this item" }] };
 }
+function classChangedEnvelope(verdicts) {
+  var next = envelope(1, verdicts);
+  next.snapshot.sections[0].kind = "armor";
+  next.snapshot.sections[0].decisions.forEach(function (decision, index) {
+    decision.kind = "armor";
+    decision.guardian_class = index === 0 ? "Hunter" : "Warlock";
+    decision.location = index === 0 ? "Vault" : "Hunter(550)";
+  });
+  return next;
+}
 function response(payload, status) {
   return { ok: (status || 200) < 300, status: status || 200,
     json: function () { return Promise.resolve(payload); } };
@@ -1214,6 +1224,9 @@ if (scenario === "bulk") queue.push(response(envelope(1, [
   { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
 ])));
 if (scenario === "filter-cleared-search") queue.push(response(envelope(1, [
+  { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
+])));
+if (scenario === "filter-cleared-class") queue.push(response(classChangedEnvelope([
   { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
 ])));
 if (scenario === "verdict-filter-approved") {
@@ -1323,14 +1336,18 @@ function finish() {
     revoked: revoked, downloads: document.downloads,
     finalizeHeaders: state.finalizeHeaders,
     filterValue: document.nodes["vc-f-verdict"] ? document.nodes["vc-f-verdict"].value : null,
+    classFilterValue: document.nodes["vc-f-classFacet"] ? document.nodes["vc-f-classFacet"].value : null,
     sessionNote: document.nodes["vc-session-note"].textContent,
     searchValue: document.nodes["vc-search"] ? document.nodes["vc-search"].value : null,
     searchFocused: document.activeElement === document.nodes["vc-search"],
     searchSelectionStart: document.nodes["vc-search"] ? document.nodes["vc-search"].selectionStart : null,
     searchSelectionEnd: document.nodes["vc-search"] ? document.nodes["vc-search"].selectionEnd : null,
     queryVerdict: state.query.verdict,
+    queryClassFacet: state.query.classFacet,
+    viewInvalidated: state.viewInvalidated,
     searchSame: document.nodes["vc-search"] === beforeSearch,
     bulkSame: document.nodes["vc-bulk-veto"] === beforeBulk,
+    classFilterSame: document.nodes["vc-f-classFacet"] === beforeClassFilter,
     rowIds: Object.keys(state.rows).sort(),
     actionRole: document.nodes["vc-actions"].getAttribute("role"),
     actionsReachable: document.nodes["vc-actions"].parentNode === document.main,
@@ -1363,7 +1380,7 @@ function finish() {
   process.stdout.write(JSON.stringify(output));
 }
 var beforeRow = null, beforeFocus = null, beforeFinalize = null, uploadBulkDisabled = null;
-var beforeSearch = null, beforeBulk = null;
+var beforeSearch = null, beforeBulk = null, beforeClassFilter = null;
 setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   if (scenario === "single" || scenario === "clear" || scenario === "failure" || scenario === "stale" || scenario === "stale-failure") {
@@ -1387,6 +1404,20 @@ setTimeout(function () {
     search.selectionEnd = 4;
     search.dispatch("input", { target: search });
     search.focus();
+    beforeBulk = document.nodes["vc-bulk-veto"];
+    beforeBulk.dispatch("click");
+  } else if (scenario === "filter-cleared-class") {
+    var classFilter = document.nodes["vc-f-classFacet"];
+    beforeClassFilter = classFilter;
+    classFilter.value = "weapons";
+    classFilter.dispatch("change", { target: classFilter });
+    var classSearch = document.nodes["vc-search"];
+    beforeSearch = classSearch;
+    classSearch.value = "Second";
+    classSearch.selectionStart = 1;
+    classSearch.selectionEnd = 4;
+    classSearch.dispatch("input", { target: classSearch });
+    classSearch.focus();
     beforeBulk = document.nodes["vc-bulk-veto"];
     beforeBulk.dispatch("click");
   } else if (scenario === "verdict-filter-approved" || scenario === "verdict-filter-vetoed" || scenario === "verdict-filter-unreviewed") {
@@ -1457,6 +1488,7 @@ setTimeout(function () {
         ("failure", "/api/verdicts", None),
         ("bulk", "/api/verdicts", "vetoed"),
         ("filter-cleared-search", "/api/verdicts", "vetoed"),
+        ("filter-cleared-class", "/api/verdicts", "vetoed"),
         ("verdict-filter-approved", "/api/verdicts", "approved"),
         ("verdict-filter-vetoed", "/api/verdicts", "vetoed"),
         ("verdict-filter-unreviewed", "/api/verdicts", None),
@@ -1566,6 +1598,19 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["queryVerdict"] == ""
         assert result["searchSame"] is True
         assert result["bulkSame"] is True
+    if scenario == "filter-cleared-class":
+        assert result["paths"] == ["/api/report", "/api/verdicts"]
+        assert result["classFilterValue"] == ""
+        assert result["queryClassFacet"] == ""
+        assert result["viewInvalidated"] == ["filter classFacet weapons"]
+        assert result["classFilterSame"] is True
+        assert result["searchValue"] == "Second"
+        assert result["searchFocused"] is True
+        assert result["searchSelectionStart"] == 1
+        assert result["searchSelectionEnd"] == 4
+        assert result["searchSame"] is True
+        assert result["bulkSame"] is True
+        assert result["rowIds"] == ["2"]
     if scenario in {"verdict-filter-approved", "verdict-filter-vetoed", "verdict-filter-unreviewed"}:
         assert result["paths"] == ["/api/report", "/api/verdicts"]
         assert result["row"]["same"] is True
