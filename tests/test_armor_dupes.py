@@ -311,6 +311,21 @@ def test_spirit_signature_reads_only_spirit_perks():
     assert spirit_signature(df.loc["5001"]) == ()
 
 
+def test_non_class_spirit_looking_perks_remain_exact_identity():
+    armor = load_armor(FIXTURE)
+    mask = armor["Id"].isin(["5001", "5002"])
+    armor.loc[armor["Id"] == "5001", "Perks 0"] = "Spirit of Future A"
+    armor.loc[armor["Id"] == "5002", "Perks 0"] = "Spirit of Future B"
+
+    result = analyse(armor.loc[mask], crafted_level_protect=10)
+
+    assert spirit_signature(armor.loc[armor["Id"] == "5001"].iloc[0]) == (
+        "Spirit of Future A",
+    )
+    assert result.decisions == ()
+    assert result.groups == ()
+
+
 @pytest.mark.parametrize("column", ["Tuning Stat", "Perks 0"])
 def test_missing_fingerprint_column_fails_loudly(tmp_path, column):
     # A vanished fingerprint column must not silently merge dupe groups —
@@ -371,7 +386,7 @@ def test_analysis_projects_complete_groups_and_decision_dispositions():
         "melee": 30,
     }
     assert group.tuning_mod_slot == "Grenade"
-    assert [member.id for member in group.members] == ["5011", "5012", "5013"]
+    assert [member.id for member in group.members] == ["5011", "5013", "5012"]
     dispositions = {member.id: member.disposition for member in group.members}
     assert dispositions == {
         "5011": "preferred_survivor",
@@ -417,6 +432,18 @@ def test_analysis_projects_complete_groups_and_decision_dispositions():
             assert member.proposal_action == decision.action
         else:
             assert member.id not in decisions_by_id
+
+
+def test_group_member_order_prioritizes_survivor_before_lower_id_proposal():
+    result = analyse(load_armor(FIXTURE), crafted_level_protect=10)
+    group = next(group for group in result.groups if group.hash == "770")
+
+    assert group.preferred_survivor_id == "5062"
+    assert [member.id for member in group.members] == ["5062", "5061"]
+    assert [member.disposition for member in group.members] == [
+        "preferred_survivor",
+        "proposed_junk",
+    ]
 
 
 def test_analysis_group_and_member_order_is_stable_under_reversal():

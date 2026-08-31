@@ -18,11 +18,10 @@ Compatibility: same Hash + same Tier + same Spirit signature. Measured
 exactly one item hash per class x slot, so class+slot+tier+set-signature
 collapses to Hash + Tier — which also covers the "exotics compare within
 the same Hash only" rule and structurally excludes cross-set comparison.
-A tier-2 piece never dominates a tier-5. The Spirit signature (empty for
-everything but exotic class items) is the same identity rule: two
-Stoicism with different Spirit combos are functionally different pieces,
-and one with no visible spirits is an unknown roll — compared with
-nothing.
+A tier-2 piece never dominates a tier-5. The Spirit signature remains part
+of the existing identity boundary for every row. Exotic class items
+additionally require exactly two visible Spirit perks; an incomplete
+class-item roll is unknown and compared with nothing.
 
 Runs after the exact pass on the pieces it left undecided: a dominator that
 was junked as an exact dupe would be false advice ("a better copy exists" —
@@ -245,14 +244,23 @@ def _close_decisions(armor: pd.DataFrame, cfg: dict) -> _CloseDecisionResult:
             reasons[str(rid)] = (
                 "armor-dominated by" if best_dom is not None else "armor-similar to"
             )
-    return _CloseDecisionResult(tuple(decisions), reasons)
+    # Decision sequence is part of the report contract.  Group iteration and
+    # row iteration above intentionally preserve the close semantics and
+    # partner choices, but the emitted sequence follows the shared opaque-ID
+    # order so reversing an export cannot reorder the report.
+    ordered_decisions = tuple(
+        sorted(decisions, key=lambda decision: instance_id_order(decision.id))
+    )
+    return _CloseDecisionResult(ordered_decisions, reasons)
 
 
 def _same_stat_key(row: pd.Series) -> tuple | None:
     if unknown_spirit_roll(row):
         return None
     stats = tuple(rails.to_int(row[c]) for c in ARMOR_STATS.values())
-    return (str(row["Hash"]), rails.to_int(row["Tier"]), stats, spirit_signature(row))
+    # Match _close_decisions' raw Tier identity.  The projection converts it
+    # back to an integer only for the existing display field.
+    return (str(row["Hash"]), str(row["Tier"]), stats, spirit_signature(row))
 
 
 def _same_stat_groups(
@@ -306,7 +314,7 @@ def _same_stat_groups(
                     selected_partner_id=str(decision.kept_id) if decision and decision.kept_id else None,
                 )
             )
-        group_hash, tier, stats, spirits = key
+        group_hash, tier_raw, stats, spirits = key
         groups.append(
             ArmorSameStatGroup(
                 group_kind="same_stat",
@@ -316,7 +324,7 @@ def _same_stat_groups(
                 type=str(rows[0]["Type"]),
                 guardian_class=str(rows[0].get("Equippable", "")),
                 item_archetype=str(rows[0].get("Archetype", "")),
-                tier=tier,
+                tier=rails.to_int(tier_raw),
                 stats=MappingProxyType(dict(zip(ARMOR_STATS, stats))),
                 spirit_signature=spirits,
                 members=tuple(members),

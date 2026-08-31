@@ -130,8 +130,8 @@ def test_armor_exact_duplicate_groups_pass_through_server_unchanged(tmp_path):
         assert group["preferred_survivor_id"] == "5011"
         assert [member["id"] for member in group["members"]] == [
             "5011",
-            "5012",
             "5013",
+            "5012",
         ]
         member_by_id = {member["id"]: member for member in group["members"]}
         assert member_by_id["5013"]["disposition"] == "retained_protected"

@@ -257,8 +257,8 @@ def test_snapshot_contains_authoritative_complete_armor_duplicate_groups():
     assert group["spirit_signature"] == []
     assert [member["id"] for member in group["members"]] == [
         "5011",
-        "5012",
         "5013",
+        "5012",
     ]
     member_by_id = {member["id"]: member for member in group["members"]}
     assert member_by_id["5013"]["disposition"] == "retained_protected"
@@ -316,6 +316,32 @@ def test_pipeline_same_stat_group_keeps_full_exact_variant_comparison_set():
     assert member_by_id["5002"].proposal_action is None
     assert member_by_id["5003"].proposal_action == "review"
     assert member_by_id["5003"].selected_partner_id == "5001"
+
+
+def test_pipeline_close_decision_order_is_stable_under_row_reversal():
+    armor = load_armor(FIXTURES / "armor_close.csv")
+    cfg = load_config("nonexistent.toml")
+    forward = resolve_armor(armor, cfg)
+    reversed_ = resolve_armor(armor.iloc[::-1], cfg)
+
+    def decision_fields(decisions):
+        return [
+            (
+                decision.id,
+                decision.hash,
+                decision.name,
+                decision.location,
+                decision.guardian_class,
+                decision.action,
+                decision.tag,
+                decision.note,
+                decision.kept_id,
+            )
+            for decision in decisions
+        ]
+
+    assert decision_fields(forward.decisions) == decision_fields(reversed_.decisions)
+    assert forward.same_stat_groups == reversed_.same_stat_groups
 
 
 def test_duplicate_group_snapshot_is_deterministic_and_keeps_ids_as_strings():

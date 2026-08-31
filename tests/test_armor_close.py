@@ -108,9 +108,37 @@ def test_one_note_per_piece(cfg):
 
 
 def test_reversing_the_csv_changes_nothing(cfg):
-    forward = {(d.id, d.note) for d in close_decisions(cfg)}
-    reversed_ = {(d.id, d.note) for d in close_decisions(cfg, load_armor(FIXTURE).iloc[::-1])}
+    frame = load_armor(FIXTURE)
+
+    def decision_fields(decisions):
+        return [
+            (
+                d.id, d.hash, d.name, d.location, d.guardian_class,
+                d.action, d.tag, d.note, d.kept_id,
+            )
+            for d in decisions
+        ]
+
+    forward = decision_fields(analyse(frame, cfg).decisions)
+    reversed_ = decision_fields(analyse(frame.iloc[::-1], cfg).decisions)
     assert forward == reversed_
+
+
+def test_same_stat_tier_identity_matches_close_compatibility_boundary(cfg):
+    armor = load_armor(FIXTURE)
+    rows = armor[armor["Id"].isin(["6081", "6082"])].copy()
+    rows.loc[rows["Id"] == "6081", "Tier"] = "01"
+    rows.loc[rows["Id"] == "6082", "Tier"] = "1"
+
+    forward = analyse(rows, cfg)
+    reversed_ = analyse(rows.iloc[::-1], cfg)
+
+    # Close compatibility keeps the raw Tier identity, so these rows are not
+    # compared or projected as one group even though their display tiers
+    # would both normalize to 1.
+    assert forward.decisions == ()
+    assert forward.same_stat_groups == ()
+    assert reversed_ == forward
 
 
 def test_same_stat_projection_is_authoritative_and_exposes_variation(cfg):

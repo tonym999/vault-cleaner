@@ -53,13 +53,12 @@ SPIRIT_ROLL_SIZE = 2
 
 
 def spirit_signature(row: pd.Series) -> tuple[str, ...]:
-    """Sorted exotic-class-item Spirit perks — roll identity, unlike the
-    rest of the Perks columns (swappable mods, masterwork-gated)."""
-    if (
-        row.get("Rarity", "") != "Exotic"
-        or row.get("Type", "") not in CLASS_ITEM_TYPES
-    ):
-        return ()
+    """Sorted visible Spirit perks used by the armor roll fingerprint.
+
+    The signature is extracted for every armor row to preserve the existing
+    fingerprint boundary. Only exotic class items additionally require the
+    complete two-perk signature before they can participate in a pass.
+    """
     spirits = set()
     for col in row.index:
         if not col.startswith("Perks "):
@@ -181,6 +180,16 @@ _TUNING_MOD_SLOTS = {
     "melee": "Melee",
 }
 TUNING_MOD_SLOT_UNKNOWN = "none/unknown"
+
+
+_DISPOSITION_ORDER = {
+    "preferred_survivor": 0,
+    "retained_protected": 1,
+    "proposed_junk": 2,
+    "proposed_review": 3,
+}
+
+
 def tuning_mod_slot(value: object) -> str:
     """Label the raw fingerprint tuning value without changing its identity."""
     return _TUNING_MOD_SLOTS.get(str(value).strip().casefold(), TUNING_MOD_SLOT_UNKNOWN)
@@ -272,7 +281,13 @@ def _group_projection(
         members=tuple(
             sorted(
                 members,
-                key=lambda member: instance_id_order(member.id),
+                # Consumers present the preferred survivor and retained
+                # protected members before proposed actions.  The shared
+                # opaque-ID order is only the tie-break within each bucket.
+                key=lambda member: (
+                    _DISPOSITION_ORDER[member.disposition],
+                    instance_id_order(member.id),
+                ),
             )
         ),
     )
