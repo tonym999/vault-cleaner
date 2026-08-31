@@ -3,6 +3,22 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #108 PR review follow-up
+
+- Restored the static armor semantic capture for every unchanged Decision
+  field except `note`: id, hash, name, location, guardian class, action, tag,
+  selected id, and parsed reason. Removed obsolete pre-#104 Note strings from
+  the baseline fixture so the guard remains clear and authoritative.
+- Hoisted the shared tuning comparison formatter in the exact, dominated, and
+  similar emitters without changing selection, grouping, wording,
+  normalization, Note grammar, schema/ruleset versions, fingerprints, or
+  decision semantics.
+- Strengthened emitter-driven armor round-trip assertions to derive both
+  sides from the fake frame and authoritative `kept_id`, then require the
+  complete expected winner/partner and tuning tail at Note end. Affected tests
+  and Ruff passed (`209 passed`); the elevated full suite passed (`913
+  passed`), with diff/privacy checks clean and no tracked `data/` files.
+
 ## 2026-08-31 — #104 Tuning Mod Slot presentation
 
 - Extended the existing shared duplicate-reference presenter with the fixed

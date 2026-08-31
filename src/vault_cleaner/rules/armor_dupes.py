@@ -363,6 +363,9 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                 if _is_complete_exotic_class_item(row)
                 else "armor-exact-dupe-tie" if rank == best_rank else "armor-exact-dupe"
             )
+            tuning_comparison = format_tuning_comparison(
+                row["Tuning Stat"], best["Tuning Stat"], selected_label="Survivor"
+            )
             if in_loadout(row):
                 # Never junk a loadout member even when a twin survives:
                 # the loadout references this exact instance id.
@@ -371,7 +374,7 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                     f"#vc-review: {rel} (loadout); keep "
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}; "
-                    f"{format_tuning_comparison(row['Tuning Stat'], best['Tuning Stat'], selected_label='Survivor')}"
+                    f"{tuning_comparison}"
                 )
             elif level == rails.SOFT:
                 action, tag = "review", row["Tag"]
@@ -379,7 +382,7 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                     f"#vc-review: {rel} ({reason}); keep "
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}; "
-                    f"{format_tuning_comparison(row['Tuning Stat'], best['Tuning Stat'], selected_label='Survivor')}"
+                    f"{tuning_comparison}"
                 )
             else:
                 action, tag = "junk", "junk"
@@ -387,7 +390,7 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                     f"#vc-junk: {rel}; keep "
                     f"{armor_reference(best, spirit_signature(best), distinguish_from=survivor_group_ids)}; winner "
                     f"{_winner_reason(best_rank, rank)}; "
-                    f"{format_tuning_comparison(row['Tuning Stat'], best['Tuning Stat'], selected_label='Survivor')}"
+                    f"{tuning_comparison}"
                 )
             member_projections.append(
                 _member_projection(

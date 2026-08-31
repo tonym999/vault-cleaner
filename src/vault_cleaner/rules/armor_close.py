@@ -198,10 +198,13 @@ def _close_decisions(armor: pd.DataFrame, cfg: dict) -> _CloseDecisionResult:
                     other.get("_spirits", ()),
                     distinguish_from=partner_group_ids,
                 )
+                tuning_comparison = format_tuning_comparison(
+                    row["Tuning Stat"], other["Tuning Stat"], selected_label="Partner"
+                )
                 hashtag = (
                     f"#vc-review: armor-dominated by; compare {reference}; "
                     f"+{surplus} total; partner {partner_reason}; "
-                    f"{format_tuning_comparison(row['Tuning Stat'], other['Tuning Stat'], selected_label='Partner')}"
+                    f"{tuning_comparison}"
                 )
                 partner_id = oid
             elif best_sim is not None:
@@ -226,10 +229,13 @@ def _close_decisions(armor: pd.DataFrame, cfg: dict) -> _CloseDecisionResult:
                     other.get("_spirits", ()),
                     distinguish_from=partner_group_ids,
                 )
+                tuning_comparison = format_tuning_comparison(
+                    row["Tuning Stat"], other["Tuning Stat"], selected_label="Partner"
+                )
                 hashtag = (
                     f"#vc-review: armor-similar to; compare {reference}; "
                     f"{detail}; partner {partner_reason}; "
-                    f"{format_tuning_comparison(row['Tuning Stat'], other['Tuning Stat'], selected_label='Partner')}"
+                    f"{tuning_comparison}"
                 )
                 partner_id = oid
             else:
