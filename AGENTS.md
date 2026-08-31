@@ -103,6 +103,10 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   complete known vault-cleaner clauses at the trailing Notes boundary;
   preserve ambiguous/user text. Always parse the *last* `#vc-` marker
   (`report.reason_slug` does) for migrated or manually edited Notes.
+- Generated Notes clauses are an emitter contract: any new or changed clause
+  format must add or update an emitter-driven round-trip test for the rule
+  that produces it and its `note_history` recognizer, so the suite catches
+  drift between production output and history cleanup.
 - Python's `csv` module writes CRLF by default: generate fixtures with
   `lineterminator="\n"` or `git diff --check` will flag them.
 - Review manifests and server payloads are untrusted input. Validate strictly

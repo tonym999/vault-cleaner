@@ -3,6 +3,27 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #29 emitter-driven Notes round-trip coverage
+
+- Added emitter-driven regressions for current Notes clauses from weapon and
+  armour exact dupes, armour close dupes, wishlist trash (whole-item and
+  roll, junk and soft-review rails), armour scoring (junk, soft review, and
+  last-of-archetype), and ghosts. Each case feeds the exact emitted note
+  through three further rule runs and asserts the user prefix, action, reason,
+  and complete note remain stable with one current vault-cleaner marker.
+- Kept the literal `note_history` tests for legacy migration formats. Added a
+  maintenance obligation to keep emitter tests and recognizer patterns in
+  sync whenever a generated clause changes. No production mismatch was found
+  and no rule or decision semantics were changed.
+- Validation: `.venv/bin/ruff check src tests scripts` passed;
+  `.venv/bin/pytest -q tests/test_note_history_roundtrip.py
+  tests/test_note_history.py tests/test_dupes.py tests/test_armor_dupes.py
+  tests/test_armor_close.py tests/test_weapons_rules.py
+  tests/test_armor_rules.py tests/test_ghost_rules.py` passed 162 tests.
+  The unrestricted `.venv/bin/pytest -q` suite passed 818 tests, including
+  the real-socket and Chromium coverage. The reviewer's representative
+  armour wording mutation failed all four affected emitter-round-trip cases.
+
 ## 2026-08-31 — #29 current-only generated Notes
 
 - Replaced complete, known vault-cleaner clauses at the trailing `Notes`
