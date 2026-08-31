@@ -20,16 +20,23 @@ surprises the next agent should know about.
   maintenance obligation to keep emitter tests and recognizer patterns in
   sync whenever a generated clause changes. No production mismatch was found
   and no rule or decision semantics were changed.
+- Added emitter-driven partner tie-break coverage for both armor-close
+  branches: dominated `6033` selects the lower-id `6031` among equal-surplus
+  `6031`/`6032`, and similar Guard Plate `4051` selects `4052` among the
+  equally close `4052`/`4053`. Each test checks the actual reason slug and
+  structured selected partner plus the exact emitted `; partner deterministic
+  id tie-break` tail through the shared round-trip helper; the strict
+  recognizer remains unchanged.
 - Validation: `.venv/bin/ruff check src tests scripts` passed;
   `.venv/bin/pytest -q tests/test_note_history_roundtrip.py
   tests/test_note_history.py tests/test_dupes.py tests/test_armor_dupes.py
   tests/test_armor_close.py tests/test_weapons_rules.py
-  tests/test_armor_rules.py tests/test_ghost_rules.py` passed 168 tests.
-  The unrestricted `.venv/bin/pytest -q` suite passed 824 tests, including
-  the real-socket and Chromium coverage. The reviewer's `lock` → `explicit
-  lock` mutation and an equivalent weapon Tier-label mutation each failed at
-  the targeted emitter/recognizer boundary; production sources were restored
-  byte-for-byte afterward.
+  tests/test_armor_rules.py tests/test_ghost_rules.py` passed 170 tests.
+  The unrestricted `.venv/bin/pytest -q` suite passed 826 tests, including
+  the real-socket and Chromium coverage. Independent renames of the dominated
+  and similar armour-close tie-break literals each failed only their targeted
+  emitter/recognizer guard; the earlier armour lock and weapon Tier mutations
+  remained guarded. Production sources were restored byte-for-byte afterward.
 
 ## 2026-08-31 — #29 current-only generated Notes
 

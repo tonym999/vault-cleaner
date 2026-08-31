@@ -387,3 +387,34 @@ def test_exact_dupe_winner_labels_round_trip(
 ):
     first = _assert_round_trip(frame, produce, item_id, action, reason)
     assert first.note.endswith(f"; winner {winner}")
+
+
+@pytest.mark.parametrize(
+    ("frame", "item_id", "reason", "partner_id"),
+    [
+        pytest.param(
+            load_armor(ARMOR_CLOSE_FIXTURE),
+            "6033",
+            "armor-dominated by",
+            "6031",
+            id="armor-close-dominated-partner-tie",
+        ),
+        pytest.param(
+            load_armor(ARMOR_FIXTURE),
+            "4051",
+            "armor-similar to",
+            "4052",
+            id="armor-close-similar-partner-tie",
+        ),
+    ],
+)
+def test_armor_close_partner_tie_labels_round_trip(
+    frame, item_id, reason, partner_id
+):
+    # Call the close emitter directly so 6033 sees both equal-surplus
+    # dominators (6031 and 6032); the normal pipeline removes 6032 in the
+    # exact pass first.  Guard Plate 4051 likewise has two equally close
+    # similar partners (4052 and 4053).
+    first = _assert_round_trip(frame, _armor_close, item_id, "review", reason)
+    assert first.kept_id == partner_id
+    assert first.note.endswith("; partner deterministic id tie-break")
