@@ -261,6 +261,8 @@ var items = [
     protectionLevel: "", protectionReason: "", tag: "junk", note: "#vc-junk",
     keptId: "9", originalTag: "", originalNotes: "", locked: false,
     equipped: false, inLoadout: false,
+    candidateTuningModSlot: "Melee", selectedTuningModSlot: "Grenade",
+    tuningModSlot: "Candidate: Melee · Selected: Grenade",
     armor: {
       slot: "helmet", equippable: true, best_archetype: "Melee-primary",
       score: 112, base_score: 110, set_bonus: 2, rank: 1, group_size: 2,
@@ -314,9 +316,12 @@ var header = view.headerRow();
 if (header.textContent.indexOf("Verdict") === -1) fail("Verdict header is missing");
 if (header.textContent.indexOf("Class") === -1 ||
     header.textContent.indexOf("Location") === -1 ||
+    header.textContent.indexOf("Tuning Mod Slot") === -1 ||
     header.textContent.indexOf("Owner") !== -1) fail("Class/Location headers are incorrect");
 if (table.textContent.indexOf("Armor scoring") === -1 ||
-    table.textContent.indexOf(hostile) === -1 || hasTag(table, "img")) {
+    table.textContent.indexOf(hostile) === -1 ||
+    table.textContent.indexOf("Candidate: Melee · Selected: Grenade") === -1 ||
+    hasTag(table, "img")) {
   fail("rows/details must render data through text nodes");
 }
 var nameButton = find(state.rows[items[0].id].tr, function (node) {
@@ -388,6 +393,8 @@ var output = {
     header.textContent.indexOf("Location") !== -1 &&
     header.textContent.indexOf("Owner") === -1,
   hasDetails: table.textContent.indexOf("Armor scoring") !== -1,
+  hasTuningColumn: header.textContent.indexOf("Tuning Mod Slot") !== -1 &&
+    table.textContent.indexOf("Candidate: Melee · Selected: Grenade") !== -1,
   hostileIsText: inert.textContent === hostile && !hasTag(table, "img"),
   callbackState: toggles.length === 2 && renders === 2,
   paintedInPlace: state.rows[items[0].id].tr === originalRow,
@@ -471,6 +478,7 @@ def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
         "hasHeader": True,
         "hasClassAndLocation": True,
         "hasDetails": True,
+        "hasTuningColumn": True,
         "hostileIsText": True,
         "callbackState": True,
         "selected": "weapons",
@@ -601,6 +609,54 @@ def test_unknown_and_empty_guardian_classes_use_honest_presentation_values(tmp_p
     assert json.loads(completed.stdout) == [
         ["Spectre", "Spectre", "Vault"],
         ["", "ghosts", "Titan(550)"],
+    ]
+
+
+def test_items_map_structured_tuning_without_reading_note_text(tmp_path):
+    snapshot = tmp_path / "tuning.json"
+    snapshot.write_text(json.dumps({
+        "sections": [{"kind": "armor", "decisions": [
+            {
+                "id": "1", "hash": "2", "name": "Plate",
+                "candidate_tuning_mod_slot": "Melee",
+                "selected_tuning_mod_slot": "Grenade",
+                "note": "#vc-review: deliberately misleading text",
+            },
+            {
+                "id": "3", "hash": "4", "name": "Unknown Plate",
+                "candidate_tuning_mod_slot": "none/unknown",
+                "selected_tuning_mod_slot": "none/unknown",
+                "note": "#vc-review: stale tuning Health vs Super",
+            },
+            {
+                "id": "5", "hash": "6", "name": "No Comparison",
+                "candidate_tuning_mod_slot": None,
+                "selected_tuning_mod_slot": None,
+                "note": "#vc-review: unrelated",
+            },
+        ]}],
+    }), encoding="utf-8")
+    script = tmp_path / "tuning.js"
+    script.write_text(
+        'var fs = require("fs");\n'
+        'var api = require(process.argv[2]);\n'
+        'var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));\n'
+        'var items = api.itemsFromSnapshot(snapshot);\n'
+        'process.stdout.write(JSON.stringify(items.map(function (item) {\n'
+        '  return [item.candidateTuningModSlot, item.selectedTuningModSlot, item.tuningModSlot];\n'
+        '})));\n',
+        encoding="utf-8",
+    )
+    with as_file(files("vault_cleaner.ui").joinpath("review_ui.js")) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app), str(snapshot)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == [
+        ["Melee", "Grenade", "Candidate: Melee · Selected: Grenade"],
+        ["none/unknown", "none/unknown", "Candidate: none/unknown · Selected: none/unknown"],
+        [None, None, "—"],
     ]
 
 

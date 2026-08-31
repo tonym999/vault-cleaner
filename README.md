@@ -55,6 +55,13 @@ tool-generated clauses at the end of `Notes` before appending the current
 reason. User-authored text and ambiguous marker-like text remain untouched,
 so repeated runs do not accumulate another expanded duplicate reference.
 
+Armor duplicate and close-comparison Notes, terminal summaries, and browser
+Proposals show an explicitly labelled pair of Tuning Mod Slots: the candidate
+and its selected survivor or partner. Equal values are shown on both sides;
+blank or unrecognised DIM values are shown as `none/unknown`. The six supported
+slot names are presented generically, with no preference or recommendation
+between them. The later Armor duplicates group view is tracked separately.
+
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:
 

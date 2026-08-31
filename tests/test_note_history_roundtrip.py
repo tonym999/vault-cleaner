@@ -416,7 +416,11 @@ def test_exact_dupe_winner_labels_round_trip(
     frame, produce, item_id, action, reason, winner
 ):
     first = _assert_round_trip(frame, produce, item_id, action, reason)
-    assert first.note.endswith(f"; winner {winner}")
+    if reason.startswith("armor-"):
+        assert f"; winner {winner}; Candidate Tuning Mod Slot: " in first.note
+        assert "; Survivor Tuning Mod Slot: " in first.note
+    else:
+        assert first.note.endswith(f"; winner {winner}")
 
 
 @pytest.mark.parametrize(
@@ -447,4 +451,5 @@ def test_armor_close_partner_tie_labels_round_trip(
     # similar partners (4052 and 4053).
     first = _assert_round_trip(frame, _armor_close, item_id, "review", reason)
     assert first.kept_id == partner_id
-    assert first.note.endswith("; partner deterministic id tie-break")
+    assert "; partner deterministic id tie-break; Candidate Tuning Mod Slot: " in first.note
+    assert "; Partner Tuning Mod Slot: " in first.note

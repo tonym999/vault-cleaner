@@ -54,6 +54,12 @@
     return value;
   }
 
+  function tuningComparison(candidate, selected) {
+    if (candidate === null || candidate === undefined ||
+        selected === null || selected === undefined) return "—";
+    return "Candidate: " + String(candidate) + " · Selected: " + String(selected);
+  }
+
   function itemsFromSnapshot(snapshot) {
     var items = [];
     var seen = emptyMap();
@@ -98,6 +104,16 @@
           locked: decision.locked === true,
           equipped: decision.equipped === true,
           inLoadout: decision.in_loadout === true,
+          candidateTuningModSlot: decision.candidate_tuning_mod_slot === null ||
+            decision.candidate_tuning_mod_slot === undefined
+            ? null : str(decision.candidate_tuning_mod_slot),
+          selectedTuningModSlot: decision.selected_tuning_mod_slot === null ||
+            decision.selected_tuning_mod_slot === undefined
+            ? null : str(decision.selected_tuning_mod_slot),
+          tuningModSlot: tuningComparison(
+            decision.candidate_tuning_mod_slot,
+            decision.selected_tuning_mod_slot
+          ),
           armor: evaluations[id] || null
         });
       }
@@ -195,7 +211,8 @@
     });
   }
 
-  var SORT_FIELDS = ["name", "id", "kind", "classFacet", "location", "action", "reason"];
+  var SORT_FIELDS = ["name", "id", "kind", "classFacet", "location",
+    "action", "reason", "tuningModSlot"];
 
   function sortItems(items, field, direction) {
     var key = SORT_FIELDS.indexOf(field) === -1 ? "name" : field;
@@ -283,7 +300,8 @@
     var COLUMNS = context.columns || [
       ["name", "Name"], ["id", "Instance id"], ["kind", "Kind"],
       ["classFacet", "Class"], ["location", "Location"],
-      ["action", "Action"], ["reason", "Reason"]
+      ["action", "Action"], ["reason", "Reason"],
+      ["tuningModSlot", "Tuning Mod Slot"]
     ];
     // Every node is built with createElement/textContent, and no snapshot
     // value is concatenated into innerHTML or into an href/src, so hostile
@@ -495,6 +513,7 @@
           text: item.action
         })]),
         el("td", { text: item.reason }),
+        el("td", { text: item.tuningModSlot }),
         el("td", { text: item.protectionLevel || "—" }),
         el("td", null, [actions])
       ]);
@@ -552,7 +571,8 @@
   return {
     COLUMNS: [["name", "Name"], ["id", "Instance id"], ["kind", "Kind"],
       ["classFacet", "Class"], ["location", "Location"],
-      ["action", "Action"], ["reason", "Reason"]],
+      ["action", "Action"], ["reason", "Reason"],
+      ["tuningModSlot", "Tuning Mod Slot"]],
     actionCounts: actionCounts, compareIds: compareIds, compareText: compareText,
     countBy: countBy, filterItems: filterItems, groupItems: groupItems, groupLabel: groupLabel,
     isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, keptItems: keptItems,

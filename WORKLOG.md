@@ -3,6 +3,31 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #104 Tuning Mod Slot presentation
+
+- Extended the existing shared duplicate-reference presenter with the fixed
+  six-value Tuning Mod Slot vocabulary and explicit `none/unknown`; exact,
+  dominated, and similar armor Notes now label candidate and survivor/partner
+  values, including equal values. Existing #29/#101 Notes remain recognized and
+  new clauses replace cleanly on repeated emitter-driven runs.
+- Added nullable `candidate_tuning_mod_slot` and
+  `selected_tuning_mod_slot` fields to pairwise armor report decisions. The
+  selected side is projected only by direct lookup of the authoritative
+  `kept_id`; weapons, ghosts, and non-comparison armor decisions remain null.
+  Snapshot schema 2, ruleset 4, fingerprint inputs, and #101 exact/same-stat
+  group projections remain unchanged.
+- The ordinary Proposals table maps those structured fields and adds an
+  always-visible inert-text `Tuning Mod Slot` column. No Notes parsing, tuning
+  preference, server endpoint/lifecycle change, runtime dependency, or #102
+  Armor duplicates view was added.
+- Focused fake-fixture Python/Node and server pass-through coverage was added;
+  the packaged Chromium visual pass covered desktop light/dark and narrow
+  layouts, unexpanded Proposals text, finalised/read-only state, and shutdown.
+  Golden regeneration was byte-stable twice (see handoff). The pre-existing
+  server mutation gate blurs a verdict button that is itself focused while an
+  acknowledgement is in flight; this was recorded as a remaining manual
+  limitation rather than changing out-of-scope lifecycle behavior.
+
 ## 2026-08-31 — #101 PR review follow-up: truthful CLI exact counts
 
 - Replaced the armor command's note-substring summary classification with the

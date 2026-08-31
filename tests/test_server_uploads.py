@@ -154,6 +154,36 @@ def test_armor_exact_duplicate_groups_pass_through_server_unchanged(tmp_path):
         assert report_group == groups
 
 
+def test_armor_pairwise_tuning_fields_pass_through_server_snapshot(tmp_path):
+    content = (FIXTURES / "armor_close.csv").read_bytes()
+    expected = run_report(
+        config_path="config.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=FIXTURES / "armor_close.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    expected_snapshot = snapshot_dict(expected)
+    expected_decision = next(
+        decision
+        for decision in expected_snapshot["sections"][0]["decisions"]
+        if decision["id"] == "6081"
+    )
+    assert expected_decision["candidate_tuning_mod_slot"] == "Melee"
+    assert expected_decision["selected_tuning_mod_slot"] == "Grenade"
+
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(client, "armor", content)
+
+        assert response.status_code == 200
+        actual_decision = next(
+            decision
+            for decision in response.json["snapshot"]["sections"][0]["decisions"]
+            if decision["id"] == "6081"
+        )
+        assert actual_decision == expected_decision
+
+
 def test_armor_same_stat_groups_pass_through_server_unchanged(tmp_path):
     content = (FIXTURES / "armor_close.csv").read_bytes()
     expected = run_report(

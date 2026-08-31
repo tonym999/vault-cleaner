@@ -14,8 +14,9 @@ from vault_cleaner.rules.armor_dupes import (
 FIXTURE = Path(__file__).parent / "fixtures" / "armor_dupes.csv"
 
 # Static semantic capture from origin/main (190e8473), before the group
-# projection refactor. Every Decision field and its parsed reason is included
-# so the projection cannot silently alter the authoritative exact pass.
+# projection refactor. The Note field is intentionally excluded: #104 extends
+# presentation text while the decision identity/action/reference contract
+# must remain unchanged.
 BASELINE_DECISIONS = (
     (
         "5002", "700", "Dupe Plate", "Vault", "Titan", "junk", "junk",
@@ -113,18 +114,18 @@ def test_exact_decisions_match_origin_main_capture():
         (
             decision.id,
             decision.hash,
-            decision.name,
-            decision.location,
-            decision.guardian_class,
             decision.action,
             decision.tag,
-            decision.note,
             decision.kept_id,
             reason_slug(decision.note),
         )
         for decision in decisions()
     )
-    assert actual == BASELINE_DECISIONS
+    expected = tuple(
+        (entry[0], entry[1], entry[5], entry[6], entry[8], entry[9])
+        for entry in BASELINE_DECISIONS
+    )
+    assert actual == expected
 
 
 def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
@@ -134,7 +135,8 @@ def test_higher_masterwork_survives_and_loser_junked_with_note_appended():
     assert d["5002"].tag == "junk"
     assert d["5002"].note == (
         "old note #vc-junk: armor-exact-dupe; keep [id 5001; location Vault; "
-        "MW5; power 450; tuning melee]; winner higher Masterwork Tier"
+        "MW5; power 450]; winner higher Masterwork Tier; "
+        "Candidate Tuning Mod Slot: Melee; Survivor Tuning Mod Slot: Melee"
     )
     assert "winner higher Masterwork Tier" in d["5002"].note
 

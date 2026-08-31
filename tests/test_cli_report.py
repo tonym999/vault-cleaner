@@ -1,6 +1,8 @@
 import csv
 from pathlib import Path
 
+import pytest
+
 from vault_cleaner import cli, report_run
 from vault_cleaner.pipeline import WeaponPipelineResult
 
@@ -24,6 +26,23 @@ def test_report_dry_run_over_all_fixtures(capsys):
     assert "JUNK dupe-lower (weapons)" in out
     assert "JUNK ghost-unprotected-surplus (ghosts)" in out
     assert "dry run — pass --write" in out
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ("armor_dupes.csv", "Candidate Tuning Mod Slot: Melee; Survivor Tuning Mod Slot: Melee"),
+        ("armor_close.csv", "Candidate Tuning Mod Slot: Melee; Partner Tuning Mod Slot: Grenade"),
+    ],
+)
+def test_armor_dry_run_exposes_both_tuning_labels(capsys, fixture, expected):
+    rc = cli.main([
+        "armor", "--input", str(FIXTURES / fixture),
+        "--config", "nonexistent.toml",
+    ])
+
+    assert rc == 0
+    assert expected in capsys.readouterr().out
 
 
 def test_combined_report_labels_class_and_location_separately(capsys):
