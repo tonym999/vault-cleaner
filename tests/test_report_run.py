@@ -271,6 +271,65 @@ def test_snapshot_contains_authoritative_complete_armor_duplicate_groups():
     )
 
 
+@pytest.mark.parametrize(
+    ("state", "expected_action", "expected_level", "expected_reason"),
+    [
+        ("plain", "junk", None, ""),
+        ("loadout", "review", "soft", "loadout"),
+        ("locked", "review", "soft", "locked"),
+    ],
+)
+def test_report_uses_authoritative_exact_exotic_protection(
+    tmp_path, state, expected_action, expected_level, expected_reason
+):
+    armor = load_armor(ARMOR_DUPES)
+    # Keep 5032 as the loser in every branch under test, including when its
+    # mutable state would otherwise outrank the normal MW-based survivor.
+    armor.loc[armor["Id"] == "5031", "Equipped"] = "true"
+    if state == "loadout":
+        armor.loc[armor["Id"] == "5032", "Loadouts"] = "PvE Build"
+    elif state == "locked":
+        armor.loc[armor["Id"] == "5032", "Locked"] = "true"
+    path = tmp_path / f"armor-{state}.csv"
+    armor.to_csv(path, index=False, lineterminator="\n")
+
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=path,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    decision = next(
+        decision
+        for decision in result.sections[0].decisions
+        if decision.id == "5032"
+    )
+
+    assert decision.action == expected_action
+    assert decision.protection_level == expected_level
+    assert decision.protection_reason == expected_reason
+
+
+def test_report_keeps_global_protection_for_ordinary_exotic_dupes():
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=ARMOR_DUPES,
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    decision = next(
+        decision
+        for decision in result.sections[0].decisions
+        if decision.id == "5122"
+    )
+
+    assert decision.action == "review"
+    assert decision.protection_level == "soft"
+    assert decision.protection_reason == "exotic"
+
+
 def test_snapshot_contains_authoritative_same_stat_groups():
     result = run_report(
         config_path="nonexistent.toml",

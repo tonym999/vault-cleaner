@@ -3,6 +3,23 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-08-31 — #101 review regression: exact protection reaches reports
+
+- Threaded an optional effective-protection classification through the
+  internal `Decision` model from the authoritative armor exact pass. Report
+  records consume that classification when present, including explicit
+  unprotected complete exotic-class losers; decisions from other passes keep
+  the existing global rails projection. The external report/snapshot schema
+  is unchanged and no exotic exception was duplicated in `report_run`.
+- Added report and server regressions for plain-junk, locked-review, and
+  loadout-review complete exotic-class losers, plus ordinary exotic behavior
+  remaining soft-protected. Updated the emitter-path coverage fixture setup
+  and retained server pass-through checks.
+- Validation: the focused implementation subset passed 529 tests with 4
+  sandbox-deselected socket checks; the unrestricted full suite passed 891
+  tests. Ruff, diff, and privacy checks passed. No browser production code or
+  PR was changed/opened.
+
 ## 2026-08-31 — #101 review regressions: ordering and identity parity
 
 - Restored exact-group member presentation order: preferred survivor first,

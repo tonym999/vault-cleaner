@@ -190,6 +190,11 @@ class Decision:
     tag: str  # what the output row will carry
     note: str  # user Notes plus the current generated clause
     kept_id: str  # the surviving copy this one lost (or tied) against
+    # None means this pass did not provide an authoritative classification.
+    # A present tuple may deliberately contain (None, "") for an explicitly
+    # unprotected decision, as the armor exact pass does for complete exotic
+    # class-item losers.
+    effective_protection: tuple[str | None, str] | None = None
 
 
 def rank_key(row) -> tuple:

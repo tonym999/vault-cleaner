@@ -418,6 +418,7 @@ def analyse(armor: pd.DataFrame, crafted_level_protect: int) -> ArmorExactDupeAn
                     action=action, tag=tag,
                     note=append_tool_clause(row["Notes"], hashtag),
                     kept_id=best["Id"],
+                    effective_protection=(level, reason),
                 )
             )
         exact_groups.append(_group_projection(best, group, member_projections))

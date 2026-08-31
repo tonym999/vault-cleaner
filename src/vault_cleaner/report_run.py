@@ -269,6 +269,12 @@ def _decision_records(
             # deliberately not a ghost rail, so the generic rails helper
             # cannot be used here.
             level, protection_reason = None, ""
+        elif decision.effective_protection is not None:
+            # Armor exact decisions carry the pass's effective rail result,
+            # including an explicit unprotected (None, "") classification.
+            # Other passes leave this unset and retain the existing global
+            # rails projection below.
+            level, protection_reason = decision.effective_protection
         else:
             level, protection_reason = rails.protection(
                 row, crafted_level_protect

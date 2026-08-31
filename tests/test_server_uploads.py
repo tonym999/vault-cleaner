@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from vault_cleaner.parse import load_armor
 from vault_cleaner.report_run import run_report, snapshot_dict
 from vault_cleaner.review import save_overrides
 from vault_cleaner.review_session import OverrideStore, Veto
@@ -176,6 +177,44 @@ def test_armor_same_stat_groups_pass_through_server_unchanged(tmp_path):
         assert report.json["snapshot"]["sections"][0]["armor"][
             "same_stat_groups"
         ] == expected_groups
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_action", "expected_level", "expected_reason"),
+    [
+        ("plain", "junk", None, ""),
+        ("loadout", "review", "soft", "loadout"),
+        ("locked", "review", "soft", "locked"),
+    ],
+)
+def test_exact_exotic_protection_passes_through_server(
+    tmp_path, state, expected_action, expected_level, expected_reason
+):
+    armor = load_armor(FIXTURES / "armor_dupes.csv")
+    # Keep 5032 as the loser in every branch under test, including when its
+    # mutable state would otherwise outrank the normal MW-based survivor.
+    armor.loc[armor["Id"] == "5031", "Equipped"] = "true"
+    if state == "loadout":
+        armor.loc[armor["Id"] == "5032", "Loadouts"] = "PvE Build"
+    elif state == "locked":
+        armor.loc[armor["Id"] == "5032", "Locked"] = "true"
+    source = tmp_path / f"armor-{state}.csv"
+    armor.to_csv(source, index=False, lineterminator="\n")
+
+    with make_client(tmp_path) as (client, _session):
+        response = post_upload(client, "armor", source.read_bytes())
+
+        assert response.status_code == 200
+        decisions = response.json["snapshot"]["sections"][0]["decisions"]
+        decision = next(item for item in decisions if item["id"] == "5032")
+        assert decision["action"] == expected_action
+        assert decision["protection_level"] == expected_level
+        assert decision["protection_reason"] == expected_reason
+
+        ordinary = next(item for item in decisions if item["id"] == "5122")
+        assert ordinary["action"] == "review"
+        assert ordinary["protection_level"] == "soft"
+        assert ordinary["protection_reason"] == "exotic"
 
 
 def test_all_three_uploads_combine_into_one_report(tmp_path):
