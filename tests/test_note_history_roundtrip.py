@@ -41,7 +41,7 @@ def _assert_round_trip(
     item_id: str,
     expected_action: str,
     expected_reason: str,
-) -> None:
+) -> dupes.Decision:
     """Prove an emitter's own current clause is safe to round-trip.
 
     The test deliberately never reconstructs the generated clause.  It takes
@@ -68,10 +68,33 @@ def _assert_round_trip(
         assert repeated.note[: len(USER_PREFIX)] == USER_PREFIX
         assert len(CURRENT_MARKER.findall(repeated.note)) == 1
         assert strip_trailing_tool_clauses(repeated.note) == USER_PREFIX
+    return first
 
 
 def _weapon_dupes(frame):
     return dupes.resolve(frame, crafted_level_protect=10)
+
+
+def _weapon_crafted_level_frame():
+    frame = load_weapons(WEAPON_FIXTURE)
+    frame = frame[frame["Id"].isin(("3001", "3002"))].copy()
+    frame.loc[frame["Id"] == "3001", "Id"] = "crafted-rank-winner"
+    frame.loc[frame["Id"] == "3002", "Id"] = "crafted-rank-loser"
+    frame["Masterwork Tier"] = "0"
+    frame["Crafted"] = "crafted"
+    frame.loc[frame["Id"] == "crafted-rank-winner", "Crafted Level"] = "4"
+    frame.loc[frame["Id"] == "crafted-rank-loser", "Crafted Level"] = "3"
+    frame["Notes"] = ""
+    return frame
+
+
+def _weapon_stat_total_frame():
+    frame = load_weapons(WEAPON_FIXTURE)
+    frame = frame[frame["Id"].isin(("3041", "3042"))].copy()
+    frame.loc[frame["Id"] == "3041", "Impact"] = "31"
+    frame.loc[frame["Id"] == "3042", "Impact"] = "30"
+    frame["Notes"] = ""
+    return frame
 
 
 def _armor_exact(frame):
@@ -298,3 +321,69 @@ def test_current_emitter_notes_round_trip(
     frame, produce, item_id, action, reason
 ):
     _assert_round_trip(frame, produce, item_id, action, reason)
+
+
+@pytest.mark.parametrize(
+    ("frame", "produce", "item_id", "action", "reason", "winner"),
+    [
+        pytest.param(
+            load_weapons(WEAPON_FIXTURE),
+            _weapon_dupes,
+            "3032",
+            "junk",
+            "dupe-lower",
+            "higher Tier",
+            id="weapon-winner-tier",
+        ),
+        pytest.param(
+            _weapon_crafted_level_frame(),
+            _weapon_dupes,
+            "crafted-rank-loser",
+            "junk",
+            "dupe-lower",
+            "higher Crafted Level",
+            id="weapon-winner-crafted-level",
+        ),
+        pytest.param(
+            _weapon_stat_total_frame(),
+            _weapon_dupes,
+            "3042",
+            "junk",
+            "dupe-lower",
+            "higher stat total",
+            id="weapon-winner-stat-total",
+        ),
+        pytest.param(
+            load_armor(ARMOR_DUPES_FIXTURE),
+            _armor_exact,
+            "5082",
+            "junk",
+            "armor-exact-dupe",
+            "loadout membership",
+            id="armor-winner-loadout",
+        ),
+        pytest.param(
+            load_armor(ARMOR_DUPES_FIXTURE),
+            _armor_exact,
+            "5092",
+            "junk",
+            "armor-exact-dupe",
+            "lock",
+            id="armor-winner-lock",
+        ),
+        pytest.param(
+            load_armor(ARMOR_DUPES_FIXTURE),
+            _armor_exact,
+            "5072",
+            "junk",
+            "armor-exact-dupe",
+            "higher Power",
+            id="armor-winner-power",
+        ),
+    ],
+)
+def test_exact_dupe_winner_labels_round_trip(
+    frame, produce, item_id, action, reason, winner
+):
+    first = _assert_round_trip(frame, produce, item_id, action, reason)
+    assert first.note.endswith(f"; winner {winner}")

@@ -11,6 +11,11 @@ surprises the next agent should know about.
   last-of-archetype), and ghosts. Each case feeds the exact emitted note
   through three further rule runs and asserts the user prefix, action, reason,
   and complete note remain stable with one current vault-cleaner marker.
+- Extended the exact-dupe emitter coverage to exercise every current winner
+  label: weapon higher Tier, Crafted Level, and stat total, plus armour
+  loadout membership, lock, and higher Power. The cases use fixture rows or
+  a minimal fixture-derived pair and assert the label in the actual emitted
+  note without reconstructing its grammar.
 - Kept the literal `note_history` tests for legacy migration formats. Added a
   maintenance obligation to keep emitter tests and recognizer patterns in
   sync whenever a generated clause changes. No production mismatch was found
@@ -19,10 +24,12 @@ surprises the next agent should know about.
   `.venv/bin/pytest -q tests/test_note_history_roundtrip.py
   tests/test_note_history.py tests/test_dupes.py tests/test_armor_dupes.py
   tests/test_armor_close.py tests/test_weapons_rules.py
-  tests/test_armor_rules.py tests/test_ghost_rules.py` passed 162 tests.
-  The unrestricted `.venv/bin/pytest -q` suite passed 818 tests, including
-  the real-socket and Chromium coverage. The reviewer's representative
-  armour wording mutation failed all four affected emitter-round-trip cases.
+  tests/test_armor_rules.py tests/test_ghost_rules.py` passed 168 tests.
+  The unrestricted `.venv/bin/pytest -q` suite passed 824 tests, including
+  the real-socket and Chromium coverage. The reviewer's `lock` → `explicit
+  lock` mutation and an equivalent weapon Tier-label mutation each failed at
+  the targeted emitter/recognizer boundary; production sources were restored
+  byte-for-byte afterward.
 
 ## 2026-08-31 — #29 current-only generated Notes
 
