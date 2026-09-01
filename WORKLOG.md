@@ -3,6 +3,15 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #110 PR real-export evidence
+
+- Added the vault owner's approved DIM Organizer and vault-cleaner report
+  screenshots as durable PR evidence. They independently show the same
+  four-piece Titan Luminopotent Plate / Reaver stat group: Class 30, Melee 25,
+  Weapons 20, with distinct Class, Melee, Super, and Health tuning slots in the
+  report. No CSV export was committed; the owner explicitly approved the
+  visible opaque item instance ids for publication.
+
 ## 2026-09-01 — #110 same-stat Armor duplicates browser extension
 
 - Extended the #102 Armor duplicates presentation to consume the authoritative
