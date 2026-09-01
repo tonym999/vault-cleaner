@@ -31,11 +31,13 @@ surprises the next agent should know about.
   duplicate group ids, and member ids repeated across same-stat groups. It
   keeps Seasonal Mod/Holofoil strictly member-level, so absent group axes
   cannot render synthetic `none/unknown` header tiles.
-- Same-stat current proposal controls now require the member's close-pass
-  proposal metadata plus a same-section, same-hash authoritative decision.
-  This prevents an exact-pass decision for an overlapping opaque id from
-  leaking controls into the read-only comparison occurrence while preserving
-  wrong-hash and cross-section rejection.
+- Same-stat current proposal controls now require a same-section, same-hash
+  authoritative current proposal decision. Supplied close-pass member
+  metadata is displayed/validated when present but never grants authority;
+  this preserves legitimate later-pass proposals while preventing an
+  exact-pass decision for an overlapping opaque id from leaking controls into
+  a read-only comparison occurrence. Wrong-hash and cross-section lookalikes
+  remain rejected.
 - Added focused Node trust/security coverage for strict shape, duplicate
   identity, hostile same-stat values, prototype-shaped group/member ids, and
   huge/leading-zero/non-digit opaque ids. Added adapter coverage that renders

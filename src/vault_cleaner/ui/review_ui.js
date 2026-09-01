@@ -515,17 +515,15 @@
             if (proposalHash !== hash) {
               throw new Error(memberWhere + " has a proposal decision for another hash");
             }
-            // Exact-pass decisions can contain an id that is also present in
-            // the wider same-stat comparison group.  Only a close-pass
-            // member carrying its own proposal metadata may expose that
-            // decision as mutable in this read-only surface.
-            if (proposalAction) {
-              if (proposalDecision.action !== proposalAction) {
-                throw new Error(memberWhere + " has inconsistent proposal action");
-              }
-              currentProposalAction = str(proposalDecision.action);
-              currentProposalReason = str(proposalDecision.reason);
+            // A same-section, same-hash decision is the authoritative
+            // proposal seam. Close-pass member metadata may corroborate that
+            // decision, but it cannot manufacture one when the decision is
+            // absent.
+            if (proposalAction && proposalDecision.action !== proposalAction) {
+              throw new Error(memberWhere + " has inconsistent proposal action");
             }
+            currentProposalAction = str(proposalDecision.action);
+            currentProposalReason = str(proposalDecision.reason);
           }
           var selectedPartnerId = member.selected_partner_id === null ||
             member.selected_partner_id === undefined ? null :

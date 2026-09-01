@@ -2427,12 +2427,12 @@ function groupEnvelope(verdicts, lifecycle) {
     snapshot: {sections: [{kind: "armor", decisions: [{id: sharedId, hash: "h",
       name: "Shared Plate", action: "junk", reason: "exact"}], armor: {
       exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "exact",
-        hash: "h", name: "Exact Plate", type: "Chest Armor", guardian_class: "Hunter",
-        item_archetype: "Gunner", tier: 5, stats: {}, tuning_mod_slot: "Weapons",
-        preferred_survivor_id: "survivor", members: [
-          {id: "survivor", disposition: "preferred_survivor"},
-          {id: sharedId, disposition: "proposed_junk", proposal_action: "junk"}
-        ]}],
+          hash: "h", name: "Exact Plate", type: "Chest Armor", guardian_class: "Hunter",
+          item_archetype: "Gunner", tier: 5, stats: {}, tuning_mod_slot: "Weapons",
+          preferred_survivor_id: "survivor", members: [
+            {id: "survivor", disposition: "preferred_survivor"},
+          {id: sharedId, disposition: "retained_protected", protection_level: "hard"}
+          ]}],
       same_stat_groups: [{group_kind: "same_stat", group_id: "same", hash: "h",
         name: "Same Plate", type: "Chest Armor", guardian_class: "Hunter",
         item_archetype: "Gunner", tier: 5, stats: {}, members: [
@@ -2463,19 +2463,19 @@ setTimeout(function () {
   document.nodes["vc-view-duplicates"].dispatch("click");
   var occurrences = state.duplicateRows[sharedId];
   var exact = occurrences[0], same = occurrences[1];
-  var before = {count: occurrences.length, exactMutable: !!exact.approve,
-    sameReadOnly: same.approve === null && same.presentation.textContent.indexOf("Read-only comparison") !== -1};
-  exact.approve.dispatch("click");
-  var duringAck = {exactDisabled: exact.approve.disabled, sameReadOnly: same.approve === null};
+  var before = {count: occurrences.length, exactReadOnly: exact.approve === null,
+    sameMutable: !!same.approve};
+  same.approve.dispatch("click");
+  var duringAck = {sameDisabled: same.approve.disabled, exactReadOnly: exact.approve === null};
   setTimeout(function () {
-    var afterAck = {verdict: state.verdicts[sharedId], exactPressed: exact.approve.getAttribute("aria-pressed"),
-      sameText: same.presentation.textContent, sameReadOnly: same.approve === null};
+    var afterAck = {verdict: state.verdicts[sharedId], samePressed: same.approve.getAttribute("aria-pressed"),
+      exactText: exact.presentation.textContent, exactReadOnly: exact.approve === null};
     document.nodes["vc-finalize"].dispatch("click");
     setTimeout(function () {
       process.stdout.write(JSON.stringify({before: before, duringAck: duringAck, afterAck: afterAck,
-        finalized: state.server_state === "finalized" && exact.approve.disabled && exact.veto.disabled &&
-          exact.clear.disabled && same.approve === null &&
-          same.presentation.textContent.indexOf("Read-only comparison") !== -1,
+        finalized: state.server_state === "finalized" && exact.approve === null &&
+          same.approve.disabled && same.veto.disabled && same.clear.disabled &&
+          exact.presentation.textContent.indexOf("Read-only") !== -1,
         calls: calls}));
     }, 10);
   }, 10);
@@ -2492,12 +2492,12 @@ setTimeout(function () {
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
-        "before": {"count": 2, "exactMutable": True, "sameReadOnly": True},
-        "duringAck": {"exactDisabled": True, "sameReadOnly": True},
+        "before": {"count": 2, "exactReadOnly": True, "sameMutable": True},
+        "duringAck": {"sameDisabled": True, "exactReadOnly": True},
         "afterAck": {
-            "verdict": "approved", "exactPressed": "true",
-            "sameText": "Read-only comparison · Current verdict: approved",
-            "sameReadOnly": True,
+            "verdict": "approved", "samePressed": "true",
+            "exactText": "Read-only · Retained protected · Also proposed junk in Proposals · Current verdict: approved — exact",
+            "exactReadOnly": True,
         },
         "finalized": True,
         "calls": ["/api/report", "/api/verdicts", "/api/finalize", "/api/report"],

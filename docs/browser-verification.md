@@ -153,8 +153,8 @@ terminal.
   rendered one complete `Same stats, different tuning · review-only` group.
   Both fake member ids and their differing Weapons/Health Tuning Mod Slot
   values were visible as ordinary text before any expansion or hover. The
-  same-stat group exposed only the existing close-pass proposal controls and
-  did not imply a survivor or junk disposition.
+  same-stat group exposed only controls for existing authoritative current
+  proposals and did not imply a survivor or junk disposition.
 - Actual visual matrix: the packaged server was exercised headlessly at
   1440×1000 and 390×844 in both light and dark appearances (four cases, about
   6.2s total), with review and finalised screenshots retained and inspected.

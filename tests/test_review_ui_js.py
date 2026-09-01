@@ -1189,7 +1189,8 @@ function exact() { return {group_kind: "exact_duplicate", group_id: "exact-group
   stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
   spirit_signature: [], preferred_survivor_id: "preferred", members: [
     {id: "preferred", location: "Vault", disposition: "preferred_survivor"},
-    {id: sharedId, location: "Vault", disposition: "proposed_junk", proposal_action: "junk"}
+    {id: sharedId, location: "Vault", disposition: "retained_protected",
+     protection_level: "hard"}
   ]}; }
 function same() { return {group_kind: "same_stat", group_id: "__proto__",
   hash: "18446744073709551615", name: "<img src=x onerror=alert(1)>",
@@ -1215,7 +1216,7 @@ var view = api.createView({document: new Document(), state: state,
 var articles = view.armorGroups(projected);
 var exactArticle = articles[0], sameArticle = articles[1];
 var overlap = state.duplicateRows[sharedId];
-overlap[0].approve.click();
+overlap[1].approve.click();
 state.verdicts[sharedId] = "approved";
 view.paintArmorMember(sharedId);
 view.setVerdictControlsDisabled(true);
@@ -1229,8 +1230,8 @@ process.stdout.write(JSON.stringify({
   strings: typeof projected[1].groupId === "string" && projected[1].groupId === "__proto__" &&
     typeof projected[1].hash === "string" && typeof projected[1].members[1].selectedPartnerId === "string",
   overlapArray: Array.isArray(overlap) && overlap.length === 2,
-  exactRepainted: overlap[0].approve.getAttribute("aria-pressed") === "true" && overlap[0].approve.disabled,
-  sameReadOnly: overlap[1].approve === null && overlap[1].presentation.textContent.indexOf("Read-only comparison") !== -1,
+  exactReadOnly: overlap[0].approve === null && overlap[0].presentation.textContent.indexOf("Read-only") !== -1,
+  sameRepainted: overlap[1].approve.getAttribute("aria-pressed") === "true" && overlap[1].approve.disabled,
   labels: sameArticle.textContent.indexOf("Same stats, different tuning") !== -1 &&
     sameArticle.textContent.indexOf("review-only") !== -1 &&
     sameArticle.textContent.indexOf("Tuning Mod Slot") !== -1 &&
@@ -1243,8 +1244,8 @@ process.stdout.write(JSON.stringify({
   noBogusGroupAxes: projected[1].seasonalMod === "" && projected[1].holofoil === "" &&
     sameArticle.textContent.indexOf("group-seasonal") === -1 &&
     sameArticle.textContent.indexOf("group-holofoil") === -1,
-  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 3 &&
-    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 0,
+  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
+    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 3,
   filterAny: api.filterArmorGroups(projected, {tuningModSlot: "Health"}).length === 1,
   countsOnce: (function () {
     var counts = api.countArmorGroups(projected, "tuningModSlot");
@@ -1272,8 +1273,8 @@ process.stdout.write(JSON.stringify({
     assert json.loads(completed.stdout) == {
         "order": ["exact_duplicate", "same_stat"],
         "memberOrder": ["0009223372036854775808", "not-digit-id"],
-        "strings": True, "overlapArray": True, "exactRepainted": True,
-        "sameReadOnly": True,
+        "strings": True, "overlapArray": True, "exactReadOnly": True,
+        "sameRepainted": True,
         "labels": True, "noExactDisposition": True,
         "seasonalAndHolofoil": True, "noBogusGroupAxes": True,
         "controls": True,
