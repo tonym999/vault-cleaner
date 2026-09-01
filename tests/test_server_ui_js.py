@@ -2505,3 +2505,205 @@ setTimeout(function () {
         "finalized": True,
         "calls": ["/api/report", "/api/verdicts", "/api/finalize", "/api/report"],
     }
+
+
+def test_malformed_exact_group_kind_cannot_enter_same_stat_presentation(tmp_path: Path):
+    harness = tmp_path / "server-ui-malformed-exact-kind-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+function sameGroup() {
+  return {group_kind: "same_stat", group_id: "safe", hash: "h", name: "Safe",
+    members: [{id: "safe-one"}, {id: "safe-two"}]};
+}
+function malformedGroup() {
+  return {group_kind: "same_stat", group_id: "hostile", hash: "h",
+    name: "Hostile", preferred_survivor_id: "hostile-one", members: [
+      {id: "hostile-one", disposition: "preferred_survivor"}
+    ]};
+}
+function envelope(revision, group) {
+  return {schema_version: 1, state: "reviewing", report_revision: revision,
+    verdict_revision: 0, fingerprint: "fp-" + revision,
+    snapshot: {sections: [{kind: "armor", decisions: [], armor: {
+      exact_duplicate_groups: group ? [group] : [], same_stat_groups: [sameGroup()]
+    }}]}, verdicts: [], override_status: []};
+}
+var state = server.createState();
+server.applySessionEnvelope(envelope(1), state);
+function rejected(group) {
+  var accepted = true;
+  try { server.applySessionEnvelope(envelope(2, group), state); }
+  catch (error) { accepted = false; }
+  return !accepted;
+}
+var wrongKindRejected = rejected(malformedGroup());
+var missingKind = malformedGroup(); delete missingKind.group_kind;
+var missingKindRejected = rejected(missingKind);
+process.stdout.write(JSON.stringify({
+  wrongKindRejected: wrongKindRejected, missingKindRejected: missingKindRejected,
+  reportRevision: state.report_revision,
+  sameStatGroupIds: server.armorGroupsForKind(state.armorGroups, "same_stat").map(function (group) {
+    return group.groupId;
+  }),
+  exactGroupCount: server.armorGroupsForKind(state.armorGroups, "exact").length,
+  hostileFilterCount: server.armorGroupsForKind(state.armorGroups, "same_stat").filter(function (group) {
+    return group.groupId === "hostile";
+  }).length
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "wrongKindRejected": True, "missingKindRejected": True,
+        "reportRevision": 1, "sameStatGroupIds": ["safe"],
+        "exactGroupCount": 0, "hostileFilterCount": 0,
+    }
+
+
+def test_local_duplicate_kind_switch_renders_filter_reconciliation(tmp_path: Path):
+    harness = tmp_path / "server-ui-local-duplicate-kind-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+  this.hidden = false; this.value = ""; this.selectionStart = 0;
+  this.selectionEnd = 0; this.files = [];
+}
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null; return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || {target: this, preventDefault: function () {}};
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child; else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+Node.prototype.focus = function () { this.ownerDocument.activeElement = this; };
+function Document() {
+  this.readyState = "interactive"; this.nodes = Object.create(null);
+  this.listeners = Object.create(null); this.activeElement = null;
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+function envelope() {
+  return {schema_version: 1, state: "reviewing", report_revision: 1,
+    verdict_revision: 0, fingerprint: "local-filter", snapshot: {sections: [{
+      kind: "armor", decisions: [], armor: {
+        exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "collision",
+          hash: "h", name: "Exact", tuning_mod_slot: "Weapons",
+          preferred_survivor_id: "exact-survivor", members: [
+            {id: "exact-survivor", disposition: "preferred_survivor"}
+          ]}],
+        same_stat_groups: [{group_kind: "same_stat", group_id: "collision",
+          hash: "h", name: "Same", members: [
+            {id: "same-one", tuning_mod_slot: "Weapons"},
+            {id: "same-two", tuning_mod_slot: "Health"}
+          ]}]
+      }
+    }]}, verdicts: [], override_status: []};
+}
+var calls = [], document = new Document();
+var context = {document: document, VaultCleanerReviewUI: shared, Promise: Promise,
+  Set: Set, setTimeout: setTimeout, fetch: function (path) {
+    calls.push(path); return Promise.resolve({ok: true, status: 200,
+      json: function () { return Promise.resolve(envelope()); }});
+  }};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+setTimeout(function () {
+  var server = context.VaultCleanerServerUI, state = server.state;
+  document.nodes["vc-view-duplicates"].dispatch("click");
+  document.nodes["vc-dup-kind-same_stat"].dispatch("click");
+  var tuning = document.nodes["vc-dup-f-tuningModSlot"];
+  tuning.value = "Health"; tuning.dispatch("change", {target: tuning});
+  state.viewInvalidated = ["filter stale server value"];
+  state.reconciliation.invalidated = ["filter stale server value"];
+  var exact = document.nodes["vc-dup-kind-exact"];
+  exact.focus(); exact.dispatch("click");
+  process.stdout.write(JSON.stringify({
+    calls: calls, kind: state.armorGroupKind,
+    filter: state.armorQuery.tuningModSlot,
+    viewInvalidated: state.viewInvalidated,
+    reconciliationInvalidated: state.reconciliation.invalidated,
+    notice: document.nodes["vc-reconciliation"].textContent,
+    noticeVisible: !document.nodes["vc-reconciliation"].hidden,
+    focusedId: document.activeElement && document.activeElement.getAttribute("id")
+  }));
+}, 10);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "calls": ["/api/report"], "kind": "exact", "filter": "",
+        "viewInvalidated": ["duplicate filter tuningModSlot Health"],
+        "reconciliationInvalidated": ["duplicate filter tuningModSlot Health"],
+        "notice": " Local view state dropped: duplicate filter tuningModSlot Health.",
+        "noticeVisible": True, "focusedId": "vc-dup-kind-exact",
+    }

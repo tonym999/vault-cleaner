@@ -3,6 +3,34 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #112 PR review corrections
+
+- Made exact duplicate projection strict about the authoritative
+  `group_kind: exact_duplicate` value; malformed or missing values now reject
+  the complete envelope before presentation adoption.
+- Preserved raw Tuning Stat distinctions only when they collapse into fewer
+  normalized Tuning Mod Slot values, and namespaced rendered `data-group-id`
+  attributes by validated group kind while leaving source ids opaque.
+- Added a shared reconciliation renderer and local All / Exact / Same stats
+  reconciliation path so dropped duplicate filters are immediately visible,
+  stale server invalidations are not carried forward, and selector focus is
+  restored.
+- Added focused Node-backed regressions for the hostile exact envelope, raw
+  tuning rendering, cross-kind DOM ids, and local filter invalidation. No new
+  Playwright test was added; no Python rules, report schema, server protocol,
+  lifecycle, runtime dependency, or `data/` content changed. GitHub review
+  comments could not be fetched because the API was unreachable.
+- Validation: Ruff passed; focused UI/adapter tests passed (`110 passed`);
+  full suite passed (`934 passed, 1 skipped`); non-editable wheel proof passed;
+  focused #110 Chromium passed (`1 passed`); full browser marker passed (`5
+  passed, 929 deselected`); diff whitespace and tracked-`data/` checks passed.
+  The first full-suite attempt was blocked only by sandbox socket/Chromium
+  permissions and was repeated successfully with approved escalation.
+- Follow-up review correction aligned the tuning renderer regression with
+  Python's projection: empty and future raw values both use
+  `tuning_mod_slot: none/unknown`, so the test now requires one raw Tuning Stat
+  row and verifies the future raw text appears in that row.
+
 ## 2026-09-01 — #110 PR real-export evidence
 
 - Added the vault owner's approved DIM Organizer and vault-cleaner report

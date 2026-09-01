@@ -317,6 +317,9 @@
       armor.exact_duplicate_groups.forEach(function (source, index) {
         var where = "sections[" + s + "].armor.exact_duplicate_groups[" + index + "]";
         if (!isObject(source)) throw new Error(where + " must be an object");
+        if (source.group_kind !== "exact_duplicate") {
+          throw new Error(where + ".group_kind must be exact_duplicate");
+        }
         var groupId = requireIdString(source.group_id, where + ".group_id");
         var hash = requireIdString(source.hash, where + ".hash");
         var preferred = requireIdString(
@@ -398,7 +401,7 @@
           };
         });
         groups.push({
-          groupKind: str(source.group_kind) || "exact_duplicate",
+          groupKind: "exact_duplicate",
           groupId: groupId,
           hash: hash,
           name: str(source.name),
@@ -1138,7 +1141,7 @@
         }
         var rawTuningValues = memberValues(group, "tuningStat");
         var tuningSlots = memberValues(group, "tuningModSlot", normalizeCategoricalValue);
-        if (rawTuningValues.length > 1 && tuningSlots.length === 1) {
+        if (rawTuningValues.length > tuningSlots.length) {
           rows.push(["Tuning Stat", function (member) {
             return member.tuningStat || "none/unknown";
           }]);
@@ -1182,7 +1185,7 @@
 
     function armorGroup(group) {
       return el("article", {
-        class: "armor-group", "data-group-id": group.groupId,
+        class: "armor-group", "data-group-id": group.groupKind + ":" + group.groupId,
         "data-group-kind": group.groupKind
       }, [armorGroupHeader(group), armorGroupTable(group)]);
     }

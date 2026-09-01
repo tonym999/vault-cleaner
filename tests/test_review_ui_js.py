@@ -1365,3 +1365,139 @@ process.stdout.write(JSON.stringify({
         "wrongHashRejected": True, "crossSectionRejected": True,
         "opaqueStrings": True, "prototypeClean": True,
     }
+
+
+def test_same_stat_renderer_preserves_unknown_tuning_distinction(tmp_path: Path):
+    script = tmp_path / "same-stat-tuning-render.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = "";
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+var projected = api.sameStatGroupsFromSnapshot({
+  sections: [{kind: "armor", decisions: [], armor: {
+    same_stat_groups: [{group_kind: "same_stat", group_id: "tuning", hash: "h",
+      name: "Tuning distinction", members: [
+        {id: "empty", location: "Vault", tuning_stat: "", tuning_mod_slot: "none/unknown"},
+        {id: "future", location: "Vault", tuning_stat: "future socket", tuning_mod_slot: "none/unknown"},
+        {id: "known", location: "Vault", tuning_stat: "Weapons", tuning_mod_slot: "Weapons"}
+      ]}]
+  }}]
+})[0];
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var article = api.createView({document: new Document(), state: state}).armorGroup(projected);
+function countExact(node, value) {
+  var total = node._text === value ? 1 : 0;
+  node.children.forEach(function (child) { total += countExact(child, value); });
+  return total;
+}
+function tuningRow(node) {
+  if (node.tagName === "TR" && countExact(node, "Tuning Stat") === 1) return node;
+  for (var i = 0; i < node.children.length; i++) {
+    var found = tuningRow(node.children[i]);
+    if (found) return found;
+  }
+  return null;
+}
+var rawRow = tuningRow(article);
+process.stdout.write(JSON.stringify({
+  rawRows: countExact(article, "Tuning Stat"),
+  emptyVisible: article.textContent.indexOf("none/unknown") !== -1,
+  futureRawVisible: !!rawRow && rawRow.textContent.indexOf("future socket") !== -1,
+  recognizedVisible: article.textContent.indexOf("Weapons") !== -1
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "rawRows": 1, "emptyVisible": True, "futureRawVisible": True,
+        "recognizedVisible": True,
+    }
+
+
+def test_cross_kind_group_ids_are_namespaced_only_in_rendered_dom(tmp_path: Path):
+    script = tmp_path / "cross-kind-group-id.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = "";
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+var snapshot = {sections: [{kind: "armor", decisions: [], armor: {
+  exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "collision", hash: "h",
+    name: "Exact", preferred_survivor_id: "exact-survivor", members: [
+      {id: "exact-survivor", disposition: "preferred_survivor"}
+    ]}],
+  same_stat_groups: [{group_kind: "same_stat", group_id: "collision", hash: "h",
+    name: "Same", members: [
+      {id: "same-one", location: "Vault"}, {id: "same-two", location: "Vault"}
+    ]}]
+}}]};
+var groups = api.armorGroupsFromSnapshot(snapshot);
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var view = api.createView({document: new Document(), state: state});
+var articles = view.armorGroups(groups);
+var rendered = articles.map(function (article) {
+  return [article.getAttribute("data-group-id"), article.getAttribute("data-group-kind")];
+});
+process.stdout.write(JSON.stringify({
+  sourceIds: groups.map(function (group) { return group.groupId; }),
+  rendered: rendered,
+  distinct: rendered[0][0] !== rendered[1][0],
+  bothAddressable: rendered.filter(function (entry) {
+    return entry[0] === "exact_duplicate:collision" || entry[0] === "same_stat:collision";
+  }).length === 2
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "sourceIds": ["collision", "collision"],
+        "rendered": [
+            ["exact_duplicate:collision", "exact_duplicate"],
+            ["same_stat:collision", "same_stat"],
+        ],
+        "distinct": True, "bothAddressable": True,
+    }

@@ -579,6 +579,19 @@
       return state.viewInvalidated.length
         ? " Local view state dropped: " + state.viewInvalidated.join("; ") + "." : "";
     }
+    function renderReconciliation() {
+      var recon = byId("vc-reconciliation");
+      if (!recon) return;
+      recon.textContent = "";
+      if (state.reconciliation.retained.length) {
+        recon.textContent += "Retained verdict IDs: " + state.reconciliation.retained.join(", ") + ". ";
+      }
+      if (state.reconciliation.discarded.length) {
+        recon.textContent += "Discarded verdict IDs: " + state.reconciliation.discarded.join(", ") + ". ";
+      }
+      recon.textContent += reportInvalidations();
+      recon.hidden = !recon.textContent;
+    }
     function renderSessionNote() {
       var sessionNote = byId("vc-session-note");
       if (!sessionNote) return;
@@ -800,14 +813,7 @@
       var fingerprintNode = byId("vc-fingerprint");
       if (fingerprintNode) fingerprintNode.textContent = envelope.fingerprint || "";
       renderSessionNote();
-      var recon = byId("vc-reconciliation");
-      if (recon) {
-        recon.textContent = "";
-        if (state.reconciliation.retained.length) recon.textContent += "Retained verdict IDs: " + state.reconciliation.retained.join(", ") + ". ";
-        if (state.reconciliation.discarded.length) recon.textContent += "Discarded verdict IDs: " + state.reconciliation.discarded.join(", ") + ". ";
-        recon.textContent += reportInvalidations();
-        recon.hidden = !recon.textContent;
-      }
+      renderReconciliation();
       if (rebuilt && focusedId) {
         var focusTarget = byId(focusedId);
         if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
@@ -872,12 +878,16 @@
               on: { click: function () {
                 if (state.armorGroupKind === kind[0]) return;
                 state.armorGroupKind = kind[0];
+                var localInvalidated = [];
                 reconcileArmorQueryForGroups(
                   state.armorQuery,
                   armorGroupsForKind(state.armorGroups, state.armorGroupKind),
-                  state.viewInvalidated
+                  localInvalidated
                 );
+                state.viewInvalidated = localInvalidated.slice();
+                state.reconciliation.invalidated = localInvalidated.slice();
                 renderControls(); renderList(); renderSummary();
+                renderReconciliation();
               } }
             }));
           });
