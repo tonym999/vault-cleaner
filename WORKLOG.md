@@ -3,6 +3,28 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #110 same-stat Armor duplicates browser extension
+
+- Extended the #102 Armor duplicates presentation to consume the authoritative
+  `same_stat_groups` snapshot projection. Same-stat groups are clearly labelled
+  `Same stats, different tuning · review-only`; they show per-member Tuning Mod
+  Slot text and supplied Seasonal Mod/Holofoil variation, without deriving a
+  survivor, disposition, ranking, or junk decision.
+- Added All / Exact / Same stats local presentation selection only when both
+  authoritative group kinds exist. Whole-group search/facets and per-group
+  Tuning Mod Slot matching/counting are preserved, including any-member tuning
+  matches for same-stat groups.
+- Changed the local duplicate DOM registry to retain multiple handles for one
+  opaque id so legitimate exact/same overlap repaints and disables every
+  applicable occurrence while preserving read-only presentation semantics.
+- Added fake same-stat fixture, focused Node projection/renderer/overlap
+  coverage, and exactly one focused packaged-server browser test. Updated the
+  README, narrow M9 ownership sequencing, and browser verification checklist.
+- Focused Node/adapter tests pass (`104 passed`). Focused Chromium passed in
+  1.34s and the full browser marker passed in 5.62s; no Python rules, report
+  schema, server protocol/lifecycle, runtime dependencies, or #109 work
+  changed.
+
 ## 2026-09-01 — #102 incremental review follow-up
 
 - Replaced the cross-group malformed-envelope adapter regression's fixed

@@ -1843,7 +1843,7 @@ setTimeout(function () {
     var duplicateSearch = document.nodes["vc-dup-search"];
     duplicateSearch.value = armorProposalId;
     duplicateSearch.dispatch("input", { target: duplicateSearch });
-    duplicateCell = state.duplicateRows[armorProposalId].cell;
+    duplicateCell = state.duplicateRows[armorProposalId][0].cell;
     var armorUpload = document.nodes["vc-upload-armor"];
     armorUpload.files = [{}];
     armorUpload.dispatch("change", { target: armorUpload });
@@ -1852,23 +1852,23 @@ setTimeout(function () {
         state.armorQuery.text === armorProposalId &&
         !document.nodes["vc-duplicates"].hidden &&
         document.nodes["vc-dup-search"].value === armorProposalId;
-      state.duplicateRows[armorProposalId].approve.dispatch("click");
-      duplicateGateDisabled = state.duplicateRows[armorProposalId].approve.disabled;
+      state.duplicateRows[armorProposalId][0].approve.dispatch("click");
+      duplicateGateDisabled = state.duplicateRows[armorProposalId][0].approve.disabled;
       setTimeout(function () {
-        duplicateRepainted = state.duplicateRows[armorProposalId].cell === duplicateCell &&
-          state.duplicateRows[armorProposalId].approve.getAttribute("aria-pressed") === "true";
+        duplicateRepainted = state.duplicateRows[armorProposalId][0].cell === duplicateCell &&
+          state.duplicateRows[armorProposalId][0].approve.getAttribute("aria-pressed") === "true";
         document.nodes["vc-view-proposals"].dispatch("click");
         duplicateCrossViewVerdict = state.verdicts[armorProposalId];
         document.nodes["vc-view-duplicates"].dispatch("click");
-        duplicateCrossViewPressed = state.duplicateRows[armorProposalId].approve.getAttribute("aria-pressed");
+        duplicateCrossViewPressed = state.duplicateRows[armorProposalId][0].approve.getAttribute("aria-pressed");
         duplicateSurfacePreserved = state.surface === "armor-duplicates";
         duplicateSearchPreserved = state.armorQuery.text === armorProposalId;
         document.nodes["vc-finalize"].dispatch("click");
         setTimeout(function () {
           duplicateFinalizedDisabled = state.server_state === "finalized" &&
-            state.duplicateRows[armorProposalId].approve.disabled &&
-            state.duplicateRows[armorProposalId].veto.disabled &&
-            state.duplicateRows[armorProposalId].clear.disabled;
+            state.duplicateRows[armorProposalId][0].approve.disabled &&
+            state.duplicateRows[armorProposalId][0].veto.disabled &&
+            state.duplicateRows[armorProposalId][0].clear.disabled;
         }, 10);
       }, 5);
     }, 5);
@@ -2271,3 +2271,60 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         }
         assert result["duplicate"]["groupText"].startswith("Showing 1 of 1 groups")
         assert "Armor Plate" in result["duplicate"]["groupText"]
+
+
+def test_same_stat_kind_state_and_reconciliation(tmp_path: Path):
+    harness = tmp_path / "server-ui-same-stat-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+function exact() { return {group_kind: "exact_duplicate", group_id: "e", hash: "h",
+  name: "Exact", preferred_survivor_id: "e1", members: [
+    {id: "e1", disposition: "preferred_survivor"}
+  ]}; }
+function same(id, tuning) { return {group_kind: "same_stat", group_id: id, hash: "h",
+  name: "Same", members: [{id: id + "1", tuning_mod_slot: tuning},
+    {id: id + "2", tuning_mod_slot: "Health"}]}; }
+function envelope(revision, exactGroups, sameGroups) {
+  return {schema_version: 1, state: "reviewing", report_revision: revision,
+    verdict_revision: revision, fingerprint: "fp-" + revision,
+    snapshot: {sections: [{kind: "armor", decisions: [], armor: {
+      exact_duplicate_groups: exactGroups || [], same_stat_groups: sameGroups || []
+    }}]}, verdicts: [], override_status: []};
+}
+var state = server.createState();
+server.applySessionEnvelope(envelope(1, [exact()], [same("s", "Weapons")]), state);
+var mixed = state.armorGroups.map(function (group) { return group.groupKind; });
+state.surface = "armor-duplicates"; state.armorGroupKind = "same_stat";
+state.armorQuery.tuningModSlot = "Weapons";
+var before = state.armorGroups;
+server.applySessionEnvelope(envelope(2, [], [same("s", "Weapons")]), state);
+var retained = state.armorGroupKind === "same_stat" &&
+  state.armorQuery.tuningModSlot === "Weapons" && state.surface === "armor-duplicates";
+server.applySessionEnvelope(envelope(3, [exact()], []), state);
+var reset = state.armorGroupKind === "all" && state.surface === "armor-duplicates" &&
+  state.armorQuery.tuningModSlot === "";
+var malformed = envelope(4, [], [same("bad", "Weapons")]);
+malformed.snapshot.sections[0].armor.same_stat_groups[0].members.push({id: "bad1"});
+var adopted = true;
+try { server.applySessionEnvelope(malformed, state); } catch (error) { adopted = false; }
+process.stdout.write(JSON.stringify({mixed: mixed, mixedKinds: server.armorGroupKinds(before),
+  sameOnly: server.armorGroupsForKind(before, "same_stat").length === 1,
+  retained: retained, reset: reset, rejectedPreserved: !adopted && state.report_revision === 3}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "mixed": ["exact_duplicate", "same_stat"],
+        "mixedKinds": {"exact": True, "same_stat": True},
+        "sameOnly": True, "retained": True, "reset": True,
+        "rejectedPreserved": True,
+    }

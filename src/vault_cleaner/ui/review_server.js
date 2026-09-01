@@ -80,6 +80,7 @@
       // proposal query and carries no server/session semantics.
       surface: "proposals",
       armorGroups: [],
+      armorGroupKind: "all",
       armorQuery: {
         text: "", guardianClass: "", type: "", itemArchetype: "", tuningModSlot: ""
       },
@@ -206,8 +207,50 @@
         return text === "" ? "none/unknown" : text;
       };
     return (groups || []).some(function (group) {
+      if (field === "tuningModSlot" && group.groupKind === "same_stat") {
+        return (group.members || []).some(function (member) {
+          return normalize(member.tuningModSlot) === normalize(value);
+        });
+      }
       return normalize(group[field]) === normalize(value);
     });
+  }
+
+  function armorGroupsForKind(groups, kind) {
+    if (kind === "same_stat") {
+      return (groups || []).filter(function (group) {
+        return group.groupKind === "same_stat";
+      });
+    }
+    if (kind === "exact") {
+      return (groups || []).filter(function (group) {
+        return group.groupKind !== "same_stat";
+      });
+    }
+    return (groups || []).slice();
+  }
+
+  function armorGroupKinds(groups) {
+    var kinds = { exact: false, same_stat: false };
+    (groups || []).forEach(function (group) {
+      if (group.groupKind === "same_stat") kinds.same_stat = true;
+      else kinds.exact = true;
+    });
+    return kinds;
+  }
+
+  function reconcileArmorQueryForGroups(query, groups, invalidated) {
+    ["guardianClass", "type", "itemArchetype", "tuningModSlot"].forEach(
+      function (field) {
+        if (query[field] && !armorGroupValueStillExists(groups, field, query[field])) {
+          if (invalidated) {
+            invalidated.push("duplicate filter " + field + " " + query[field]);
+          }
+          query[field] = "";
+        }
+      }
+    );
+    return query;
   }
 
   function applySessionEnvelope(envelope, state) {
@@ -227,9 +270,12 @@
       nextItems = ui.itemsFromSnapshot(snapshot);
     }
     var nextArmorGroups = [];
-    if (snapshot !== null && snapshot !== undefined && ui &&
-        typeof ui.exactDuplicateGroupsFromSnapshot === "function") {
-      nextArmorGroups = ui.exactDuplicateGroupsFromSnapshot(snapshot);
+    if (snapshot !== null && snapshot !== undefined && ui) {
+      if (typeof ui.armorGroupsFromSnapshot === "function") {
+        nextArmorGroups = ui.armorGroupsFromSnapshot(snapshot);
+      } else if (typeof ui.exactDuplicateGroupsFromSnapshot === "function") {
+        nextArmorGroups = ui.exactDuplicateGroupsFromSnapshot(snapshot);
+      }
     }
     var nextVerdicts = copyVerdicts(envelope.verdicts);
     var nextIds = new Set(nextItems.map(function (item) { return item.id; }));
@@ -249,19 +295,24 @@
         }
       }
     );
+    var nextKinds = armorGroupKinds(nextArmorGroups);
+    var nextArmorGroupKind = state.armorGroupKind || "all";
+    if ((nextArmorGroupKind === "exact" && !nextKinds.exact) ||
+        (nextArmorGroupKind === "same_stat" && !nextKinds.same_stat) ||
+        (nextArmorGroupKind !== "all" && nextArmorGroupKind !== "exact" &&
+         nextArmorGroupKind !== "same_stat")) {
+      invalidated.push("duplicate group kind " + nextArmorGroupKind);
+      nextArmorGroupKind = "all";
+    }
+    if (!nextArmorGroups.length && nextArmorGroupKind !== "all") {
+      invalidated.push("duplicate group kind " + nextArmorGroupKind);
+      nextArmorGroupKind = "all";
+    }
+    var armorUniverse = armorGroupsForKind(nextArmorGroups, nextArmorGroupKind);
     var armorQuery = state.armorQuery || {
       text: "", guardianClass: "", type: "", itemArchetype: "", tuningModSlot: ""
     };
-    ["guardianClass", "type", "itemArchetype", "tuningModSlot"].forEach(
-      function (field) {
-        if (armorQuery[field] && !armorGroupValueStillExists(
-          nextArmorGroups, field, armorQuery[field]
-        )) {
-          invalidated.push("duplicate filter " + field + " " + armorQuery[field]);
-          armorQuery[field] = "";
-        }
-      }
-    );
+    reconcileArmorQueryForGroups(armorQuery, armorUniverse, invalidated);
     if (state.surface === "armor-duplicates" && nextArmorGroups.length === 0) {
       invalidated.push("view armor-duplicates");
       state.surface = "proposals";
@@ -282,6 +333,7 @@
     state.snapshot = snapshot;
     state.items = nextItems;
     state.armorGroups = nextArmorGroups;
+    state.armorGroupKind = nextArmorGroupKind;
     state.armorQuery = armorQuery;
     state.verdicts = nextVerdicts;
     state.override_status = nextOverrideStatus;
@@ -552,7 +604,7 @@
         id: "vc-view-duplicates", type: "button", text: "Armor duplicates",
         "aria-pressed": state.surface === "armor-duplicates" ? "true" : "false",
         disabled: !hasGroups,
-        "aria-label": hasGroups ? "Armor duplicates" : "Armor duplicates (no exact groups)",
+        "aria-label": hasGroups ? "Armor duplicates" : "Armor duplicates (no duplicate groups)",
         on: { click: function () { setSurface("armor-duplicates"); } }
       });
       selectorPanel.appendChild(proposalButton);
@@ -770,8 +822,9 @@
       var proposed = ui.actionCounts(state.items);
       var kept = ui.actionCounts(ui.keptItems(state.items, state.verdicts, state.persistedVetoIds));
       var reviewed = ui.reviewCounts(state.items, state.verdicts);
+      var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
       var shown = state.surface === "armor-duplicates" && typeof ui.filterArmorGroups === "function"
-        ? ui.filterArmorGroups(state.armorGroups, state.armorQuery).length
+        ? ui.filterArmorGroups(selectedArmorGroups, state.armorQuery).length
         : ui.filterItems(state.items, state.query, state.verdicts).length;
       host.appendChild(view.tile("proposed", String(proposed.total), proposed.junk + " junk, " + proposed.review + " review"));
       host.appendChild(view.tile("after vetoes", String(kept.total), kept.junk + " junk, " + kept.review + " review"));
@@ -800,9 +853,37 @@
       if (!view) return;
       var host = byId("vc-controls");
       if (!host) return;
+      var focusedId = document.activeElement && document.activeElement.id;
       view.clear(host);
       state.bulkControls = [];
       if (state.surface === "armor-duplicates") {
+        var availableKinds = armorGroupKinds(state.armorGroups);
+        if (availableKinds.exact && availableKinds.same_stat) {
+          var kindSelector = view.el("div", {
+            id: "vc-dup-kind-selector", class: "view-selector", role: "group",
+            "aria-label": "Armor duplicate group kind"
+          }, [view.el("span", { class: "view-selector-label", text: "Show" })]);
+          [
+            ["all", "All"], ["exact", "Exact"], ["same_stat", "Same stats"]
+          ].forEach(function (kind) {
+            kindSelector.appendChild(view.el("button", {
+              id: "vc-dup-kind-" + kind[0], type: "button", text: kind[1],
+              "aria-pressed": state.armorGroupKind === kind[0] ? "true" : "false",
+              on: { click: function () {
+                if (state.armorGroupKind === kind[0]) return;
+                state.armorGroupKind = kind[0];
+                reconcileArmorQueryForGroups(
+                  state.armorQuery,
+                  armorGroupsForKind(state.armorGroups, state.armorGroupKind),
+                  state.viewInvalidated
+                );
+                renderControls(); renderList(); renderSummary();
+              } }
+            }));
+          });
+          host.appendChild(kindSelector);
+        }
+        var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
         host.appendChild(view.el("label", { class: "field", for: "vc-dup-search" }, [
           view.el("span", { text: "Search armor name or instance id" }),
           view.el("input", { type: "search", id: "vc-dup-search", value: state.armorQuery.text,
@@ -820,7 +901,7 @@
         function duplicateOptions(field, allLabel) {
           var options = [view.el("option", { value: "", text: allLabel })];
           var values = typeof ui.countArmorGroups === "function"
-            ? ui.countArmorGroups(state.armorGroups, field) : [];
+            ? ui.countArmorGroups(selectedArmorGroups, field) : [];
           values.forEach(function (entry) {
             options.push(view.el("option", {
               value: entry.value, text: entry.value + " (" + entry.count + ")"
@@ -840,6 +921,10 @@
           Object.keys(state.armorQuery).forEach(function (key) { state.armorQuery[key] = ""; });
           renderControls(); renderList(); renderSummary();
         } } }));
+        if (focusedId) {
+          var focusTarget = byId(focusedId);
+          if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
+        }
         return;
       }
       host.appendChild(view.el("label", { class: "field", for: "vc-search" }, [
@@ -891,11 +976,12 @@
       view.clear(host);
       if (state.surface === "armor-duplicates") {
         state.duplicateRows = emptyMap();
+        var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
         var filteredGroups = typeof ui.filterArmorGroups === "function"
-          ? ui.filterArmorGroups(state.armorGroups, state.armorQuery) : [];
+          ? ui.filterArmorGroups(selectedArmorGroups, state.armorQuery) : [];
         host.appendChild(view.el("p", {
           id: "vc-duplicate-count", class: "hint",
-          text: "Showing " + filteredGroups.length + " of " + state.armorGroups.length + " groups"
+          text: "Showing " + filteredGroups.length + " of " + selectedArmorGroups.length + " groups"
         }));
         if (!filteredGroups.length) {
           host.appendChild(view.el("p", { class: "hint", text: "No armor duplicate groups match these filters." }));
@@ -1247,6 +1333,7 @@
     FINALIZED_CSV_ENDPOINT: FINALIZED_CSV_ENDPOINT, RESET_ENDPOINT: RESET_ENDPOINT,
     SHUTDOWN_ENDPOINT: SHUTDOWN_ENDPOINT, applySessionEnvelope: applySessionEnvelope,
     createState: createState, persistedVetoIds: persistedVetoIds, copyVerdicts: copyVerdicts,
+    armorGroupsForKind: armorGroupsForKind, armorGroupKinds: armorGroupKinds,
     showReconnect: showReconnect, responseError: responseError, fetchEnvelope: fetchEnvelope,
     makeVerdictPayload: makeVerdictPayload, makeFinalizePayload: makeFinalizePayload,
     makeResetPayload: makeResetPayload, makeShutdownOptions: makeShutdownOptions,

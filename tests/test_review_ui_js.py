@@ -846,7 +846,7 @@ var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", dec
     ]}]
 }}]})[0];
 var article = view.armorGroup(group);
-var proposal = state.duplicateRows.proposal;
+var proposal = state.duplicateRows.proposal[0];
 var before = proposal.cell;
 proposal.approve.click();
 state.verdicts.proposal = "approved";
@@ -865,7 +865,7 @@ var laterGroup = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor"
     {id: "proposal", disposition: "proposed_junk", proposal_action: "junk"}
   ]}]}}]})[0];
 var laterArticle = laterView.armorGroup(laterGroup);
-var laterSurvivor = laterState.duplicateRows.survivor;
+var laterSurvivor = laterState.duplicateRows.survivor[0];
 laterState.verdicts.survivor = "approved";
 laterView.paintArmorMember("survivor");
 var malformedState = {expanded: Object.create(null), rows: Object.create(null),
@@ -886,7 +886,7 @@ var finalizedView = api.createView({document: new Document(), state: finalizedSt
   verdictDisabled: function () { return true; },
   verdictText: function () { return "Unreviewed"; }});
 finalizedView.armorGroup(group);
-var finalizedProposal = finalizedState.duplicateRows.proposal;
+var finalizedProposal = finalizedState.duplicateRows.proposal[0];
 process.stdout.write(JSON.stringify({
   complete: article.textContent.indexOf("</script><img src=x onerror=alert(1)>") !== -1 &&
     article.textContent.indexOf("survivor") !== -1 && article.textContent.indexOf("retained") !== -1 &&
@@ -901,17 +901,17 @@ process.stdout.write(JSON.stringify({
   }) === 0,
   finalizedDisabled: finalizedProposal.approve.disabled && finalizedProposal.veto.disabled &&
     finalizedProposal.clear.disabled,
-  readOnly: count(state.duplicateRows.survivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
-    count(state.duplicateRows.retained.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
+  readOnly: count(state.duplicateRows.survivor[0].cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
+    count(state.duplicateRows.retained[0].cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
   proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
   callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"], ["proposal", "vetoed"], ["proposal", ""]]),
-  repaintedInPlace: state.duplicateRows.proposal.cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
+  repaintedInPlace: state.duplicateRows.proposal[0].cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
   labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1,
   equipped: article.textContent.indexOf("Equipped") !== -1 && article.textContent.indexOf("Yes") !== -1 && article.textContent.indexOf("No") !== -1,
   laterProposalDisclosure: laterArticle.textContent.indexOf("Also proposed junk in Proposals") !== -1 &&
     laterArticle.textContent.indexOf("Current verdict: approved") !== -1 &&
     count(laterSurvivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
-  laterProposalRemainsMutable: count(laterState.duplicateRows.proposal.cell, function (node) {
+  laterProposalRemainsMutable: count(laterState.duplicateRows.proposal[0].cell, function (node) {
     return node.tagName === "BUTTON";
   }) === 3
 }));
@@ -1148,4 +1148,105 @@ def test_a_prototype_shaped_item_name_is_counted_not_absorbed(hostile):
 def test_unset_and_garbage_verdicts_read_as_unreviewed(plain):
     assert plain.results["verdictOf"] == {
         "unset": "", "garbageIgnored": "", "set": "vetoed"
+    }
+
+
+def test_same_stat_projection_and_cross_kind_dom_overlap(tmp_path: Path):
+    script = tmp_path / "same-stat.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+Node.prototype.click = function () { if (!this.disabled && this.listeners.click) this.listeners.click({target: this}); };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function count(node, predicate) {
+  var total = predicate(node) ? 1 : 0;
+  node.children.forEach(function (child) { total += count(child, predicate); });
+  return total;
+}
+function snapshot(groups) { return {sections: [{kind: "armor", decisions: [
+  {id: "__proto__", hash: "18446744073709551615", action: "junk"}
+], armor: {same_stat_groups: groups}}]}; }
+function same(id, members) { return {group_kind: "same_stat", group_id: id,
+  hash: "18446744073709551615", name: "Same stats plate", type: "Chest Armor",
+  guardian_class: "Hunter", item_archetype: "Gunner", tier: 5,
+  stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
+  spirit_signature: [], members: members}; }
+var source = same("group", [
+  {id: "__proto__", location: "Vault", tuning_stat: "Weapons", tuning_mod_slot: "Weapons",
+   seasonal_mod: "Solar", holofoil: "false", proposal_action: "review"},
+  {id: "huge", location: "Vault", tuning_stat: "Health", tuning_mod_slot: "Health",
+   seasonal_mod: "Arc", holofoil: "true"}
+]);
+var projected = api.sameStatGroupsFromSnapshot(snapshot([source]));
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var toggles = [];
+var view = api.createView({document: new Document(), state: state,
+  toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
+var article = view.armorGroup(projected[0]);
+var overlap = state.duplicateRows["__proto__"];
+overlap[0].cell;
+overlap[0].approve.click();
+state.verdicts["__proto__"] = "approved";
+view.paintArmorMember("__proto__");
+function rejects(value) {
+  try { api.sameStatGroupsFromSnapshot(value); return false; }
+  catch (error) { return true; }
+}
+var duplicate = snapshot([same("one", [{id: "x"}, {id: "x"}]), same("two", [{id: "y"}, {id: "z"}])]);
+process.stdout.write(JSON.stringify({
+  order: projected[0].members.map(function (member) { return member.id; }),
+  strings: typeof projected[0].groupId === "string" && typeof projected[0].hash === "string",
+  overlapArray: Array.isArray(overlap) && overlap.length === 1,
+  overlapRepainted: overlap[0].approve.getAttribute("aria-pressed") === "true",
+  labels: article.textContent.indexOf("Same stats, different tuning") !== -1 &&
+    article.textContent.indexOf("review-only") !== -1 &&
+    article.textContent.indexOf("Tuning Mod Slot") !== -1 &&
+    article.textContent.indexOf("Weapons") !== -1 && article.textContent.indexOf("Health") !== -1,
+  noExactDisposition: article.textContent.indexOf("Preferred survivor") === -1 &&
+    article.textContent.indexOf("Proposed junk") === -1,
+  seasonalAndHolofoil: article.textContent.indexOf("Seasonal Mod") !== -1 &&
+    article.textContent.indexOf("Holofoil") !== -1,
+  controls: count(article, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  filterAny: api.filterArmorGroups(projected, {tuningModSlot: "Health"}).length === 1,
+  countsOnce: JSON.stringify(api.countArmorGroups(projected, "tuningModSlot")) ===
+    JSON.stringify([{value: "Health", count: 1}, {value: "Weapons", count: 1}]),
+  duplicateRejected: rejects(duplicate),
+  prototypeClean: Object.prototype.polluted === undefined,
+  callback: JSON.stringify(toggles) === JSON.stringify([["__proto__", "approved"]])
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "order": ["__proto__", "huge"], "strings": True,
+        "overlapArray": True, "overlapRepainted": True,
+        "labels": True, "noExactDisposition": True,
+        "seasonalAndHolofoil": True, "controls": True,
+        "filterAny": True, "countsOnce": True,
+        "duplicateRejected": True, "prototypeClean": True,
+        "callback": True,
     }

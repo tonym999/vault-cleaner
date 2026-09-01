@@ -120,13 +120,16 @@ new decisions. Delivery is sequenced as:
     ↓
 #104 pairwise Tuning Mod Slot presentation across Notes, reports and Proposals
     ↓
-#102 Armor duplicates browser view
+#102 Armor duplicates exact-group browser view
+    ↓
+#110 same-stat/different-tuning browser extension
 ```
 
 Issue `#29` owns the shared human-readable survivor/partner references and the
 existing full `ReportDecision.id`/`kept_id` audit values. #101 owns the
-authoritative armour exact-duplicate and same-stat group projections, and #102
-owns their browser rendering; neither downstream surface is part of #29.
+authoritative armour exact-duplicate and same-stat group projections. #102 owns
+the exact-group browser view and #110 owns the same-stat browser extension;
+neither downstream surface is part of #29.
 Issue #104 owns the pairwise candidate/survivor-or-partner Tuning Mod Slot
 presentation across generated Notes, terminal output, structured report/server
 snapshots, and the ordinary Proposals table. It keeps the fixed six-value
