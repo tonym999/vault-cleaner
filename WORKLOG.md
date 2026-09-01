@@ -21,18 +21,21 @@ surprises the next agent should know about.
   clears only values absent from a replacement group set.
 - Added hostile/prototype/opaque-id Node coverage, adapter reconciliation
   coverage (including malformed-envelope rejection, same-report repaint,
-  shared cross-view verdict state, finalized disabling, and view retention), a
-  fake three-member tier-5 group fixture, and exactly one focused Chromium test
-  covering complete membership and cross-view acknowledgement.
+  shared cross-view verdict state, actual duplicate surface switching,
+  rejected-upload preservation, finalized disabling, and view retention), plus
+  incompatible-response regressions for cross-section same-ID/action and
+  wrong-hash proposal lookalikes. Added a fake three-member tier-5 group
+  fixture and exactly one focused Chromium test covering complete membership
+  and cross-view acknowledgement.
 - Added the reviewed `docs/armor-archetypes.md`, corrected the tier-5 gotcha
   and terminology warning in `AGENTS.md`, updated README and browser
   verification documentation, and recorded the 1440×1000 desktop and 390×844
   narrow light/dark, focus, replacement/rejection, finalise/freeze, and reset
   pass. The pre-existing focused-button blur during in-flight mutation remains
   documented.
-- Validation: focused UI/adapter tests `97 passed`; full suite `920 passed in
-  18.71s`; Chromium marker gate `4 passed, 916 deselected in 4.57s`, with the focused
-  #102 test `1 passed in 1.60s` (0.44s call, 0.58s teardown); non-editable
+- Validation: focused UI/adapter tests `100 passed`; full suite `923 passed in
+  19.78s`; Chromium marker gate `4 passed, 919 deselected in 4.46s`, with the focused
+  #102 test `1 passed in 1.59s` (0.46s call, 0.54s teardown); non-editable
   wheel proof passed; Ruff and `git diff --check` passed; no tracked `data/`
   files.
   Baseline sandbox runs had only the pre-existing socket/Chromium permission

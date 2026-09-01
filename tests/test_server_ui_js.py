@@ -390,10 +390,12 @@ def test_inconsistent_duplicate_proposal_is_rejected_before_presentation_adoptio
         r'''
 "use strict";
 var server = require(process.argv[2]);
-function envelope(revision, member, decisions) {
+function envelope(revision, member, decisions, weaponDecisions) {
   return {schema_version: 1, state: "reviewing", report_revision: revision,
     verdict_revision: revision, fingerprint: "fingerprint-" + revision,
-    snapshot: {sections: [{kind: "armor", decisions: decisions || [], armor: {
+    snapshot: {sections: [
+      {kind: "weapons", decisions: weaponDecisions || []},
+      {kind: "armor", decisions: decisions || [], armor: {
       exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g",
         hash: "h", name: "Plate", preferred_survivor_id: "survivor",
         members: [
@@ -405,7 +407,7 @@ function envelope(revision, member, decisions) {
 var state = server.createState();
 server.applySessionEnvelope(envelope(1,
   {id: "loser", disposition: "proposed_junk", proposal_action: "junk"},
-  [{id: "loser", hash: "h", action: "junk"}]), state);
+  [{id: "loser", hash: "h", action: "junk"}], []), state);
 state.surface = "armor-duplicates";
 state.armorQuery.text = "Plate";
 var before = state.armorGroups;
@@ -417,8 +419,9 @@ var errors = [];
   {id: "loser", disposition: "other", proposal_action: ""}
 ].forEach(function (member, index) {
   try {
-    server.applySessionEnvelope(envelope(index + 2, member,
-      index === 1 ? [] : [{id: "loser", hash: "h", action: "junk"}]), state);
+    var decisions = index < 2 ? [] : [{id: "loser", hash: index === 2 ? "wrong" : "h", action: "junk"}];
+    var weaponDecisions = index === 0 ? [{id: "loser", hash: "h", action: "junk"}] : [];
+    server.applySessionEnvelope(envelope(index + 2, member, decisions, weaponDecisions), state);
   } catch (error) {
     errors.push(error.message);
   }
@@ -896,6 +899,7 @@ var fs = require("fs");
 var vm = require("vm");
 var source = fs.readFileSync(process.argv[2], "utf8");
 var scenario = process.argv[3];
+var shared = process.argv[4] ? require(process.argv[4]) : null;
 
 function Node(document) {
   this.ownerDocument = document;
@@ -943,6 +947,7 @@ function makeUi(document) {
     sortItems: function (items) { return items; },
     groupItems: function () { return []; },
     verdictOf: function () { return ""; },
+    exactDuplicateGroupsFromSnapshot: shared && shared.exactDuplicateGroupsFromSnapshot,
     createView: function () {
       return {
         clear: function (host) { host.children = []; },
@@ -969,6 +974,27 @@ function envelope() {
     verdicts: [], override_status: []
   };
 }
+function malformedDuplicateEnvelope(crossSection) {
+  var armorDecision = {id: "9002", hash: crossSection ? "armor-hash" : "wrong-hash",
+    action: "junk"};
+  return {
+    schema_version: 1, state: "reviewing", report_revision: 1,
+    verdict_revision: 0, fingerprint: "fingerprint", snapshot: {sections: [
+      {kind: "weapons", decisions: crossSection ? [
+        {id: "9002", hash: "armor-hash", action: "junk"}
+      ] : []},
+      {kind: "armor", decisions: crossSection ? [] : [armorDecision], armor: {
+        exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "9001",
+          hash: "armor-hash", name: "Armor Plate", preferred_survivor_id: "9001",
+          members: [
+            {id: "9001", disposition: "preferred_survivor"},
+            {id: "9002", disposition: "proposed_junk", proposal_action: "junk"}
+          ]
+        }]
+      }}
+    ]}, verdicts: [], override_status: []
+  };
+}
 function response(status, payload) {
   return {
     ok: status >= 200 && status < 300,
@@ -989,6 +1015,10 @@ function run() {
   var upload = scenario.indexOf("upload-") === 0;
   if (scenario === "report-network") {
     queue = [new Error("offline")];
+  } else if (scenario === "report-cross-section-duplicate") {
+    queue = [response(200, malformedDuplicateEnvelope(true))];
+  } else if (scenario === "report-wrong-hash-duplicate") {
+    queue = [response(200, malformedDuplicateEnvelope(false))];
   } else if (scenario === "report-incompatible") {
     queue = [response(200, [])];
   } else if (scenario === "report-invalid-override") {
@@ -1107,6 +1137,34 @@ run().then(function (result) { process.stdout.write(JSON.stringify(result)); });
         ),
         (
             "report-incompatible",
+            {
+                "sameObject": True,
+                "connected": False,
+                "terminal": True,
+                "mainStatus": (
+                    "The review server returned an incompatible response. Restart "
+                    "vault-cleaner serve and open its new bootstrap URL."
+                ),
+                "uploadPhase": "idle",
+                "uploadStatus": "",
+            },
+        ),
+        (
+            "report-cross-section-duplicate",
+            {
+                "sameObject": True,
+                "connected": False,
+                "terminal": True,
+                "mainStatus": (
+                    "The review server returned an incompatible response. Restart "
+                    "vault-cleaner serve and open its new bootstrap URL."
+                ),
+                "uploadPhase": "idle",
+                "uploadStatus": "",
+            },
+        ),
+        (
+            "report-wrong-hash-duplicate",
             {
                 "sameObject": True,
                 "connected": False,
@@ -1258,9 +1316,10 @@ def test_server_adapter_classifies_browser_failures_without_losing_upload_state(
     harness = tmp_path / f"server-ui-failure-{scenario}.js"
     harness.write_text(FAILURE_HARNESS, encoding="utf-8")
     resource = files("vault_cleaner.ui").joinpath("review_server.js")
-    with as_file(resource) as adapter:
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
         completed = subprocess.run(
-            [NODE, str(harness), str(adapter), scenario],
+            [NODE, str(harness), str(adapter), scenario, str(presentation)],
             capture_output=True,
             encoding="utf-8",
             check=False,
@@ -1341,12 +1400,16 @@ function Document() {
    "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
    "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
    "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
-   "vc-upload-status-armor", "vc-upload-status-ghosts"].forEach(function (id) {
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
   this.nodes["vc-actions"].setAttribute("role", "group");
   this.main.appendChild(this.nodes["vc-actions"]);
   this.main.appendChild(this.nodes["vc-report"]);
+  this.main.appendChild(this.nodes["vc-view-selector"]);
+  this.main.appendChild(this.nodes["vc-proposals"]);
+  this.main.appendChild(this.nodes["vc-duplicates"]);
 }
 Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
 Document.prototype.createElement = function (tag) { return new Node(tag, this); };
@@ -1361,6 +1424,7 @@ Document.prototype.dispatch = function (name, event) {
 };
 
 var id = "18446744073709551615";
+var armorProposalId = "9002";
 function envelope(verdictRevision, verdicts, state) {
   return { schema_version: 1, state: state || "reviewing", report_revision: 1,
     verdict_revision: verdictRevision, fingerprint: "opaque-fingerprint",
@@ -1373,6 +1437,26 @@ function envelope(verdictRevision, verdicts, state) {
         action: "review", reason: "wishlist" }
     ] }] }, verdicts: verdicts || [],
     override_status: [{ id: id, status: "active", detail: "suppresses this item" }] };
+}
+function duplicateEnvelope(verdictRevision, verdicts, state) {
+  var next = envelope(verdictRevision, verdicts, state);
+  next.snapshot.sections.push({kind: "armor", decisions: [
+    {id: armorProposalId, hash: "armor-hash", name: "Armor Plate", location: "Vault",
+      guardian_class: "Hunter", action: "junk", reason: "armor-exact-dupe"}
+  ], armor: {exact_duplicate_groups: [{
+    group_kind: "exact_duplicate", group_id: "9001", hash: "armor-hash",
+    name: "Armor Plate", type: "Chest Armor", guardian_class: "Hunter",
+    item_archetype: "Gunner", tier: 5,
+    stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
+    tuning_mod_slot: "Weapons", preferred_survivor_id: "9001", members: [
+      {id: "9001", location: "Vault", disposition: "preferred_survivor"},
+      {id: "9003", location: "Hunter(550)", disposition: "retained_protected",
+        protection_level: "hard"},
+      {id: armorProposalId, location: "Vault", disposition: "proposed_junk",
+        proposal_action: "junk"}
+    ]
+  }]}});
+  return next;
 }
 function classChangedEnvelope(verdicts) {
   var next = envelope(1, verdicts);
@@ -1461,6 +1545,17 @@ if (scenario === "upload-gate") {
   queue = [response(idleEnvelope()), response(envelope(1)), response(envelope(2, [
     { id: id, verdict: "vetoed" }, { id: "2", verdict: "vetoed" }
   ]))];
+}
+if (scenario === "duplicate") {
+  queue = [response(duplicateEnvelope(0)),
+    response({ error: { code: "invalid_export", message: "bad duplicate CSV" } }, 422),
+    response(duplicateEnvelope(1, [
+      { id: id, verdict: "approved" }, { id: armorProposalId, verdict: "approved" }
+    ])),
+    csvResponse(),
+    response(duplicateEnvelope(2, [
+      { id: id, verdict: "approved" }, { id: armorProposalId, verdict: "approved" }
+    ], "finalized"))];
 }
 if (scenario === "finalize" || scenario === "finalize-missing" ||
     scenario === "finalize-reject" || scenario === "finalize-plural" ||
@@ -1581,12 +1676,30 @@ function finish() {
       call.options && call.options.method === "POST" && !Object.prototype.hasOwnProperty.call(call.options, "body"); }),
     row: state.rows[id] ? { same: state.rows[id].tr === beforeRow, focused: document.activeElement === beforeFocus,
       presentation: state.rows[id].presentation && state.rows[id].presentation.textContent } : null };
+  output.duplicate = {
+    rejectedPreserved: duplicateRejected,
+    gateDisabled: duplicateGateDisabled,
+    repaintedInPlace: duplicateRepainted,
+    crossViewVerdict: duplicateCrossViewVerdict,
+    crossViewPressed: duplicateCrossViewPressed,
+    surfacePreserved: duplicateSurfacePreserved,
+    searchPreserved: duplicateSearchPreserved,
+    finalizedDisabled: duplicateFinalizedDisabled,
+    visible: !document.nodes["vc-duplicates"].hidden,
+    groupText: (function text(node) {
+      return (node._textContent || "") + (node.children || []).map(text).join("");
+    })(document.nodes["vc-duplicate-list"])
+  };
   var payloadCall = calls.filter(function (call) { return call.path === "/api/verdicts" || call.path === "/api/reset"; })[0];
   if (payloadCall && payloadCall.options && payloadCall.options.body) output.payload = JSON.parse(payloadCall.options.body);
   process.stdout.write(JSON.stringify(output));
 }
 var beforeRow = null, beforeFocus = null, beforeFinalize = null, uploadBulkDisabled = null;
 var beforeSearch = null, beforeBulk = null, beforeClassFilter = null;
+var duplicateRejected = false, duplicateGateDisabled = false, duplicateCell = null;
+var duplicateRepainted = false, duplicateCrossViewVerdict = null;
+var duplicateCrossViewPressed = null, duplicateFinalizedDisabled = false;
+var duplicateSurfacePreserved = false, duplicateSearchPreserved = false;
 setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   if (scenario === "single" || scenario === "clear" || scenario === "failure" || scenario === "stale" || scenario === "stale-failure") {
@@ -1650,6 +1763,40 @@ setTimeout(function () {
     input.dispatch("change", { target: input });
     uploadBulkDisabled = document.nodes["vc-bulk-veto"].disabled;
     setTimeout(function () { document.nodes["vc-bulk-veto"].dispatch("click"); }, 15);
+  } else if (scenario === "duplicate") {
+    document.nodes["vc-view-duplicates"].dispatch("click");
+    var duplicateSearch = document.nodes["vc-dup-search"];
+    duplicateSearch.value = armorProposalId;
+    duplicateSearch.dispatch("input", { target: duplicateSearch });
+    duplicateCell = state.duplicateRows[armorProposalId].cell;
+    var armorUpload = document.nodes["vc-upload-armor"];
+    armorUpload.files = [{}];
+    armorUpload.dispatch("change", { target: armorUpload });
+    setTimeout(function () {
+      duplicateRejected = state.surface === "armor-duplicates" &&
+        state.armorQuery.text === armorProposalId &&
+        !document.nodes["vc-duplicates"].hidden &&
+        document.nodes["vc-dup-search"].value === armorProposalId;
+      state.duplicateRows[armorProposalId].approve.dispatch("click");
+      duplicateGateDisabled = state.duplicateRows[armorProposalId].approve.disabled;
+      setTimeout(function () {
+        duplicateRepainted = state.duplicateRows[armorProposalId].cell === duplicateCell &&
+          state.duplicateRows[armorProposalId].approve.getAttribute("aria-pressed") === "true";
+        document.nodes["vc-view-proposals"].dispatch("click");
+        duplicateCrossViewVerdict = state.verdicts[armorProposalId];
+        document.nodes["vc-view-duplicates"].dispatch("click");
+        duplicateCrossViewPressed = state.duplicateRows[armorProposalId].approve.getAttribute("aria-pressed");
+        duplicateSurfacePreserved = state.surface === "armor-duplicates";
+        duplicateSearchPreserved = state.armorQuery.text === armorProposalId;
+        document.nodes["vc-finalize"].dispatch("click");
+        setTimeout(function () {
+          duplicateFinalizedDisabled = state.server_state === "finalized" &&
+            state.duplicateRows[armorProposalId].approve.disabled &&
+            state.duplicateRows[armorProposalId].veto.disabled &&
+            state.duplicateRows[armorProposalId].clear.disabled;
+        }, 10);
+      }, 5);
+    }, 5);
   } else if (scenario === "finalize") {
     beforeFinalize = document.nodes["vc-finalize"];
     document.nodes["vc-finalize"].dispatch("click");
@@ -1680,7 +1827,8 @@ setTimeout(function () {
   } else if (scenario === "shutdown") {
     document.nodes["vc-shutdown"].dispatch("click");
   }
-  setTimeout(finish, scenario === "upload-gate" ? 40 : (scenario.indexOf("finalize-") === 0 ? 40 : 10));
+  setTimeout(finish, scenario === "duplicate" ? 60 :
+    (scenario === "upload-gate" ? 40 : (scenario.indexOf("finalize-") === 0 ? 40 : 10)));
 }, 10);
 '''
 
@@ -1703,6 +1851,7 @@ setTimeout(function () {
         ("stale", "/api/report", "vetoed"),
         ("stale-failure", "/api/report", None),
         ("upload-gate", "/api/verdicts", "vetoed"),
+        ("duplicate", "/api/finalize", "approved"),
         ("finalize", "/api/finalize", "approved"),
         ("finalize-missing", "/api/finalize", "approved"),
         ("finalize-reject", "/api/finalize", "approved"),
@@ -2023,3 +2172,27 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
     if scenario == "shutdown":
         assert result["bodylessShutdown"]
         assert result["state"] == "closed"
+    if scenario == "duplicate":
+        assert result["paths"] == [
+            "/api/report", "/api/exports/armor", "/api/verdicts",
+            "/api/finalize", "/api/report"
+        ]
+        assert result["payload"] == {
+            "report_revision": 1, "verdict_revision": 0,
+            "fingerprint": "opaque-fingerprint",
+            "decisions": [{"id": "9002", "verdict": "approved"}],
+        }
+        assert result["duplicate"] == {
+            "rejectedPreserved": True,
+            "gateDisabled": True,
+            "repaintedInPlace": True,
+            "crossViewVerdict": "approved",
+            "crossViewPressed": "true",
+            "surfacePreserved": True,
+            "searchPreserved": True,
+            "finalizedDisabled": True,
+            "visible": True,
+            "groupText": result["duplicate"]["groupText"],
+        }
+        assert result["duplicate"]["groupText"].startswith("Showing 1 of 1 groups")
+        assert "Armor Plate" in result["duplicate"]["groupText"]

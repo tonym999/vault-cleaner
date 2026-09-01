@@ -149,11 +149,14 @@ terminal.
   `</b><script>alert(1)</script>`; all remain text and no IMG, SCRIPT, or B
   nodes are created. The existing Proposals, upload, reset, replacement, and
   rejected-upload reconciliation paths remained unchanged; adapter coverage
-  additionally verifies valid duplicate state retention, same-report verdict
-  repaint state, shared cross-view verdict state, and only-invalid categorical
-  filter clearing.
-- Browser timing: the four-test Chromium marker run completed in 4.57s; the
-  focused #102 test completed in 1.60s, with a 0.44s call phase and 0.58s
+  additionally boots the packaged adapter DOM to verify rejected-upload
+  duplicate state retention, actual selector/list surface switching,
+  same-report in-place verdict repaint, shared cross-view verdict state,
+  mutation/finalized disabling, and only-invalid categorical filter clearing.
+  Its incompatible-response regressions reject both a weapon-section
+  same-ID/action lookalike and an armor-section wrong-hash decision.
+- Browser timing: the four-test Chromium marker run completed in 4.46s; the
+  focused #102 test completed in 1.59s, with a 0.46s call phase and 0.54s
   teardown.
 - Remaining limitation: as recorded by #104, the pre-existing mutation gate
   can blur a verdict button that is focused while its acknowledgement is in

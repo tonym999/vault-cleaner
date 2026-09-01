@@ -271,19 +271,21 @@
     var groups = [];
     var sections = (snapshot && snapshot.sections) || [];
     var seenGroups = emptyMap();
-    var proposalActions = emptyMap();
-    sections.forEach(function (section) {
-      (section && Array.isArray(section.decisions) ? section.decisions : []).forEach(function (decision) {
-        if (!isObject(decision) || (decision.action !== "junk" && decision.action !== "review")) return;
-        var id = requireIdString(decision.id, "proposal decision id");
-        proposalActions[id] = decision.action;
-      });
-    });
     for (var s = 0; s < sections.length; s++) {
       var section = sections[s] || {};
       var armor = section.armor;
       if (section.kind !== "armor" || !armor ||
           !Array.isArray(armor.exact_duplicate_groups)) continue;
+      var proposalDecisions = emptyMap();
+      (Array.isArray(section.decisions) ? section.decisions : []).forEach(function (decision, decisionIndex) {
+        if (!isObject(decision) || (decision.action !== "junk" && decision.action !== "review")) return;
+        var decisionWhere = "sections[" + s + "].decisions[" + decisionIndex + "]";
+        var decisionId = requireIdString(decision.id, decisionWhere + ".id");
+        if (proposalDecisions[decisionId]) {
+          throw new Error("duplicate proposal decision for id " + decisionId + " at " + decisionWhere);
+        }
+        proposalDecisions[decisionId] = decision;
+      });
       armor.exact_duplicate_groups.forEach(function (source, index) {
         var where = "sections[" + s + "].armor.exact_duplicate_groups[" + index + "]";
         if (!isObject(source)) throw new Error(where + " must be an object");
@@ -315,8 +317,10 @@
           }
           var expectedAction = disposition === "proposed_junk" ? "junk" :
             disposition === "proposed_review" ? "review" : "";
-          if (proposalAction !== expectedAction ||
-              (proposalAction && proposalActions[id] !== proposalAction)) {
+          var proposalDecision = proposalAction ? proposalDecisions[id] : null;
+          if (proposalAction !== expectedAction || (proposalAction &&
+              (!proposalDecision || proposalDecision.action !== proposalAction ||
+               requireIdString(proposalDecision.hash, memberWhere + ".proposal_hash") !== hash))) {
             throw new Error(memberWhere + " has inconsistent disposition/proposal action");
           }
           return {
