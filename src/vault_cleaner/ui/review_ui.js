@@ -258,6 +258,151 @@
     return groups;
   }
 
+  // Armor duplicate groups are an authoritative report projection.  This
+  // helper intentionally copies the presentation fields while preserving the
+  // array order supplied by Python.  In particular, it does not derive a
+  // fingerprint, select a survivor, or sort members in the browser.
+  function exactDuplicateGroupsFromSnapshot(snapshot) {
+    var groups = [];
+    var sections = (snapshot && snapshot.sections) || [];
+    var seenGroups = emptyMap();
+    for (var s = 0; s < sections.length; s++) {
+      var section = sections[s] || {};
+      var armor = section.armor;
+      if (section.kind !== "armor" || !armor ||
+          !Array.isArray(armor.exact_duplicate_groups)) continue;
+      armor.exact_duplicate_groups.forEach(function (source, index) {
+        var where = "sections[" + s + "].armor.exact_duplicate_groups[" + index + "]";
+        if (!isObject(source)) throw new Error(where + " must be an object");
+        var groupId = requireIdString(source.group_id, where + ".group_id");
+        var hash = requireIdString(source.hash, where + ".hash");
+        var preferred = requireIdString(
+          source.preferred_survivor_id, where + ".preferred_survivor_id"
+        );
+        if (seenGroups[groupId]) {
+          throw new Error("duplicate exact duplicate group id " + groupId);
+        }
+        seenGroups[groupId] = true;
+        if (!Array.isArray(source.members) || source.members.length === 0) {
+          throw new Error(where + ".members must be a non-empty list");
+        }
+        var seenMembers = emptyMap();
+        var members = source.members.map(function (member, memberIndex) {
+          var memberWhere = where + ".members[" + memberIndex + "]";
+          if (!isObject(member)) throw new Error(memberWhere + " must be an object");
+          var id = requireIdString(member.id, memberWhere + ".id");
+          if (seenMembers[id]) throw new Error("duplicate member id " + id + " at " + memberWhere);
+          seenMembers[id] = true;
+          return {
+            id: id,
+            location: str(member.location),
+            protectionLevel: member.protection_level === null ||
+              member.protection_level === undefined ? "" : str(member.protection_level),
+            protectionReason: str(member.protection_reason),
+            equipped: member.equipped === true,
+            inLoadout: member.in_loadout === true,
+            locked: member.locked === true,
+            masterworkTier: member.masterwork_tier,
+            power: member.power,
+            disposition: str(member.disposition),
+            proposalAction: member.proposal_action === null ||
+              member.proposal_action === undefined ? "" : str(member.proposal_action),
+            proposalReason: member.proposal_reason === null ||
+              member.proposal_reason === undefined ? "" : str(member.proposal_reason)
+          };
+        });
+        groups.push({
+          groupKind: str(source.group_kind) || "exact_duplicate",
+          groupId: groupId,
+          hash: hash,
+          name: str(source.name),
+          type: str(source.type),
+          guardianClass: str(source.guardian_class),
+          itemArchetype: str(source.item_archetype),
+          tier: source.tier,
+          stats: isObject(source.stats) ? Object.keys(source.stats).reduce(function (copy, name) {
+            copy[name] = source.stats[name];
+            return copy;
+          }, emptyMap()) : emptyMap(),
+          tuningModSlot: source.tuning_mod_slot === null ||
+            source.tuning_mod_slot === undefined || str(source.tuning_mod_slot) === ""
+            ? "none/unknown" : str(source.tuning_mod_slot),
+          seasonalMod: str(source.seasonal_mod),
+          holofoil: str(source.holofoil),
+          spiritSignature: Array.isArray(source.spirit_signature)
+            ? source.spirit_signature.map(str) : [],
+          preferredSurvivorId: preferred,
+          members: members
+        });
+      });
+    }
+    return groups;
+  }
+
+  function matchesArmorGroup(group, query) {
+    var q = query || {};
+    var needle = str(q.text).trim().toLowerCase();
+    if (needle) {
+      var nameMatch = str(group.name).toLowerCase().indexOf(needle) !== -1;
+      var idMatch = group.members.some(function (member) {
+        return member.id.indexOf(str(q.text).trim()) !== -1;
+      });
+      if (!nameMatch && !idMatch) return false;
+    }
+    if (q.guardianClass && group.guardianClass !== q.guardianClass) return false;
+    if (q.type && group.type !== q.type) return false;
+    if (q.itemArchetype && group.itemArchetype !== q.itemArchetype) return false;
+    if (q.tuningModSlot && group.tuningModSlot !== q.tuningModSlot) return false;
+    return true;
+  }
+
+  function filterArmorGroups(groups, query) {
+    return (groups || []).filter(function (group) {
+      return matchesArmorGroup(group, query);
+    });
+  }
+
+  function countArmorGroups(groups, field) {
+    var counts = emptyMap();
+    (groups || []).forEach(function (group) {
+      var value = group[field];
+      value = value === null || value === undefined || value === ""
+        ? "none/unknown" : str(value);
+      counts[value] = (counts[value] || 0) + 1;
+    });
+    return Object.keys(counts).map(function (value) {
+      return { value: value, count: counts[value] };
+    }).sort(function (a, b) { return compareText(a.value, b.value); });
+  }
+
+  // Return a display-only stat model.  The role labels are deliberately
+  // derived from the six supplied values rather than a second archetype table.
+  function armorStatDisplay(group) {
+    var stats = group && isObject(group.stats) ? group.stats : emptyMap();
+    var names = Object.keys(stats);
+    var values = names.map(function (name) { return stats[name]; });
+    var tier5 = group && group.tier === 5 && names.length === 6 &&
+      values.filter(function (value) { return value === 30; }).length === 1 &&
+      values.filter(function (value) { return value === 25; }).length === 1 &&
+      values.filter(function (value) { return value === 20; }).length === 1 &&
+      values.filter(function (value) { return value === 0; }).length === 3;
+    if (!tier5) {
+      return {
+        tier5: false,
+        rows: names.map(function (name) { return { name: name, value: stats[name] }; }),
+        zeroSummary: ""
+      };
+    }
+    var roles = { 30: "Primary", 25: "Secondary", 20: "Tertiary" };
+    return {
+      tier5: true,
+      rows: names.filter(function (name) { return stats[name] !== 0; }).map(function (name) {
+        return { name: name, value: stats[name], role: roles[stats[name]] };
+      }),
+      zeroSummary: "The other three base stats are 0 on this tier-5 piece."
+    };
+  }
+
   function countBy(items, field) {
     var counts = emptyMap();
     for (var i = 0; i < items.length; i++) {
@@ -286,6 +431,7 @@
     var document = context.document || (root && root.document);
     var state = context.state || { sort: { field: "name", direction: "asc" },
       expanded: Object.create(null), rows: Object.create(null), verdicts: Object.create(null) };
+    if (!state.duplicateRows) state.duplicateRows = emptyMap();
     var items = context.items || [];
     var toggleVerdict = context.toggleVerdict || function () {};
     var clearVerdict = context.clearVerdict || function (id) {
@@ -558,13 +704,176 @@
           if (control) control.disabled = !!disabled;
         });
       });
+      Object.keys(state.duplicateRows).forEach(function (id) {
+        var row = state.duplicateRows[id];
+        [row.approve, row.veto, row.clear].forEach(function (control) {
+          if (control) control.disabled = !!disabled;
+        });
+      });
+    }
+
+    function dispositionLabel(member) {
+      if (member.disposition === "preferred_survivor") return "Preferred survivor";
+      if (member.disposition === "retained_protected") return "Retained protected";
+      if (member.disposition === "proposed_junk") return "Proposed junk";
+      if (member.disposition === "proposed_review") return "Proposed review";
+      return member.disposition || "Unclassified member";
+    }
+
+    function isProposalMember(member) {
+      return member.disposition === "proposed_junk" ||
+        member.disposition === "proposed_review";
+    }
+
+    function armorGroupHeader(group) {
+      var statDisplay = armorStatDisplay(group);
+      var statNodes = statDisplay.rows.map(function (row) {
+        return tile(row.role || "Base stat", str(row.name) + " " + str(row.value));
+      });
+      return el("header", { class: "armor-group-header" }, [
+        el("h3", { text: group.name || "(unnamed armor)" }),
+        el("p", { class: "sub", text: "Exact duplicate group · " + group.groupKind }),
+        el("div", { class: "armor-group-meta" }, [
+          tile("Type / slot", group.type || "unknown"),
+          tile("Guardian class", group.guardianClass || "class-neutral/unknown"),
+          tile("Tier", group.tier === null || group.tier === undefined ? "unknown" : group.tier),
+          tile("Hash", group.hash),
+          tile("Archetype", group.itemArchetype || "none/unknown"),
+          tile("Tuning Mod Slot", group.tuningModSlot)
+        ]),
+        el("div", { class: "armor-stat-summary", "aria-label": "Base stat summary" }, statNodes),
+        statDisplay.zeroSummary ? el("p", { class: "hint", text: statDisplay.zeroSummary }) : null,
+        group.spiritSignature.length ? tile("Spirit signature", group.spiritSignature.join(" · ")) : null,
+        group.seasonalMod ? tile("Seasonal Mod", group.seasonalMod) : null,
+        group.holofoil && group.holofoil.toLowerCase() !== "false"
+          ? tile("Holofoil", group.holofoil) : null
+      ]);
+    }
+
+    function armorMemberCell(member) {
+      var proposal = isProposalMember(member);
+      var verdict = verdictOf(state.verdicts, member.id);
+      var approve = null, veto = null, clearVerdict = null, presentation = null;
+      if (proposal && !readOnly) {
+        approve = el("button", {
+          type: "button", class: "approve", text: "Approve",
+          "aria-pressed": verdict === "approved" ? "true" : "false",
+          "aria-label": "approve armor member id " + member.id,
+          disabled: verdictDisabled(),
+          on: { click: function () { toggleVerdict(member.id, "approved"); } }
+        });
+        veto = el("button", {
+          type: "button", class: "veto", text: "Veto",
+          "aria-pressed": verdict === "vetoed" ? "true" : "false",
+          "aria-label": "veto armor member id " + member.id,
+          disabled: verdictDisabled(),
+          on: { click: function () { toggleVerdict(member.id, "vetoed"); } }
+        });
+        clearVerdict = el("button", {
+          type: "button", class: "clear-verdict", text: "Unset",
+          "aria-pressed": verdict === "" ? "true" : "false",
+          "aria-label": "unset verdict for armor member id " + member.id,
+          disabled: verdictDisabled(),
+          on: { click: function () { clearVerdict(member.id); } }
+        });
+        presentation = el("span", {
+          class: "verdict-presentation", text: verdictText(member, verdict)
+        });
+      } else {
+        var readonlyText = proposal
+          ? verdictText(member, verdict)
+          : "Read-only · " + dispositionLabel(member);
+        presentation = el("span", { class: "hint", text: readonlyText });
+      }
+      var controls = proposal && !readOnly
+        ? el("div", { class: "row-actions" }, [approve, veto, clearVerdict, presentation])
+        : presentation;
+      var cell = el("td", { class: "armor-member-cell", "data-member-id": member.id }, [controls]);
+      state.duplicateRows[member.id] = {
+        cell: cell, approve: approve, veto: veto, clear: clearVerdict,
+        presentation: presentation, member: member
+      };
+      return cell;
+    }
+
+    function armorGroupTable(group) {
+      var headerCells = [el("th", { scope: "col", text: "Comparison" })];
+      group.members.forEach(function (member, index) {
+        headerCells.push(el("th", { scope: "col", class: "armor-member-heading" }, [
+          el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
+          el("span", { class: "mono", text: member.id }),
+          el("span", { class: "sub", text: member.location || "location unknown" }),
+          el("span", { class: "badge", text: dispositionLabel(member) })
+        ]));
+      });
+      var rows = [
+        ["Hard protection", function (member) {
+          return member.protectionLevel
+            ? member.protectionLevel + (member.protectionReason ? " — " + member.protectionReason : "")
+            : "—";
+        }],
+        ["In loadout", function (member) { return member.inLoadout ? "Yes" : "No"; }],
+        ["Locked", function (member) { return member.locked ? "Yes" : "No"; }],
+        ["Masterwork Tier", function (member) {
+          return member.masterworkTier === null || member.masterworkTier === undefined
+            ? "unknown" : str(member.masterworkTier);
+        }],
+        ["Power", function (member) {
+          return member.power === null || member.power === undefined ? "unknown" : str(member.power);
+        }]
+      ].map(function (row) {
+        return el("tr", null, [el("th", { scope: "row", text: row[0] })].concat(
+          group.members.map(function (member) {
+            return el("td", { text: row[1](member) });
+          })
+        ));
+      });
+      rows.push(el("tr", { class: "armor-verdict-row" }, [
+        el("th", { scope: "row", text: "Verdict" })
+      ].concat(group.members.map(armorMemberCell))));
+      return el("div", { class: "scroller armor-matrix" }, [
+        el("table", { class: "armor-group-table" }, [
+          el("thead", null, [el("tr", null, headerCells)]),
+          el("tbody", null, rows)
+        ])
+      ]);
+    }
+
+    function armorGroup(group) {
+      return el("article", {
+        class: "armor-group", "data-group-id": group.groupId
+      }, [armorGroupHeader(group), armorGroupTable(group)]);
+    }
+
+    function armorGroups(groups) {
+      return (groups || []).map(armorGroup);
+    }
+
+    function paintArmorMember(id) {
+      var row = state.duplicateRows[id];
+      if (!row) return false;
+      var current = verdictOf(state.verdicts, id);
+      if (row.approve) {
+        row.approve.setAttribute("aria-pressed", current === "approved" ? "true" : "false");
+        row.veto.setAttribute("aria-pressed", current === "vetoed" ? "true" : "false");
+        row.clear.setAttribute("aria-pressed", current === "" ? "true" : "false");
+        row.approve.disabled = verdictDisabled();
+        row.veto.disabled = verdictDisabled();
+        row.clear.disabled = verdictDisabled();
+      }
+      if (row.presentation) row.presentation.textContent =
+        isProposalMember(row.member) ? verdictText(row.member, current) :
+          "Read-only · " + dispositionLabel(row.member);
+      return true;
     }
 
     return {
       el: el, clear: clear, byId: byId, headerRow: headerRow, definition: definition,
       armorDetail: armorDetail, detailRow: detailRow, itemRows: itemRows, table: table,
       tile: tile, select: select, addSelect: addSelect, optionsFor: optionsFor,
-      paintRow: paintRow, setVerdictControlsDisabled: setVerdictControlsDisabled
+      paintRow: paintRow, paintArmorMember: paintArmorMember,
+      armorGroup: armorGroup, armorGroups: armorGroups, armorGroupHeader: armorGroupHeader,
+      armorGroupTable: armorGroupTable, setVerdictControlsDisabled: setVerdictControlsDisabled
     };
   }
 
@@ -578,6 +887,9 @@
     isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, keptItems: keptItems,
     matchesProtection: matchesProtection, matchesText: matchesText, requireIdString: requireIdString,
     reviewCounts: reviewCounts, sortItems: sortItems, str: str, verdictOf: verdictOf,
-    emptyMap: emptyMap, createView: createView
+    emptyMap: emptyMap, createView: createView,
+    exactDuplicateGroupsFromSnapshot: exactDuplicateGroupsFromSnapshot,
+    matchesArmorGroup: matchesArmorGroup, filterArmorGroups: filterArmorGroups,
+    countArmorGroups: countArmorGroups, armorStatDisplay: armorStatDisplay
   };
 });

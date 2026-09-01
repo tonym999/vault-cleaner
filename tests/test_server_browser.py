@@ -29,6 +29,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 HOSTILE_EXPORT = FIXTURES / "weapons_hostile.csv"
 CLASS_ARMOR_EXPORT = FIXTURES / "armor_classes.csv"
 ARMOR_CLOSE_EXPORT = FIXTURES / "armor_close.csv"
+ARMOR_DUPLICATES_UI_EXPORT = FIXTURES / "armor_duplicates_ui.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
@@ -261,3 +262,54 @@ def test_armor_tuning_slots_are_visible_in_unexpanded_proposals(
     assert different.locator("td").nth(7).locator("span").count() == 0
     assert page.locator('#vc-detail-6081').count() == 0
     assert page.locator('#vc-detail-6101').count() == 0
+
+
+@pytest.mark.browser
+def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
+    page: Page, live_server: LiveServer
+) -> None:
+    """The complete exact group and its proposal verdict share one server map."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_DUPLICATES_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_visible()
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    expect(page.locator("#vc-duplicates")).to_be_visible()
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+    expect(group).to_contain_text("Archetype Plate")
+    expect(group).to_contain_text("Chest Armor")
+    expect(group).to_contain_text("Hunter")
+    expect(group).to_contain_text("Gunner")
+    expect(group).to_contain_text("Tuning Mod Slot")
+    expect(group).to_contain_text("Weapons")
+    expect(group).to_contain_text("Primary")
+    expect(group).to_contain_text("Secondary")
+    expect(group).to_contain_text("Tertiary")
+    expect(group).to_contain_text("The other three base stats are 0")
+
+    for member_id in ("8201", "8202", "8203"):
+        expect(group.locator(f'[data-member-id="{member_id}"]')).to_be_visible()
+        expect(group).to_contain_text(member_id)
+    expect(group).to_contain_text("Preferred survivor")
+    expect(group).to_contain_text("Retained protected")
+    expect(group).to_contain_text("Proposed junk")
+    assert group.locator('[data-member-id="8201"] button.approve').count() == 0
+    assert group.locator('[data-member-id="8202"] button.veto').count() == 0
+    proposal = group.locator('[data-member-id="8203"]')
+    expect(proposal.locator("button.approve")).to_be_enabled()
+
+    proposal.locator("button.approve").click()
+    expect(proposal.locator("button.approve")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+
+    page.locator("#vc-view-proposals").click()
+    proposal_row = page.locator('#vc-list tr[data-id="8203"]')
+    expect(proposal_row).to_be_visible()
+    expect(proposal_row.locator("button.approve")).to_have_attribute(
+        "aria-pressed", "true"
+    )

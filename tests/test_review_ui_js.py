@@ -612,6 +612,174 @@ def test_unknown_and_empty_guardian_classes_use_honest_presentation_values(tmp_p
     ]
 
 
+def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
+    snapshot = tmp_path / "exact-groups.json"
+    snapshot.write_text(json.dumps({
+        "sections": [{"kind": "armor", "decisions": [], "armor": {
+            "exact_duplicate_groups": [
+                {
+                    "group_kind": "exact_duplicate", "group_id": "__proto__",
+                    "hash": "18446744073709551615", "name": "Gunner plate",
+                    "type": "Chest Armor", "guardian_class": "Hunter",
+                    "item_archetype": "Gunner", "tier": 5,
+                    "stats": {"weapons": 30, "health": 25, "class": 20,
+                              "grenade": 0, "super": 0, "melee": 0},
+                    "tuning_mod_slot": "Weapons", "seasonal_mod": "Solar",
+                    "holofoil": "false", "spirit_signature": [],
+                    "preferred_survivor_id": "0009223372036854775808",
+                    "members": [
+                        {"id": "0009223372036854775808", "location": "Vault",
+                         "disposition": "preferred_survivor"},
+                        {"id": "__proto__", "location": "Hunter(550)",
+                         "disposition": "retained_protected"},
+                        {"id": "loser", "location": "Vault",
+                         "disposition": "proposed_junk", "proposal_action": "junk"},
+                    ],
+                },
+                {
+                    "group_kind": "exact_duplicate", "group_id": "second",
+                    "hash": "700", "name": "Other plate", "type": "Helmet",
+                    "guardian_class": "Warlock", "item_archetype": "Bulwark",
+                    "tier": 4, "stats": {"weapons": 10, "health": 10},
+                    "tuning_mod_slot": "", "members": [
+                        {"id": "other", "location": "Vault",
+                         "disposition": "preferred_survivor"},
+                    ],
+                    "preferred_survivor_id": "other",
+                },
+            ]
+        }}]
+    }), encoding="utf-8")
+    script = tmp_path / "exact-groups.js"
+    script.write_text(
+        'var fs = require("fs");\n'
+        'var api = require(process.argv[2]);\n'
+        'var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));\n'
+        'var groups = api.exactDuplicateGroupsFromSnapshot(snapshot);\n'
+        'var stats = api.armorStatDisplay(groups[0]);\n'
+        'var fallback = api.armorStatDisplay(groups[1]);\n'
+        'process.stdout.write(JSON.stringify({\n'
+        '  ids: groups.map(function (g) { return [g.groupId, g.hash, g.preferredSurvivorId, g.members.map(function (m) { return m.id; })]; }),\n'
+        '  strings: typeof groups[0].groupId === "string" && typeof groups[0].hash === "string" && typeof groups[0].members[0].id === "string",\n'
+        '  filtered: {name: api.filterArmorGroups(groups, {text: "gunner"}).length, id: api.filterArmorGroups(groups, {text: "loser"}).length, class: api.filterArmorGroups(groups, {guardianClass: "Hunter"}).length, slot: api.filterArmorGroups(groups, {type: "Helmet"}).length, archetype: api.filterArmorGroups(groups, {itemArchetype: "Gunner"}).length, tuning: api.filterArmorGroups(groups, {tuningModSlot: "none/unknown"}).length},\n'
+        '  membersIntact: api.filterArmorGroups(groups, {text: "loser"})[0].members.length === 3,\n'
+        '  roles: stats.rows.map(function (row) { return [row.role, row.name, row.value]; }),\n'
+        '  zerosCollapsed: stats.zeroSummary.indexOf("three base stats") !== -1,\n'
+        '  fallback: fallback.tier5 === false && fallback.rows.length === 2,\n'
+        '  prototypeClean: Object.prototype.polluted === undefined\n'
+        '}));\n',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app), str(snapshot)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "ids": [
+            ["__proto__", "18446744073709551615", "0009223372036854775808",
+             ["0009223372036854775808", "__proto__", "loser"]],
+            ["second", "700", "other", ["other"]],
+        ],
+        "strings": True,
+        "filtered": {"name": 1, "id": 1, "class": 1, "slot": 1,
+                     "archetype": 1, "tuning": 1},
+        "membersIntact": True,
+        "roles": [["Primary", "weapons", 30], ["Secondary", "health", 25],
+                  ["Tertiary", "class", 20]],
+        "zerosCollapsed": True,
+        "fallback": True,
+        "prototypeClean": True,
+    }
+
+
+def test_exact_group_dom_uses_read_only_survivors_and_proposal_controls(tmp_path):
+    script = tmp_path / "exact-group-dom.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.removeChild = function (child) { this.children.splice(this.children.indexOf(child), 1); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+Node.prototype.click = function () { if (!this.disabled && this.listeners.click) this.listeners.click({target: this}); };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function find(node, predicate) {
+  if (predicate(node)) return node;
+  for (var i = 0; i < node.children.length; i++) { var found = find(node.children[i], predicate); if (found) return found; }
+  return null;
+}
+function count(node, predicate) {
+  var total = predicate(node) ? 1 : 0;
+  node.children.forEach(function (child) { total += count(child, predicate); });
+  return total;
+}
+var state = {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var toggles = [];
+var view = api.createView({document: new Document(), state: state,
+  toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
+var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [], armor: {
+  exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g", hash: "h",
+    name: "Plate", type: "Chest Armor", guardian_class: "Hunter", item_archetype: "Gunner",
+    tier: 5, stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
+    tuning_mod_slot: "Weapons", preferred_survivor_id: "survivor", members: [
+      {id: "survivor", location: "Vault", disposition: "preferred_survivor"},
+      {id: "retained", location: "Hunter(550)", disposition: "retained_protected", protection_level: "hard"},
+      {id: "proposal", location: "Vault", disposition: "proposed_junk", proposal_action: "junk"}
+    ]}]
+}}]})[0];
+var article = view.armorGroup(group);
+var proposal = state.duplicateRows.proposal;
+var before = proposal.cell;
+proposal.approve.click();
+state.verdicts.proposal = "approved";
+view.paintArmorMember("proposal");
+process.stdout.write(JSON.stringify({
+  complete: article.textContent.indexOf("Plate") !== -1 &&
+    article.textContent.indexOf("survivor") !== -1 && article.textContent.indexOf("retained") !== -1 &&
+    article.textContent.indexOf("proposal") !== -1 && article.textContent.indexOf("Tuning Mod Slot") !== -1,
+  readOnly: count(state.duplicateRows.survivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
+    count(state.duplicateRows.retained.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
+  proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"]]),
+  repaintedInPlace: state.duplicateRows.proposal.cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
+  labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "complete": True,
+        "readOnly": True,
+        "proposalControls": True,
+        "callback": True,
+        "repaintedInPlace": True,
+        "labels": True,
+    }
+
+
 def test_items_map_structured_tuning_without_reading_note_text(tmp_path):
     snapshot = tmp_path / "tuning.json"
     snapshot.write_text(json.dumps({

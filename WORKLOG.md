@@ -3,6 +3,40 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #102 Armor duplicates browser view
+
+- Added the permanent Armor duplicates surface beside Proposals. It consumes
+  #101's authoritative `exact_duplicate_groups` projection, preserves backend
+  group/member order and disposition truth, and treats every group as an
+  indivisible unit for name/id, Class, slot/type, archetype, and Tuning Mod
+  Slot filtering. No JavaScript duplicate identity, ranking, or survivor
+  algorithm was added; same-stat groups remain reserved for #110.
+- Added a reusable safe DOM group header/matrix seam with archetype-led
+  tier-5 Primary/Secondary/Tertiary display and honest six-stat fallback. The
+  shared Tuning Mod Slot, Spirit signature, Seasonal Mod, Holofoil, protection
+  ladder, and full opaque ids are text-labelled. Survivor and retained
+  members are read-only; proposed members alone reuse the existing
+  acknowledged single-id verdict path and both views read the same verdict
+  map. Presentation state preserves valid duplicate filters/surface and
+  clears only values absent from a replacement group set.
+- Added hostile/prototype/opaque-id Node coverage, adapter reconciliation
+  coverage, a fake three-member tier-5 group fixture, and exactly one focused
+  Chromium test covering complete membership and cross-view acknowledgement.
+- Added the reviewed `docs/armor-archetypes.md`, corrected the tier-5 gotcha
+  and terminology warning in `AGENTS.md`, updated README and browser
+  verification documentation, and recorded the light/dark narrow-layout and
+  focus pass. The pre-existing focused-button blur during in-flight mutation
+  remains documented.
+- Validation: focused UI/adapter tests `94 passed`; full suite `917 passed`;
+  Chromium marker gate `4 passed, 912 deselected in 4.46s`, with the new
+  test's call phase 0.45s (0.56s including teardown); non-editable wheel
+  proof passed; Ruff and `git diff --check` passed; no tracked `data/` files.
+  Baseline sandbox runs had only the pre-existing socket/Chromium permission
+  failures and were rerun with required loopback/browser permissions.
+- Snapshot schema v2, ruleset v4, Python decisions/rules, server protocol and
+  lifecycle, runtime dependencies, and CI topology are unchanged. No pull
+  request was opened.
+
 ## 2026-08-31 — #108 PR review follow-up
 
 - Restored the static armor semantic capture for every unchanged Decision

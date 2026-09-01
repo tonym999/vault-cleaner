@@ -58,10 +58,18 @@
       <div class="controls" id="vc-controls"></div>
     </section>
 
+    <section class="panel view-selector" id="vc-view-selector" aria-label="Review surface"
+             role="group" hidden></section>
+
     <section class="panel" id="vc-proposals" aria-labelledby="vc-proposals-title" hidden>
       <h2 id="vc-proposals-title">Proposals</h2>
       <p class="hint">Verdicts are held by the server and change only after an acknowledgement.</p>
       <div id="vc-list"></div>
+    </section>
+    <section class="panel" id="vc-duplicates" aria-labelledby="vc-duplicates-title" hidden>
+      <h2 id="vc-duplicates-title">Armor duplicates</h2>
+      <p class="hint">Complete exact groups from the report. Survivor and retained copies are read-only; only proposed members have verdict controls.</p>
+      <div id="vc-duplicate-list"></div>
     </section>
   </main>
   <script src="/assets/review_ui.js" defer></script>

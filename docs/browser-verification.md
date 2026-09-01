@@ -52,6 +52,33 @@ Issue #104 focused check:
 - [ ] The field is rendered as text, not only by color, and remains readable
       after acknowledgement and in finalised/read-only state.
 
+Issue #102 focused check:
+
+- [ ] The surface selector offers Proposals and Armor duplicates when an
+      authoritative exact group exists; the duplicate option is unavailable
+      when no exact groups exist.
+- [ ] Every duplicate group shows its complete backend membership, with the
+      preferred survivor first, retained/protected copies, and proposed copies
+      labelled from their structured dispositions.
+- [ ] Group headers always show the archetype, tier-5 30/25/20 role summary
+      (or an honest six-stat fallback), and the text-labelled Tuning Mod Slot;
+      Spirit, Seasonal Mod, and Holofoil values remain inert text.
+- [ ] Name/instance-id search and Class, slot/type, archetype, and tuning
+      filters select whole groups and report `Showing N of M groups`.
+- [ ] Only proposed members expose Approve/Veto/Unset controls. An
+      acknowledged proposal-member verdict is reflected in both surfaces.
+- [ ] Survivor and retained members remain explicitly read-only; finalised
+      duplicates remain readable while all mutation controls are frozen.
+- [ ] Keyboard-only navigation reaches the surface selector, duplicate
+      filters, and proposal-member verdict controls with visible focus.
+- [ ] Successful replacement/reset reconciliation retains valid duplicate
+      state, clears only invalid categorical filters, and a rejected upload
+      leaves the current duplicate surface/search/filter state untouched.
+- [ ] Desktop light/dark and approximately 390×844 layouts remain readable;
+      the complete member matrix stays inside a contained horizontal scroller.
+- [ ] Hostile names, locations, archetypes, Spirit/mod/holofoil values remain
+      literal inert text with no injected elements.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -87,6 +114,37 @@ terminal.
   and was not changed by #104. Keyboard `a`/`v`/`u` review from the row control
   remained usable and repainted the row in place.
 - The Armor duplicates group view was not tested or claimed; it remains #102.
+
+## 2026-09-01 — issue #102 focused check
+
+- Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
+  151.0.7922.34 (Playwright Chromium revision 1234), headless.
+- Viewports and appearances: 390×844 narrow, with both light and dark media
+  appearances exercised; the contained member matrix stayed within the page
+  width. The desktop run used the same packaged server and fake fixture.
+- Fixture: `tests/fixtures/armor_duplicates_ui.csv`; no real vault data,
+  wishlists, or manifest network access.
+- Result: pass. The authenticated server rendered the complete authoritative
+  exact group with its preferred survivor, retained protected member, and
+  proposed member. The archetype-led Primary/Secondary/Tertiary summary,
+  collapsed zero-stat line, and always-visible Tuning Mod Slot were readable.
+  Survivor and retained cells were text-only; only the proposed member exposed
+  verdict controls. An acknowledged proposal verdict was visible after
+  switching to Proposals and back to the same duplicate presentation.
+- Focus/state result: pass. Surface and duplicate filter controls were
+  keyboard-focusable with visible focus, and the duplicate group remained
+  complete while searching by member id. The existing acknowledgement gate
+  kept controls frozen while a request was in flight and after finalisation.
+- Hostile-text result: pass. Group/member values were rendered as inert text;
+  no injected HTML nodes appeared. The existing Proposals, upload, reset,
+  replacement, and rejected-upload reconciliation paths remained unchanged;
+  adapter coverage verifies valid duplicate state retention and only-invalid
+  categorical filter clearing.
+- Browser timing: the four-test Chromium marker run completed in 4.42s; the
+  new focused #102 test's call phase was 0.42s (0.57s including teardown).
+- Remaining limitation: as recorded by #104, the pre-existing mutation gate
+  can blur a verdict button that is focused while its acknowledgement is in
+  flight; #102 did not alter server lifecycle or mutation semantics.
 
 ## 2026-08-27 — issue #90 execution record
 

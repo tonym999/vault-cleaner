@@ -141,6 +141,73 @@ def test_session_envelope_seam_preserves_local_presentation_state(tmp_path: Path
     }
 
 
+def test_exact_group_surface_reconciles_without_changing_session_fields(tmp_path: Path):
+    harness = tmp_path / "server-ui-armor-groups-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+function group(tuning) {
+  return { group_kind: "exact_duplicate", group_id: "__proto__", hash: "990",
+    name: "Armor", type: "Chest Armor", guardian_class: "Hunter",
+    item_archetype: "Gunner", tier: 5,
+    stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
+    tuning_mod_slot: tuning, preferred_survivor_id: "01", members: [
+      {id: "01", disposition: "preferred_survivor"},
+      {id: "loser", disposition: "proposed_junk", proposal_action: "junk"}
+    ]
+  };
+}
+function envelope(revision, groups) {
+  return {schema_version: 1, state: "reviewing", report_revision: revision,
+    verdict_revision: revision, fingerprint: "fp-" + revision,
+    snapshot: {sections: [{kind: "armor", decisions: [], armor: {
+      exact_duplicate_groups: groups
+    }}]}, verdicts: [], override_status: []};
+}
+var state = server.createState();
+server.applySessionEnvelope(envelope(1, [group("Weapons")]), state);
+state.surface = "armor-duplicates";
+state.armorQuery.text = "Armor";
+state.armorQuery.guardianClass = "Hunter";
+state.armorQuery.tuningModSlot = "Weapons";
+server.applySessionEnvelope(envelope(2, [group("Weapons")]), state);
+var retained = {surface: state.surface, text: state.armorQuery.text,
+  classValue: state.armorQuery.guardianClass, tuning: state.armorQuery.tuningModSlot,
+  report: state.report_revision, fingerprint: state.fingerprint,
+  groupId: state.armorGroups[0].groupId,
+  memberIds: state.armorGroups[0].members.map(function (m) { return m.id; })};
+server.applySessionEnvelope(envelope(3, [group("")]), state);
+var invalidated = state.reconciliation.invalidated.slice();
+var cleared = state.armorQuery.tuningModSlot === "" &&
+  state.armorQuery.text === "Armor" && state.surface === "armor-duplicates";
+server.applySessionEnvelope(envelope(4, []), state);
+process.stdout.write(JSON.stringify({retained: retained, cleared: cleared,
+  noGroups: state.surface === "proposals" && state.armorGroups.length === 0,
+  invalidated: invalidated}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "retained": {
+            "surface": "armor-duplicates", "text": "Armor",
+            "classValue": "Hunter", "tuning": "Weapons", "report": 2,
+            "fingerprint": "fp-2", "groupId": "__proto__",
+            "memberIds": ["01", "loser"],
+        },
+        "cleared": True,
+        "noGroups": True,
+        "invalidated": ["duplicate filter tuningModSlot Weapons"],
+    }
+
+
 def test_authoritative_envelope_retains_valid_class_filter_and_local_state(
     tmp_path: Path,
 ):
