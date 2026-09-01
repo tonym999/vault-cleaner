@@ -24,9 +24,10 @@ surprises the next agent should know about.
   Chromium test covering complete membership and cross-view acknowledgement.
 - Added the reviewed `docs/armor-archetypes.md`, corrected the tier-5 gotcha
   and terminology warning in `AGENTS.md`, updated README and browser
-  verification documentation, and recorded the light/dark narrow-layout and
-  focus pass. The pre-existing focused-button blur during in-flight mutation
-  remains documented.
+  verification documentation, and recorded the light/dark narrow-layout,
+  focus, replacement/rejection, finalise/freeze, and reset pass. The
+  pre-existing focused-button blur during in-flight mutation remains
+  documented.
 - Validation: focused UI/adapter tests `94 passed`; full suite `917 passed`;
   Chromium marker gate `4 passed, 912 deselected in 4.46s`, with the new
   test's call phase 0.45s (0.56s including teardown); non-editable wheel

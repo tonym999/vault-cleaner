@@ -135,11 +135,18 @@ terminal.
   keyboard-focusable with visible focus, and the duplicate group remained
   complete while searching by member id. The existing acknowledgement gate
   kept controls frozen while a request was in flight and after finalisation.
+- Lifecycle/reconciliation result: pass. A deliberately malformed replacement
+  was rejected without changing the active duplicate surface or search; a
+  successful replacement retained those valid values. Replacing it with an
+  empty fake armor export disabled the duplicate option and returned to
+  Proposals, while uploading the group again restored the option. Finalise
+  left the duplicate matrix readable/frozen and Reset returned to upload-ready
+  idle state.
 - Hostile-text result: pass. Group/member values were rendered as inert text;
   no injected HTML nodes appeared. The existing Proposals, upload, reset,
   replacement, and rejected-upload reconciliation paths remained unchanged;
-  adapter coverage verifies valid duplicate state retention and only-invalid
-  categorical filter clearing.
+  adapter coverage additionally verifies valid duplicate state retention and
+  only-invalid categorical filter clearing.
 - Browser timing: the four-test Chromium marker run completed in 4.42s; the
   new focused #102 test's call phase was 0.42s (0.57s including teardown).
 - Remaining limitation: as recorded by #104, the pre-existing mutation gate
