@@ -128,10 +128,13 @@ terminal.
 - Result: pass. The authenticated server rendered the complete authoritative
   exact group with its preferred survivor, retained protected member, and
   proposed member. The archetype-led Primary/Secondary/Tertiary summary,
-  collapsed zero-stat line, and always-visible Tuning Mod Slot were readable.
+  collapsed zero-stat line, always-visible Tuning Mod Slot, and explicit
+  Equipped row (No/Yes/No for the fake members) were readable.
   Survivor and retained cells were text-only; only the proposed member exposed
-  verdict controls. An acknowledged proposal verdict was visible after
-  switching to Proposals and back to the same duplicate presentation.
+  verdict controls. Approve followed by a real Unset acknowledgement cleared
+  the proposed member verdict; an acknowledged proposal verdict was also
+  visible after switching to Proposals and back to the same duplicate
+  presentation.
 - Focus/state result: pass. Surface and duplicate filter controls were
   keyboard-focusable with visible focus, and the duplicate group remained
   complete while searching by member id. The existing acknowledgement gate
@@ -154,10 +157,11 @@ terminal.
   same-report in-place verdict repaint, shared cross-view verdict state,
   mutation/finalized disabling, and only-invalid categorical filter clearing.
   Its incompatible-response regressions reject both a weapon-section
-  same-ID/action lookalike and an armor-section wrong-hash decision.
-- Browser timing: the four-test Chromium marker run completed in 4.46s; the
-  focused #102 test completed in 1.59s, with a 0.46s call phase and 0.54s
-  teardown.
+  same-ID/action lookalike, an armor-section wrong-hash decision, and a
+  cross-group duplicate member id without adopting the malformed envelope.
+- Browser timing: the four-test Chromium marker run completed in 5.08s; the
+  focused #102 test completed in 1.59s, with a 0.44s call phase, 0.35s setup,
+  and 0.56s teardown.
 - Remaining limitation: as recorded by #104, the pre-existing mutation gate
   can blur a verdict button that is focused while its acknowledgement is in
   flight; #102 did not alter server lifecycle or mutation semantics.

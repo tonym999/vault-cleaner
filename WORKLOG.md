@@ -3,6 +3,43 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #102 PR #111 review follow-up
+
+- Fixed the Armor duplicates Unset bug: a function-scoped DOM button named
+  `clearVerdict` shadowed the callback, so clicking Unset attempted to call the
+  button node. The DOM handle is now distinct, and Node coverage clicks
+  Approve, Veto, and Unset and verifies the exact opaque id/verdict callbacks.
+- Exact-group adoption now rejects an opaque member id repeated across any
+  authoritative Armor exact groups, using prototype-safe maps before state
+  adoption. Adapter coverage proves the incompatible response leaves the
+  previous envelope/report state unadopted. Proposal correlation remains
+  section-scoped and requires the exact group hash; cross-section and
+  wrong-hash lookalikes remain incompatible.
+- Later-pass junk/review decisions for preferred or retained members are
+  carried as separate current-proposal presentation metadata only when the
+  same Armor section and group hash match. The exact disposition remains
+  read-only and controls remain absent, while the duplicate cell discloses the
+  Proposals action and current authoritative verdict. Exact proposed losers
+  retain the existing acknowledged single-member mutation path. The matrix
+  now also renders the supplied Equipped boolean as Yes/No.
+- Updated the reviewed domain wording to the exact `75 base total` phrase and
+  recorded the packaged-server manual check with the fake
+  `tests/fixtures/armor_duplicates_ui.csv`: 390×844 and 1440×1000 light/dark
+  layouts, focus, Equipped No/Yes/No, real Approve/Unset acknowledgement,
+  rejected replacement preservation, finalise/freeze, and reset all passed.
+- Validation: focused UI/adapter tests `102 passed`; full suite `925 passed in
+  19.36s`; Chromium marker gate `4 passed, 921 deselected in 5.08s`, with the
+  focused #102 test `1 passed in 1.59s` (0.44s call, 0.35s setup, 0.56s
+  teardown); non-editable wheel proof passed; Ruff and `git diff --check`
+  passed; no tracked `data/` files. The sandbox-only baseline failures were
+  loopback socket/Chromium permission errors and were rerun with the required
+  permissions.
+- Snapshot schema v2, ruleset v4, Python rules/report/pipeline, server
+  protocol/lifecycle, runtime dependencies, CI, persistence, auth, and #109/
+  #110 scope remain unchanged. This correction is committed locally for Sol's
+  review; the remote branch remains at `d0710eb` and no PR was opened or
+  pushed.
+
 ## 2026-09-01 — #102 Armor duplicates browser view
 
 - Added the permanent Armor duplicates surface beside Proposals. It consumes

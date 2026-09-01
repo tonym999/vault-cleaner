@@ -995,6 +995,28 @@ function malformedDuplicateEnvelope(crossSection) {
     ]}, verdicts: [], override_status: []
   };
 }
+function malformedCrossGroupMemberEnvelope() {
+  return {
+    schema_version: 1, state: "reviewing", report_revision: 1,
+    verdict_revision: 0, fingerprint: "fingerprint", snapshot: {sections: [{
+      kind: "armor", decisions: [
+        {id: "loser-one", hash: "h", action: "junk"},
+        {id: "loser-two", hash: "h", action: "junk"}
+      ], armor: {exact_duplicate_groups: [
+        {group_kind: "exact_duplicate", group_id: "group-one", hash: "h",
+          preferred_survivor_id: "shared", members: [
+            {id: "shared", disposition: "preferred_survivor"},
+            {id: "loser-one", disposition: "proposed_junk", proposal_action: "junk"}
+          ]},
+        {group_kind: "exact_duplicate", group_id: "group-two", hash: "h",
+          preferred_survivor_id: "shared", members: [
+            {id: "shared", disposition: "preferred_survivor"},
+            {id: "loser-two", disposition: "proposed_junk", proposal_action: "junk"}
+          ]}
+      ]}
+    }]}, verdicts: [], override_status: []
+  };
+}
 function response(status, payload) {
   return {
     ok: status >= 200 && status < 300,
@@ -1019,6 +1041,8 @@ function run() {
     queue = [response(200, malformedDuplicateEnvelope(true))];
   } else if (scenario === "report-wrong-hash-duplicate") {
     queue = [response(200, malformedDuplicateEnvelope(false))];
+  } else if (scenario === "report-cross-group-member-duplicate") {
+    queue = [response(200, envelope()), response(200, malformedCrossGroupMemberEnvelope())];
   } else if (scenario === "report-incompatible") {
     queue = [response(200, [])];
   } else if (scenario === "report-invalid-override") {
@@ -1084,16 +1108,22 @@ function run() {
         input.files = [{}];
         input.dispatch("change");
       }
+      if (scenario === "report-cross-group-member-duplicate") api.start();
       setTimeout(function () {
-        resolve({
+        var result = {
           sameObject: api === context.VaultCleanerServerUI,
           connected: api.state.connected,
           terminal: api.state.terminal,
           mainStatus: document.nodes["vc-status"].textContent,
           uploadPhase: api.state.uploadStatus.weapons,
           uploadStatus: document.nodes["vc-upload-status-weapons"].textContent
-        });
-      }, 0);
+        };
+        if (scenario === "report-cross-group-member-duplicate") {
+          result.reportRevision = api.state.report_revision;
+          result.snapshot = api.state.snapshot;
+        }
+        resolve(result);
+      }, scenario === "report-cross-group-member-duplicate" ? 5 : 0);
     }, 0);
   });
 }
@@ -1175,6 +1205,22 @@ run().then(function (result) { process.stdout.write(JSON.stringify(result)); });
                 ),
                 "uploadPhase": "idle",
                 "uploadStatus": "",
+            },
+        ),
+        (
+            "report-cross-group-member-duplicate",
+            {
+                "sameObject": True,
+                "connected": False,
+                "terminal": True,
+                "mainStatus": (
+                    "The review server returned an incompatible response. Restart "
+                    "vault-cleaner serve and open its new bootstrap URL."
+                ),
+                "uploadPhase": "idle",
+                "uploadStatus": "",
+                "reportRevision": 0,
+                "snapshot": None,
             },
         ),
         (

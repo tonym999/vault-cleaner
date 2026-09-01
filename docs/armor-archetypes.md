@@ -16,7 +16,7 @@ its two highest base stats. The third is random and independent.
 | Tertiary | 20 | Random, independent of archetype |
 | Remaining three | 0 | Gain up to 5 each from Masterwork upgrades |
 
-That is 30 + 25 + 20 = **75 base total**, which is the `~75 base total` figure
+That is 30 + 25 + 20 = **75 base total**, which is the `75 base total` figure
 in AGENTS.md. Masterwork points land outside the `(Base)` columns, so on the
 `Total (Base)` scale the other three stats read 0 on every tier-5 piece.
 

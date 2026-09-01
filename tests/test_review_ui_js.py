@@ -704,6 +704,93 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
     }
 
 
+def test_exact_group_projection_rejects_cross_group_ids_and_bad_proposals(tmp_path):
+    script = tmp_path / "exact-group-validation.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function group(id, preferred, proposal) {
+  return {group_kind: "exact_duplicate", group_id: id, hash: "h", name: "Armor",
+    preferred_survivor_id: preferred, members: [
+      {id: preferred, disposition: "preferred_survivor"},
+      {id: proposal, disposition: "proposed_junk", proposal_action: "junk"}
+    ]};
+}
+function snapshot(groups, sections) {
+  return {sections: sections || [{kind: "armor", decisions: groups.map(function (unused, index) {
+    return {id: "proposal" + index, hash: "h", action: "junk"};
+  }), armor: {exact_duplicate_groups: groups}}]};
+}
+function rejects(value) {
+  try { api.exactDuplicateGroupsFromSnapshot(value); return false; }
+  catch (error) { return true; }
+}
+var duplicated = snapshot([group("g1", "same", "one"), group("g2", "same", "two")], [
+  {kind: "armor", decisions: [
+    {id: "one", hash: "h", action: "junk"}, {id: "two", hash: "h", action: "junk"}
+  ], armor: {exact_duplicate_groups: [group("g1", "same", "one"), group("g2", "same", "two")]}}
+]);
+var crossSection = snapshot([{
+  group_kind: "exact_duplicate", group_id: "cross", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}], [
+  {kind: "weapons", decisions: [{id: "survivor", hash: "h", action: "junk"}]},
+  {kind: "armor", decisions: [], armor: {exact_duplicate_groups: [{
+    group_kind: "exact_duplicate", group_id: "cross", hash: "h",
+    preferred_survivor_id: "survivor", members: [
+      {id: "survivor", disposition: "preferred_survivor"}
+    ]
+  }]}}
+]);
+var wrongHash = snapshot([{
+  group_kind: "exact_duplicate", group_id: "wrong", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}], [{kind: "armor", decisions: [
+  {id: "survivor", hash: "different", action: "junk"}
+], armor: {exact_duplicate_groups: [{
+  group_kind: "exact_duplicate", group_id: "wrong", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}]}}]);
+var valid = api.exactDuplicateGroupsFromSnapshot(snapshot([{
+  group_kind: "exact_duplicate", group_id: "valid", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}], [{kind: "armor", decisions: [
+  {id: "survivor", hash: "h", action: "junk", reason: "later score"}
+], armor: {exact_duplicate_groups: [{
+  group_kind: "exact_duplicate", group_id: "valid", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}]}}]));
+process.stdout.write(JSON.stringify({crossGroup: rejects(duplicated), crossSection: rejects(crossSection),
+  wrongHash: rejects(wrongHash), validLaterProposal: valid[0].members[0].currentProposalAction === "junk"}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "crossGroup": True,
+        "crossSection": True,
+        "wrongHash": True,
+        "validLaterProposal": True,
+    }
+
+
 def test_exact_group_dom_uses_read_only_survivors_and_proposal_controls(tmp_path):
     script = tmp_path / "exact-group-dom.js"
     script.write_text(
@@ -753,9 +840,9 @@ var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", dec
     holofoil: "<img src=x onerror=alert(1)>",
     spirit_signature: ["</script><script>alert(1)</script>"],
     preferred_survivor_id: "survivor", members: [
-      {id: "survivor", location: "<b onclick=alert(1)>Vault</b>", disposition: "preferred_survivor"},
-      {id: "retained", location: "</b><script>alert(1)</script>", disposition: "retained_protected", protection_level: "hard"},
-      {id: "proposal", location: "Vault", disposition: "proposed_junk", proposal_action: "junk"}
+      {id: "survivor", location: "<b onclick=alert(1)>Vault</b>", equipped: true, disposition: "preferred_survivor"},
+      {id: "retained", location: "</b><script>alert(1)</script>", equipped: false, disposition: "retained_protected", protection_level: "hard"},
+      {id: "proposal", location: "Vault", equipped: false, disposition: "proposed_junk", proposal_action: "junk"}
     ]}]
 }}]})[0];
 var article = view.armorGroup(group);
@@ -764,6 +851,23 @@ var before = proposal.cell;
 proposal.approve.click();
 state.verdicts.proposal = "approved";
 view.paintArmorMember("proposal");
+proposal.veto.click();
+proposal.clear.click();
+var laterState = {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var laterView = api.createView({document: new Document(), state: laterState,
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
+var laterGroup = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [
+  {id: "survivor", hash: "h", action: "junk", reason: "later score"},
+  {id: "proposal", hash: "h", action: "junk"}
+], armor: {exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "later", hash: "h",
+  name: "Later proposal", preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"},
+    {id: "proposal", disposition: "proposed_junk", proposal_action: "junk"}
+  ]}]}}]})[0];
+var laterArticle = laterView.armorGroup(laterGroup);
+var laterSurvivor = laterState.duplicateRows.survivor;
+laterState.verdicts.survivor = "approved";
+laterView.paintArmorMember("survivor");
 var malformedState = {expanded: Object.create(null), rows: Object.create(null),
   duplicateRows: Object.create(null), verdicts: Object.create(null)};
 var malformedView = api.createView({document: new Document(), state: malformedState,
@@ -800,9 +904,16 @@ process.stdout.write(JSON.stringify({
   readOnly: count(state.duplicateRows.survivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
     count(state.duplicateRows.retained.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
   proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
-  callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"]]),
+  callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"], ["proposal", "vetoed"], ["proposal", ""]]),
   repaintedInPlace: state.duplicateRows.proposal.cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
-  labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1
+  labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1,
+  equipped: article.textContent.indexOf("Equipped") !== -1 && article.textContent.indexOf("Yes") !== -1 && article.textContent.indexOf("No") !== -1,
+  laterProposalDisclosure: laterArticle.textContent.indexOf("Also proposed junk in Proposals") !== -1 &&
+    laterArticle.textContent.indexOf("Current verdict: approved") !== -1 &&
+    count(laterSurvivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
+  laterProposalRemainsMutable: count(laterState.duplicateRows.proposal.cell, function (node) {
+    return node.tagName === "BUTTON";
+  }) === 3
 }));
 ''',
         encoding="utf-8",
@@ -825,6 +936,9 @@ process.stdout.write(JSON.stringify({
         "callback": True,
         "repaintedInPlace": True,
         "labels": True,
+        "equipped": True,
+        "laterProposalDisclosure": True,
+        "laterProposalRemainsMutable": True,
     }
 
 

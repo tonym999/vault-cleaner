@@ -271,21 +271,39 @@
     var groups = [];
     var sections = (snapshot && snapshot.sections) || [];
     var seenGroups = emptyMap();
+    var seenGroupMembers = emptyMap();
+    var proposalDecisionsBySection = [];
+    var proposalDecisionLocations = emptyMap();
+    sections.forEach(function (section, sectionIndex) {
+      var proposals = emptyMap();
+      (section && Array.isArray(section.decisions) ? section.decisions : []).forEach(
+        function (decision, decisionIndex) {
+          if (!isObject(decision) || (decision.action !== "junk" &&
+              decision.action !== "review")) return;
+          var decisionWhere = "sections[" + sectionIndex + "].decisions[" +
+            decisionIndex + "]";
+          var decisionId = requireIdString(decision.id, decisionWhere + ".id");
+          if (Object.prototype.hasOwnProperty.call(proposals, decisionId)) {
+            throw new Error("duplicate proposal decision for id " + decisionId +
+              " at " + decisionWhere);
+          }
+          proposals[decisionId] = decision;
+          if (!proposalDecisionLocations[decisionId]) {
+            proposalDecisionLocations[decisionId] = [];
+          }
+          proposalDecisionLocations[decisionId].push({
+            sectionIndex: sectionIndex, decision: decision
+          });
+        }
+      );
+      proposalDecisionsBySection[sectionIndex] = proposals;
+    });
     for (var s = 0; s < sections.length; s++) {
       var section = sections[s] || {};
       var armor = section.armor;
       if (section.kind !== "armor" || !armor ||
           !Array.isArray(armor.exact_duplicate_groups)) continue;
-      var proposalDecisions = emptyMap();
-      (Array.isArray(section.decisions) ? section.decisions : []).forEach(function (decision, decisionIndex) {
-        if (!isObject(decision) || (decision.action !== "junk" && decision.action !== "review")) return;
-        var decisionWhere = "sections[" + s + "].decisions[" + decisionIndex + "]";
-        var decisionId = requireIdString(decision.id, decisionWhere + ".id");
-        if (proposalDecisions[decisionId]) {
-          throw new Error("duplicate proposal decision for id " + decisionId + " at " + decisionWhere);
-        }
-        proposalDecisions[decisionId] = decision;
-      });
+      var proposalDecisions = proposalDecisionsBySection[s] || emptyMap();
       armor.exact_duplicate_groups.forEach(function (source, index) {
         var where = "sections[" + s + "].armor.exact_duplicate_groups[" + index + "]";
         if (!isObject(source)) throw new Error(where + " must be an object");
@@ -306,8 +324,14 @@
           var memberWhere = where + ".members[" + memberIndex + "]";
           if (!isObject(member)) throw new Error(memberWhere + " must be an object");
           var id = requireIdString(member.id, memberWhere + ".id");
-          if (seenMembers[id]) throw new Error("duplicate member id " + id + " at " + memberWhere);
+          if (Object.prototype.hasOwnProperty.call(seenMembers, id)) {
+            throw new Error("duplicate member id " + id + " at " + memberWhere);
+          }
+          if (Object.prototype.hasOwnProperty.call(seenGroupMembers, id)) {
+            throw new Error("duplicate member id " + id + " across exact duplicate groups at " + memberWhere);
+          }
           seenMembers[id] = true;
+          seenGroupMembers[id] = true;
           var disposition = str(member.disposition);
           var proposalAction = member.proposal_action === null ||
             member.proposal_action === undefined ? "" : str(member.proposal_action);
@@ -317,10 +341,28 @@
           }
           var expectedAction = disposition === "proposed_junk" ? "junk" :
             disposition === "proposed_review" ? "review" : "";
-          var proposalDecision = proposalAction ? proposalDecisions[id] : null;
+          var proposalDecision = Object.prototype.hasOwnProperty.call(proposalDecisions, id)
+            ? proposalDecisions[id] : null;
+          var proposalLocations = proposalDecisionLocations[id] || [];
+          if (proposalLocations.some(function (location) {
+            return location.sectionIndex !== s;
+          })) {
+            throw new Error(memberWhere + " has a proposal decision in another section");
+          }
+          var currentProposalAction = "";
+          var currentProposalReason = "";
+          if (proposalDecision) {
+            var proposalHash = requireIdString(proposalDecision.hash,
+              memberWhere + ".proposal_hash");
+            if (proposalHash !== hash) {
+              throw new Error(memberWhere + " has a proposal decision for another hash");
+            }
+            currentProposalAction = str(proposalDecision.action);
+            currentProposalReason = str(proposalDecision.reason);
+          }
           if (proposalAction !== expectedAction || (proposalAction &&
               (!proposalDecision || proposalDecision.action !== proposalAction ||
-               requireIdString(proposalDecision.hash, memberWhere + ".proposal_hash") !== hash))) {
+               currentProposalAction !== proposalAction))) {
             throw new Error(memberWhere + " has inconsistent disposition/proposal action");
           }
           return {
@@ -336,6 +378,11 @@
             power: member.power,
             disposition: disposition,
             proposalAction: proposalAction,
+            // ``proposalAction`` is the exact-group disposition contract;
+            // ``currentProposalAction`` is a separately correlated later-pass
+            // proposal for a read-only member, when one exists.
+            currentProposalAction: currentProposalAction,
+            currentProposalReason: currentProposalReason,
             proposalReason: member.proposal_reason === null ||
               member.proposal_reason === undefined ? "" : str(member.proposal_reason)
           };
@@ -750,6 +797,16 @@
         (member.disposition === "proposed_review" && member.proposalAction === "review");
     }
 
+    function armorReadonlyText(member, verdict) {
+      var text = "Read-only · " + dispositionLabel(member);
+      if (member.currentProposalAction) {
+        text += " · Also proposed " + member.currentProposalAction +
+          " in Proposals · Current verdict: " + verdictText(member, verdict);
+        if (member.currentProposalReason) text += " — " + member.currentProposalReason;
+      }
+      return text;
+    }
+
     function armorGroupHeader(group) {
       var statDisplay = armorStatDisplay(group);
       var statNodes = statDisplay.rows.map(function (row) {
@@ -778,7 +835,7 @@
     function armorMemberCell(member) {
       var proposal = isProposalMember(member);
       var verdict = verdictOf(state.verdicts, member.id);
-      var approve = null, veto = null, clearVerdict = null, presentation = null;
+      var approve = null, veto = null, clearButton = null, presentation = null;
       if (proposal && !readOnly) {
         approve = el("button", {
           type: "button", class: "approve", text: "Approve",
@@ -794,7 +851,7 @@
           disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(member.id, "vetoed"); } }
         });
-        clearVerdict = el("button", {
+        clearButton = el("button", {
           type: "button", class: "clear-verdict", text: "Unset",
           "aria-pressed": verdict === "" ? "true" : "false",
           "aria-label": "unset verdict for armor member id " + member.id,
@@ -807,15 +864,15 @@
       } else {
         var readonlyText = proposal
           ? verdictText(member, verdict)
-          : "Read-only · " + dispositionLabel(member);
+          : armorReadonlyText(member, verdict);
         presentation = el("span", { class: "hint", text: readonlyText });
       }
       var controls = proposal && !readOnly
-        ? el("div", { class: "row-actions" }, [approve, veto, clearVerdict, presentation])
+        ? el("div", { class: "row-actions" }, [approve, veto, clearButton, presentation])
         : presentation;
       var cell = el("td", { class: "armor-member-cell", "data-member-id": member.id }, [controls]);
       state.duplicateRows[member.id] = {
-        cell: cell, approve: approve, veto: veto, clear: clearVerdict,
+        cell: cell, approve: approve, veto: veto, clear: clearButton,
         presentation: presentation, member: member
       };
       return cell;
@@ -838,6 +895,7 @@
             : "—";
         }],
         ["In loadout", function (member) { return member.inLoadout ? "Yes" : "No"; }],
+        ["Equipped", function (member) { return member.equipped ? "Yes" : "No"; }],
         ["Locked", function (member) { return member.locked ? "Yes" : "No"; }],
         ["Masterwork Tier", function (member) {
           return member.masterworkTier === null || member.masterworkTier === undefined
@@ -886,9 +944,8 @@
         row.veto.disabled = verdictDisabled();
         row.clear.disabled = verdictDisabled();
       }
-      if (row.presentation) row.presentation.textContent =
-        isProposalMember(row.member) ? verdictText(row.member, current) :
-          "Read-only · " + dispositionLabel(row.member);
+      if (row.presentation) row.presentation.textContent = isProposalMember(row.member)
+        ? verdictText(row.member, current) : armorReadonlyText(row.member, current);
       return true;
     }
 
