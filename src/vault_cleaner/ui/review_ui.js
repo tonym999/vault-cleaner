@@ -263,10 +263,20 @@
     return groups;
   }
 
-  // Armor duplicate groups are an authoritative report projection.  This
-  // helper intentionally copies the presentation fields while preserving the
-  // array order supplied by Python.  In particular, it does not derive a
-  // fingerprint, select a survivor, or sort members in the browser.
+  /**
+   * Project untrusted snapshot input into the Armor duplicates presentation.
+   *
+   * The authoritative group/member array order is copied verbatim. Opaque
+   * identity strings, dispositions, uniqueness, and same-section/hash
+   * proposal correlation are validated here before an adapter can adopt the
+   * envelope. This function never reconstructs grouping, ranking, survivor,
+   * or disposition truth in the browser.
+   *
+   * @param {Object|null|undefined} snapshot Untrusted report snapshot.
+   * @returns {Array<Object>} Ordered presentation-only exact groups.
+   * @throws {Error|TypeError} On an incompatible identity, disposition,
+   *   proposal correlation, uniqueness, or snapshot contract.
+   */
   function exactDuplicateGroupsFromSnapshot(snapshot) {
     var groups = [];
     var sections = (snapshot && snapshot.sections) || [];

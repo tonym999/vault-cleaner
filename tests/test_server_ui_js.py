@@ -1099,8 +1099,50 @@ function run() {
     Promise: Promise, Set: Set, setTimeout: setTimeout
   };
   context.globalThis = context;
+  var api;
+  var reportFailureDone = null;
+  var reportFailureResolve = null;
+  if (scenario === "report-cross-group-member-duplicate") {
+    var statusNode = document.nodes["vc-status"];
+    var statusText = statusNode.textContent;
+    reportFailureDone = new Promise(function (resolve) {
+      reportFailureResolve = resolve;
+    });
+    Object.defineProperty(statusNode, "textContent", {
+      configurable: true,
+      get: function () { return statusText; },
+      set: function (value) {
+        statusText = String(value);
+        if (reportFailureResolve && api && api.state.terminal &&
+            statusText.indexOf("incompatible response") !== -1) {
+          var resolve = reportFailureResolve;
+          reportFailureResolve = null;
+          resolve();
+        }
+      }
+    });
+  }
   vm.runInNewContext(source, context);
-  var api = context.VaultCleanerServerUI;
+  api = context.VaultCleanerServerUI;
+  function result() {
+    var output = {
+      sameObject: api === context.VaultCleanerServerUI,
+      connected: api.state.connected,
+      terminal: api.state.terminal,
+      mainStatus: document.nodes["vc-status"].textContent,
+      uploadPhase: api.state.uploadStatus.weapons,
+      uploadStatus: document.nodes["vc-upload-status-weapons"].textContent
+    };
+    if (scenario === "report-cross-group-member-duplicate") {
+      output.reportRevision = api.state.report_revision;
+      output.snapshot = api.state.snapshot;
+    }
+    return output;
+  }
+  if (scenario === "report-cross-group-member-duplicate") {
+    api.start();
+    return reportFailureDone.then(result);
+  }
   return new Promise(function (resolve) {
     setTimeout(function () {
       if (upload || scenario === "ordinary") {
@@ -1108,22 +1150,9 @@ function run() {
         input.files = [{}];
         input.dispatch("change");
       }
-      if (scenario === "report-cross-group-member-duplicate") api.start();
       setTimeout(function () {
-        var result = {
-          sameObject: api === context.VaultCleanerServerUI,
-          connected: api.state.connected,
-          terminal: api.state.terminal,
-          mainStatus: document.nodes["vc-status"].textContent,
-          uploadPhase: api.state.uploadStatus.weapons,
-          uploadStatus: document.nodes["vc-upload-status-weapons"].textContent
-        };
-        if (scenario === "report-cross-group-member-duplicate") {
-          result.reportRevision = api.state.report_revision;
-          result.snapshot = api.state.snapshot;
-        }
-        resolve(result);
-      }, scenario === "report-cross-group-member-duplicate" ? 5 : 0);
+        resolve(result());
+      }, 0);
     }, 0);
   });
 }

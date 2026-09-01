@@ -3,6 +3,32 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #102 incremental review follow-up
+
+- Replaced the cross-group malformed-envelope adapter regression's fixed
+  five-millisecond assertion delay with a test-only completion signal on the
+  mocked `vc-status` node. The signal resolves only after the adapter has
+  processed the malformed response, entered terminal incompatible state, and
+  published its failure status; other harness scenarios are unchanged and no
+  production timing/lifecycle hook was added.
+- Documented the untrusted `exactDuplicateGroupsFromSnapshot` contract in
+  JSDoc: authoritative group/member ordering is preserved, opaque identity,
+  uniqueness, dispositions, and section/hash proposal correlation are
+  validated before adoption, and browser grouping/ranking/survivor truth is
+  never reconstructed. Contract violations throw `Error`/`TypeError` as
+  applicable.
+- Validation: focused UI/adapter tests `102 passed`; full suite `925 passed in
+  19.91s`; Chromium marker gate `4 passed, 921 deselected in 4.45s`, with the
+  focused #102 test `1 passed in 1.68s` (0.47s call, 0.37s setup, 0.58s
+  teardown); non-editable wheel proof, Ruff, and `git diff --check` passed; no
+  tracked `data/` files. The single #102 Playwright test remains the only new
+  browser test.
+- No behavior or files outside the established #102 presentation,
+  test-harness, and documentation scope changed; snapshot/ruleset versions,
+  server protocol/lifecycle, runtime dependencies, CI, persistence, auth,
+  rules, and #109/#110 boundaries remain unchanged. Committed locally for
+  Sol's review; no push or GitHub reply was made.
+
 ## 2026-09-01 — #102 PR #111 review follow-up
 
 - Fixed the Armor duplicates Unset bug: a function-scoped DOM button named
