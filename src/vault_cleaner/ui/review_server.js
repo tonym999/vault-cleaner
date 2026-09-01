@@ -198,8 +198,15 @@
 
   function armorGroupValueStillExists(groups, field, value) {
     if (!value) return true;
+    var normalize = ui && typeof ui.normalizeCategoricalValue === "function"
+      ? ui.normalizeCategoricalValue
+      : function (candidate) {
+        var text = candidate === null || candidate === undefined
+          ? "" : String(candidate);
+        return text === "" ? "none/unknown" : text;
+      };
     return (groups || []).some(function (group) {
-      return group[field] === value;
+      return normalize(group[field]) === normalize(value);
     });
   }
 

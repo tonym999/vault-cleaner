@@ -26,6 +26,11 @@
     return value === null || value === undefined ? "" : String(value);
   }
 
+  function normalizeCategoricalValue(value) {
+    var text = str(value);
+    return text === "" ? "none/unknown" : text;
+  }
+
   // Ids and hashes are decimal uint64 strings. Comparing by length and then
   // lexicographically orders them numerically without ever building a Number,
   // which would silently round the low digits away.
@@ -266,6 +271,14 @@
     var groups = [];
     var sections = (snapshot && snapshot.sections) || [];
     var seenGroups = emptyMap();
+    var proposalActions = emptyMap();
+    sections.forEach(function (section) {
+      (section && Array.isArray(section.decisions) ? section.decisions : []).forEach(function (decision) {
+        if (!isObject(decision) || (decision.action !== "junk" && decision.action !== "review")) return;
+        var id = requireIdString(decision.id, "proposal decision id");
+        proposalActions[id] = decision.action;
+      });
+    });
     for (var s = 0; s < sections.length; s++) {
       var section = sections[s] || {};
       var armor = section.armor;
@@ -293,6 +306,19 @@
           var id = requireIdString(member.id, memberWhere + ".id");
           if (seenMembers[id]) throw new Error("duplicate member id " + id + " at " + memberWhere);
           seenMembers[id] = true;
+          var disposition = str(member.disposition);
+          var proposalAction = member.proposal_action === null ||
+            member.proposal_action === undefined ? "" : str(member.proposal_action);
+          if (["preferred_survivor", "retained_protected", "proposed_junk",
+            "proposed_review"].indexOf(disposition) === -1) {
+            throw new Error(memberWhere + " has an unsupported disposition");
+          }
+          var expectedAction = disposition === "proposed_junk" ? "junk" :
+            disposition === "proposed_review" ? "review" : "";
+          if (proposalAction !== expectedAction ||
+              (proposalAction && proposalActions[id] !== proposalAction)) {
+            throw new Error(memberWhere + " has inconsistent disposition/proposal action");
+          }
           return {
             id: id,
             location: str(member.location),
@@ -304,9 +330,8 @@
             locked: member.locked === true,
             masterworkTier: member.masterwork_tier,
             power: member.power,
-            disposition: str(member.disposition),
-            proposalAction: member.proposal_action === null ||
-              member.proposal_action === undefined ? "" : str(member.proposal_action),
+            disposition: disposition,
+            proposalAction: proposalAction,
             proposalReason: member.proposal_reason === null ||
               member.proposal_reason === undefined ? "" : str(member.proposal_reason)
           };
@@ -316,17 +341,15 @@
           groupId: groupId,
           hash: hash,
           name: str(source.name),
-          type: str(source.type),
-          guardianClass: str(source.guardian_class),
-          itemArchetype: str(source.item_archetype),
+          type: normalizeCategoricalValue(source.type),
+          guardianClass: normalizeCategoricalValue(source.guardian_class),
+          itemArchetype: normalizeCategoricalValue(source.item_archetype),
           tier: source.tier,
           stats: isObject(source.stats) ? Object.keys(source.stats).reduce(function (copy, name) {
             copy[name] = source.stats[name];
             return copy;
           }, emptyMap()) : emptyMap(),
-          tuningModSlot: source.tuning_mod_slot === null ||
-            source.tuning_mod_slot === undefined || str(source.tuning_mod_slot) === ""
-            ? "none/unknown" : str(source.tuning_mod_slot),
+          tuningModSlot: normalizeCategoricalValue(source.tuning_mod_slot),
           seasonalMod: str(source.seasonal_mod),
           holofoil: str(source.holofoil),
           spiritSignature: Array.isArray(source.spirit_signature)
@@ -349,10 +372,10 @@
       });
       if (!nameMatch && !idMatch) return false;
     }
-    if (q.guardianClass && group.guardianClass !== q.guardianClass) return false;
-    if (q.type && group.type !== q.type) return false;
-    if (q.itemArchetype && group.itemArchetype !== q.itemArchetype) return false;
-    if (q.tuningModSlot && group.tuningModSlot !== q.tuningModSlot) return false;
+    if (q.guardianClass && normalizeCategoricalValue(group.guardianClass) !== normalizeCategoricalValue(q.guardianClass)) return false;
+    if (q.type && normalizeCategoricalValue(group.type) !== normalizeCategoricalValue(q.type)) return false;
+    if (q.itemArchetype && normalizeCategoricalValue(group.itemArchetype) !== normalizeCategoricalValue(q.itemArchetype)) return false;
+    if (q.tuningModSlot && normalizeCategoricalValue(group.tuningModSlot) !== normalizeCategoricalValue(q.tuningModSlot)) return false;
     return true;
   }
 
@@ -365,9 +388,7 @@
   function countArmorGroups(groups, field) {
     var counts = emptyMap();
     (groups || []).forEach(function (group) {
-      var value = group[field];
-      value = value === null || value === undefined || value === ""
-        ? "none/unknown" : str(value);
+      var value = normalizeCategoricalValue(group[field]);
       counts[value] = (counts[value] || 0) + 1;
     });
     return Object.keys(counts).map(function (value) {
@@ -721,8 +742,8 @@
     }
 
     function isProposalMember(member) {
-      return member.disposition === "proposed_junk" ||
-        member.disposition === "proposed_review";
+      return (member.disposition === "proposed_junk" && member.proposalAction === "junk") ||
+        (member.disposition === "proposed_review" && member.proposalAction === "review");
     }
 
     function armorGroupHeader(group) {
@@ -890,6 +911,7 @@
     emptyMap: emptyMap, createView: createView,
     exactDuplicateGroupsFromSnapshot: exactDuplicateGroupsFromSnapshot,
     matchesArmorGroup: matchesArmorGroup, filterArmorGroups: filterArmorGroups,
-    countArmorGroups: countArmorGroups, armorStatDisplay: armorStatDisplay
+    countArmorGroups: countArmorGroups, armorStatDisplay: armorStatDisplay,
+    normalizeCategoricalValue: normalizeCategoricalValue
   };
 });

@@ -615,7 +615,9 @@ def test_unknown_and_empty_guardian_classes_use_honest_presentation_values(tmp_p
 def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
     snapshot = tmp_path / "exact-groups.json"
     snapshot.write_text(json.dumps({
-        "sections": [{"kind": "armor", "decisions": [], "armor": {
+        "sections": [{"kind": "armor", "decisions": [
+            {"id": "loser", "hash": "18446744073709551615", "action": "junk"},
+        ], "armor": {
             "exact_duplicate_groups": [
                 {
                     "group_kind": "exact_duplicate", "group_id": "__proto__",
@@ -638,8 +640,8 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
                 },
                 {
                     "group_kind": "exact_duplicate", "group_id": "second",
-                    "hash": "700", "name": "Other plate", "type": "Helmet",
-                    "guardian_class": "Warlock", "item_archetype": "Bulwark",
+                    "hash": "700", "name": "Other plate", "type": "",
+                    "guardian_class": "", "item_archetype": "",
                     "tier": 4, "stats": {"weapons": 10, "health": 10},
                     "tuning_mod_slot": "", "members": [
                         {"id": "other", "location": "Vault",
@@ -661,7 +663,8 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
         'process.stdout.write(JSON.stringify({\n'
         '  ids: groups.map(function (g) { return [g.groupId, g.hash, g.preferredSurvivorId, g.members.map(function (m) { return m.id; })]; }),\n'
         '  strings: typeof groups[0].groupId === "string" && typeof groups[0].hash === "string" && typeof groups[0].members[0].id === "string",\n'
-        '  filtered: {name: api.filterArmorGroups(groups, {text: "gunner"}).length, id: api.filterArmorGroups(groups, {text: "loser"}).length, class: api.filterArmorGroups(groups, {guardianClass: "Hunter"}).length, slot: api.filterArmorGroups(groups, {type: "Helmet"}).length, archetype: api.filterArmorGroups(groups, {itemArchetype: "Gunner"}).length, tuning: api.filterArmorGroups(groups, {tuningModSlot: "none/unknown"}).length},\n'
+    '  filtered: {name: api.filterArmorGroups(groups, {text: "gunner"}).length, id: api.filterArmorGroups(groups, {text: "loser"}).length, class: api.filterArmorGroups(groups, {guardianClass: "Hunter"}).length, blankClass: api.filterArmorGroups(groups, {guardianClass: "none/unknown"}).length, slot: api.filterArmorGroups(groups, {type: "none/unknown"}).length, archetype: api.filterArmorGroups(groups, {itemArchetype: "Gunner"}).length, blankArchetype: api.filterArmorGroups(groups, {itemArchetype: "none/unknown"}).length, tuning: api.filterArmorGroups(groups, {tuningModSlot: "none/unknown"}).length},\n'
+    '  categories: {class: api.countArmorGroups(groups, "guardianClass"), type: api.countArmorGroups(groups, "type"), archetype: api.countArmorGroups(groups, "itemArchetype"), tuning: api.countArmorGroups(groups, "tuningModSlot")},\n'
         '  membersIntact: api.filterArmorGroups(groups, {text: "loser"})[0].members.length === 3,\n'
         '  roles: stats.rows.map(function (row) { return [row.role, row.name, row.value]; }),\n'
         '  zerosCollapsed: stats.zeroSummary.indexOf("three base stats") !== -1,\n'
@@ -684,8 +687,14 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
             ["second", "700", "other", ["other"]],
         ],
         "strings": True,
-        "filtered": {"name": 1, "id": 1, "class": 1, "slot": 1,
-                     "archetype": 1, "tuning": 1},
+        "filtered": {"name": 1, "id": 1, "class": 1, "blankClass": 1,
+                     "slot": 1, "archetype": 1, "blankArchetype": 1, "tuning": 1},
+        "categories": {
+            "class": [{"value": "Hunter", "count": 1}, {"value": "none/unknown", "count": 1}],
+            "type": [{"value": "Chest Armor", "count": 1}, {"value": "none/unknown", "count": 1}],
+            "archetype": [{"value": "Gunner", "count": 1}, {"value": "none/unknown", "count": 1}],
+            "tuning": [{"value": "none/unknown", "count": 1}, {"value": "Weapons", "count": 1}],
+        },
         "membersIntact": True,
         "roles": [["Primary", "weapons", 30], ["Secondary", "health", 25],
                   ["Tertiary", "class", 20]],
@@ -733,13 +742,19 @@ var toggles = [];
 var view = api.createView({document: new Document(), state: state,
   toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
   verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
-var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [], armor: {
+var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [
+  {id: "proposal", hash: "h", action: "junk"}
+], armor: {
   exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g", hash: "h",
-    name: "Plate", type: "Chest Armor", guardian_class: "Hunter", item_archetype: "Gunner",
+    name: "</script><img src=x onerror=alert(1)>", type: "Chest Armor",
+    guardian_class: "Hunter", item_archetype: "</b><script>alert(1)</script>",
     tier: 5, stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
-    tuning_mod_slot: "Weapons", preferred_survivor_id: "survivor", members: [
-      {id: "survivor", location: "Vault", disposition: "preferred_survivor"},
-      {id: "retained", location: "Hunter(550)", disposition: "retained_protected", protection_level: "hard"},
+    tuning_mod_slot: "</script><script>alert(1)</script>", seasonal_mod: "Solar",
+    holofoil: "<img src=x onerror=alert(1)>",
+    spirit_signature: ["</script><script>alert(1)</script>"],
+    preferred_survivor_id: "survivor", members: [
+      {id: "survivor", location: "<b onclick=alert(1)>Vault</b>", disposition: "preferred_survivor"},
+      {id: "retained", location: "</b><script>alert(1)</script>", disposition: "retained_protected", protection_level: "hard"},
       {id: "proposal", location: "Vault", disposition: "proposed_junk", proposal_action: "junk"}
     ]}]
 }}]})[0];
@@ -749,10 +764,39 @@ var before = proposal.cell;
 proposal.approve.click();
 state.verdicts.proposal = "approved";
 view.paintArmorMember("proposal");
+var malformedState = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var malformedView = api.createView({document: new Document(), state: malformedState,
+  verdictText: function () { return "Unreviewed"; }});
+var malformedArticle = malformedView.armorGroup({
+  groupKind: "exact_duplicate", groupId: "malformed", hash: "h", name: "Malformed",
+  type: "Chest Armor", guardianClass: "Hunter", itemArchetype: "Gunner", tier: 5,
+  stats: {}, tuningModSlot: "Weapons", seasonalMod: "", holofoil: "",
+  spiritSignature: [], preferredSurvivorId: "bad", members: [
+    {id: "bad", location: "Vault", disposition: "proposed_junk", proposalAction: ""}
+  ]
+});
+var finalizedState = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var finalizedView = api.createView({document: new Document(), state: finalizedState,
+  verdictDisabled: function () { return true; },
+  verdictText: function () { return "Unreviewed"; }});
+finalizedView.armorGroup(group);
+var finalizedProposal = finalizedState.duplicateRows.proposal;
 process.stdout.write(JSON.stringify({
-  complete: article.textContent.indexOf("Plate") !== -1 &&
+  complete: article.textContent.indexOf("</script><img src=x onerror=alert(1)>") !== -1 &&
     article.textContent.indexOf("survivor") !== -1 && article.textContent.indexOf("retained") !== -1 &&
     article.textContent.indexOf("proposal") !== -1 && article.textContent.indexOf("Tuning Mod Slot") !== -1,
+  hostileText: article.textContent.indexOf("</b><script>alert(1)</script>") !== -1 &&
+    article.textContent.indexOf("<b onclick=alert(1)>Vault</b>") !== -1,
+  inert: count(article, function (node) {
+    return node.tagName === "IMG" || node.tagName === "SCRIPT" || node.tagName === "B";
+  }) === 0,
+  malformedReadOnly: count(malformedArticle, function (node) {
+    return node.tagName === "BUTTON";
+  }) === 0,
+  finalizedDisabled: finalizedProposal.approve.disabled && finalizedProposal.veto.disabled &&
+    finalizedProposal.clear.disabled,
   readOnly: count(state.duplicateRows.survivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
     count(state.duplicateRows.retained.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
   proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
@@ -772,6 +816,10 @@ process.stdout.write(JSON.stringify({
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
         "complete": True,
+        "hostileText": True,
+        "inert": True,
+        "malformedReadOnly": True,
+        "finalizedDisabled": True,
         "readOnly": True,
         "proposalControls": True,
         "callback": True,

@@ -119,9 +119,10 @@ terminal.
 
 - Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
   151.0.7922.34 (Playwright Chromium revision 1234), headless.
-- Viewports and appearances: 390×844 narrow, with both light and dark media
-  appearances exercised; the contained member matrix stayed within the page
-  width. The desktop run used the same packaged server and fake fixture.
+- Viewports and appearances: 1440×1000 desktop and 390×844 narrow, with both
+  light and dark media appearances exercised at each viewport. The contained
+  member matrix stayed within the page width in the narrow run. All checks used
+  the same packaged server and fake fixture.
 - Fixture: `tests/fixtures/armor_duplicates_ui.csv`; no real vault data,
   wishlists, or manifest network access.
 - Result: pass. The authenticated server rendered the complete authoritative
@@ -142,13 +143,18 @@ terminal.
   Proposals, while uploading the group again restored the option. Finalise
   left the duplicate matrix readable/frozen and Reset returned to upload-ready
   idle state.
-- Hostile-text result: pass. Group/member values were rendered as inert text;
-  no injected HTML nodes appeared. The existing Proposals, upload, reset,
-  replacement, and rejected-upload reconciliation paths remained unchanged;
-  adapter coverage additionally verifies valid duplicate state retention and
-  only-invalid categorical filter clearing.
-- Browser timing: the four-test Chromium marker run completed in 4.42s; the
-  new focused #102 test's call phase was 0.42s (0.57s including teardown).
+- Hostile-text result: pass. The Node duplicate-DOM regression uses hostile
+  group name, archetype, tuning-mod slot, Holofoil, Spirit signature, and
+  member-location strings such as `</script><img ...>` and
+  `</b><script>alert(1)</script>`; all remain text and no IMG, SCRIPT, or B
+  nodes are created. The existing Proposals, upload, reset, replacement, and
+  rejected-upload reconciliation paths remained unchanged; adapter coverage
+  additionally verifies valid duplicate state retention, same-report verdict
+  repaint state, shared cross-view verdict state, and only-invalid categorical
+  filter clearing.
+- Browser timing: the four-test Chromium marker run completed in 4.48s; the
+  focused #102 test completed in 1.60s, with a 0.44s call phase and 0.58s
+  teardown.
 - Remaining limitation: as recorded by #104, the pre-existing mutation gate
   can blur a verdict button that is focused while its acknowledgement is in
   flight; #102 did not alter server lifecycle or mutation semantics.

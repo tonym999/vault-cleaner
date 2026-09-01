@@ -20,18 +20,21 @@ surprises the next agent should know about.
   map. Presentation state preserves valid duplicate filters/surface and
   clears only values absent from a replacement group set.
 - Added hostile/prototype/opaque-id Node coverage, adapter reconciliation
-  coverage, a fake three-member tier-5 group fixture, and exactly one focused
-  Chromium test covering complete membership and cross-view acknowledgement.
+  coverage (including malformed-envelope rejection, same-report repaint,
+  shared cross-view verdict state, finalized disabling, and view retention), a
+  fake three-member tier-5 group fixture, and exactly one focused Chromium test
+  covering complete membership and cross-view acknowledgement.
 - Added the reviewed `docs/armor-archetypes.md`, corrected the tier-5 gotcha
   and terminology warning in `AGENTS.md`, updated README and browser
-  verification documentation, and recorded the light/dark narrow-layout,
-  focus, replacement/rejection, finalise/freeze, and reset pass. The
-  pre-existing focused-button blur during in-flight mutation remains
+  verification documentation, and recorded the 1440×1000 desktop and 390×844
+  narrow light/dark, focus, replacement/rejection, finalise/freeze, and reset
+  pass. The pre-existing focused-button blur during in-flight mutation remains
   documented.
-- Validation: focused UI/adapter tests `94 passed`; full suite `917 passed`;
-  Chromium marker gate `4 passed, 912 deselected in 4.46s`, with the new
-  test's call phase 0.45s (0.56s including teardown); non-editable wheel
-  proof passed; Ruff and `git diff --check` passed; no tracked `data/` files.
+- Validation: focused UI/adapter tests `97 passed`; full suite `920 passed`;
+  Chromium marker gate `4 passed, 916 deselected in 4.48s`, with the focused
+  #102 test `1 passed in 1.60s` (0.44s call, 0.58s teardown); non-editable
+  wheel proof passed; Ruff and `git diff --check` passed; no tracked `data/`
+  files.
   Baseline sandbox runs had only the pre-existing socket/Chromium permission
   failures and were rerun with required loopback/browser permissions.
 - Snapshot schema v2, ruleset v4, Python decisions/rules, server protocol and

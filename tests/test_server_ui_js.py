@@ -147,10 +147,10 @@ def test_exact_group_surface_reconciles_without_changing_session_fields(tmp_path
         r'''
 "use strict";
 var server = require(process.argv[2]);
-function group(tuning) {
+function group(tuning, guardianClass, archetype) {
   return { group_kind: "exact_duplicate", group_id: "__proto__", hash: "990",
-    name: "Armor", type: "Chest Armor", guardian_class: "Hunter",
-    item_archetype: "Gunner", tier: 5,
+    name: "Armor", type: "Chest Armor", guardian_class: guardianClass,
+    item_archetype: archetype, tier: 5,
     stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
     tuning_mod_slot: tuning, preferred_survivor_id: "01", members: [
       {id: "01", disposition: "preferred_survivor"},
@@ -161,23 +161,27 @@ function group(tuning) {
 function envelope(revision, groups) {
   return {schema_version: 1, state: "reviewing", report_revision: revision,
     verdict_revision: revision, fingerprint: "fp-" + revision,
-    snapshot: {sections: [{kind: "armor", decisions: [], armor: {
+    snapshot: {sections: [{kind: "armor", decisions: [
+      {id: "loser", hash: "990", action: "junk"}
+    ], armor: {
       exact_duplicate_groups: groups
     }}]}, verdicts: [], override_status: []};
 }
 var state = server.createState();
-server.applySessionEnvelope(envelope(1, [group("Weapons")]), state);
+server.applySessionEnvelope(envelope(1, [group("Weapons", "", "")]), state);
 state.surface = "armor-duplicates";
 state.armorQuery.text = "Armor";
-state.armorQuery.guardianClass = "Hunter";
+state.armorQuery.guardianClass = "none/unknown";
+state.armorQuery.itemArchetype = "none/unknown";
 state.armorQuery.tuningModSlot = "Weapons";
-server.applySessionEnvelope(envelope(2, [group("Weapons")]), state);
+server.applySessionEnvelope(envelope(2, [group("Weapons", "", "")]), state);
 var retained = {surface: state.surface, text: state.armorQuery.text,
   classValue: state.armorQuery.guardianClass, tuning: state.armorQuery.tuningModSlot,
+  archetypeValue: state.armorQuery.itemArchetype,
   report: state.report_revision, fingerprint: state.fingerprint,
   groupId: state.armorGroups[0].groupId,
   memberIds: state.armorGroups[0].members.map(function (m) { return m.id; })};
-server.applySessionEnvelope(envelope(3, [group("")]), state);
+server.applySessionEnvelope(envelope(3, [group("", "", "")]), state);
 var invalidated = state.reconciliation.invalidated.slice();
 var cleared = state.armorQuery.tuningModSlot === "" &&
   state.armorQuery.text === "Armor" && state.surface === "armor-duplicates";
@@ -198,13 +202,78 @@ process.stdout.write(JSON.stringify({retained: retained, cleared: cleared,
     assert json.loads(completed.stdout) == {
         "retained": {
             "surface": "armor-duplicates", "text": "Armor",
-            "classValue": "Hunter", "tuning": "Weapons", "report": 2,
+            "classValue": "none/unknown", "tuning": "Weapons",
+            "archetypeValue": "none/unknown", "report": 2,
             "fingerprint": "fp-2", "groupId": "__proto__",
             "memberIds": ["01", "loser"],
         },
         "cleared": True,
         "noGroups": True,
         "invalidated": ["duplicate filter tuningModSlot Weapons"],
+    }
+
+
+def test_duplicate_ack_repaints_shared_verdict_state_without_view_switch_reset(
+    tmp_path: Path,
+):
+    harness = tmp_path / "server-ui-duplicate-ack-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+function envelope(verdictRevision, state) {
+  return {schema_version: 1, state: state || "reviewing", report_revision: 1,
+    verdict_revision: verdictRevision, fingerprint: "fingerprint",
+    snapshot: {sections: [{kind: "armor", decisions: [
+      {id: "loser", hash: "h", action: "junk"}
+    ], armor: {exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g",
+      hash: "h", name: "Plate", guardian_class: "", item_archetype: "",
+      preferred_survivor_id: "survivor", members: [
+        {id: "survivor", disposition: "preferred_survivor"},
+        {id: "loser", disposition: "proposed_junk", proposal_action: "junk"}
+      ]
+    }]}}]},
+    verdicts: verdictRevision ? [{id: "loser", verdict: "approved"}] : [],
+    override_status: []};
+}
+var state = server.createState();
+server.applySessionEnvelope(envelope(0), state);
+state.surface = "armor-duplicates";
+state.armorQuery.text = "Plate";
+state.armorQuery.guardianClass = "none/unknown";
+state.duplicateRows.loser = {sentinel: true};
+var registry = state.duplicateRows;
+server.applySessionEnvelope(envelope(1), state);
+var afterAck = {
+  verdict: state.verdicts.loser, surface: state.surface,
+  text: state.armorQuery.text, classValue: state.armorQuery.guardianClass,
+  registryKept: state.duplicateRows === registry,
+  groupKept: state.armorGroups[0].members.map(function (member) { return member.id; })
+};
+server.applySessionEnvelope(envelope(2, "finalized"), state);
+var finalized = state.server_state === "finalized" && state.surface === "armor-duplicates" &&
+  state.verdicts.loser === "approved";
+process.stdout.write(JSON.stringify({afterAck: afterAck, finalized: finalized}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "afterAck": {
+            "verdict": "approved", "surface": "armor-duplicates", "text": "Plate",
+            "classValue": "none/unknown", "registryKept": True,
+            "groupKept": ["survivor", "loser"],
+        },
+        "finalized": True,
     }
 
 
@@ -311,6 +380,67 @@ process.stdout.write(JSON.stringify({
         "envelope": None,
         "query": "keep me",
     }
+
+
+def test_inconsistent_duplicate_proposal_is_rejected_before_presentation_adoption(
+    tmp_path: Path,
+):
+    harness = tmp_path / "server-ui-malformed-duplicate-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+function envelope(revision, member, decisions) {
+  return {schema_version: 1, state: "reviewing", report_revision: revision,
+    verdict_revision: revision, fingerprint: "fingerprint-" + revision,
+    snapshot: {sections: [{kind: "armor", decisions: decisions || [], armor: {
+      exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g",
+        hash: "h", name: "Plate", preferred_survivor_id: "survivor",
+        members: [
+          {id: "survivor", disposition: "preferred_survivor"}, member
+        ]
+      }]
+    }}]}, verdicts: [], override_status: []};
+}
+var state = server.createState();
+server.applySessionEnvelope(envelope(1,
+  {id: "loser", disposition: "proposed_junk", proposal_action: "junk"},
+  [{id: "loser", hash: "h", action: "junk"}]), state);
+state.surface = "armor-duplicates";
+state.armorQuery.text = "Plate";
+var before = state.armorGroups;
+var errors = [];
+[
+  {id: "loser", disposition: "proposed_junk", proposal_action: "review"},
+  {id: "loser", disposition: "proposed_junk", proposal_action: "junk"},
+  {id: "loser", disposition: "retained_protected", proposal_action: "junk"},
+  {id: "loser", disposition: "other", proposal_action: ""}
+].forEach(function (member, index) {
+  try {
+    server.applySessionEnvelope(envelope(index + 2, member,
+      index === 1 ? [] : [{id: "loser", hash: "h", action: "junk"}]), state);
+  } catch (error) {
+    errors.push(error.message);
+  }
+});
+process.stdout.write(JSON.stringify({errors: errors.length,
+  stillValid: state.report_revision === 1 && state.surface === "armor-duplicates" &&
+    state.armorQuery.text === "Plate" && state.armorGroups === before &&
+    state.armorGroups[0].members[1].proposalAction === "junk"}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {"errors": 4, "stillValid": True}
 
 
 def test_reconnect_button_retains_and_calls_its_retry_callback(tmp_path: Path):
@@ -532,6 +662,15 @@ def test_server_upload_statuses_are_described_live_regions():
         assert parser.statuses[status_id]["role"] == "status"
         assert parser.statuses[status_id]["aria-live"] == "polite"
         assert parser.statuses[status_id]["inside_label"] is False
+
+
+def test_skip_link_targets_visible_focusable_review_content():
+    resource = files("vault_cleaner.ui").joinpath("review_server.html")
+    with as_file(resource) as page:
+        source = page.read_text(encoding="utf-8")
+    assert '<a class="skip" href="#vc-skip-target">' in source
+    assert '<h1 id="vc-skip-target" tabindex="-1">' in source
+    assert 'href="#vc-list"' not in source
 
 
 class _ActionMarkupParser(HTMLParser):
