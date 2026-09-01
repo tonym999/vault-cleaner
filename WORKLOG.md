@@ -30,8 +30,8 @@ surprises the next agent should know about.
   narrow light/dark, focus, replacement/rejection, finalise/freeze, and reset
   pass. The pre-existing focused-button blur during in-flight mutation remains
   documented.
-- Validation: focused UI/adapter tests `97 passed`; full suite `920 passed`;
-  Chromium marker gate `4 passed, 916 deselected in 4.48s`, with the focused
+- Validation: focused UI/adapter tests `97 passed`; full suite `920 passed in
+  18.71s`; Chromium marker gate `4 passed, 916 deselected in 4.57s`, with the focused
   #102 test `1 passed in 1.60s` (0.44s call, 0.58s teardown); non-editable
   wheel proof passed; Ruff and `git diff --check` passed; no tracked `data/`
   files.

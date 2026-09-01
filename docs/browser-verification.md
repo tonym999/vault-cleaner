@@ -152,7 +152,7 @@ terminal.
   additionally verifies valid duplicate state retention, same-report verdict
   repaint state, shared cross-view verdict state, and only-invalid categorical
   filter clearing.
-- Browser timing: the four-test Chromium marker run completed in 4.48s; the
+- Browser timing: the four-test Chromium marker run completed in 4.57s; the
   focused #102 test completed in 1.60s, with a 0.44s call phase and 0.58s
   teardown.
 - Remaining limitation: as recorded by #104, the pre-existing mutation gate
