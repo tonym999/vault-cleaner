@@ -612,6 +612,336 @@ def test_unknown_and_empty_guardian_classes_use_honest_presentation_values(tmp_p
     ]
 
 
+def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
+    snapshot = tmp_path / "exact-groups.json"
+    snapshot.write_text(json.dumps({
+        "sections": [{"kind": "armor", "decisions": [
+            {"id": "loser", "hash": "18446744073709551615", "action": "junk"},
+        ], "armor": {
+            "exact_duplicate_groups": [
+                {
+                    "group_kind": "exact_duplicate", "group_id": "__proto__",
+                    "hash": "18446744073709551615", "name": "Gunner plate",
+                    "type": "Chest Armor", "guardian_class": "Hunter",
+                    "item_archetype": "Gunner", "tier": 5,
+                    "stats": {"weapons": 30, "health": 25, "class": 20,
+                              "grenade": 0, "super": 0, "melee": 0},
+                    "tuning_mod_slot": "Weapons", "seasonal_mod": "Solar",
+                    "holofoil": "false", "spirit_signature": [],
+                    "preferred_survivor_id": "0009223372036854775808",
+                    "members": [
+                        {"id": "0009223372036854775808", "location": "Vault",
+                         "disposition": "preferred_survivor"},
+                        {"id": "__proto__", "location": "Hunter(550)",
+                         "disposition": "retained_protected"},
+                        {"id": "loser", "location": "Vault",
+                         "disposition": "proposed_junk", "proposal_action": "junk"},
+                    ],
+                },
+                {
+                    "group_kind": "exact_duplicate", "group_id": "second",
+                    "hash": "700", "name": "Other plate", "type": "",
+                    "guardian_class": "", "item_archetype": "",
+                    "tier": 4, "stats": {"weapons": 10, "health": 10},
+                    "tuning_mod_slot": "", "members": [
+                        {"id": "other", "location": "Vault",
+                         "disposition": "preferred_survivor"},
+                    ],
+                    "preferred_survivor_id": "other",
+                },
+            ]
+        }}]
+    }), encoding="utf-8")
+    script = tmp_path / "exact-groups.js"
+    script.write_text(
+        'var fs = require("fs");\n'
+        'var api = require(process.argv[2]);\n'
+        'var snapshot = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));\n'
+        'var groups = api.exactDuplicateGroupsFromSnapshot(snapshot);\n'
+        'var stats = api.armorStatDisplay(groups[0]);\n'
+        'var fallback = api.armorStatDisplay(groups[1]);\n'
+        'process.stdout.write(JSON.stringify({\n'
+        '  ids: groups.map(function (g) { return [g.groupId, g.hash, g.preferredSurvivorId, g.members.map(function (m) { return m.id; })]; }),\n'
+        '  strings: typeof groups[0].groupId === "string" && typeof groups[0].hash === "string" && typeof groups[0].members[0].id === "string",\n'
+    '  filtered: {name: api.filterArmorGroups(groups, {text: "gunner"}).length, id: api.filterArmorGroups(groups, {text: "loser"}).length, class: api.filterArmorGroups(groups, {guardianClass: "Hunter"}).length, blankClass: api.filterArmorGroups(groups, {guardianClass: "none/unknown"}).length, slot: api.filterArmorGroups(groups, {type: "none/unknown"}).length, archetype: api.filterArmorGroups(groups, {itemArchetype: "Gunner"}).length, blankArchetype: api.filterArmorGroups(groups, {itemArchetype: "none/unknown"}).length, tuning: api.filterArmorGroups(groups, {tuningModSlot: "none/unknown"}).length},\n'
+    '  categories: {class: api.countArmorGroups(groups, "guardianClass"), type: api.countArmorGroups(groups, "type"), archetype: api.countArmorGroups(groups, "itemArchetype"), tuning: api.countArmorGroups(groups, "tuningModSlot")},\n'
+        '  membersIntact: api.filterArmorGroups(groups, {text: "loser"})[0].members.length === 3,\n'
+        '  roles: stats.rows.map(function (row) { return [row.role, row.name, row.value]; }),\n'
+        '  zerosCollapsed: stats.zeroSummary.indexOf("three base stats") !== -1,\n'
+        '  fallback: fallback.tier5 === false && fallback.rows.length === 2,\n'
+        '  prototypeClean: Object.prototype.polluted === undefined\n'
+        '}));\n',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app), str(snapshot)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "ids": [
+            ["__proto__", "18446744073709551615", "0009223372036854775808",
+             ["0009223372036854775808", "__proto__", "loser"]],
+            ["second", "700", "other", ["other"]],
+        ],
+        "strings": True,
+        "filtered": {"name": 1, "id": 1, "class": 1, "blankClass": 1,
+                     "slot": 1, "archetype": 1, "blankArchetype": 1, "tuning": 1},
+        "categories": {
+            "class": [{"value": "Hunter", "count": 1}, {"value": "none/unknown", "count": 1}],
+            "type": [{"value": "Chest Armor", "count": 1}, {"value": "none/unknown", "count": 1}],
+            "archetype": [{"value": "Gunner", "count": 1}, {"value": "none/unknown", "count": 1}],
+            "tuning": [{"value": "none/unknown", "count": 1}, {"value": "Weapons", "count": 1}],
+        },
+        "membersIntact": True,
+        "roles": [["Primary", "weapons", 30], ["Secondary", "health", 25],
+                  ["Tertiary", "class", 20]],
+        "zerosCollapsed": True,
+        "fallback": True,
+        "prototypeClean": True,
+    }
+
+
+def test_exact_group_projection_rejects_cross_group_ids_and_bad_proposals(tmp_path):
+    script = tmp_path / "exact-group-validation.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function group(id, preferred, proposal) {
+  return {group_kind: "exact_duplicate", group_id: id, hash: "h", name: "Armor",
+    preferred_survivor_id: preferred, members: [
+      {id: preferred, disposition: "preferred_survivor"},
+      {id: proposal, disposition: "proposed_junk", proposal_action: "junk"}
+    ]};
+}
+function snapshot(groups, sections) {
+  return {sections: sections || [{kind: "armor", decisions: groups.map(function (unused, index) {
+    return {id: "proposal" + index, hash: "h", action: "junk"};
+  }), armor: {exact_duplicate_groups: groups}}]};
+}
+function rejects(value) {
+  try { api.exactDuplicateGroupsFromSnapshot(value); return false; }
+  catch (error) { return true; }
+}
+var duplicated = snapshot([group("g1", "same", "one"), group("g2", "same", "two")], [
+  {kind: "armor", decisions: [
+    {id: "one", hash: "h", action: "junk"}, {id: "two", hash: "h", action: "junk"}
+  ], armor: {exact_duplicate_groups: [group("g1", "same", "one"), group("g2", "same", "two")]}}
+]);
+var crossSection = snapshot([{
+  group_kind: "exact_duplicate", group_id: "cross", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}], [
+  {kind: "weapons", decisions: [{id: "survivor", hash: "h", action: "junk"}]},
+  {kind: "armor", decisions: [], armor: {exact_duplicate_groups: [{
+    group_kind: "exact_duplicate", group_id: "cross", hash: "h",
+    preferred_survivor_id: "survivor", members: [
+      {id: "survivor", disposition: "preferred_survivor"}
+    ]
+  }]}}
+]);
+var wrongHash = snapshot([{
+  group_kind: "exact_duplicate", group_id: "wrong", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}], [{kind: "armor", decisions: [
+  {id: "survivor", hash: "different", action: "junk"}
+], armor: {exact_duplicate_groups: [{
+  group_kind: "exact_duplicate", group_id: "wrong", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}]}}]);
+var valid = api.exactDuplicateGroupsFromSnapshot(snapshot([{
+  group_kind: "exact_duplicate", group_id: "valid", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}], [{kind: "armor", decisions: [
+  {id: "survivor", hash: "h", action: "junk", reason: "later score"}
+], armor: {exact_duplicate_groups: [{
+  group_kind: "exact_duplicate", group_id: "valid", hash: "h",
+  preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"}
+  ]
+}]}}]));
+process.stdout.write(JSON.stringify({crossGroup: rejects(duplicated), crossSection: rejects(crossSection),
+  wrongHash: rejects(wrongHash), validLaterProposal: valid[0].members[0].currentProposalAction === "junk"}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "crossGroup": True,
+        "crossSection": True,
+        "wrongHash": True,
+        "validLaterProposal": True,
+    }
+
+
+def test_exact_group_dom_uses_read_only_survivors_and_proposal_controls(tmp_path):
+    script = tmp_path / "exact-group-dom.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.removeChild = function (child) { this.children.splice(this.children.indexOf(child), 1); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+Node.prototype.click = function () { if (!this.disabled && this.listeners.click) this.listeners.click({target: this}); };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function find(node, predicate) {
+  if (predicate(node)) return node;
+  for (var i = 0; i < node.children.length; i++) { var found = find(node.children[i], predicate); if (found) return found; }
+  return null;
+}
+function count(node, predicate) {
+  var total = predicate(node) ? 1 : 0;
+  node.children.forEach(function (child) { total += count(child, predicate); });
+  return total;
+}
+var state = {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var toggles = [];
+var view = api.createView({document: new Document(), state: state,
+  toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
+var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [
+  {id: "proposal", hash: "h", action: "junk"}
+], armor: {
+  exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g", hash: "h",
+    name: "</script><img src=x onerror=alert(1)>", type: "Chest Armor",
+    guardian_class: "Hunter", item_archetype: "</b><script>alert(1)</script>",
+    tier: 5, stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
+    tuning_mod_slot: "</script><script>alert(1)</script>", seasonal_mod: "Solar",
+    holofoil: "<img src=x onerror=alert(1)>",
+    spirit_signature: ["</script><script>alert(1)</script>"],
+    preferred_survivor_id: "survivor", members: [
+      {id: "survivor", location: "<b onclick=alert(1)>Vault</b>", equipped: true, disposition: "preferred_survivor"},
+      {id: "retained", location: "</b><script>alert(1)</script>", equipped: false, disposition: "retained_protected", protection_level: "hard"},
+      {id: "proposal", location: "Vault", equipped: false, disposition: "proposed_junk", proposal_action: "junk"}
+    ]}]
+}}]})[0];
+var article = view.armorGroup(group);
+var proposal = state.duplicateRows.proposal;
+var before = proposal.cell;
+proposal.approve.click();
+state.verdicts.proposal = "approved";
+view.paintArmorMember("proposal");
+proposal.veto.click();
+proposal.clear.click();
+var laterState = {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var laterView = api.createView({document: new Document(), state: laterState,
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
+var laterGroup = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [
+  {id: "survivor", hash: "h", action: "junk", reason: "later score"},
+  {id: "proposal", hash: "h", action: "junk"}
+], armor: {exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "later", hash: "h",
+  name: "Later proposal", preferred_survivor_id: "survivor", members: [
+    {id: "survivor", disposition: "preferred_survivor"},
+    {id: "proposal", disposition: "proposed_junk", proposal_action: "junk"}
+  ]}]}}]})[0];
+var laterArticle = laterView.armorGroup(laterGroup);
+var laterSurvivor = laterState.duplicateRows.survivor;
+laterState.verdicts.survivor = "approved";
+laterView.paintArmorMember("survivor");
+var malformedState = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var malformedView = api.createView({document: new Document(), state: malformedState,
+  verdictText: function () { return "Unreviewed"; }});
+var malformedArticle = malformedView.armorGroup({
+  groupKind: "exact_duplicate", groupId: "malformed", hash: "h", name: "Malformed",
+  type: "Chest Armor", guardianClass: "Hunter", itemArchetype: "Gunner", tier: 5,
+  stats: {}, tuningModSlot: "Weapons", seasonalMod: "", holofoil: "",
+  spiritSignature: [], preferredSurvivorId: "bad", members: [
+    {id: "bad", location: "Vault", disposition: "proposed_junk", proposalAction: ""}
+  ]
+});
+var finalizedState = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var finalizedView = api.createView({document: new Document(), state: finalizedState,
+  verdictDisabled: function () { return true; },
+  verdictText: function () { return "Unreviewed"; }});
+finalizedView.armorGroup(group);
+var finalizedProposal = finalizedState.duplicateRows.proposal;
+process.stdout.write(JSON.stringify({
+  complete: article.textContent.indexOf("</script><img src=x onerror=alert(1)>") !== -1 &&
+    article.textContent.indexOf("survivor") !== -1 && article.textContent.indexOf("retained") !== -1 &&
+    article.textContent.indexOf("proposal") !== -1 && article.textContent.indexOf("Tuning Mod Slot") !== -1,
+  hostileText: article.textContent.indexOf("</b><script>alert(1)</script>") !== -1 &&
+    article.textContent.indexOf("<b onclick=alert(1)>Vault</b>") !== -1,
+  inert: count(article, function (node) {
+    return node.tagName === "IMG" || node.tagName === "SCRIPT" || node.tagName === "B";
+  }) === 0,
+  malformedReadOnly: count(malformedArticle, function (node) {
+    return node.tagName === "BUTTON";
+  }) === 0,
+  finalizedDisabled: finalizedProposal.approve.disabled && finalizedProposal.veto.disabled &&
+    finalizedProposal.clear.disabled,
+  readOnly: count(state.duplicateRows.survivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
+    count(state.duplicateRows.retained.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
+  proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"], ["proposal", "vetoed"], ["proposal", ""]]),
+  repaintedInPlace: state.duplicateRows.proposal.cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
+  labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1,
+  equipped: article.textContent.indexOf("Equipped") !== -1 && article.textContent.indexOf("Yes") !== -1 && article.textContent.indexOf("No") !== -1,
+  laterProposalDisclosure: laterArticle.textContent.indexOf("Also proposed junk in Proposals") !== -1 &&
+    laterArticle.textContent.indexOf("Current verdict: approved") !== -1 &&
+    count(laterSurvivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
+  laterProposalRemainsMutable: count(laterState.duplicateRows.proposal.cell, function (node) {
+    return node.tagName === "BUTTON";
+  }) === 3
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "complete": True,
+        "hostileText": True,
+        "inert": True,
+        "malformedReadOnly": True,
+        "finalizedDisabled": True,
+        "readOnly": True,
+        "proposalControls": True,
+        "callback": True,
+        "repaintedInPlace": True,
+        "labels": True,
+        "equipped": True,
+        "laterProposalDisclosure": True,
+        "laterProposalRemainsMutable": True,
+    }
+
+
 def test_items_map_structured_tuning_without_reading_note_text(tmp_path):
     snapshot = tmp_path / "tuning.json"
     snapshot.write_text(json.dumps({

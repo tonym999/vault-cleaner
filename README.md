@@ -60,7 +60,12 @@ Proposals show an explicitly labelled pair of Tuning Mod Slots: the candidate
 and its selected survivor or partner. Equal values are shown on both sides;
 blank or unrecognised DIM values are shown as `none/unknown`. The six supported
 slot names are presented generically, with no preference or recommendation
-between them. The later Armor duplicates group view is tracked separately.
+between them. The browser now provides two review surfaces: Proposals remains
+the action-oriented list, while Armor duplicates presents each complete
+authoritative exact armor group, including its survivor and retained copies.
+Only members with an existing proposal can receive a verdict; survivor and
+retained members are read-only. Tuning is always visible, and differently
+tuned pieces are never combined into an exact group.
 
 If your DIM exports land somewhere else, set the default input and output
 directories in `config.toml`:

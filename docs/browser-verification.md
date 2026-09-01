@@ -52,6 +52,33 @@ Issue #104 focused check:
 - [ ] The field is rendered as text, not only by color, and remains readable
       after acknowledgement and in finalised/read-only state.
 
+Issue #102 focused check:
+
+- [ ] The surface selector offers Proposals and Armor duplicates when an
+      authoritative exact group exists; the duplicate option is unavailable
+      when no exact groups exist.
+- [ ] Every duplicate group shows its complete backend membership, with the
+      preferred survivor first, retained/protected copies, and proposed copies
+      labelled from their structured dispositions.
+- [ ] Group headers always show the archetype, tier-5 30/25/20 role summary
+      (or an honest six-stat fallback), and the text-labelled Tuning Mod Slot;
+      Spirit, Seasonal Mod, and Holofoil values remain inert text.
+- [ ] Name/instance-id search and Class, slot/type, archetype, and tuning
+      filters select whole groups and report `Showing N of M groups`.
+- [ ] Only proposed members expose Approve/Veto/Unset controls. An
+      acknowledged proposal-member verdict is reflected in both surfaces.
+- [ ] Survivor and retained members remain explicitly read-only; finalised
+      duplicates remain readable while all mutation controls are frozen.
+- [ ] Keyboard-only navigation reaches the surface selector, duplicate
+      filters, and proposal-member verdict controls with visible focus.
+- [ ] Successful replacement/reset reconciliation retains valid duplicate
+      state, clears only invalid categorical filters, and a rejected upload
+      leaves the current duplicate surface/search/filter state untouched.
+- [ ] Desktop light/dark and approximately 390×844 layouts remain readable;
+      the complete member matrix stays inside a contained horizontal scroller.
+- [ ] Hostile names, locations, archetypes, Spirit/mod/holofoil values remain
+      literal inert text with no injected elements.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -87,6 +114,57 @@ terminal.
   and was not changed by #104. Keyboard `a`/`v`/`u` review from the row control
   remained usable and repainted the row in place.
 - The Armor duplicates group view was not tested or claimed; it remains #102.
+
+## 2026-09-01 — issue #102 focused check
+
+- Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
+  151.0.7922.34 (Playwright Chromium revision 1234), headless.
+- Viewports and appearances: 1440×1000 desktop and 390×844 narrow, with both
+  light and dark media appearances exercised at each viewport. The contained
+  member matrix stayed within the page width in the narrow run. All checks used
+  the same packaged server and fake fixture.
+- Fixture: `tests/fixtures/armor_duplicates_ui.csv`; no real vault data,
+  wishlists, or manifest network access.
+- Result: pass. The authenticated server rendered the complete authoritative
+  exact group with its preferred survivor, retained protected member, and
+  proposed member. The archetype-led Primary/Secondary/Tertiary summary,
+  collapsed zero-stat line, always-visible Tuning Mod Slot, and explicit
+  Equipped row (No/Yes/No for the fake members) were readable.
+  Survivor and retained cells were text-only; only the proposed member exposed
+  verdict controls. Approve followed by a real Unset acknowledgement cleared
+  the proposed member verdict; an acknowledged proposal verdict was also
+  visible after switching to Proposals and back to the same duplicate
+  presentation.
+- Focus/state result: pass. Surface and duplicate filter controls were
+  keyboard-focusable with visible focus, and the duplicate group remained
+  complete while searching by member id. The existing acknowledgement gate
+  kept controls frozen while a request was in flight and after finalisation.
+- Lifecycle/reconciliation result: pass. A deliberately malformed replacement
+  was rejected without changing the active duplicate surface or search; a
+  successful replacement retained those valid values. Replacing it with an
+  empty fake armor export disabled the duplicate option and returned to
+  Proposals, while uploading the group again restored the option. Finalise
+  left the duplicate matrix readable/frozen and Reset returned to upload-ready
+  idle state.
+- Hostile-text result: pass. The Node duplicate-DOM regression uses hostile
+  group name, archetype, tuning-mod slot, Holofoil, Spirit signature, and
+  member-location strings such as `</script><img ...>` and
+  `</b><script>alert(1)</script>`; all remain text and no IMG, SCRIPT, or B
+  nodes are created. The existing Proposals, upload, reset, replacement, and
+  rejected-upload reconciliation paths remained unchanged; adapter coverage
+  additionally boots the packaged adapter DOM to verify rejected-upload
+  duplicate state retention, actual selector/list surface switching,
+  same-report in-place verdict repaint, shared cross-view verdict state,
+  mutation/finalized disabling, and only-invalid categorical filter clearing.
+  Its incompatible-response regressions reject both a weapon-section
+  same-ID/action lookalike, an armor-section wrong-hash decision, and a
+  cross-group duplicate member id without adopting the malformed envelope.
+- Browser timing: the four-test Chromium marker run completed in 5.08s; the
+  focused #102 test completed in 1.59s, with a 0.44s call phase, 0.35s setup,
+  and 0.56s teardown.
+- Remaining limitation: as recorded by #104, the pre-existing mutation gate
+  can blur a verdict button that is focused while its acknowledgement is in
+  flight; #102 did not alter server lifecycle or mutation semantics.
 
 ## 2026-08-27 — issue #90 execution record
 

@@ -3,6 +3,110 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #102 incremental review follow-up
+
+- Replaced the cross-group malformed-envelope adapter regression's fixed
+  five-millisecond assertion delay with a test-only completion signal on the
+  mocked `vc-status` node. The signal resolves only after the adapter has
+  processed the malformed response, entered terminal incompatible state, and
+  published its failure status; other harness scenarios are unchanged and no
+  production timing/lifecycle hook was added.
+- Documented the untrusted `exactDuplicateGroupsFromSnapshot` contract in
+  JSDoc: authoritative group/member ordering is preserved, opaque identity,
+  uniqueness, dispositions, and section/hash proposal correlation are
+  validated before adoption, and browser grouping/ranking/survivor truth is
+  never reconstructed. Contract violations throw `Error`/`TypeError` as
+  applicable.
+- Validation: focused UI/adapter tests `102 passed`; full suite `925 passed in
+  19.91s`; Chromium marker gate `4 passed, 921 deselected in 4.45s`, with the
+  focused #102 test `1 passed in 1.68s` (0.47s call, 0.37s setup, 0.58s
+  teardown); non-editable wheel proof, Ruff, and `git diff --check` passed; no
+  tracked `data/` files. The single #102 Playwright test remains the only new
+  browser test.
+- No behavior or files outside the established #102 presentation,
+  test-harness, and documentation scope changed; snapshot/ruleset versions,
+  server protocol/lifecycle, runtime dependencies, CI, persistence, auth,
+  rules, and #109/#110 boundaries remain unchanged. Committed locally for
+  Sol's review; no push or GitHub reply was made.
+
+## 2026-09-01 — #102 PR #111 review follow-up
+
+- Fixed the Armor duplicates Unset bug: a function-scoped DOM button named
+  `clearVerdict` shadowed the callback, so clicking Unset attempted to call the
+  button node. The DOM handle is now distinct, and Node coverage clicks
+  Approve, Veto, and Unset and verifies the exact opaque id/verdict callbacks.
+- Exact-group adoption now rejects an opaque member id repeated across any
+  authoritative Armor exact groups, using prototype-safe maps before state
+  adoption. Adapter coverage proves the incompatible response leaves the
+  previous envelope/report state unadopted. Proposal correlation remains
+  section-scoped and requires the exact group hash; cross-section and
+  wrong-hash lookalikes remain incompatible.
+- Later-pass junk/review decisions for preferred or retained members are
+  carried as separate current-proposal presentation metadata only when the
+  same Armor section and group hash match. The exact disposition remains
+  read-only and controls remain absent, while the duplicate cell discloses the
+  Proposals action and current authoritative verdict. Exact proposed losers
+  retain the existing acknowledged single-member mutation path. The matrix
+  now also renders the supplied Equipped boolean as Yes/No.
+- Updated the reviewed domain wording to the exact `75 base total` phrase and
+  recorded the packaged-server manual check with the fake
+  `tests/fixtures/armor_duplicates_ui.csv`: 390×844 and 1440×1000 light/dark
+  layouts, focus, Equipped No/Yes/No, real Approve/Unset acknowledgement,
+  rejected replacement preservation, finalise/freeze, and reset all passed.
+- Validation: focused UI/adapter tests `102 passed`; full suite `925 passed in
+  19.36s`; Chromium marker gate `4 passed, 921 deselected in 5.08s`, with the
+  focused #102 test `1 passed in 1.59s` (0.44s call, 0.35s setup, 0.56s
+  teardown); non-editable wheel proof passed; Ruff and `git diff --check`
+  passed; no tracked `data/` files. The sandbox-only baseline failures were
+  loopback socket/Chromium permission errors and were rerun with the required
+  permissions.
+- Snapshot schema v2, ruleset v4, Python rules/report/pipeline, server
+  protocol/lifecycle, runtime dependencies, CI, persistence, auth, and #109/
+  #110 scope remain unchanged. This correction is committed locally for Sol's
+  review; the remote branch remains at `d0710eb` and no PR was opened or
+  pushed.
+
+## 2026-09-01 — #102 Armor duplicates browser view
+
+- Added the permanent Armor duplicates surface beside Proposals. It consumes
+  #101's authoritative `exact_duplicate_groups` projection, preserves backend
+  group/member order and disposition truth, and treats every group as an
+  indivisible unit for name/id, Class, slot/type, archetype, and Tuning Mod
+  Slot filtering. No JavaScript duplicate identity, ranking, or survivor
+  algorithm was added; same-stat groups remain reserved for #110.
+- Added a reusable safe DOM group header/matrix seam with archetype-led
+  tier-5 Primary/Secondary/Tertiary display and honest six-stat fallback. The
+  shared Tuning Mod Slot, Spirit signature, Seasonal Mod, Holofoil, protection
+  ladder, and full opaque ids are text-labelled. Survivor and retained
+  members are read-only; proposed members alone reuse the existing
+  acknowledged single-id verdict path and both views read the same verdict
+  map. Presentation state preserves valid duplicate filters/surface and
+  clears only values absent from a replacement group set.
+- Added hostile/prototype/opaque-id Node coverage, adapter reconciliation
+  coverage (including malformed-envelope rejection, same-report repaint,
+  shared cross-view verdict state, actual duplicate surface switching,
+  rejected-upload preservation, finalized disabling, and view retention), plus
+  incompatible-response regressions for cross-section same-ID/action and
+  wrong-hash proposal lookalikes. Added a fake three-member tier-5 group
+  fixture and exactly one focused Chromium test covering complete membership
+  and cross-view acknowledgement.
+- Added the reviewed `docs/armor-archetypes.md`, corrected the tier-5 gotcha
+  and terminology warning in `AGENTS.md`, updated README and browser
+  verification documentation, and recorded the 1440×1000 desktop and 390×844
+  narrow light/dark, focus, replacement/rejection, finalise/freeze, and reset
+  pass. The pre-existing focused-button blur during in-flight mutation remains
+  documented.
+- Validation: focused UI/adapter tests `100 passed`; full suite `923 passed in
+  19.78s`; Chromium marker gate `4 passed, 919 deselected in 4.46s`, with the focused
+  #102 test `1 passed in 1.59s` (0.46s call, 0.54s teardown); non-editable
+  wheel proof passed; Ruff and `git diff --check` passed; no tracked `data/`
+  files.
+  Baseline sandbox runs had only the pre-existing socket/Chromium permission
+  failures and were rerun with required loopback/browser permissions.
+- Snapshot schema v2, ruleset v4, Python decisions/rules, server protocol and
+  lifecycle, runtime dependencies, and CI topology are unchanged. No pull
+  request was opened.
+
 ## 2026-08-31 — #108 PR review follow-up
 
 - Restored the static armor semantic capture for every unchanged Decision

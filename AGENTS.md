@@ -65,9 +65,17 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 - Ghost `Energy Capacity` / `Masterwork Tier` are empty on every shell
   (retired system) — that's why the ghost pass is protection-only, no
   ranking. Don't "fix" the empty columns.
-- Armor 3.0 tier-5 pieces all share a fixed 30+25 stat spike (~75 base
-  total): spike/total scoring discriminates nothing; only build-alignment
-  weights do. Armor scores are normalized to the `Total (Base)` scale.
+- Armor 3.0 tier-5 pieces all share a fixed 30+25+20 stat spike (75 base
+  total: archetype-fixed primary 30 and secondary 25, plus a random tertiary
+  20). The other three base stats are 0 on every tier-5 piece, so only three
+  of the six carry information: spike/total scoring discriminates nothing;
+  only build-alignment weights do. Armor scores are normalized to the
+  `Total (Base)` scale. See [docs/armor-archetypes.md](docs/armor-archetypes.md)
+  for the twelve archetypes, the Tuning Mod Slot, and the export columns.
+- "Archetype" means two unrelated things, as "manifest" does: Destiny's armor
+  archetype (the DIM `Archetype` column, surfaced as `item_archetype`) and
+  vault-cleaner's own `[armor.archetypes.*]` scoring weight profiles in
+  `config.toml`. Keep the distinction explicit in names and messages.
 - Perk name→hash comes from Bungie's public static manifest, cached in
   `data/cache/` and normally re-fetched only when the manifest version
   changes; an explicit `refresh=True` forces a full rebuild.

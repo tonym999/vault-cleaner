@@ -76,8 +76,16 @@
         text: "", action: "", kind: "", reason: "", classFacet: "",
         protection: "", verdict: ""
       },
+      // Armor duplicate presentation state is deliberately separate from the
+      // proposal query and carries no server/session semantics.
+      surface: "proposals",
+      armorGroups: [],
+      armorQuery: {
+        text: "", guardianClass: "", type: "", itemArchetype: "", tuningModSlot: ""
+      },
       // DOM row handles are local presentation state, not part of an envelope.
       rows: emptyMap(),
+      duplicateRows: emptyMap(),
       viewInvalidated: [],
       reconciliation: { retained: [], discarded: [], invalidated: [] },
       uploadStatus: { weapons: "idle", armor: "idle", ghosts: "idle" },
@@ -188,6 +196,20 @@
     return ui.filterItems(items, query, verdicts).length > 0;
   }
 
+  function armorGroupValueStillExists(groups, field, value) {
+    if (!value) return true;
+    var normalize = ui && typeof ui.normalizeCategoricalValue === "function"
+      ? ui.normalizeCategoricalValue
+      : function (candidate) {
+        var text = candidate === null || candidate === undefined
+          ? "" : String(candidate);
+        return text === "" ? "none/unknown" : text;
+      };
+    return (groups || []).some(function (group) {
+      return normalize(group[field]) === normalize(value);
+    });
+  }
+
   function applySessionEnvelope(envelope, state) {
     if (!isObject(envelope)) throw envelopeError("session envelope must be an object");
     if (!state || typeof state !== "object") throw new TypeError("state is required");
@@ -203,6 +225,11 @@
         throw new Error("shared review presentation core is unavailable");
       }
       nextItems = ui.itemsFromSnapshot(snapshot);
+    }
+    var nextArmorGroups = [];
+    if (snapshot !== null && snapshot !== undefined && ui &&
+        typeof ui.exactDuplicateGroupsFromSnapshot === "function") {
+      nextArmorGroups = ui.exactDuplicateGroupsFromSnapshot(snapshot);
     }
     var nextVerdicts = copyVerdicts(envelope.verdicts);
     var nextIds = new Set(nextItems.map(function (item) { return item.id; }));
@@ -222,6 +249,23 @@
         }
       }
     );
+    var armorQuery = state.armorQuery || {
+      text: "", guardianClass: "", type: "", itemArchetype: "", tuningModSlot: ""
+    };
+    ["guardianClass", "type", "itemArchetype", "tuningModSlot"].forEach(
+      function (field) {
+        if (armorQuery[field] && !armorGroupValueStillExists(
+          nextArmorGroups, field, armorQuery[field]
+        )) {
+          invalidated.push("duplicate filter " + field + " " + armorQuery[field]);
+          armorQuery[field] = "";
+        }
+      }
+    );
+    if (state.surface === "armor-duplicates" && nextArmorGroups.length === 0) {
+      invalidated.push("view armor-duplicates");
+      state.surface = "proposals";
+    }
     var sortFields = ui.COLUMNS.map(function (column) { return column[0]; });
     if (sortFields.indexOf(state.sort.field) === -1) {
       invalidated.push("sort field " + state.sort.field);
@@ -237,11 +281,16 @@
     state.fingerprint = envelope.fingerprint;
     state.snapshot = snapshot;
     state.items = nextItems;
+    state.armorGroups = nextArmorGroups;
+    state.armorQuery = armorQuery;
     state.verdicts = nextVerdicts;
     state.override_status = nextOverrideStatus;
     state.persistedVetoIds = persistedVetoIds(nextOverrideStatus);
     // A verdict acknowledgement keeps the registry. A new report invalidates it.
-    if (reportChanged) state.rows = emptyMap();
+    if (reportChanged) {
+      state.rows = emptyMap();
+      state.duplicateRows = emptyMap();
+    }
     state.viewInvalidated = invalidated.slice();
     state.reconciliation = {
       retained: Array.isArray(envelope.retained_verdict_ids)
@@ -459,6 +508,8 @@
     var reportPanel = document.getElementById("vc-report");
     var filtersPanel = document.getElementById("vc-filters");
     var proposalsPanel = document.getElementById("vc-proposals");
+    var duplicatePanel = document.getElementById("vc-duplicates");
+    var selectorPanel = document.getElementById("vc-view-selector");
     var state = createState();
     var view = null;
 
@@ -484,6 +535,44 @@
         : state.server_state === "closed"
           ? "This review session is closed. It cannot accept further uploads or verdicts."
           : "Decisions are held in this server session, but no reviewed CSV has been produced and this session's new vetoes have not been persisted.";
+    }
+    function renderViewSelector() {
+      if (!selectorPanel || !view) return;
+      var focusedId = document.activeElement && document.activeElement.id;
+      view.clear(selectorPanel);
+      var hasGroups = state.armorGroups.length > 0;
+      selectorPanel.hidden = state.server_state === "idle";
+      selectorPanel.appendChild(view.el("span", { class: "view-selector-label", text: "Review surface" }));
+      var proposalButton = view.el("button", {
+        id: "vc-view-proposals", type: "button", text: "Proposals",
+        "aria-pressed": state.surface === "proposals" ? "true" : "false",
+        on: { click: function () { setSurface("proposals"); } }
+      });
+      var duplicateButton = view.el("button", {
+        id: "vc-view-duplicates", type: "button", text: "Armor duplicates",
+        "aria-pressed": state.surface === "armor-duplicates" ? "true" : "false",
+        disabled: !hasGroups,
+        "aria-label": hasGroups ? "Armor duplicates" : "Armor duplicates (no exact groups)",
+        on: { click: function () { setSurface("armor-duplicates"); } }
+      });
+      selectorPanel.appendChild(proposalButton);
+      selectorPanel.appendChild(duplicateButton);
+      if (focusedId && (focusedId === "vc-view-proposals" || focusedId === "vc-view-duplicates")) {
+        var focusTarget = byId(focusedId);
+        if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
+      }
+    }
+    function setSurface(surface) {
+      if (surface === "armor-duplicates" && !state.armorGroups.length) return;
+      if (surface !== "proposals" && surface !== "armor-duplicates") return;
+      state.surface = surface;
+      renderViewSelector();
+      renderControls();
+      renderList();
+      renderSummary();
+      if (proposalsPanel) proposalsPanel.hidden = state.server_state === "idle" || surface !== "proposals";
+      if (duplicatePanel) duplicatePanel.hidden = state.server_state === "idle" || surface !== "armor-duplicates" || !state.armorGroups.length;
+      refreshMutationControls();
     }
     function fail(message, terminal) {
       state.connected = false;
@@ -590,8 +679,15 @@
     function repaintRows() {
       if (!view || typeof view.paintRow !== "function") return;
       Object.keys(state.rows).forEach(function (id) { view.paintRow(id); });
+      if (typeof view.paintArmorMember === "function") {
+        Object.keys(state.duplicateRows).forEach(function (id) {
+          view.paintArmorMember(id);
+        });
+      }
     }
     function adopt(envelope) {
+      var focusedId = document.activeElement && document.activeElement.id;
+      var beforeSurface = state.surface;
       var beforeRevision = state.report_revision;
       var beforeFingerprint = state.fingerprint;
       var beforeVisible = state.envelope === null
@@ -602,6 +698,7 @@
         throw incompatibleResponse(error);
       }
       var rebuilt = !view || beforeRevision !== state.report_revision || beforeFingerprint !== state.fingerprint;
+      var surfaceChanged = beforeSurface !== state.surface;
       var membershipChanged = beforeVisible !== null &&
         !sameIds(beforeVisible, visibleIds(state.items, state.query, state.verdicts));
       var controlsInvalidated = state.viewInvalidated.some(function (entry) {
@@ -610,8 +707,12 @@
       var queryInvalidated = state.viewInvalidated.filter(function (entry) {
         return entry.indexOf("filter ") === 0;
       });
+      var duplicateQueryInvalidated = state.viewInvalidated.some(function (entry) {
+        return entry.indexOf("duplicate filter ") === 0;
+      });
       if (rebuilt) {
         buildView();
+        renderViewSelector();
         renderControls();
         renderList();
       } else {
@@ -623,14 +724,27 @@
           var control = byId("vc-f-" + field);
           if (control) control.value = state.query[field];
         });
-        if (membershipChanged || controlsInvalidated) renderList();
+        state.viewInvalidated.filter(function (entry) {
+          return entry.indexOf("duplicate filter ") === 0;
+        }).forEach(function (entry) {
+          var field = entry.slice("duplicate filter ".length).split(" ")[0];
+          var control = byId("vc-dup-f-" + field);
+          if (control) control.value = state.armorQuery[field];
+        });
+        renderViewSelector();
+        if (surfaceChanged) {
+          renderControls();
+          renderList();
+        } else if (membershipChanged || controlsInvalidated ||
+            (state.surface === "armor-duplicates" && duplicateQueryInvalidated)) renderList();
         else repaintRows();
       }
       refreshMutationControls();
       renderSummary();
       if (reportPanel) reportPanel.hidden = envelope.state === "idle";
       if (filtersPanel) filtersPanel.hidden = envelope.state === "idle";
-      if (proposalsPanel) proposalsPanel.hidden = envelope.state === "idle";
+      if (proposalsPanel) proposalsPanel.hidden = envelope.state === "idle" || state.surface !== "proposals";
+      if (duplicatePanel) duplicatePanel.hidden = envelope.state === "idle" || state.surface !== "armor-duplicates" || !state.armorGroups.length;
       var fingerprintNode = byId("vc-fingerprint");
       if (fingerprintNode) fingerprintNode.textContent = envelope.fingerprint || "";
       renderSessionNote();
@@ -642,6 +756,10 @@
         recon.textContent += reportInvalidations();
         recon.hidden = !recon.textContent;
       }
+      if (rebuilt && focusedId) {
+        var focusTarget = byId(focusedId);
+        if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
+      }
       return { rebuilt: rebuilt, invalidated: state.viewInvalidated.slice() };
     }
     function renderSummary() {
@@ -652,11 +770,14 @@
       var proposed = ui.actionCounts(state.items);
       var kept = ui.actionCounts(ui.keptItems(state.items, state.verdicts, state.persistedVetoIds));
       var reviewed = ui.reviewCounts(state.items, state.verdicts);
-      var shown = ui.filterItems(state.items, state.query, state.verdicts).length;
+      var shown = state.surface === "armor-duplicates" && typeof ui.filterArmorGroups === "function"
+        ? ui.filterArmorGroups(state.armorGroups, state.armorQuery).length
+        : ui.filterItems(state.items, state.query, state.verdicts).length;
       host.appendChild(view.tile("proposed", String(proposed.total), proposed.junk + " junk, " + proposed.review + " review"));
       host.appendChild(view.tile("after vetoes", String(kept.total), kept.junk + " junk, " + kept.review + " review"));
       host.appendChild(view.tile("reviewed", String(reviewed.approved + reviewed.vetoed), reviewed.approved + " approved, " + reviewed.vetoed + " vetoed"));
-      host.appendChild(view.tile("shown", String(shown), "matching the current filters"));
+      host.appendChild(view.tile("shown", String(shown), state.surface === "armor-duplicates"
+        ? "matching duplicate groups" : "matching the current filters"));
       host.appendChild(view.tile("unreviewed", String(reviewed.unreviewed), "without a current-session verdict"));
       var overrideHost = byId("vc-overrides");
       if (!overrideHost) return;
@@ -681,6 +802,46 @@
       if (!host) return;
       view.clear(host);
       state.bulkControls = [];
+      if (state.surface === "armor-duplicates") {
+        host.appendChild(view.el("label", { class: "field", for: "vc-dup-search" }, [
+          view.el("span", { text: "Search armor name or instance id" }),
+          view.el("input", { type: "search", id: "vc-dup-search", value: state.armorQuery.text,
+            placeholder: "e.g. Dupe Plate or 5002", on: { input: function (event) {
+              state.armorQuery.text = event.target.value; renderList(); renderSummary();
+            } } })
+        ]));
+        function duplicateQueryChange(field) {
+          return function (event) {
+            state.armorQuery[field] = event.target.value;
+            renderList();
+            renderSummary();
+          };
+        }
+        function duplicateOptions(field, allLabel) {
+          var options = [view.el("option", { value: "", text: allLabel })];
+          var values = typeof ui.countArmorGroups === "function"
+            ? ui.countArmorGroups(state.armorGroups, field) : [];
+          values.forEach(function (entry) {
+            options.push(view.el("option", {
+              value: entry.value, text: entry.value + " (" + entry.count + ")"
+            }));
+          });
+          return options;
+        }
+        [["vc-dup-f-guardianClass", "Class", "guardianClass", "any class"],
+         ["vc-dup-f-type", "Slot / type", "type", "any slot / type"],
+         ["vc-dup-f-itemArchetype", "Archetype", "itemArchetype", "any archetype"],
+         ["vc-dup-f-tuningModSlot", "Tuning Mod Slot", "tuningModSlot", "any tuning slot"]
+        ].forEach(function (spec) {
+          view.addSelect(host, spec[0], spec[1], duplicateOptions(spec[2], spec[3]),
+            spec[2], state.armorQuery[spec[2]], duplicateQueryChange);
+        });
+        host.appendChild(view.el("button", { type: "button", text: "Reset duplicate filters", on: { click: function () {
+          Object.keys(state.armorQuery).forEach(function (key) { state.armorQuery[key] = ""; });
+          renderControls(); renderList(); renderSummary();
+        } } }));
+        return;
+      }
       host.appendChild(view.el("label", { class: "field", for: "vc-search" }, [
         view.el("span", { text: "Search name or instance id" }),
         view.el("input", { type: "search", id: "vc-search", value: state.query.text,
@@ -724,9 +885,27 @@
     }
     function renderList() {
       if (!view) return;
-      var host = byId("vc-list");
+      var host = state.surface === "armor-duplicates"
+        ? byId("vc-duplicate-list") : byId("vc-list");
       if (!host) return;
       view.clear(host);
+      if (state.surface === "armor-duplicates") {
+        state.duplicateRows = emptyMap();
+        var filteredGroups = typeof ui.filterArmorGroups === "function"
+          ? ui.filterArmorGroups(state.armorGroups, state.armorQuery) : [];
+        host.appendChild(view.el("p", {
+          id: "vc-duplicate-count", class: "hint",
+          text: "Showing " + filteredGroups.length + " of " + state.armorGroups.length + " groups"
+        }));
+        if (!filteredGroups.length) {
+          host.appendChild(view.el("p", { class: "hint", text: "No armor duplicate groups match these filters." }));
+          return;
+        }
+        if (typeof view.armorGroups === "function") {
+          view.armorGroups(filteredGroups).forEach(function (group) { host.appendChild(group); });
+        }
+        return;
+      }
       state.rows = emptyMap();
       var shown = ui.filterItems(state.items, state.query, state.verdicts);
       if (!shown.length) {
