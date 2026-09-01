@@ -2425,13 +2425,16 @@ function groupEnvelope(verdicts, lifecycle) {
   return {schema_version: 1, state: lifecycle || "reviewing", report_revision: 1,
     verdict_revision: verdicts.length ? 1 : 0, fingerprint: "same-stat-fingerprint",
     snapshot: {sections: [{kind: "armor", decisions: [{id: sharedId, hash: "h",
-      name: "Shared Plate", action: "junk", reason: "exact"}], armor: {
+      name: "Shared Plate", action: "review", reason: "armor-similar to"},
+      {id: "exact-loser", hash: "h", name: "Exact loser", action: "junk",
+        reason: "exact"}], armor: {
       exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "exact",
           hash: "h", name: "Exact Plate", type: "Chest Armor", guardian_class: "Hunter",
           item_archetype: "Gunner", tier: 5, stats: {}, tuning_mod_slot: "Weapons",
-          preferred_survivor_id: "survivor", members: [
-            {id: "survivor", disposition: "preferred_survivor"},
-          {id: sharedId, disposition: "retained_protected", protection_level: "hard"}
+          preferred_survivor_id: sharedId, members: [
+            {id: sharedId, location: "Vault", disposition: "preferred_survivor"},
+          {id: "exact-loser", location: "Vault", disposition: "proposed_junk",
+            proposal_action: "junk"}
           ]}],
       same_stat_groups: [{group_kind: "same_stat", group_id: "same", hash: "h",
         name: "Same Plate", type: "Chest Armor", guardian_class: "Hunter",
@@ -2496,7 +2499,7 @@ setTimeout(function () {
         "duringAck": {"sameDisabled": True, "exactReadOnly": True},
         "afterAck": {
             "verdict": "approved", "samePressed": "true",
-            "exactText": "Read-only · Retained protected · Also proposed junk in Proposals · Current verdict: approved — exact",
+            "exactText": "Read-only · Preferred survivor · Also proposed review in Proposals · Current verdict: approved — armor-similar to",
             "exactReadOnly": True,
         },
         "finalized": True,

@@ -34,9 +34,9 @@ surprises the next agent should know about.
 - Same-stat current proposal controls now require a same-section, same-hash
   authoritative current proposal decision. Supplied close-pass member
   metadata is displayed/validated when present but never grants authority;
-  this preserves legitimate later-pass proposals while preventing an
-  exact-pass decision for an overlapping opaque id from leaking controls into
-  a read-only comparison occurrence. Wrong-hash and cross-section lookalikes
+  blank metadata therefore still permits legitimate later-pass proposals,
+  while an exact preferred/retained presentation remains read-only even when
+  it discloses the current proposal. Wrong-hash and cross-section lookalikes
   remain rejected.
 - Added focused Node trust/security coverage for strict shape, duplicate
   identity, hostile same-stat values, prototype-shaped group/member ids, and

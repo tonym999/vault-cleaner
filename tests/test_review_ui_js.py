@@ -1181,16 +1181,17 @@ function count(node, predicate) {
 var sharedId = "0009223372036854775808";
 var partnerId = "18446744073709551615";
 function snapshot(exactGroups, sameGroups) { return {sections: [{kind: "armor", decisions: [
-  {id: sharedId, hash: "18446744073709551615", action: "junk", reason: "exact"}
+  {id: sharedId, hash: "18446744073709551615", action: "review", reason: "armor-similar to"},
+  {id: "exact-loser", hash: "18446744073709551615", action: "junk", reason: "exact"}
 ], armor: {exact_duplicate_groups: exactGroups, same_stat_groups: sameGroups}}]}; }
 function exact() { return {group_kind: "exact_duplicate", group_id: "exact-group",
   hash: "18446744073709551615", name: "Exact plate", type: "Chest Armor",
   guardian_class: "Hunter", item_archetype: "Gunner", tier: 5,
   stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
-  spirit_signature: [], preferred_survivor_id: "preferred", members: [
-    {id: "preferred", location: "Vault", disposition: "preferred_survivor"},
-    {id: sharedId, location: "Vault", disposition: "retained_protected",
-     protection_level: "hard"}
+  spirit_signature: [], preferred_survivor_id: sharedId, members: [
+    {id: sharedId, location: "Vault", disposition: "preferred_survivor"},
+    {id: "exact-loser", location: "Vault", disposition: "proposed_junk",
+     proposal_action: "junk"}
   ]}; }
 function same() { return {group_kind: "same_stat", group_id: "__proto__",
   hash: "18446744073709551615", name: "<img src=x onerror=alert(1)>",
@@ -1244,7 +1245,7 @@ process.stdout.write(JSON.stringify({
   noBogusGroupAxes: projected[1].seasonalMod === "" && projected[1].holofoil === "" &&
     sameArticle.textContent.indexOf("group-seasonal") === -1 &&
     sameArticle.textContent.indexOf("group-holofoil") === -1,
-  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
+  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 3 &&
     count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 3,
   filterAny: api.filterArmorGroups(projected, {tuningModSlot: "Health"}).length === 1,
   countsOnce: (function () {
