@@ -25,6 +25,32 @@ surprises the next agent should know about.
   schema, server protocol/lifecycle, runtime dependencies, or #109 work
   changed.
 
+## 2026-09-01 — #110 Sol review corrections
+
+- Same-stat projection now rejects missing `group_kind`, one-member groups,
+  duplicate group ids, and member ids repeated across same-stat groups. It
+  keeps Seasonal Mod/Holofoil strictly member-level, so absent group axes
+  cannot render synthetic `none/unknown` header tiles.
+- Same-stat current proposal controls now require the member's close-pass
+  proposal metadata plus a same-section, same-hash authoritative decision.
+  This prevents an exact-pass decision for an overlapping opaque id from
+  leaking controls into the read-only comparison occurrence while preserving
+  wrong-hash and cross-section rejection.
+- Added focused Node trust/security coverage for strict shape, duplicate
+  identity, hostile same-stat values, prototype-shaped group/member ids, and
+  huge/leading-zero/non-digit opaque ids. Added adapter coverage that renders
+  exact and same-stat occurrences for one id, acknowledges one verdict through
+  the existing seam, repaints both occurrences, and freezes all applicable
+  controls at finalisation. The single #110 Playwright test remains the only
+  new browser test.
+- Performed the packaged-server visual pass with a temporary combined fixture
+  containing only committed fake rows: 1440×1000 and 390×844 in light and
+  dark, headless screenshots retained and inspected. The mixed selector and
+  focused All control, same-stat heading/tuning values, contained narrow
+  matrix overflow, and finalised read-only/disabled state were legible in all
+  four cases (about 6.2s total). The pre-existing acknowledgement focus blur
+  remains the only noted limitation.
+
 ## 2026-09-01 — #102 incremental review follow-up
 
 - Replaced the cross-group malformed-envelope adapter regression's fixed

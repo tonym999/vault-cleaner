@@ -468,8 +468,7 @@
       armor.same_stat_groups.forEach(function (source, index) {
         var where = "sections[" + s + "].armor.same_stat_groups[" + index + "]";
         if (!isObject(source)) throw new Error(where + " must be an object");
-        if (Object.prototype.hasOwnProperty.call(source, "group_kind") &&
-            source.group_kind !== "same_stat") {
+        if (source.group_kind !== "same_stat") {
           throw new Error(where + ".group_kind must be same_stat");
         }
         var groupId = requireIdString(source.group_id, where + ".group_id");
@@ -478,8 +477,8 @@
           throw new Error("duplicate same-stat group id " + groupId);
         }
         seenGroups[groupId] = true;
-        if (!Array.isArray(source.members) || source.members.length === 0) {
-          throw new Error(where + ".members must be a non-empty list");
+        if (!Array.isArray(source.members) || source.members.length < 2) {
+          throw new Error(where + ".members must contain at least two members");
         }
         var seenMembers = emptyMap();
         var members = source.members.map(function (member, memberIndex) {
@@ -497,6 +496,9 @@
           seenGroupMembers[id] = true;
           var proposalAction = member.proposal_action === null ||
             member.proposal_action === undefined ? "" : str(member.proposal_action);
+          if (proposalAction && ["junk", "review"].indexOf(proposalAction) === -1) {
+            throw new Error(memberWhere + ".proposal_action is unsupported");
+          }
           var proposalDecision = Object.prototype.hasOwnProperty.call(proposalDecisions, id)
             ? proposalDecisions[id] : null;
           var proposalLocations = proposalDecisionLocations[id] || [];
@@ -513,8 +515,17 @@
             if (proposalHash !== hash) {
               throw new Error(memberWhere + " has a proposal decision for another hash");
             }
-            currentProposalAction = str(proposalDecision.action);
-            currentProposalReason = str(proposalDecision.reason);
+            // Exact-pass decisions can contain an id that is also present in
+            // the wider same-stat comparison group.  Only a close-pass
+            // member carrying its own proposal metadata may expose that
+            // decision as mutable in this read-only surface.
+            if (proposalAction) {
+              if (proposalDecision.action !== proposalAction) {
+                throw new Error(memberWhere + " has inconsistent proposal action");
+              }
+              currentProposalAction = str(proposalDecision.action);
+              currentProposalReason = str(proposalDecision.reason);
+            }
           }
           var selectedPartnerId = member.selected_partner_id === null ||
             member.selected_partner_id === undefined ? null :
@@ -557,10 +568,12 @@
             copy[name] = source.stats[name];
             return copy;
           }, emptyMap()) : emptyMap(),
-          // Same-stat groups intentionally have no group-level tuning value.
+          // Same-stat groups intentionally have no group-level tuning or
+          // variation axes. Seasonal Mod and Holofoil are member-only fields
+          // in the authoritative close-pass snapshot.
           tuningModSlot: "none/unknown",
-          seasonalMod: normalizeCategoricalValue(source.seasonal_mod),
-          holofoil: normalizeCategoricalValue(source.holofoil),
+          seasonalMod: "",
+          holofoil: "",
           spiritSignature: Array.isArray(source.spirit_signature)
             ? source.spirit_signature.map(str) : [],
           preferredSurvivorId: null,

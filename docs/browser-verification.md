@@ -142,22 +142,32 @@ terminal.
 
 - Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
   151.0.7922.34 (Playwright Chromium revision 1234), headless.
-- Fixture: `tests/fixtures/armor_same_stat_ui.csv`; no real vault data,
-  wishlists, or manifest network access. The focused packaged-server browser
-  test completed in 1.34s (`1 passed`). The full Chromium marker gate completed
-  in 5.62s (`5 passed`, `923 deselected`).
+- Fixtures: `tests/fixtures/armor_same_stat_ui.csv` for the focused browser
+  test, plus a temporary five-row combined fake fixture made only from the
+  committed `armor_duplicates_ui.csv` and `armor_same_stat_ui.csv` fake rows
+  for the mixed-kind visual pass. No real vault data, wishlists, or manifest
+  network access was used. The focused packaged-server browser test completed
+  in 1.34s (`1 passed`); the final full Chromium marker gate completed in
+  5.07s (`5 passed`, `923 deselected`).
 - Result: pass. Armor duplicates stayed enabled with no exact groups and
   rendered one complete `Same stats, different tuning · review-only` group.
   Both fake member ids and their differing Weapons/Health Tuning Mod Slot
   values were visible as ordinary text before any expansion or hover. The
   same-stat group exposed only the existing close-pass proposal controls and
   did not imply a survivor or junk disposition.
+- Actual visual matrix: the packaged server was exercised headlessly at
+  1440×1000 and 390×844 in both light and dark appearances (four cases, about
+  6.2s total), with review and finalised screenshots retained and inspected.
+  The mixed fixture showed the All / Exact / Same stats selector; `All` was
+  focused and its focus ring was visible. Headings, tuning labels, finalised
+  read-only text, and disabled controls were legible in all four cases, and
+  narrow member matrices remained inside their contained horizontal scrollers.
 - Node/adapter coverage passed for mixed group ordering, All/Exact/Same stats
   state and reconciliation, whole-group any-member tuning filters/counts,
-  malformed same-stat rejection, hostile text, prototype-shaped ids, and the
-  one-id-to-many duplicate DOM registry. Narrow light/dark matrix overflow and
-  focus treatment follow the existing responsive component rules; finalised
-  rendering remains frozen by the shared mutation gate.
+  strict malformed same-stat rejection, hostile text, prototype-shaped ids,
+  and the one-id-to-many duplicate DOM registry. The existing mutation gate
+  can still blur a verdict button focused while acknowledgement is in flight;
+  this pre-existing behavior was not changed by #110.
 - Remaining limitation: as recorded for #102, the pre-existing mutation gate
   can blur a verdict button focused while acknowledgement is in flight. No
   server lifecycle or mutation semantics were changed by #110.

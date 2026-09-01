@@ -2328,3 +2328,177 @@ process.stdout.write(JSON.stringify({mixed: mixed, mixedKinds: server.armorGroup
         "sameOnly": True, "retained": True, "reset": True,
         "rejectedPreserved": True,
     }
+
+
+def test_adapter_repaints_cross_kind_overlap_and_freezes_every_occurrence(
+    tmp_path: Path,
+):
+    harness = tmp_path / "server-ui-same-stat-overlap-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+var sharedId = "0009223372036854775808";
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+  this.hidden = false; this.value = ""; this.files = [];
+}
+Node.prototype.querySelector = function (selector) {
+  var wanted = selector.toLowerCase(), found = null;
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child;
+      else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  if (index !== -1) this.children.splice(index, 1);
+  child.parentNode = null; return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  if (name === "click" && this.disabled) return;
+  event = event || {target: this, preventDefault: function () {}};
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.focus = function () { this.ownerDocument.activeElement = this; };
+Node.prototype.click = function () {};
+
+function Document() {
+  this.nodes = Object.create(null); this.listeners = Object.create(null);
+  this.activeElement = null; this.body = new Node("body", this);
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+
+function response(payload) {
+  return {ok: true, status: 200, json: function () { return Promise.resolve(payload); }};
+}
+function csvResponse() {
+  return {ok: true, status: 200, headers: {get: function () { return null; }},
+    arrayBuffer: function () { return Promise.resolve(new Uint8Array([65, 10]).buffer); }};
+}
+function groupEnvelope(verdicts, lifecycle) {
+  return {schema_version: 1, state: lifecycle || "reviewing", report_revision: 1,
+    verdict_revision: verdicts.length ? 1 : 0, fingerprint: "same-stat-fingerprint",
+    snapshot: {sections: [{kind: "armor", decisions: [{id: sharedId, hash: "h",
+      name: "Shared Plate", action: "junk", reason: "exact"}], armor: {
+      exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "exact",
+        hash: "h", name: "Exact Plate", type: "Chest Armor", guardian_class: "Hunter",
+        item_archetype: "Gunner", tier: 5, stats: {}, tuning_mod_slot: "Weapons",
+        preferred_survivor_id: "survivor", members: [
+          {id: "survivor", disposition: "preferred_survivor"},
+          {id: sharedId, disposition: "proposed_junk", proposal_action: "junk"}
+        ]}],
+      same_stat_groups: [{group_kind: "same_stat", group_id: "same", hash: "h",
+        name: "Same Plate", type: "Chest Armor", guardian_class: "Hunter",
+        item_archetype: "Gunner", tier: 5, stats: {}, members: [
+          {id: sharedId, location: "Vault", tuning_stat: "Weapons",
+           tuning_mod_slot: "Weapons"},
+          {id: "other", location: "Vault", tuning_stat: "Health",
+           tuning_mod_slot: "Health"}
+        ]}]
+    }}]}, verdicts: verdicts, override_status: []};
+}
+var queue = [response(groupEnvelope([], "reviewing")),
+  response(groupEnvelope([{id: sharedId, verdict: "approved"}], "reviewing")),
+  csvResponse(),
+  response(groupEnvelope([{id: sharedId, verdict: "approved"}], "finalized"))];
+var calls = [];
+var document = new Document();
+var context = {document: document, VaultCleanerReviewUI: shared, Promise: Promise, Set: Set,
+  Blob: function () {}, URL: {createObjectURL: function () { return "blob:review"; },
+    revokeObjectURL: function () {}}, confirm: function () { return true; },
+  fetch: function (path) {
+    calls.push(path); var next = queue.shift();
+    return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+  }};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+setTimeout(function () {
+  var server = context.VaultCleanerServerUI, state = server.state;
+  document.nodes["vc-view-duplicates"].dispatch("click");
+  var occurrences = state.duplicateRows[sharedId];
+  var exact = occurrences[0], same = occurrences[1];
+  var before = {count: occurrences.length, exactMutable: !!exact.approve,
+    sameReadOnly: same.approve === null && same.presentation.textContent.indexOf("Read-only comparison") !== -1};
+  exact.approve.dispatch("click");
+  var duringAck = {exactDisabled: exact.approve.disabled, sameReadOnly: same.approve === null};
+  setTimeout(function () {
+    var afterAck = {verdict: state.verdicts[sharedId], exactPressed: exact.approve.getAttribute("aria-pressed"),
+      sameText: same.presentation.textContent, sameReadOnly: same.approve === null};
+    document.nodes["vc-finalize"].dispatch("click");
+    setTimeout(function () {
+      process.stdout.write(JSON.stringify({before: before, duringAck: duringAck, afterAck: afterAck,
+        finalized: state.server_state === "finalized" && exact.approve.disabled && exact.veto.disabled &&
+          exact.clear.disabled && same.approve === null &&
+          same.presentation.textContent.indexOf("Read-only comparison") !== -1,
+        calls: calls}));
+    }, 10);
+  }, 10);
+}, 10);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "before": {"count": 2, "exactMutable": True, "sameReadOnly": True},
+        "duringAck": {"exactDisabled": True, "sameReadOnly": True},
+        "afterAck": {
+            "verdict": "approved", "exactPressed": "true",
+            "sameText": "Read-only comparison · Current verdict: approved",
+            "sameReadOnly": True,
+        },
+        "finalized": True,
+        "calls": ["/api/report", "/api/verdicts", "/api/finalize", "/api/report"],
+    }

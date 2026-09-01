@@ -1178,58 +1178,86 @@ function count(node, predicate) {
   node.children.forEach(function (child) { total += count(child, predicate); });
   return total;
 }
-function snapshot(groups) { return {sections: [{kind: "armor", decisions: [
-  {id: "__proto__", hash: "18446744073709551615", action: "junk"}
-], armor: {same_stat_groups: groups}}]}; }
-function same(id, members) { return {group_kind: "same_stat", group_id: id,
-  hash: "18446744073709551615", name: "Same stats plate", type: "Chest Armor",
+var sharedId = "0009223372036854775808";
+var partnerId = "18446744073709551615";
+function snapshot(exactGroups, sameGroups) { return {sections: [{kind: "armor", decisions: [
+  {id: sharedId, hash: "18446744073709551615", action: "junk", reason: "exact"}
+], armor: {exact_duplicate_groups: exactGroups, same_stat_groups: sameGroups}}]}; }
+function exact() { return {group_kind: "exact_duplicate", group_id: "exact-group",
+  hash: "18446744073709551615", name: "Exact plate", type: "Chest Armor",
   guardian_class: "Hunter", item_archetype: "Gunner", tier: 5,
   stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
-  spirit_signature: [], members: members}; }
-var source = same("group", [
-  {id: "__proto__", location: "Vault", tuning_stat: "Weapons", tuning_mod_slot: "Weapons",
-   seasonal_mod: "Solar", holofoil: "false", proposal_action: "review"},
-  {id: "huge", location: "Vault", tuning_stat: "Health", tuning_mod_slot: "Health",
-   seasonal_mod: "Arc", holofoil: "true"}
-]);
-var projected = api.sameStatGroupsFromSnapshot(snapshot([source]));
+  spirit_signature: [], preferred_survivor_id: "preferred", members: [
+    {id: "preferred", location: "Vault", disposition: "preferred_survivor"},
+    {id: sharedId, location: "Vault", disposition: "proposed_junk", proposal_action: "junk"}
+  ]}; }
+function same() { return {group_kind: "same_stat", group_id: "__proto__",
+  hash: "18446744073709551615", name: "<img src=x onerror=alert(1)>",
+  type: "<img src=type>", guardian_class: "<img src=class>",
+  item_archetype: "<img src=archetype>", tier: 5,
+  stats: {weapons: 30, health: 25, class: 20, grenade: 0, super: 0, melee: 0},
+  seasonal_mod: "<img src=group-seasonal>", holofoil: "<img src=group-holofoil>",
+  spirit_signature: [], members: [
+    {id: sharedId, location: "<img src=location>", tuning_stat: "<img src=tuning-stat>",
+     tuning_mod_slot: "<img src=tuning-slot>", seasonal_mod: "Solar",
+     holofoil: "false"},
+    {id: "not-digit-id", location: "Vault", tuning_stat: "Health",
+     tuning_mod_slot: "Health", seasonal_mod: "Arc", holofoil: "true",
+     selected_partner_id: partnerId}
+  ]}; }
+var projected = api.armorGroupsFromSnapshot(snapshot([exact()], [same()]));
 var state = {expanded: Object.create(null), rows: Object.create(null),
   duplicateRows: Object.create(null), verdicts: Object.create(null)};
 var toggles = [];
 var view = api.createView({document: new Document(), state: state,
   toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
   verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
-var article = view.armorGroup(projected[0]);
-var overlap = state.duplicateRows["__proto__"];
-overlap[0].cell;
+var articles = view.armorGroups(projected);
+var exactArticle = articles[0], sameArticle = articles[1];
+var overlap = state.duplicateRows[sharedId];
 overlap[0].approve.click();
-state.verdicts["__proto__"] = "approved";
-view.paintArmorMember("__proto__");
+state.verdicts[sharedId] = "approved";
+view.paintArmorMember(sharedId);
+view.setVerdictControlsDisabled(true);
 function rejects(value) {
   try { api.sameStatGroupsFromSnapshot(value); return false; }
   catch (error) { return true; }
 }
-var duplicate = snapshot([same("one", [{id: "x"}, {id: "x"}]), same("two", [{id: "y"}, {id: "z"}])]);
 process.stdout.write(JSON.stringify({
-  order: projected[0].members.map(function (member) { return member.id; }),
-  strings: typeof projected[0].groupId === "string" && typeof projected[0].hash === "string",
-  overlapArray: Array.isArray(overlap) && overlap.length === 1,
-  overlapRepainted: overlap[0].approve.getAttribute("aria-pressed") === "true",
-  labels: article.textContent.indexOf("Same stats, different tuning") !== -1 &&
-    article.textContent.indexOf("review-only") !== -1 &&
-    article.textContent.indexOf("Tuning Mod Slot") !== -1 &&
-    article.textContent.indexOf("Weapons") !== -1 && article.textContent.indexOf("Health") !== -1,
-  noExactDisposition: article.textContent.indexOf("Preferred survivor") === -1 &&
-    article.textContent.indexOf("Proposed junk") === -1,
-  seasonalAndHolofoil: article.textContent.indexOf("Seasonal Mod") !== -1 &&
-    article.textContent.indexOf("Holofoil") !== -1,
-  controls: count(article, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  order: projected.map(function (group) { return group.groupKind; }),
+  memberOrder: projected[1].members.map(function (member) { return member.id; }),
+  strings: typeof projected[1].groupId === "string" && projected[1].groupId === "__proto__" &&
+    typeof projected[1].hash === "string" && typeof projected[1].members[1].selectedPartnerId === "string",
+  overlapArray: Array.isArray(overlap) && overlap.length === 2,
+  exactRepainted: overlap[0].approve.getAttribute("aria-pressed") === "true" && overlap[0].approve.disabled,
+  sameReadOnly: overlap[1].approve === null && overlap[1].presentation.textContent.indexOf("Read-only comparison") !== -1,
+  labels: sameArticle.textContent.indexOf("Same stats, different tuning") !== -1 &&
+    sameArticle.textContent.indexOf("review-only") !== -1 &&
+    sameArticle.textContent.indexOf("Tuning Mod Slot") !== -1 &&
+    sameArticle.textContent.indexOf("<img src=tuning-slot>") !== -1,
+  noExactDisposition: sameArticle.textContent.indexOf("Preferred survivor") === -1 &&
+    sameArticle.textContent.indexOf("Proposed junk") === -1,
+  seasonalAndHolofoil: sameArticle.textContent.indexOf("Seasonal Mod") !== -1 &&
+    sameArticle.textContent.indexOf("Solar") !== -1 && sameArticle.textContent.indexOf("Arc") !== -1 &&
+    sameArticle.textContent.indexOf("Holofoil") !== -1,
+  noBogusGroupAxes: projected[1].seasonalMod === "" && projected[1].holofoil === "" &&
+    sameArticle.textContent.indexOf("group-seasonal") === -1 &&
+    sameArticle.textContent.indexOf("group-holofoil") === -1,
+  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 3 &&
+    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 0,
   filterAny: api.filterArmorGroups(projected, {tuningModSlot: "Health"}).length === 1,
-  countsOnce: JSON.stringify(api.countArmorGroups(projected, "tuningModSlot")) ===
-    JSON.stringify([{value: "Health", count: 1}, {value: "Weapons", count: 1}]),
-  duplicateRejected: rejects(duplicate),
+  countsOnce: (function () {
+    var counts = api.countArmorGroups(projected, "tuningModSlot");
+    return counts.length === 3 && counts.every(function (entry) {
+      return entry.count === 1;
+    }) && counts.some(function (entry) { return entry.value === "none/unknown"; }) &&
+      counts.some(function (entry) { return entry.value === "Health"; }) &&
+      counts.some(function (entry) { return entry.value === "<img src=tuning-slot>"; });
+  }()),
+  hostileInert: count(sameArticle, function (node) { return node.tagName === "IMG"; }) === 0 &&
+    sameArticle.textContent.indexOf("<img src=x onerror=alert(1)>") !== -1,
   prototypeClean: Object.prototype.polluted === undefined,
-  callback: JSON.stringify(toggles) === JSON.stringify([["__proto__", "approved"]])
+  callback: JSON.stringify(toggles) === JSON.stringify([[sharedId, "approved"]])
 }));
 ''',
         encoding="utf-8",
@@ -1242,11 +1270,96 @@ process.stdout.write(JSON.stringify({
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
-        "order": ["__proto__", "huge"], "strings": True,
-        "overlapArray": True, "overlapRepainted": True,
+        "order": ["exact_duplicate", "same_stat"],
+        "memberOrder": ["0009223372036854775808", "not-digit-id"],
+        "strings": True, "overlapArray": True, "exactRepainted": True,
+        "sameReadOnly": True,
         "labels": True, "noExactDisposition": True,
-        "seasonalAndHolofoil": True, "controls": True,
+        "seasonalAndHolofoil": True, "noBogusGroupAxes": True,
+        "controls": True,
         "filterAny": True, "countsOnce": True,
-        "duplicateRejected": True, "prototypeClean": True,
+        "hostileInert": True, "prototypeClean": True,
         "callback": True,
+    }
+
+
+def test_same_stat_projection_trust_boundary_and_opaque_values(tmp_path: Path):
+    script = tmp_path / "same-stat-validation.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function member(id) { return {id: id, location: "Vault"}; }
+function group(id, members, kind) {
+  var value = {group_id: id, hash: "18446744073709551615", name: "Plate",
+    members: members};
+  if (kind !== undefined) value.group_kind = kind;
+  return value;
+}
+function snapshot(groups, decisions, sections) {
+  return {sections: sections || [{kind: "armor", decisions: decisions || [], armor: {
+    same_stat_groups: groups}}]};
+}
+function rejects(value) {
+  try { api.sameStatGroupsFromSnapshot(value); return false; }
+  catch (error) { return true; }
+}
+var missingKind = snapshot([group("missing", [member("a"), member("b")])]);
+var oneMember = snapshot([group("one", [member("a")])]);
+var duplicateGroups = snapshot([
+  group("same", [member("a"), member("b")]),
+  group("same", [member("c"), member("d")])
+]);
+var duplicateMembers = snapshot([
+  group("first", [member("a"), member("b")]),
+  group("second", [member("b"), member("c")])
+]);
+var wrongHash = snapshot([group("wrong", [member("wrong"), member("other")])], [
+  {id: "wrong", hash: "different", action: "review"}
+]);
+var crossSection = snapshot([], [], [
+  {kind: "armor", decisions: [], armor: {same_stat_groups: [
+    group("cross", [member("cross"), member("other")])
+  ]}},
+  {kind: "weapons", decisions: [
+    {id: "cross", hash: "18446744073709551615", action: "junk"}
+  ]}
+]);
+var valid = group("__proto__", [
+  member("0009223372036854775808"),
+  {id: "not-digit-id", selected_partner_id: "00000000000000000001", location: "Vault"}
+], "same_stat");
+var projected = api.sameStatGroupsFromSnapshot(snapshot([valid]));
+process.stdout.write(JSON.stringify({
+  missingKindRejected: rejects(missingKind),
+  oneMemberRejected: rejects(oneMember),
+  duplicateGroupRejected: rejects(duplicateGroups),
+  duplicateMemberRejected: rejects(duplicateMembers),
+  wrongHashRejected: rejects(wrongHash),
+  crossSectionRejected: rejects(crossSection),
+  opaqueStrings: projected[0].groupId === "__proto__" &&
+    typeof projected[0].groupId === "string" &&
+    projected[0].members[0].id === "0009223372036854775808" &&
+    typeof projected[0].members[0].id === "string" &&
+    projected[0].members[1].id === "not-digit-id" &&
+    projected[0].members[1].selectedPartnerId === "00000000000000000001" &&
+    typeof projected[0].members[1].selectedPartnerId === "string",
+  prototypeClean: Object.prototype.polluted === undefined &&
+    ({}).__proto__ === Object.prototype
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "missingKindRejected": True, "oneMemberRejected": True,
+        "duplicateGroupRejected": True, "duplicateMemberRejected": True,
+        "wrongHashRejected": True, "crossSectionRejected": True,
+        "opaqueStrings": True, "prototypeClean": True,
     }
