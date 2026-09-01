@@ -3,6 +3,23 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #112 second PR review corrections
+
+- Namespaced rendered armor member `data-member-id` attributes by validated
+  group kind while keeping the opaque source id unchanged in snapshot,
+  verdict, and duplicate-row state. Approve, Veto, and Unset labels now
+  distinguish exact-duplicate controls from same-stat controls and retain the
+  member id.
+- Updated browser selectors and added a renderer regression covering a member
+  legitimately present in both group kinds, including unique rendered ids and
+  accessible control names.
+- A kind switch now replaces invalidation state only when it drops a local
+  filter; with no drop, an existing server reconciliation notice remains
+  visible and intact. The existing local-drop behavior remains covered, with
+  a complementary no-drop regression.
+- No grouping, ranking, proposal correlation, verdict semantics, or the older
+  proposal-index refactor changed. No browser production test was added.
+
 ## 2026-09-01 — #112 PR review corrections
 
 - Made exact duplicate projection strict about the authoritative

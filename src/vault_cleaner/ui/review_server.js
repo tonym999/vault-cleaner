@@ -884,8 +884,10 @@
                   armorGroupsForKind(state.armorGroups, state.armorGroupKind),
                   localInvalidated
                 );
-                state.viewInvalidated = localInvalidated.slice();
-                state.reconciliation.invalidated = localInvalidated.slice();
+                if (localInvalidated.length) {
+                  state.viewInvalidated = localInvalidated.slice();
+                  state.reconciliation.invalidated = localInvalidated.slice();
+                }
                 renderControls(); renderList(); renderSummary();
                 renderReconciliation();
               } }

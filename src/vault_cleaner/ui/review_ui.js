@@ -1022,6 +1022,15 @@
       return isProposalMember(member);
     }
 
+    function armorMemberDomIdentity(group, member) {
+      return group.groupKind + ":" + member.id;
+    }
+
+    function armorMemberControlLabel(action, group, member) {
+      var kind = group.groupKind === "same_stat" ? "same-stat" : "exact-duplicate";
+      return action + " " + kind + " armor member id " + member.id;
+    }
+
     function memberValues(group, field, normalize) {
       var values = emptyMap();
       (group.members || []).forEach(function (member) {
@@ -1066,21 +1075,21 @@
         approve = el("button", {
           type: "button", class: "approve", text: "Approve",
           "aria-pressed": verdict === "approved" ? "true" : "false",
-          "aria-label": "approve armor member id " + member.id,
+          "aria-label": armorMemberControlLabel("approve", group, member),
           disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(member.id, "approved"); } }
         });
         veto = el("button", {
           type: "button", class: "veto", text: "Veto",
           "aria-pressed": verdict === "vetoed" ? "true" : "false",
-          "aria-label": "veto armor member id " + member.id,
+          "aria-label": armorMemberControlLabel("veto", group, member),
           disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(member.id, "vetoed"); } }
         });
         clearButton = el("button", {
           type: "button", class: "clear-verdict", text: "Unset",
           "aria-pressed": verdict === "" ? "true" : "false",
-          "aria-label": "unset verdict for armor member id " + member.id,
+          "aria-label": armorMemberControlLabel("unset verdict for", group, member),
           disabled: verdictDisabled(),
           on: { click: function () { clearVerdict(member.id); } }
         });
@@ -1098,7 +1107,9 @@
       var controls = proposal && !readOnly
         ? el("div", { class: "row-actions" }, [approve, veto, clearButton, presentation])
         : presentation;
-      var cell = el("td", { class: "armor-member-cell", "data-member-id": member.id }, [controls]);
+      var cell = el("td", {
+        class: "armor-member-cell", "data-member-id": armorMemberDomIdentity(group, member)
+      }, [controls]);
       var handle = {
         cell: cell, approve: approve, veto: veto, clear: clearButton,
         presentation: presentation, member: member, group: group

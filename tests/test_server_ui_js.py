@@ -2672,7 +2672,15 @@ vm.runInNewContext(source, context);
 setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   document.nodes["vc-view-duplicates"].dispatch("click");
+  state.viewInvalidated = ["server reconciliation notice"];
+  state.reconciliation.invalidated = ["server reconciliation notice"];
   document.nodes["vc-dup-kind-same_stat"].dispatch("click");
+  var preserved = {
+    viewInvalidated: state.viewInvalidated.slice(),
+    reconciliationInvalidated: state.reconciliation.invalidated.slice(),
+    notice: document.nodes["vc-reconciliation"].textContent,
+    noticeVisible: !document.nodes["vc-reconciliation"].hidden
+  };
   var tuning = document.nodes["vc-dup-f-tuningModSlot"];
   tuning.value = "Health"; tuning.dispatch("change", {target: tuning});
   state.viewInvalidated = ["filter stale server value"];
@@ -2681,6 +2689,7 @@ setTimeout(function () {
   exact.focus(); exact.dispatch("click");
   process.stdout.write(JSON.stringify({
     calls: calls, kind: state.armorGroupKind,
+    preserved: preserved,
     filter: state.armorQuery.tuningModSlot,
     viewInvalidated: state.viewInvalidated,
     reconciliationInvalidated: state.reconciliation.invalidated,
@@ -2701,7 +2710,14 @@ setTimeout(function () {
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
-        "calls": ["/api/report"], "kind": "exact", "filter": "",
+        "calls": ["/api/report"], "kind": "exact",
+        "preserved": {
+            "viewInvalidated": ["server reconciliation notice"],
+            "reconciliationInvalidated": ["server reconciliation notice"],
+            "notice": " Local view state dropped: server reconciliation notice.",
+            "noticeVisible": True,
+        },
+        "filter": "",
         "viewInvalidated": ["duplicate filter tuningModSlot Health"],
         "reconciliationInvalidated": ["duplicate filter tuningModSlot Health"],
         "notice": " Local view state dropped: duplicate filter tuningModSlot Health.",
