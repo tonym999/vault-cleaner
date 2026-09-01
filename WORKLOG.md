@@ -3,6 +3,110 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-01 — #112 second PR review corrections
+
+- Namespaced rendered armor member `data-member-id` attributes by validated
+  group kind while keeping the opaque source id unchanged in snapshot,
+  verdict, and duplicate-row state. Approve, Veto, and Unset labels now
+  distinguish exact-duplicate controls from same-stat controls and retain the
+  member id.
+- Updated browser selectors and added a renderer regression covering a member
+  legitimately present in both group kinds, including unique rendered ids and
+  accessible control names.
+- A kind switch now replaces invalidation state only when it drops a local
+  filter; with no drop, an existing server reconciliation notice remains
+  visible and intact. The existing local-drop behavior remains covered, with
+  a complementary no-drop regression.
+- No grouping, ranking, proposal correlation, verdict semantics, or the older
+  proposal-index refactor changed. No browser production test was added.
+
+## 2026-09-01 — #112 PR review corrections
+
+- Made exact duplicate projection strict about the authoritative
+  `group_kind: exact_duplicate` value; malformed or missing values now reject
+  the complete envelope before presentation adoption.
+- Preserved raw Tuning Stat distinctions only when they collapse into fewer
+  normalized Tuning Mod Slot values, and namespaced rendered `data-group-id`
+  attributes by validated group kind while leaving source ids opaque.
+- Added a shared reconciliation renderer and local All / Exact / Same stats
+  reconciliation path so dropped duplicate filters are immediately visible,
+  stale server invalidations are not carried forward, and selector focus is
+  restored.
+- Added focused Node-backed regressions for the hostile exact envelope, raw
+  tuning rendering, cross-kind DOM ids, and local filter invalidation. No new
+  Playwright test was added; no Python rules, report schema, server protocol,
+  lifecycle, runtime dependency, or `data/` content changed. GitHub review
+  comments could not be fetched because the API was unreachable.
+- Validation: Ruff passed; focused UI/adapter tests passed (`110 passed`);
+  full suite passed (`934 passed, 1 skipped`); non-editable wheel proof passed;
+  focused #110 Chromium passed (`1 passed`); full browser marker passed (`5
+  passed, 929 deselected`); diff whitespace and tracked-`data/` checks passed.
+  The first full-suite attempt was blocked only by sandbox socket/Chromium
+  permissions and was repeated successfully with approved escalation.
+- Follow-up review correction aligned the tuning renderer regression with
+  Python's projection: empty and future raw values both use
+  `tuning_mod_slot: none/unknown`, so the test now requires one raw Tuning Stat
+  row and verifies the future raw text appears in that row.
+
+## 2026-09-01 — #110 PR real-export evidence
+
+- Added the vault owner's approved DIM Organizer and vault-cleaner report
+  screenshots as durable PR evidence. They independently show the same
+  four-piece Titan Luminopotent Plate / Reaver stat group: Class 30, Melee 25,
+  Weapons 20, with distinct Class, Melee, Super, and Health tuning slots in the
+  report. No CSV export was committed; the owner explicitly approved the
+  visible opaque item instance ids for publication.
+
+## 2026-09-01 — #110 same-stat Armor duplicates browser extension
+
+- Extended the #102 Armor duplicates presentation to consume the authoritative
+  `same_stat_groups` snapshot projection. Same-stat groups are clearly labelled
+  `Same stats, different tuning · review-only`; they show per-member Tuning Mod
+  Slot text and supplied Seasonal Mod/Holofoil variation, without deriving a
+  survivor, disposition, ranking, or junk decision.
+- Added All / Exact / Same stats local presentation selection only when both
+  authoritative group kinds exist. Whole-group search/facets and per-group
+  Tuning Mod Slot matching/counting are preserved, including any-member tuning
+  matches for same-stat groups.
+- Changed the local duplicate DOM registry to retain multiple handles for one
+  opaque id so legitimate exact/same overlap repaints and disables every
+  applicable occurrence while preserving read-only presentation semantics.
+- Added fake same-stat fixture, focused Node projection/renderer/overlap
+  coverage, and exactly one focused packaged-server browser test. Updated the
+  README, narrow M9 ownership sequencing, and browser verification checklist.
+- Focused Node/adapter tests pass (`104 passed`). Focused Chromium passed in
+  1.34s and the full browser marker passed in 5.62s; no Python rules, report
+  schema, server protocol/lifecycle, runtime dependencies, or #109 work
+  changed.
+
+## 2026-09-01 — #110 Sol review corrections
+
+- Same-stat projection now rejects missing `group_kind`, one-member groups,
+  duplicate group ids, and member ids repeated across same-stat groups. It
+  keeps Seasonal Mod/Holofoil strictly member-level, so absent group axes
+  cannot render synthetic `none/unknown` header tiles.
+- Same-stat current proposal controls now require a same-section, same-hash
+  authoritative current proposal decision. Supplied close-pass member
+  metadata is displayed/validated when present but never grants authority;
+  blank metadata therefore still permits legitimate later-pass proposals,
+  while an exact preferred/retained presentation remains read-only even when
+  it discloses the current proposal. Wrong-hash and cross-section lookalikes
+  remain rejected.
+- Added focused Node trust/security coverage for strict shape, duplicate
+  identity, hostile same-stat values, prototype-shaped group/member ids, and
+  huge/leading-zero/non-digit opaque ids. Added adapter coverage that renders
+  exact and same-stat occurrences for one id, acknowledges one verdict through
+  the existing seam, repaints both occurrences, and freezes all applicable
+  controls at finalisation. The single #110 Playwright test remains the only
+  new browser test.
+- Performed the packaged-server visual pass with a temporary combined fixture
+  containing only committed fake rows: 1440×1000 and 390×844 in light and
+  dark, headless screenshots retained and inspected. The mixed selector and
+  focused All control, same-stat heading/tuning values, contained narrow
+  matrix overflow, and finalised read-only/disabled state were legible in all
+  four cases (about 6.2s total). The pre-existing acknowledgement focus blur
+  remains the only noted limitation.
+
 ## 2026-09-01 — #102 incremental review follow-up
 
 - Replaced the cross-group malformed-envelope adapter regression's fixed

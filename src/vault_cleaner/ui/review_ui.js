@@ -317,6 +317,9 @@
       armor.exact_duplicate_groups.forEach(function (source, index) {
         var where = "sections[" + s + "].armor.exact_duplicate_groups[" + index + "]";
         if (!isObject(source)) throw new Error(where + " must be an object");
+        if (source.group_kind !== "exact_duplicate") {
+          throw new Error(where + ".group_kind must be exact_duplicate");
+        }
         var groupId = requireIdString(source.group_id, where + ".group_id");
         var hash = requireIdString(source.hash, where + ".hash");
         var preferred = requireIdString(
@@ -398,7 +401,7 @@
           };
         });
         groups.push({
-          groupKind: str(source.group_kind) || "exact_duplicate",
+          groupKind: "exact_duplicate",
           groupId: groupId,
           hash: hash,
           name: str(source.name),
@@ -423,6 +426,171 @@
     return groups;
   }
 
+  // Project the close-pass same-stat comparison groups without deriving any
+  // grouping or decision truth in the browser.  Exact and same-stat groups
+  // deliberately use separate uniqueness maps: one item may occur in both
+  // authoritative categories, while duplicate identities within a category
+  // remain incompatible input.
+  function sameStatGroupsFromSnapshot(snapshot) {
+    var groups = [];
+    var sections = (snapshot && snapshot.sections) || [];
+    var seenGroups = emptyMap();
+    var seenGroupMembers = emptyMap();
+    var proposalDecisionsBySection = [];
+    var proposalDecisionLocations = emptyMap();
+    sections.forEach(function (section, sectionIndex) {
+      var proposals = emptyMap();
+      (section && Array.isArray(section.decisions) ? section.decisions : []).forEach(
+        function (decision, decisionIndex) {
+          if (!isObject(decision) || (decision.action !== "junk" &&
+              decision.action !== "review")) return;
+          var decisionWhere = "sections[" + sectionIndex + "].decisions[" +
+            decisionIndex + "]";
+          var decisionId = requireIdString(decision.id, decisionWhere + ".id");
+          if (Object.prototype.hasOwnProperty.call(proposals, decisionId)) {
+            throw new Error("duplicate proposal decision for id " + decisionId +
+              " at " + decisionWhere);
+          }
+          proposals[decisionId] = decision;
+          if (!proposalDecisionLocations[decisionId]) {
+            proposalDecisionLocations[decisionId] = [];
+          }
+          proposalDecisionLocations[decisionId].push({
+            sectionIndex: sectionIndex, decision: decision
+          });
+        }
+      );
+      proposalDecisionsBySection[sectionIndex] = proposals;
+    });
+    for (var s = 0; s < sections.length; s++) {
+      var section = sections[s] || {};
+      var armor = section.armor;
+      if (section.kind !== "armor" || !armor ||
+          !Array.isArray(armor.same_stat_groups)) continue;
+      var proposalDecisions = proposalDecisionsBySection[s] || emptyMap();
+      armor.same_stat_groups.forEach(function (source, index) {
+        var where = "sections[" + s + "].armor.same_stat_groups[" + index + "]";
+        if (!isObject(source)) throw new Error(where + " must be an object");
+        if (source.group_kind !== "same_stat") {
+          throw new Error(where + ".group_kind must be same_stat");
+        }
+        var groupId = requireIdString(source.group_id, where + ".group_id");
+        var hash = requireIdString(source.hash, where + ".hash");
+        if (Object.prototype.hasOwnProperty.call(seenGroups, groupId)) {
+          throw new Error("duplicate same-stat group id " + groupId);
+        }
+        seenGroups[groupId] = true;
+        if (!Array.isArray(source.members) || source.members.length < 2) {
+          throw new Error(where + ".members must contain at least two members");
+        }
+        var seenMembers = emptyMap();
+        var members = source.members.map(function (member, memberIndex) {
+          var memberWhere = where + ".members[" + memberIndex + "]";
+          if (!isObject(member)) throw new Error(memberWhere + " must be an object");
+          var id = requireIdString(member.id, memberWhere + ".id");
+          if (Object.prototype.hasOwnProperty.call(seenMembers, id)) {
+            throw new Error("duplicate member id " + id + " at " + memberWhere);
+          }
+          if (Object.prototype.hasOwnProperty.call(seenGroupMembers, id)) {
+            throw new Error("duplicate member id " + id +
+              " across same-stat groups at " + memberWhere);
+          }
+          seenMembers[id] = true;
+          seenGroupMembers[id] = true;
+          var proposalAction = member.proposal_action === null ||
+            member.proposal_action === undefined ? "" : str(member.proposal_action);
+          if (proposalAction && ["junk", "review"].indexOf(proposalAction) === -1) {
+            throw new Error(memberWhere + ".proposal_action is unsupported");
+          }
+          var proposalDecision = Object.prototype.hasOwnProperty.call(proposalDecisions, id)
+            ? proposalDecisions[id] : null;
+          var proposalLocations = proposalDecisionLocations[id] || [];
+          if (proposalLocations.some(function (location) {
+            return location.sectionIndex !== s;
+          })) {
+            throw new Error(memberWhere + " has a proposal decision in another section");
+          }
+          var currentProposalAction = "";
+          var currentProposalReason = "";
+          if (proposalDecision) {
+            var proposalHash = requireIdString(proposalDecision.hash,
+              memberWhere + ".proposal_hash");
+            if (proposalHash !== hash) {
+              throw new Error(memberWhere + " has a proposal decision for another hash");
+            }
+            // A same-section, same-hash decision is the authoritative
+            // proposal seam. Close-pass member metadata may corroborate that
+            // decision, but it cannot manufacture one when the decision is
+            // absent.
+            if (proposalAction && proposalDecision.action !== proposalAction) {
+              throw new Error(memberWhere + " has inconsistent proposal action");
+            }
+            currentProposalAction = str(proposalDecision.action);
+            currentProposalReason = str(proposalDecision.reason);
+          }
+          var selectedPartnerId = member.selected_partner_id === null ||
+            member.selected_partner_id === undefined ? null :
+            requireIdString(member.selected_partner_id, memberWhere + ".selected_partner_id");
+          return {
+            id: id,
+            location: str(member.location),
+            protectionLevel: member.protection_level === null ||
+              member.protection_level === undefined ? "" : str(member.protection_level),
+            protectionReason: str(member.protection_reason),
+            equipped: member.equipped === true,
+            inLoadout: member.in_loadout === true,
+            locked: member.locked === true,
+            masterworkTier: member.masterwork_tier,
+            power: member.power,
+            tuningStat: str(member.tuning_stat),
+            tuningModSlot: normalizeCategoricalValue(member.tuning_mod_slot),
+            seasonalMod: normalizeCategoricalValue(member.seasonal_mod),
+            holofoil: normalizeCategoricalValue(member.holofoil),
+            // The source action/reason are close-pass metadata.  A current
+            // proposal is authoritative only when it is correlated above.
+            proposalAction: proposalAction,
+            proposalReason: member.proposal_reason === null ||
+              member.proposal_reason === undefined ? "" : str(member.proposal_reason),
+            selectedPartnerId: selectedPartnerId,
+            currentProposalAction: currentProposalAction,
+            currentProposalReason: currentProposalReason
+          };
+        });
+        groups.push({
+          groupKind: "same_stat",
+          groupId: groupId,
+          hash: hash,
+          name: str(source.name),
+          type: normalizeCategoricalValue(source.type),
+          guardianClass: normalizeCategoricalValue(source.guardian_class),
+          itemArchetype: normalizeCategoricalValue(source.item_archetype),
+          tier: source.tier,
+          stats: isObject(source.stats) ? Object.keys(source.stats).reduce(function (copy, name) {
+            copy[name] = source.stats[name];
+            return copy;
+          }, emptyMap()) : emptyMap(),
+          // Same-stat groups intentionally have no group-level tuning or
+          // variation axes. Seasonal Mod and Holofoil are member-only fields
+          // in the authoritative close-pass snapshot.
+          tuningModSlot: "none/unknown",
+          seasonalMod: "",
+          holofoil: "",
+          spiritSignature: Array.isArray(source.spirit_signature)
+            ? source.spirit_signature.map(str) : [],
+          preferredSurvivorId: null,
+          members: members
+        });
+      });
+    }
+    return groups;
+  }
+
+  function armorGroupsFromSnapshot(snapshot) {
+    return exactDuplicateGroupsFromSnapshot(snapshot).concat(
+      sameStatGroupsFromSnapshot(snapshot)
+    );
+  }
+
   function matchesArmorGroup(group, query) {
     var q = query || {};
     var needle = str(q.text).trim().toLowerCase();
@@ -436,7 +604,16 @@
     if (q.guardianClass && normalizeCategoricalValue(group.guardianClass) !== normalizeCategoricalValue(q.guardianClass)) return false;
     if (q.type && normalizeCategoricalValue(group.type) !== normalizeCategoricalValue(q.type)) return false;
     if (q.itemArchetype && normalizeCategoricalValue(group.itemArchetype) !== normalizeCategoricalValue(q.itemArchetype)) return false;
-    if (q.tuningModSlot && normalizeCategoricalValue(group.tuningModSlot) !== normalizeCategoricalValue(q.tuningModSlot)) return false;
+    if (q.tuningModSlot) {
+      var requested = normalizeCategoricalValue(q.tuningModSlot);
+      var isSameStat = group.groupKind === "same_stat";
+      var tuningMatch = isSameStat
+        ? (group.members || []).some(function (member) {
+          return normalizeCategoricalValue(member.tuningModSlot) === requested;
+        })
+        : normalizeCategoricalValue(group.tuningModSlot) === requested;
+      if (!tuningMatch) return false;
+    }
     return true;
   }
 
@@ -449,6 +626,16 @@
   function countArmorGroups(groups, field) {
     var counts = emptyMap();
     (groups || []).forEach(function (group) {
+      if (field === "tuningModSlot" && group.groupKind === "same_stat") {
+        var values = emptyMap();
+        (group.members || []).forEach(function (member) {
+          values[normalizeCategoricalValue(member.tuningModSlot)] = true;
+        });
+        Object.keys(values).forEach(function (value) {
+          counts[value] = (counts[value] || 0) + 1;
+        });
+        return;
+      }
       var value = normalizeCategoricalValue(group[field]);
       counts[value] = (counts[value] || 0) + 1;
     });
@@ -787,9 +974,10 @@
         });
       });
       Object.keys(state.duplicateRows).forEach(function (id) {
-        var row = state.duplicateRows[id];
-        [row.approve, row.veto, row.clear].forEach(function (control) {
-          if (control) control.disabled = !!disabled;
+        (state.duplicateRows[id] || []).forEach(function (row) {
+          [row.approve, row.veto, row.clear].forEach(function (control) {
+            if (control) control.disabled = !!disabled;
+          });
         });
       });
     }
@@ -817,6 +1005,41 @@
       return text;
     }
 
+    function armorMemberLabel(group, member) {
+      if (group.groupKind === "same_stat") {
+        return member.currentProposalAction
+          ? "Existing Proposals action: " + member.currentProposalAction
+          : "Read-only comparison";
+      }
+      return dispositionLabel(member);
+    }
+
+    function armorMemberCanVerdict(group, member) {
+      if (group.groupKind === "same_stat") {
+        return member.currentProposalAction === "junk" ||
+          member.currentProposalAction === "review";
+      }
+      return isProposalMember(member);
+    }
+
+    function armorMemberDomIdentity(group, member) {
+      return group.groupKind + ":" + member.id;
+    }
+
+    function armorMemberControlLabel(action, group, member) {
+      var kind = group.groupKind === "same_stat" ? "same-stat" : "exact-duplicate";
+      return action + " " + kind + " armor member id " + member.id;
+    }
+
+    function memberValues(group, field, normalize) {
+      var values = emptyMap();
+      (group.members || []).forEach(function (member) {
+        var value = normalize ? normalize(member[field]) : str(member[field]);
+        values[value] = true;
+      });
+      return Object.keys(values);
+    }
+
     function armorGroupHeader(group) {
       var statDisplay = armorStatDisplay(group);
       var statNodes = statDisplay.rows.map(function (row) {
@@ -824,14 +1047,16 @@
       });
       return el("header", { class: "armor-group-header" }, [
         el("h3", { text: group.name || "(unnamed armor)" }),
-        el("p", { class: "sub", text: "Exact duplicate group · " + group.groupKind }),
+        el("p", { class: "sub", text: group.groupKind === "same_stat"
+          ? "Same stats, different tuning · review-only"
+          : "Exact duplicate group · " + group.groupKind }),
         el("div", { class: "armor-group-meta" }, [
           tile("Type / slot", group.type || "unknown"),
           tile("Guardian class", group.guardianClass || "class-neutral/unknown"),
           tile("Tier", group.tier === null || group.tier === undefined ? "unknown" : group.tier),
           tile("Hash", group.hash),
           tile("Archetype", group.itemArchetype || "none/unknown"),
-          tile("Tuning Mod Slot", group.tuningModSlot)
+          group.groupKind === "same_stat" ? null : tile("Tuning Mod Slot", group.tuningModSlot)
         ]),
         el("div", { class: "armor-stat-summary", "aria-label": "Base stat summary" }, statNodes),
         statDisplay.zeroSummary ? el("p", { class: "hint", text: statDisplay.zeroSummary }) : null,
@@ -842,29 +1067,29 @@
       ]);
     }
 
-    function armorMemberCell(member) {
-      var proposal = isProposalMember(member);
+    function armorMemberCell(member, group) {
+      var proposal = armorMemberCanVerdict(group, member);
       var verdict = verdictOf(state.verdicts, member.id);
       var approve = null, veto = null, clearButton = null, presentation = null;
       if (proposal && !readOnly) {
         approve = el("button", {
           type: "button", class: "approve", text: "Approve",
           "aria-pressed": verdict === "approved" ? "true" : "false",
-          "aria-label": "approve armor member id " + member.id,
+          "aria-label": armorMemberControlLabel("approve", group, member),
           disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(member.id, "approved"); } }
         });
         veto = el("button", {
           type: "button", class: "veto", text: "Veto",
           "aria-pressed": verdict === "vetoed" ? "true" : "false",
-          "aria-label": "veto armor member id " + member.id,
+          "aria-label": armorMemberControlLabel("veto", group, member),
           disabled: verdictDisabled(),
           on: { click: function () { toggleVerdict(member.id, "vetoed"); } }
         });
         clearButton = el("button", {
           type: "button", class: "clear-verdict", text: "Unset",
           "aria-pressed": verdict === "" ? "true" : "false",
-          "aria-label": "unset verdict for armor member id " + member.id,
+          "aria-label": armorMemberControlLabel("unset verdict for", group, member),
           disabled: verdictDisabled(),
           on: { click: function () { clearVerdict(member.id); } }
         });
@@ -874,17 +1099,27 @@
       } else {
         var readonlyText = proposal
           ? verdictText(member, verdict)
-          : armorReadonlyText(member, verdict);
+          : group.groupKind === "same_stat"
+            ? "Read-only comparison · Current verdict: " + verdictText(member, verdict)
+            : armorReadonlyText(member, verdict);
         presentation = el("span", { class: "hint", text: readonlyText });
       }
       var controls = proposal && !readOnly
         ? el("div", { class: "row-actions" }, [approve, veto, clearButton, presentation])
         : presentation;
-      var cell = el("td", { class: "armor-member-cell", "data-member-id": member.id }, [controls]);
-      state.duplicateRows[member.id] = {
+      var cell = el("td", {
+        class: "armor-member-cell", "data-member-id": armorMemberDomIdentity(group, member)
+      }, [controls]);
+      var handle = {
         cell: cell, approve: approve, veto: veto, clear: clearButton,
-        presentation: presentation, member: member
+        presentation: presentation, member: member, group: group
       };
+      var occurrences = state.duplicateRows[member.id];
+      if (!occurrences) {
+        occurrences = [];
+        state.duplicateRows[member.id] = occurrences;
+      }
+      occurrences.push(handle);
       return cell;
     }
 
@@ -895,10 +1130,35 @@
           el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
           el("span", { class: "mono", text: member.id }),
           el("span", { class: "sub", text: member.location || "location unknown" }),
-          el("span", { class: "badge", text: dispositionLabel(member) })
+          el("span", { class: "badge", text: armorMemberLabel(group, member) })
         ]));
       });
-      var rows = [
+      var rows = [];
+      if (group.groupKind === "same_stat") {
+        rows.push(["Tuning Mod Slot", function (member) {
+          return normalizeCategoricalValue(member.tuningModSlot);
+        }]);
+        var seasonalValues = memberValues(group, "seasonalMod", normalizeCategoricalValue);
+        if (seasonalValues.length > 1) {
+          rows.push(["Seasonal Mod", function (member) {
+            return normalizeCategoricalValue(member.seasonalMod);
+          }]);
+        }
+        var holofoilValues = memberValues(group, "holofoil", normalizeCategoricalValue);
+        if (holofoilValues.length > 1) {
+          rows.push(["Holofoil", function (member) {
+            return normalizeCategoricalValue(member.holofoil);
+          }]);
+        }
+        var rawTuningValues = memberValues(group, "tuningStat");
+        var tuningSlots = memberValues(group, "tuningModSlot", normalizeCategoricalValue);
+        if (rawTuningValues.length > tuningSlots.length) {
+          rows.push(["Tuning Stat", function (member) {
+            return member.tuningStat || "none/unknown";
+          }]);
+        }
+      }
+      rows = rows.concat([
         ["Hard protection", function (member) {
           return member.protectionLevel
             ? member.protectionLevel + (member.protectionReason ? " — " + member.protectionReason : "")
@@ -914,7 +1174,7 @@
         ["Power", function (member) {
           return member.power === null || member.power === undefined ? "unknown" : str(member.power);
         }]
-      ].map(function (row) {
+      ]).map(function (row) {
         return el("tr", null, [el("th", { scope: "row", text: row[0] })].concat(
           group.members.map(function (member) {
             return el("td", { text: row[1](member) });
@@ -923,7 +1183,9 @@
       });
       rows.push(el("tr", { class: "armor-verdict-row" }, [
         el("th", { scope: "row", text: "Verdict" })
-      ].concat(group.members.map(armorMemberCell))));
+      ].concat(group.members.map(function (member) {
+        return armorMemberCell(member, group);
+      }))));
       return el("div", { class: "scroller armor-matrix" }, [
         el("table", { class: "armor-group-table" }, [
           el("thead", null, [el("tr", null, headerCells)]),
@@ -934,7 +1196,8 @@
 
     function armorGroup(group) {
       return el("article", {
-        class: "armor-group", "data-group-id": group.groupId
+        class: "armor-group", "data-group-id": group.groupKind + ":" + group.groupId,
+        "data-group-kind": group.groupKind
       }, [armorGroupHeader(group), armorGroupTable(group)]);
     }
 
@@ -943,19 +1206,23 @@
     }
 
     function paintArmorMember(id) {
-      var row = state.duplicateRows[id];
-      if (!row) return false;
+      var rows = state.duplicateRows[id];
+      if (!rows || !rows.length) return false;
       var current = verdictOf(state.verdicts, id);
-      if (row.approve) {
-        row.approve.setAttribute("aria-pressed", current === "approved" ? "true" : "false");
-        row.veto.setAttribute("aria-pressed", current === "vetoed" ? "true" : "false");
-        row.clear.setAttribute("aria-pressed", current === "" ? "true" : "false");
-        row.approve.disabled = verdictDisabled();
-        row.veto.disabled = verdictDisabled();
-        row.clear.disabled = verdictDisabled();
-      }
-      if (row.presentation) row.presentation.textContent = isProposalMember(row.member)
-        ? verdictText(row.member, current) : armorReadonlyText(row.member, current);
+      rows.forEach(function (row) {
+        if (row.approve) {
+          row.approve.setAttribute("aria-pressed", current === "approved" ? "true" : "false");
+          row.veto.setAttribute("aria-pressed", current === "vetoed" ? "true" : "false");
+          row.clear.setAttribute("aria-pressed", current === "" ? "true" : "false");
+          row.approve.disabled = verdictDisabled();
+          row.veto.disabled = verdictDisabled();
+          row.clear.disabled = verdictDisabled();
+        }
+        if (row.presentation) row.presentation.textContent = armorMemberCanVerdict(row.group, row.member)
+          ? verdictText(row.member, current) : row.group.groupKind === "same_stat"
+            ? "Read-only comparison · Current verdict: " + verdictText(row.member, current)
+            : armorReadonlyText(row.member, current);
+      });
       return true;
     }
 
@@ -981,6 +1248,8 @@
     reviewCounts: reviewCounts, sortItems: sortItems, str: str, verdictOf: verdictOf,
     emptyMap: emptyMap, createView: createView,
     exactDuplicateGroupsFromSnapshot: exactDuplicateGroupsFromSnapshot,
+    sameStatGroupsFromSnapshot: sameStatGroupsFromSnapshot,
+    armorGroupsFromSnapshot: armorGroupsFromSnapshot,
     matchesArmorGroup: matchesArmorGroup, filterArmorGroups: filterArmorGroups,
     countArmorGroups: countArmorGroups, armorStatDisplay: armorStatDisplay,
     normalizeCategoricalValue: normalizeCategoricalValue

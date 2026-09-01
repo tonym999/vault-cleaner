@@ -79,6 +79,29 @@ Issue #102 focused check:
 - [ ] Hostile names, locations, archetypes, Spirit/mod/holofoil values remain
       literal inert text with no injected elements.
 
+Issue #110 focused check:
+
+- [ ] Armor duplicates remains available when the report has same-stat groups
+      but no exact groups, and the group heading explicitly says
+      `Same stats, different tuning` and `review-only`.
+- [ ] The segmented All / Exact / Same stats control appears only for mixed
+      authoritative group kinds, selects complete groups, and retains valid
+      search/facet state while clearing only unavailable categorical values.
+- [ ] Every same-stat member has an always-visible text-labelled Tuning Mod
+      Slot, including `none/unknown`; Seasonal Mod and Holofoil rows appear
+      when those supplied values vary.
+- [ ] Same-stat members do not receive survivor, retained, or junk labels.
+      Verdict controls appear only for a same-section, same-hash authoritative
+      proposal and use the existing single-item acknowledgement path.
+- [ ] An item present in both exact and same-stat groups has both DOM
+      occurrences registered; one acknowledgement repaints/disables all
+      applicable occurrences while read-only occurrences remain read-only.
+- [ ] Desktop (approximately 1440×1000) and narrow (approximately 390×844)
+      light/dark layouts keep the heading, tuning labels, focus treatment, and
+      contained matrix overflow readable; finalised rendering remains frozen.
+- [ ] Hostile same-stat strings remain inert text, and opaque ids/hashes are
+      preserved as strings.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -114,6 +137,40 @@ terminal.
   and was not changed by #104. Keyboard `a`/`v`/`u` review from the row control
   remained usable and repainted the row in place.
 - The Armor duplicates group view was not tested or claimed; it remains #102.
+
+## 2026-09-01 — issue #110 focused check
+
+- Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
+  151.0.7922.34 (Playwright Chromium revision 1234), headless.
+- Fixtures: `tests/fixtures/armor_same_stat_ui.csv` for the focused browser
+  test, plus a temporary five-row combined fake fixture made only from the
+  committed `armor_duplicates_ui.csv` and `armor_same_stat_ui.csv` fake rows
+  for the mixed-kind visual pass. No real vault data, wishlists, or manifest
+  network access was used. The focused packaged-server browser test completed
+  in 1.34s (`1 passed`); the final full Chromium marker gate completed in
+  5.07s (`5 passed`, `923 deselected`).
+- Result: pass. Armor duplicates stayed enabled with no exact groups and
+  rendered one complete `Same stats, different tuning · review-only` group.
+  Both fake member ids and their differing Weapons/Health Tuning Mod Slot
+  values were visible as ordinary text before any expansion or hover. The
+  same-stat group exposed only controls for existing authoritative current
+  proposals and did not imply a survivor or junk disposition.
+- Actual visual matrix: the packaged server was exercised headlessly at
+  1440×1000 and 390×844 in both light and dark appearances (four cases, about
+  6.2s total), with review and finalised screenshots retained and inspected.
+  The mixed fixture showed the All / Exact / Same stats selector; `All` was
+  focused and its focus ring was visible. Headings, tuning labels, finalised
+  read-only text, and disabled controls were legible in all four cases, and
+  narrow member matrices remained inside their contained horizontal scrollers.
+- Node/adapter coverage passed for mixed group ordering, All/Exact/Same stats
+  state and reconciliation, whole-group any-member tuning filters/counts,
+  strict malformed same-stat rejection, hostile text, prototype-shaped ids,
+  and the one-id-to-many duplicate DOM registry. The existing mutation gate
+  can still blur a verdict button focused while acknowledgement is in flight;
+  this pre-existing behavior was not changed by #110.
+- Remaining limitation: as recorded for #102, the pre-existing mutation gate
+  can blur a verdict button focused while acknowledgement is in flight. No
+  server lifecycle or mutation semantics were changed by #110.
 
 ## 2026-09-01 — issue #102 focused check
 

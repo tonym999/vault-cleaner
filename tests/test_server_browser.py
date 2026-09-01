@@ -30,6 +30,7 @@ HOSTILE_EXPORT = FIXTURES / "weapons_hostile.csv"
 CLASS_ARMOR_EXPORT = FIXTURES / "armor_classes.csv"
 ARMOR_CLOSE_EXPORT = FIXTURES / "armor_close.csv"
 ARMOR_DUPLICATES_UI_EXPORT = FIXTURES / "armor_duplicates_ui.csv"
+ARMOR_SAME_STAT_UI_EXPORT = FIXTURES / "armor_same_stat_ui.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
@@ -292,14 +293,14 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(group).to_contain_text("The other three base stats are 0")
 
     for member_id in ("8201", "8202", "8203"):
-        expect(group.locator(f'[data-member-id="{member_id}"]')).to_be_visible()
+        expect(group.locator(f'[data-member-id="exact_duplicate:{member_id}"]')).to_be_visible()
         expect(group).to_contain_text(member_id)
     expect(group).to_contain_text("Preferred survivor")
     expect(group).to_contain_text("Retained protected")
     expect(group).to_contain_text("Proposed junk")
-    assert group.locator('[data-member-id="8201"] button.approve').count() == 0
-    assert group.locator('[data-member-id="8202"] button.veto').count() == 0
-    proposal = group.locator('[data-member-id="8203"]')
+    assert group.locator('[data-member-id="exact_duplicate:8201"] button.approve').count() == 0
+    assert group.locator('[data-member-id="exact_duplicate:8202"] button.veto').count() == 0
+    proposal = group.locator('[data-member-id="exact_duplicate:8203"]')
     expect(proposal.locator("button.approve")).to_be_enabled()
 
     proposal.locator("button.approve").click()
@@ -313,3 +314,30 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(proposal_row.locator("button.approve")).to_have_attribute(
         "aria-pressed", "true"
     )
+
+
+@pytest.mark.browser
+def test_armor_same_stat_group_renders_member_tuning_variation(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Same-stat groups are complete, review-only comparisons."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+    expect(group).to_contain_text("Same stats, different tuning")
+    expect(group).to_contain_text("review-only")
+    expect(group).to_contain_text("8301")
+    expect(group).to_contain_text("8302")
+    expect(group).to_contain_text("Tuning Mod Slot")
+    expect(group).to_contain_text("Weapons")
+    expect(group).to_contain_text("Health")
+    expect(group.locator("th[scope='row']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator("button.approve")).to_have_count(2)
+    expect(group).not_to_contain_text("Preferred survivor")
+    expect(group).not_to_contain_text("Proposed junk")
