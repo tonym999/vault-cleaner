@@ -26,7 +26,13 @@ for, in both appearances.
 
 Proposed treatments, for comparison against the baseline above:
 `alternative-a-scoped-summary-line.png`, `alternative-b-distributed-counts.png`,
-and the interactive `count-treatments.html`.
+`kind-hierarchy-unfiltered.png`, and `count-treatments.html`, which carries the
+full criterion-by-criterion comparison. That file is a standalone document —
+open it straight from the repo; it makes no network requests and uses system
+font stacks, so the stills above match what it renders.
+
+The two alternative stills are both shown filtered to Exact, so each lists only
+exact groups; the kind hierarchy is shown once, unfiltered, in the third.
 
 The mixed export is the two committed fixtures concatenated: one exact
 duplicate group of three members, one same-stat group of four. The hostile

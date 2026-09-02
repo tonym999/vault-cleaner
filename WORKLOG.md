@@ -50,6 +50,29 @@ surprises the next agent should know about.
   theming, and zero-base-stat suppression. An earlier code-only reading had
   wrongly flagged all four; rendering corrected it.
 
+## 2026-09-02 — #113 second review round: specimen coherence
+
+- **The Exact-filtered specimens listed a same-stat group.** Both alternatives
+  were captioned "filtered to Exact", set the Exact chip pressed, and carried a
+  scope line reading "filtered to exact duplicates" — while rendering a
+  `Same stats · review only` group underneath. A self-contradiction, in a
+  document whose subject is filter and count coherence. Exact-filtered specimens
+  now list only exact groups, and the kind hierarchy moved to a new unfiltered
+  specimen, which is the state where both kinds legitimately appear. Added a
+  rendering assertion for it rather than trusting the eye.
+- The committed `count-treatments.html` still carried the pre-correction banner
+  copy and the superseded denominator wording, so it contradicted the design
+  record it illustrates. Synced.
+- Made that file a standalone document: it had been authored for a publisher
+  that supplies the wrapper, so committing it as-is left no doctype and put it
+  in quirks mode. It also pulled fonts from a remote host on open. Now has a
+  doctype and head, uses system font stacks, and makes zero network requests —
+  verified by asserting no non-`file://` request during render. Stills
+  re-rendered so they match.
+- **Worth knowing:** an artifact authored for one delivery target is not
+  automatically fit to commit. Doctype, wrapper elements, and remote assets are
+  all supplied by a publisher and all absent from the repo copy.
+
 ## 2026-09-02 — #113 PR review corrections
 
 - **Banner logic error, caught in review.** The specified same-stat banner was

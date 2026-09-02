@@ -1,5 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Groups, Pieces, Proposals</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<!-- No external requests: this file is opened straight from the repo.
+     Type falls back through the stacks declared below. -->
 <style>
 /* ---- page chrome tokens: neutral biased toward the review UI's accent ---- */
 :root{
@@ -35,7 +41,7 @@
 *{box-sizing:border-box}
 body{
   background:var(--ground); color:var(--ink); margin:0;
-  font:400 15px/1.6 "IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  font:400 15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   -webkit-font-smoothing:antialiased;
 }
 .wrap{max-width:60rem;margin:0 auto;padding:3.5rem 1.5rem 6rem;
@@ -45,16 +51,16 @@ h1{font-size:2.1rem;font-weight:600;letter-spacing:-.02em}
 h2{font-size:1.4rem;font-weight:600;letter-spacing:-.015em}
 h3{font-size:1.02rem;font-weight:600}
 p{margin:0}
-code,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 code{font-size:.88em;background:var(--rule-soft);padding:.1em .35em;border-radius:3px}
 
-.eyebrow{font:600 .72rem/1 "IBM Plex Mono",monospace;letter-spacing:.13em;
+.eyebrow{font:600 .72rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;
   text-transform:uppercase;color:var(--muted)}
 header.top{display:flex;flex-direction:column;gap:.85rem;
   border-bottom:1px solid var(--rule);padding-bottom:2rem}
 header.top .lede{font-size:1.05rem;color:var(--muted);max-width:62ch}
 .meta{display:flex;flex-wrap:wrap;gap:.4rem .5rem;margin-top:.35rem}
-.tag{font:500 .72rem/1 "IBM Plex Mono",monospace;letter-spacing:.04em;
+.tag{font:500 .72rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;
   border:1px solid var(--rule);border-radius:99px;padding:.4em .7em;color:var(--muted)}
 
 section{display:flex;flex-direction:column;gap:1.1rem}
@@ -66,7 +72,7 @@ section{display:flex;flex-direction:column;gap:1.1rem}
 .ev{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.75rem}
 .ev div{background:var(--card);border:1px solid var(--rule);border-radius:9px;
   padding:.9rem 1rem;display:flex;flex-direction:column;gap:.3rem;box-shadow:var(--shadow)}
-.ev .n{font:600 1.5rem/1 "IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+.ev .n{font:600 1.5rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;
   letter-spacing:-.02em}
 .ev .k{font-size:.82rem;color:var(--muted)}
 .ev .bad .n{color:var(--bad)}
@@ -76,8 +82,8 @@ section{display:flex;flex-direction:column;gap:1.1rem}
   overflow:hidden;box-shadow:var(--shadow)}
 .spec > figcaption{display:flex;align-items:center;justify-content:space-between;
   gap:1rem;padding:.6rem .9rem;border-bottom:1px solid var(--rule-soft);
-  font:500 .78rem/1.3 "IBM Plex Mono",monospace;color:var(--muted);flex-wrap:wrap}
-.spec .badge{font:600 .68rem/1 "IBM Plex Mono",monospace;letter-spacing:.08em;
+  font:500 .78rem/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);flex-wrap:wrap}
+.spec .badge{font:600 .68rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
   padding:.4em .6em;border-radius:4px;text-transform:uppercase}
 .badge.base{background:var(--rule-soft);color:var(--muted)}
 .badge.aa{background:var(--a-soft);color:var(--a)}
@@ -136,7 +142,7 @@ section{display:flex;flex-direction:column;gap:1.1rem}
 .cmp{width:100%;border-collapse:collapse;font-size:.9rem}
 .cmp th,.cmp td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--rule-soft);
   vertical-align:top}
-.cmp thead th{font:600 .72rem/1 "IBM Plex Mono",monospace;letter-spacing:.08em;
+.cmp thead th{font:600 .72rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
   text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule)}
 .cmp .win{color:var(--a);font-weight:600}
 .cmp .lose{color:var(--muted)}
@@ -157,7 +163,8 @@ a{color:var(--brand)}
 :focus-visible{outline:3px solid var(--brand);outline-offset:2px;border-radius:3px}
 @media (max-width:640px){ .wrap{padding:2.5rem 1rem 4rem;gap:2.5rem} h1{font-size:1.7rem} }
 </style>
-
+</head>
+<body>
 <div class="wrap">
 
 <header class="top">
@@ -252,11 +259,6 @@ a{color:var(--brand)}
           <h4>Archetype Plate</h4>
           <p class="gsub">3 pieces · Hunter chest · tier 5 · Gunner · tuning Weapons</p>
         </div>
-        <div class="grp">
-          <span class="kind same">Same stats · review only</span>
-          <h4>Fourfold Plate</h4>
-          <p class="gsub">4 pieces, 4 tunings · Titan chest · tier 5 · Reaver</p>
-        </div>
       </div>
     </div>
   </figure>
@@ -295,20 +297,54 @@ a{color:var(--brand)}
           <h4>Archetype Plate</h4>
           <p class="gsub">Hunter chest · tier 5 · Gunner · tuning Weapons</p>
         </div>
-        <div class="grp">
-          <div class="chips" style="margin-bottom:.4rem">
-            <span class="pieces">4 pieces</span><span class="kind same">Same stats · review only</span>
-          </div>
-          <h4>Fourfold Plate</h4>
-          <p class="gsub">Titan chest · tier 5 · Reaver · 4 tunings</p>
-          <div class="banner">Base stats match but tuning differs, so this pass selects no survivor. Members carrying a proposal from the Proposals pass keep their verdict controls.</div>
-        </div>
       </div>
     </div>
   </figure>
 
   <p class="prose"><strong>Why it works.</strong> Scope is local, so it survives scrolling — the piece count sits on the group you are actually reading. The chips answer “how many of each kind” without clicking through. Nothing needs re-reading after a scroll.</p>
   <p class="prose"><strong>What it costs.</strong> The same numbers appear in three places and must agree; every one is a drift risk. Nothing answers “how big is this review” in one glance, and the tile row still asks the reader to notice that two tiles count groups and two count proposals.</p>
+</section>
+
+<!-- ============ BOTH KINDS ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Alternatives A + B · shared</span>
+    <h2>Unfiltered, both kinds</h2>
+  </div>
+  <p class="prose">The kind hierarchy is the same under either treatment, so it is shown once, in the state where both kinds actually appear. Note the scope line drops "of" when nothing is filtered, and the banner's second sentence is present only because these members carry proposals.</p>
+
+  <figure class="spec">
+    <figcaption><span>Kind hierarchy · unfiltered · all kinds</span><span class="badge base">shared</span></figcaption>
+    <div class="stage">
+      <div class="vc">
+        <div class="chips">
+          <span class="chip" aria-pressed="true">All kinds</span>
+          <span class="chip" aria-pressed="false">Exact</span>
+          <span class="chip" aria-pressed="false">Same stats</span>
+        </div>
+        <div class="scope">
+          <span class="big">74 groups</span>
+          <span class="of">·</span>
+          <span class="big">211 pieces</span>
+        </div>
+        <div class="grp">
+          <div class="chips" style="margin-bottom:.4rem">
+            <span class="pieces">3 pieces</span><span class="kind">Exact</span>
+          </div>
+          <h4>Archetype Plate</h4>
+          <p class="gsub">Hunter chest · tier 5 · Gunner · tuning Weapons</p>
+        </div>
+        <div class="grp">
+          <div class="chips" style="margin-bottom:.4rem">
+            <span class="pieces">4 pieces</span><span class="kind same">Same stats · review only</span>
+          </div>
+          <h4>Fourfold Plate</h4>
+          <p class="gsub">Titan chest · tier 5 · Reaver · 4 tunings</p>
+          <div class="banner">Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls.</div>
+        </div>
+      </div>
+    </div>
+  </figure>
 </section>
 
 <!-- ============ COMPARISON ============ -->
@@ -352,7 +388,7 @@ a{color:var(--brand)}
     <li><strong>Add</strong>, above the list, in one <code>aria-live="polite"</code> region:<br><code>12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates</code><br>Unfiltered, the same region reads <code>74 groups · 211 pieces</code> with no “of”.</li>
     <li><strong>Group header gains</strong> a piece count as its first element: <code>3 pieces</code> — the noun is <em>pieces</em> everywhere; <code>copies</code>, <code>items</code> and <code>members</code> are retired from user-facing text.</li>
     <li><strong>Kind label</strong> becomes <code>Exact</code> / <code>Same stats · review only</code>. The current <code>"Exact duplicate group · " + group.groupKind</code> — which renders <code>Exact duplicate group · exact_duplicate</code> — goes away.</li>
-    <li><strong>Same-stat banner</strong> replaces the bare sub-line, and is conditional:<br><code>Base stats match but tuning differs, so this pass selects no survivor. Members carrying a proposal from the Proposals pass keep their verdict controls.</code></li>
+    <li><strong>Same-stat banner</strong> replaces the bare sub-line, in two parts. Unconditional, because it is always true of a same-stat group:<br><code>Base stats match but tuning differs, so this pass selects no survivor.</code><br>Appended only when at least one member carries a proposal:<br><code>Pieces below that already carry a proposal keep their verdict controls.</code></li>
     <li><strong>Facet options</strong> state their noun when it is not groups: <code>Melee (1 group)</code>, so the tuning facet's member-derived count stops reading as a group count.</li>
   </ol>
 
@@ -370,8 +406,9 @@ a{color:var(--brand)}
     <li><strong>Out of scope, already split:</strong> per-group bulk verdicts (#115), an armor score column (#116), the DIM query builder (#117). None is presupposed by either treatment.</li>
     <li><strong>Baseline defects (#118)</strong> are fixed independently. Two were found only by rendering: the group <code>&lt;h3&gt;</code> has no <code>overflow-wrap</code>, so a 180-character item name gives the page a 2266px scroll width at a 390px viewport; and the report fingerprint does the same at 549px.</li>
     <li><strong>Open — does the piece count include the survivor?</strong> “3 pieces” on an exact group counts the survivor plus two candidates. A reviewer scanning for work to do may read it as three deletions. Consider <code>3 pieces · 2 proposed</code>, at the cost of a fourth number.</li>
-    <li><strong>Open — what is a “piece” in a filtered view?</strong> The 38 in <code>38 of 211 pieces</code> is members of shown groups, not pieces matching the filter. Those differ once member-level filters exist.</li>
+    <li><strong>Open — what is a “piece” in a filtered view?</strong> Both figures count group members and are measured identically today, so the ratio is sound: 211 is the members of all 74 groups, 38 the members of the 12 shown, and pieces in no duplicate group are counted by neither. But the kind filter selects whole <em>groups</em>, so a future member-level filter would select <em>members</em> — at which point the two stop agreeing.</li>
     <li><strong>Open — should the summary line pin to the top on scroll?</strong> It would erase A's only real weakness, at the cost of vertical space already scarce at 390px.</li>
+    <li><strong>Preserve one thing the old line did well:</strong> the empty state renders <code>Showing 0 of 2 groups</code>, the single case where the already-filtered denominator is genuinely informative. The replacement must keep that. The empty message also names no filter and offers no way to widen.</li>
     <li><strong>Not verified:</strong> both treatments are specimens, not the running app. Contrast, focus order and live-region announcement need checking against the real build during #119.</li>
   </ul>
 </section>
@@ -381,3 +418,5 @@ a{color:var(--brand)}
 </footer>
 
 </div>
+</body>
+</html>
