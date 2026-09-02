@@ -869,3 +869,44 @@ def test_export_change_during_load_has_a_domain_error(monkeypatch, tmp_path):
             ghosts_path=tmp_path / "missing-ghosts.csv",
             no_wishlists=True,
         )
+
+
+def test_four_member_same_stat_group_matches_issue_112_evidence_shape():
+    """The #112 four-member evidence shape, as committed fake data (#113).
+
+    Real-export validation for #110/#112 found a four-member Titan Reaver
+    group whose members differ only by Tuning Mod Slot. This fixture pins
+    that shape so presentation work has a complete multi-member group to
+    verify against, including the ``none/unknown`` tuning member.
+    """
+    result = run_report(
+        config_path="nonexistent.toml",
+        weapons_path=FIXTURES / "does-not-exist.csv",
+        armor_path=FIXTURES / "armor_same_stat_four_ui.csv",
+        ghosts_path=FIXTURES / "does-not-exist.csv",
+        no_wishlists=True,
+    )
+    section = result.sections[0]
+    assert section.armor is not None
+    assert not section.armor.exact_duplicate_groups
+
+    groups = snapshot_dict(result)["sections"][0]["armor"]["same_stat_groups"]
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["group_kind"] == "same_stat"
+    assert len(group["members"]) == 4
+
+    # Reaver: Class primary 30, Melee secondary 25, Weapons tertiary 20; the
+    # other three base stats are 0 on every tier-5 piece.
+    assert group["stats"] == {
+        "weapons": 20, "health": 0, "class": 30,
+        "grenade": 0, "super": 0, "melee": 25,
+    }
+
+    slots = [member["tuning_mod_slot"] for member in group["members"]]
+    assert sorted(slots) == ["Class", "Melee", "Super", "none/unknown"]
+    assert len(set(slots)) == 4
+
+    # Every member carries a proposal, so a same-stat group is not a
+    # verdict-free surface even though the close pass selects no survivor.
+    assert {member["proposal_action"] for member in group["members"]} == {"review"}

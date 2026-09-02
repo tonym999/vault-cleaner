@@ -3,6 +3,53 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-02 — #113 duplicate report count and hierarchy design pass
+
+- Design pass only: no Python rule, report contract, or server contract
+  changed. Decision record and handoff in
+  [docs/duplicate-review-count-design.md](docs/duplicate-review-count-design.md);
+  baseline captures in [docs/evidence/issue-113](docs/evidence/issue-113/README.md).
+- Installed the required global design/audit skill at user scope — `ux-audit`
+  1.4.0, MIT, commit `f07ff760…` — via the skill-installer workflow. Nothing
+  committed to this repo. #113 names `~/.codex/skills`; this work ran in Claude
+  Code, so it went to both that path and `~/.claude/skills` from the same pinned
+  commit. Rejected candidates recorded, including microsoft/skills
+  `frontend-design-review`.
+- Added `tests/fixtures/armor_same_stat_four_ui.csv`, the #112 four-member
+  evidence shape as fake data (Reaver / Titan chest / tier 5; tunings Melee,
+  Class, Super, none-unknown), plus a projection test pinning it. No fixture
+  previously had a group larger than three, so nothing could exercise a complete
+  multi-member group.
+- **Decision:** one authoritative scoped summary line above the list, plus a
+  per-group piece count and a conditional review-only banner. `SHOWN` leaves the
+  duplicates surface. `pieces` becomes the single user-facing noun; `copies`,
+  `items` and `members` are retired from user-facing text. Six exact copy
+  changes are specified. Implementation is #119.
+- **Decision:** transpose the comparison table so members are rows. At 390px the
+  current member-as-column layout shows exactly one member, so comparing needs
+  horizontal scrolling inside the table. Any implementation must carry over the
+  existing conditional-column behaviour in `memberValues`.
+- Split out of #113 as separate issues: #115 per-group bulk verdicts, #116
+  exposing an armor score, #117 the DIM query builder, #118 baseline defects.
+  All four came from a prototype whose features #113's guardrails exclude.
+- **Surprise, worth knowing:** `Showing N of M groups` has an already-filtered
+  denominator. `M` is the count *after* the kind selector, so both numbers move
+  together and the string can never show that groups of another kind exist. The
+  reported `Showing 2 of 74 groups` means "2 of the 74 groups of the currently
+  selected kind" — a third reading nobody had proposed.
+- **Surprise:** every member of a same-stat group can carry a live proposal and
+  render verdict controls, so same-stat groups are not a verdict-free surface.
+  Any copy asserting "nothing is proposed" here is wrong in the common case.
+- **Surprise:** hostile-text rendering is inert (no dialog fired, no injected
+  element reached the DOM), but a 180-character unbroken item name gives the
+  page a 2266px scroll width at a 390px viewport. `article.armor-group h3` has
+  no `overflow-wrap`, though `review.css` already applies `anywhere` to
+  `.armor-member-heading .sub` and `.detail dd`. Tracked in #118.
+- Baseline behaviour confirmed good and not to be regressed: `.scroller`
+  overflow handling, the `:focus-visible` ring and skip link, light-by-default
+  theming, and zero-base-stat suppression. An earlier code-only reading had
+  wrongly flagged all four; rendering corrected it.
+
 ## 2026-09-01 — #112 second PR review corrections
 
 - Namespaced rendered armor member `data-member-id` attributes by validated
