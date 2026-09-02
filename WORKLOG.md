@@ -50,6 +50,35 @@ surprises the next agent should know about.
   theming, and zero-base-stat suppression. An earlier code-only reading had
   wrongly flagged all four; rendering corrected it.
 
+## 2026-09-02 — #113 PR review corrections
+
+- **Banner logic error, caught in review.** The specified same-stat banner was
+  conditional on a group having *no* proposals, yet its second sentence
+  described members that *do* carry one. Those cannot both hold, and the
+  committed four-member fixture has proposals on every member — so the banner
+  would never have rendered for the canonical evidence case. Split it: the
+  no-survivor sentence is unconditional, and the verdict-controls sentence is
+  appended only when a member carries a proposal. Also replaced `Members` with
+  `Pieces`, which the same decision had already retired.
+- Committed the artifacts the record referenced but had left uncommitted: the
+  160-entry count and label inventory, the alternatives prototype
+  (`count-treatments.html`) and rendered stills of both treatments. The design
+  record and #119 previously linked a file that did not exist in the repo.
+- Completed the evidence matrix. Both viewports are now captured in both
+  appearances, rather than a subset presented as a complete set, and empty-state
+  and keyboard/focus results are recorded.
+- Recorded the design-skill pairing honestly: `ux-audit` covers audit and copy
+  but refuses greenfield work, and the exploration half used `artifact-design`,
+  already present in the environment rather than installed for this ticket. That
+  is a deviation from #113's user-scoped prerequisite and is now stated as one.
+- Defined the piece denominator in the copy: both figures count group members,
+  measured identically, and pieces in no duplicate group are counted by neither.
+  The open question is narrowed to what happens once member-level filters exist.
+- **New, from the empty-state capture:** `Showing 0 of 2 groups` is the one case
+  where the already-filtered denominator is genuinely useful, which the
+  replacement line should preserve. The empty message also names no filter and
+  offers no way to widen — recorded for #119.
+
 ## 2026-09-01 — #112 second PR review corrections
 
 - Namespaced rendered armor member `data-member-id` attributes by validated

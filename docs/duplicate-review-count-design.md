@@ -40,13 +40,22 @@ two-group fixture the tuning options sum to five while every sibling facet sums
 to two — in identical `value (N)` presentation.
 
 A complete inventory of all 160 user-facing counts, headings, badges, filter
-summaries and group-kind labels was produced during the audit, with noun,
-denominator, filter scope and a misreadability verdict for each. 57 were marked
-misreadable.
+summaries and group-kind labels is committed at
+[evidence/issue-113/count-label-inventory.md](evidence/issue-113/count-label-inventory.md),
+with noun, denominator, filter scope and a misreadability verdict for each. 57
+were marked misreadable.
 
 ## 2. Alternatives considered
 
 Both fix the noun collision. They differ on one axis: **where scope lives.**
+
+Both are built as specimens using `review.css`'s own tokens, so the comparison
+is against the shipped UI rather than a redesign of it. The interactive artifact
+is [evidence/issue-113/count-treatments.html](evidence/issue-113/count-treatments.html)
+— open it locally; it also carries the full criterion-by-criterion comparison
+table. Rendered stills:
+[alternative A](evidence/issue-113/alternative-a-scoped-summary-line.png) ·
+[alternative B](evidence/issue-113/alternative-b-distributed-counts.png).
 
 ### A — one scoped summary line
 
@@ -87,10 +96,10 @@ proposal-shaped counts.
 | # | Change |
 |---|---|
 | 1 | **Delete** the `SHOWN` tile on the duplicates surface, and delete `"Showing " + filteredGroups.length + " of " + selectedArmorGroups.length + " groups"`. |
-| 2 | **Add** above the list, in one `aria-live="polite"` region: `12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates`. Unfiltered, the same region reads `74 groups · 211 pieces` with no "of". |
+| 2 | **Add** above the list, in one `aria-live="polite"` region: `12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates`. Unfiltered, the same region reads `74 groups · 211 pieces` with no "of". Both piece figures count group **members**, measured identically: 211 is the members of all 74 groups, 38 the members of the 12 shown. Pieces that are in no duplicate group are counted by neither. |
 | 3 | **Group header gains** a piece count as its first element: `3 pieces`. |
 | 4 | **Kind label** becomes `Exact` / `Same stats · review only`, replacing `"Exact duplicate group · " + group.groupKind`. |
-| 5 | **Same-stat banner**, conditional on the group actually having no proposals: `Base stats match but tuning differs, so this pass selects no survivor. Members carrying a proposal from the Proposals pass keep their verdict controls.` |
+| 5 | **Same-stat banner**, in two parts. The first sentence is unconditional, because it is always true of a same-stat group: `Base stats match but tuning differs, so this pass selects no survivor.` The second is appended only when at least one member carries a proposal: `Pieces below that already carry a proposal keep their verdict controls.` |
 | 6 | **Facet options** state their noun when it is not groups: `Melee (1 group)`. |
 
 ### One noun
@@ -132,9 +141,11 @@ runtime dependencies. `RULESET_VERSION` is not bumped — presentation only.
   counts one survivor and two candidates. A reviewer scanning for work may read
   it as three deletions. `3 pieces · 2 proposed` fixes it at the cost of a
   fourth number.
-- **What is a "piece" in a filtered view?** The 38 in `38 of 211 pieces` is
-  members of shown groups, not pieces matching the filter. These differ once
-  member-level filters exist.
+- **What is a "piece" in a filtered view?** Both figures count group members
+  and are measured identically today, so the ratio is sound. But the *kind*
+  filter selects whole groups, whereas a future member-level filter (tuning
+  slot, protection) would select members — at which point "pieces shown" and
+  "members of shown groups" diverge and the line needs re-deciding.
 - **Should the summary line pin on scroll?** It would erase A's only real
   weakness, at the cost of vertical space already scarce at 390px.
 - **Not verified against the running app.** Both treatments are specimens.
@@ -184,9 +195,22 @@ dependency. The skill declares no API and no network; its one script
 contrast ratios only. Nothing left the machine. No runtime dependency was added
 to this project.
 
-**Known limitation.** The skill refuses greenfield build work, so it covers the
-audit and the exact copy changes but not the design exploration. That half was
-done separately.
+**Known limitation, and how the pairing was handled.** The skill refuses
+greenfield build work. Read closely, that refusal governs *new* UI: its finding
+schema still mandates a `Recommendation` field including verbatim copy rewrites,
+and it separates Defect / Opportunity / Taste. So it covered the audit and the
+exact copy changes in §3, but not the two-alternative exploration #113 also
+requires.
+
+#113 anticipated this and asked for a paired design skill. The pairing used was
+`artifact-design`, which was already available in the working environment rather
+than installed for this ticket. **This is a deviation from the prerequisite as
+written**, which expects a user-scoped install, and it is recorded rather than
+papered over: a second global skill was assessed as unnecessary once a design
+capability was already present, and no candidate was found that would have added
+anything for this specific job. If a durable, user-installed design companion is
+wanted for future passes, that is a small follow-up — the audit half, which is
+the part with no in-environment equivalent, is the half that needed installing.
 
 ### Candidates rejected
 

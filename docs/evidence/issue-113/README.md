@@ -18,8 +18,15 @@ for, in both appearances.
 | Capture | Viewport | Appearance | Export |
 |---|---|---|---|
 | `baseline-duplicates-desktop-light.png` | 1440×900 | light | mixed: `armor_duplicates_ui.csv` + `armor_same_stat_four_ui.csv` |
+| `baseline-duplicates-desktop-dark.png` | 1440×900 | dark | same mixed export |
+| `baseline-duplicates-narrow-light.png` | 390×844 | light | same mixed export |
 | `baseline-duplicates-narrow-dark.png` | 390×844 | dark | same mixed export |
+| `baseline-empty-state-desktop-light.png` | 1440×900 | light | mixed export, search narrowed to no matches |
 | `baseline-hostile-text-desktop-light.png` | 1440×900 | light | hostile armor names, generated |
+
+Proposed treatments, for comparison against the baseline above:
+`alternative-a-scoped-summary-line.png`, `alternative-b-distributed-counts.png`,
+and the interactive `count-treatments.html`.
 
 The mixed export is the two committed fixtures concatenated: one exact
 duplicate group of three members, one same-stat group of four. The hostile
@@ -83,6 +90,31 @@ document. `review.css` already applies `overflow-wrap: anywhere` to
 
 The report fingerprint (`<code id="vc-fingerprint">`) overflows independently at
 524px wide, which is the 549px baseline figure above. Both are tracked in #118.
+
+## Empty state
+
+![Duplicates view with a search matching nothing](baseline-empty-state-desktop-light.png)
+
+Narrowing the search until nothing matches renders `Showing 0 of 2 groups`
+followed by `No armor duplicate groups match these filters.`
+
+Two observations. The count line is at its *most* useful here — `0 of 2` is the
+one case where the already-filtered denominator still tells the reader something
+— which is worth preserving when the line is replaced. And the empty message
+names no filter and offers no way to widen, so a reviewer who has stacked a
+search, a kind and three facets cannot tell which one emptied the list. That is
+a small gap rather than a defect, and it is recorded for #119 rather than #118.
+
+## Keyboard and focus
+
+Verified by real keyboard navigation rather than programmatic focus, which does
+not trigger `:focus-visible`. Tabbing to the first verdict control gives
+`outlineWidth: 3px`, `outlineStyle: solid`, `outlineColor: rgb(47, 91, 215)`,
+`outlineOffset: 1px`, and `matches(':focus-visible') === true` — the global rule
+at `review.css:105`. The skip link at `review.css:63` is present and reachable.
+
+This is baseline behaviour that must not regress; an earlier code-only reading
+wrongly flagged it as missing.
 
 ## Reproducing
 
