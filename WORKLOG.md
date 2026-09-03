@@ -14,6 +14,7 @@ surprises the next agent should know about.
   - Updated `AGENTS.md` to document the Planning Phase (PR 1) ahead of implementation, formalising the 3-role workflow, template paths, repo-relative links, dispatch comment requirements, worklog entry content contract, and escalation routing.
   - Validated planner-template usability against open Issue #119; split out the #119 plan from this PR so #119 lands via its own planning PR as the new lifecycle requires.
   - Moved the full post-merge, no-hand-written-brief workflow pilot to follow-up Issue #124, which is blocked by #122 and tracked as `Todo` on the project board. This keeps #122's integration PR honest about what has and has not been exercised while preserving the real end-to-end acceptance check.
+  - Added review path decision criteria (Standard Orchestrator Review vs. Independent Adversarial Review) across `handoffs/README.md`, `planner.md`, and `orchestrator.md`, enabling the orchestrator to route high-risk, complex, or sensitive changes to a fresh agent session running the review model tier (`claude-opus-5`, `gpt-5.6-sol`, `gemini-3.1-pro-preview`) with unpolluted context.
 - **Decisions made:**
   - Standardised on two PRs per issue: Plan PR merged to `main` first, followed by Implementation PR.
   - Established manual cross-provider execution for v1: orchestrators verify runtime support or prepare prompts for operator dispatch without automated multi-provider harnesses.

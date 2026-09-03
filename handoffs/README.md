@@ -5,7 +5,7 @@ This directory contains repository implementation plans ("handoffs") and operati
 ## Topology
 
 ```text
-planner → orchestrator → implementer → orchestrator reviews → PR
+planner → orchestrator → implementer → orchestrator reviews (or hands to independent adversarial reviewer) → PR
 ```
 
 ## Roles
@@ -61,6 +61,14 @@ implementer → orchestrator → planner
 1. **Implementer:** Stops work immediately when a plan stop condition is triggered and reports the exact conflict to the orchestrator without attempting to widen scope.
 2. **Orchestrator:** Evaluates whether the issue can be resolved within the existing plan contract. If non-trivial plan changes or scope alterations are required, the orchestrator escalates to the **Planner** rather than re-cutting the plan or broadening implementation scope.
 3. **Planner:** Re-evaluates the codebase, amends or re-cuts the plan, and submits a revised plan PR.
+
+## Review Path: Standard vs. Independent Adversarial Review
+
+The review path adapts review rigor to the risk and complexity of the change:
+
+- **Standard Orchestrator Review:** Default path for self-contained, low-risk, or routine changes. The orchestrator conducts the review directly against the plan's checklist, likely findings, and test suites.
+- **Independent Adversarial Review:** Triggered when prescribed by `# Ticket-specific review decision` in the plan, or when the orchestrator determines the real diff touches critical invariants (parsers, ranking rules, delete rails, server lifecycle), presents unexpected complexity, or involved difficult implementer iterations.
+- **Execution via Fresh Context:** When triggered, the orchestrator prepares the review prompt and hands the branch, base SHA, and head SHA to a fresh agent session running the review model tier (`claude-opus-5`, `gpt-5.6-sol`, or `gemini-3.1-pro-preview`) with unpolluted context. The adversarial reviewer treats the implementation as untrusted output and actively hunts for subtle regressions, edge cases, and missing negative tests. Findings are returned to the orchestrator, who routes fixes back to the implementer on the implementation branch before PR creation.
 
 ## Manual Cross-Provider Execution (v1)
 

@@ -38,7 +38,11 @@ When acting as the **Planner**:
 6. **Predict Likely Findings:**
    - State 2–4 specific things most likely to be wrong during orchestrator review (e.g. scope leakage from adjacent tickets, tests passing without their fix, missing browser coverage).
 
-7. **Emit the Named-Section Contract:**
+7. **Determine Recommended Review Path:**
+   - Designate `standard orchestrator review` for self-contained, low-risk, or routine changes.
+   - Designate `independent adversarial review` for changes touching core parsers, ranking rules, delete rails, server lifecycle, security, or cross-cutting abstractions. Note that the orchestrator will confirm or adapt this path upon inspecting the real diff.
+
+8. **Emit the Named-Section Contract:**
    - You MUST emit all required named sections expected by the orchestrator template.
 
 ---
@@ -138,10 +142,10 @@ When complete, provide the full implementer → orchestrator handoff specified i
 
 # Ticket-specific review decision
 
-**Review path:** `standard orchestrator review`
+**Review path:** `standard orchestrator review` | `independent adversarial review`
 
 **Reason:**
-<Justification for standard review path vs replanning based on architectural risk and scope boundaries.>
+<Justification for standard orchestrator review vs independent adversarial review based on architectural risk, invariant sensitivity, and blast radius.>
 
 # Review checklist
 

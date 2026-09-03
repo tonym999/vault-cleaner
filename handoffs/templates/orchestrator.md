@@ -41,14 +41,20 @@ When acting as the **Orchestrator**:
 5. **Perform the Revert Spot-Check in an Isolated Checkout / Worktree:**
    - When likely findings identify tests that might pass without the fix, perform the fail-then-pass / revert spot-check in an isolated disposable git worktree (e.g. `git worktree add ...`) or separate temporary branch: temporarily reverse individual source edits to confirm the corresponding test goes red, proving each fix is load-bearing. This diagnostic check is verification, not implementation.
 
-6. **Handle Review Findings & Legacy Plans:**
+6. **Determine Review Path (Standard vs. Independent Adversarial Review):**
+   - Consult `# Ticket-specific review decision` in the plan and inspect the real diff:
+     - **Standard Review:** For low-risk, self-contained, or routine changes. The orchestrator conducts the review directly against the plan's checklist, likely findings, and test suites.
+     - **Independent Adversarial Review:** Triggered if mandated by the plan, or if the diff touches critical invariants (parsers, ranking rules, delete rails, server lifecycle), has unexpectedly high complexity, or underwent messy implementer iterations.
+   - **Adversarial Review Handoff:** When triggered, the orchestrator does not perform the sole audit. Instead, it prepares the review prompt and hands the branch, base SHA, and head SHA to a fresh agent session running the review model tier (e.g. `claude-opus-5` or `gpt-5.6-sol` with unpolluted context). The adversarial reviewer is instructed to actively hunt for regressions, edge cases, and missing negative tests against the plan on `main`. The orchestrator receives the reviewer's findings and routes any required fixes back to the implementer on the implementation branch.
+
+7. **Handle Review Findings & Legacy Plans:**
    - For plans using the modern template: evaluate the diff against `# Review checklist`, `## Likely findings`, and `## Mechanical inclusion test`.
    - For legacy migrated plans: evaluate against the plan's acceptance criteria, objective, and stated scope.
    - If defects or scope leaks exist, return precise findings to the implementer and require fixes on the **same implementation branch**. Re-review the updated diff once repairs are complete.
 
-7. **Escalate Stop Conditions:**
+8. **Escalate Stop Conditions:**
    - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, follow the escalation route: `implementer → orchestrator → planner`.
    - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan in a revised plan PR.
 
-8. **Carry Out Plan Review-Outcome Steps:**
+9. **Carry Out Plan Review-Outcome Steps:**
    - When clean and verified, carry out all review-outcome steps specified in the plan (e.g. open a pull request targeting `main` referencing the issue, add any required coordination comments on issue threads, and ensure a dated [WORKLOG.md](../../WORKLOG.md) entry accompanies the PR).
