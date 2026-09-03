@@ -3,6 +3,108 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #118: fix mislabelled and overflowing review UI text
+
+Implemented the four presentation defects from #118, per the committed
+handoff `handoffs/issue-118-implementation-plan.md` on
+`fix/issue-118-review-ui-labels`, branched from `main` at `95b9706` (unchanged
+since the plan baseline). Presentation-only: no Python rule, grouping,
+ranking, survivor selection, report/server contract, persistence, verdict,
+reconciliation, finalisation, lifecycle or authentication change.
+`report_run.RULESET_VERSION` is untouched and no snapshot golden was
+regenerated.
+
+- **Defect 1 — contradictory protection label.** `review_ui.js`'s
+  `armorGroupTable` row list renamed `"Hard protection"` to `"Protection"`;
+  the cell function was already correct (level plus `" — " + reason` when a
+  reason exists, `"—"` otherwise) and was left untouched.
+- **Defect 2 — leaked internal enum.** The exact-group sub-line in
+  `armorGroupHeader` now reads the plain literal `"Exact duplicate group"`,
+  dropping the appended `group.groupKind`. The `same_stat` branch
+  (`"Same stats, different tuning · review-only"`) is byte-identical to
+  baseline, and the two non-display `groupKind` uses —
+  `data-group-kind`/`data-group-id` and `armorMemberDomIdentity` — were
+  confirmed to survive (searched for every `groupKind`/`group_kind`/
+  `disposition` concatenation into display text; `dispositionLabel` already
+  maps every validated disposition value to human-readable text and was not
+  touched).
+- **Defect 3 — horizontal overflow at 390px, two independent causes.** Added
+  `overflow-wrap: anywhere` to the existing `code, .mono, kbd` rule
+  (`review.css:52`, the fingerprint fix) and to the existing
+  `.armor-group-header h3` rule (`review.css:151`, the hostile armour-name
+  fix). The second cause is **not named in the issue body** — PR #120 and
+  `docs/evidence/issue-113/README.md:101-118` record it as tracked under
+  #118 without that ever reaching the issue text; it is fixed here per the
+  handoff's resolution of that gap. No `#vc-fingerprint` id selector was
+  added; `review.css` still has none. `.mono` also reaches the instance-id
+  span in armour member headings and the Proposals surface's `code`/`.mono`
+  cells — checked manually (see below): no visible regression, since a
+  19-digit id does not reach the wrap threshold at the existing min-widths.
+- **Defect 4 — facet counts didn't state their noun.** `duplicateOptions` in
+  `review_server.js` now renders `entry.value + " (" + entry.count + " " +
+  noun + ")"` with `noun` computed once (`"group"`/`"groups"`) for all four
+  duplicate facets (`guardianClass`, `type`, `itemArchetype`,
+  `tuningModSlot`) — e.g. `Melee (1 group)`, `Chest Armor (2 groups)`. This
+  is the copy already decided in `docs/duplicate-review-count-design.md` §3
+  change 6 (carried as #119 scope item 13), implemented here per the
+  handoff's resolution of the issue's staleness on this point:
+  **#119 should drop copy change 6 / scope item 13 on rebase, since it is
+  already shipped.** `optionsFor` (the Proposals surface's item-count
+  facets, `review_ui.js:767`) is untouched; its pinned
+  `"weapons (2)"`-style output (`tests/test_review_ui_js.py:361`) still
+  passes, and a live manual check (below) confirmed the Proposals surface
+  still renders noun-free counts such as `weapons (5)`.
+- **Deliberately not adopted:** #119's paired `Exact` / `Same stats · review
+  only` kind-label relabelling. Adopting only the exact half here would
+  leave `Exact` beside an unchanged `Same stats, different tuning ·
+  review-only`, worse than either endpoint; #119 replaces both together.
+- **Measured 390×844 `document.documentElement.scrollWidth`,** own run
+  against a packaged local server with `tests/fixtures/armor_same_stat_ui.csv`:
+  **550 before, 390 after** — matching the plan's own measurement exactly.
+- **Tests.** Extended the existing armour-group DOM harness
+  (`test_same_stat_projection_and_cross_kind_dom_overlap`,
+  `tests/test_review_ui_js.py`) with six new probes in its exact-JSON-equality
+  assertion: the exact sub-line text and the absence of any leaked
+  `exact_duplicate`/underscore token; the same-stat sub-line unchanged; a
+  `Protection` row header present (and no `Hard protection` header) in both
+  the exact and same-stat articles; and the protection cell still rendering
+  level+reason together and `"—"` alone, driven by new `protection_level`/
+  `protection_reason` fields added to that test's fixture members. Added a
+  sibling test `test_duplicate_facet_options_state_the_counted_noun` in
+  `tests/test_server_ui_js.py` asserting rendered option text (not just
+  counts) across all four duplicate facets, singular and plural, plus the
+  unchanged noun-free `allLabel` option. Added
+  `test_duplicates_surface_does_not_scroll_horizontally` in
+  `tests/test_server_browser.py` — the first test in that file to set a
+  viewport — asserting no horizontal document overflow at both 390×844 and
+  1440×1000, that the fingerprint still renders its digest, and that
+  `article.armor-group h3`'s computed `overflow-wrap` is `anywhere` while
+  `article.armor-group .scroller`'s computed `overflow-x` stays `auto`
+  (overflow fixed by wrapping, not by removing the contained scroll). Every
+  new/extended assertion was observed to fail against the pre-fix source
+  (via `git stash` on each production file in turn) and pass after
+  reapplying the fix, for all four defects including the browser test.
+- **Manual verification**, packaged server with `--no-wishlists`, headless
+  Chromium (Chrome for Testing 151.0.7922.34, Playwright Chromium revision
+  1234), fake fixtures only (`armor_duplicates_ui.csv`,
+  `armor_same_stat_ui.csv`, `weapons_hostile.csv`): confirmed the skip link
+  is the first tab stop from a fresh load, the `:focus-visible` ring renders
+  (`outline-style: solid`) during interaction, `Protection`/`Exact duplicate
+  group`/`(N group(s))` copy renders correctly at 1440×1000 in light and
+  dark, no horizontal overflow at 390×844 or 1440×1000 in either theme, the
+  Proposals surface's facet options remain noun-free
+  (`weapons (5)`/`Hunter (2)`), and finalised state remains readable (the
+  `Protection` label and same-stat sub-line still render, both verdict
+  buttons on the finalised group are disabled) and Shutdown ends the
+  session cleanly.
+- Ran the full focused/browser/full/diff/hygiene gate from the handoff:
+  `ruff check` clean; `pytest -q tests/test_review_ui_js.py
+  tests/test_server_ui_js.py` 112 passed; `node --check` clean on both JS
+  files; `pytest -q -m browser tests/test_server_browser.py` 6 passed
+  (5 pre-existing + 1 new); full `pytest -q` 938 passed; `git diff --check`
+  clean; `git ls-files data/` empty; `git status --short` shows exactly the
+  eight files in the plan's expected footprint.
+
 ## 2026-09-03 — #113 fifth review round: the narrow comparison was not a comparison
 
 - **The narrow harness compared A without a tile row against B with one.**

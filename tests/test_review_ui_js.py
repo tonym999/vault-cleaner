@@ -1191,7 +1191,7 @@ function exact() { return {group_kind: "exact_duplicate", group_id: "exact-group
   spirit_signature: [], preferred_survivor_id: sharedId, members: [
     {id: sharedId, location: "Vault", disposition: "preferred_survivor"},
     {id: "exact-loser", location: "Vault", disposition: "proposed_junk",
-     proposal_action: "junk"}
+     proposal_action: "junk", protection_level: "soft", protection_reason: "locked"}
   ]}; }
 function same() { return {group_kind: "same_stat", group_id: "__proto__",
   hash: "18446744073709551615", name: "<img src=x onerror=alert(1)>",
@@ -1205,7 +1205,8 @@ function same() { return {group_kind: "same_stat", group_id: "__proto__",
      holofoil: "false"},
     {id: "not-digit-id", location: "Vault", tuning_stat: "Health",
      tuning_mod_slot: "Health", seasonal_mod: "Arc", holofoil: "true",
-     selected_partner_id: partnerId}
+     selected_partner_id: partnerId, protection_level: "soft",
+     protection_reason: "locked"}
   ]}; }
 var projected = api.armorGroupsFromSnapshot(snapshot([exact()], [same()]));
 var state = {expanded: Object.create(null), rows: Object.create(null),
@@ -1225,6 +1226,36 @@ function rejects(value) {
   try { api.sameStatGroupsFromSnapshot(value); return false; }
   catch (error) { return true; }
 }
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function rowHeaders(article) {
+  return collect(article, function (node) {
+    return node.tagName === "TH" && node.getAttribute("scope") === "row";
+  }).map(function (node) { return node.textContent; });
+}
+function findRow(article, headerText) {
+  var rows = collect(article, function (node) { return node.tagName === "TR"; });
+  for (var i = 0; i < rows.length; i++) {
+    var th = rows[i].children[0];
+    if (th && th.tagName === "TH" && th.textContent === headerText) return rows[i];
+  }
+  return null;
+}
+function cellTexts(row) {
+  return row.children.slice(1).map(function (td) { return td.textContent; });
+}
+var exactHeaders = rowHeaders(exactArticle);
+var sameHeaders = rowHeaders(sameArticle);
+var exactProtectionRow = findRow(exactArticle, "Protection");
+var sameProtectionRow = findRow(sameArticle, "Protection");
+var exactProtectionCells = exactProtectionRow ? cellTexts(exactProtectionRow) : [];
+var sameProtectionCells = sameProtectionRow ? cellTexts(sameProtectionRow) : [];
 process.stdout.write(JSON.stringify({
   order: projected.map(function (group) { return group.groupKind; }),
   memberOrder: projected[1].members.map(function (member) { return member.id; }),
@@ -1259,7 +1290,22 @@ process.stdout.write(JSON.stringify({
   hostileInert: count(sameArticle, function (node) { return node.tagName === "IMG"; }) === 0 &&
     sameArticle.textContent.indexOf("<img src=x onerror=alert(1)>") !== -1,
   prototypeClean: Object.prototype.polluted === undefined,
-  callback: JSON.stringify(toggles) === JSON.stringify([[sharedId, "approved"]])
+  callback: JSON.stringify(toggles) === JSON.stringify([[sharedId, "approved"]]),
+  exactSubLine: exactArticle.textContent.indexOf("Exact duplicate group") !== -1,
+  exactNoEnumToken: exactArticle.textContent.indexOf("exact_duplicate") === -1 &&
+    exactArticle.textContent.indexOf("_") === -1,
+  sameSubLineUnchanged: sameArticle.textContent.indexOf(
+    "Same stats, different tuning · review-only") !== -1,
+  protectionHeaderPresent: exactHeaders.indexOf("Protection") !== -1 &&
+    sameHeaders.indexOf("Protection") !== -1,
+  noHardProtectionHeader: exactHeaders.indexOf("Hard protection") === -1 &&
+    sameHeaders.indexOf("Hard protection") === -1,
+  protectionCellsHonest: exactProtectionCells.length === 2 &&
+    exactProtectionCells[0] === "—" &&
+    exactProtectionCells[1] === "soft — locked" &&
+    sameProtectionCells.length === 2 &&
+    sameProtectionCells[0] === "—" &&
+    sameProtectionCells[1] === "soft — locked"
 }));
 ''',
         encoding="utf-8",
@@ -1282,6 +1328,10 @@ process.stdout.write(JSON.stringify({
         "filterAny": True, "countsOnce": True,
         "hostileInert": True, "prototypeClean": True,
         "callback": True,
+        "exactSubLine": True, "exactNoEnumToken": True,
+        "sameSubLineUnchanged": True,
+        "protectionHeaderPresent": True, "noHardProtectionHeader": True,
+        "protectionCellsHonest": True,
     }
 
 
