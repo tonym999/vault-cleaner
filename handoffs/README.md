@@ -23,8 +23,8 @@ planner → orchestrator → implementer → orchestrator-managed review (standa
    - **Constraint:** Does not open pull requests or widen implementation scope.
 
 4. **Independent adversarial reviewer (optional, transient)**
-   - **Responsibility:** Starts in a fresh session with no planner or implementer conversation history, reads the canonical plan and exact `base_sha...head_sha` diff, treats the implementation as untrusted, and returns evidence-backed findings through the fixed review-result contract.
-   - **Constraint:** Read-only. Does not edit, commit, push, post comments, open a pull request, implement fixes, or re-plan the ticket. The orchestrator remains the owner of routing and the final review outcome.
+   - **Responsibility:** Starts in a fresh session with no planner or implementer conversation history, reads the canonical plan and exact `base_sha...head_sha` diff from a disposable checkout pinned to the head SHA, independently reruns applicable verification, and returns evidence-backed findings through the fixed review-result contract.
+   - **Constraint:** Implementation-read-only. It may create ephemeral test artifacts only inside its disposable checkout or assigned temporary directory, but does not edit tracked files, commit, push, post comments, open a pull request, implement fixes, or re-plan the ticket. The orchestrator remains the owner of routing and the final review outcome.
 
 ## Document Lifecycle & Two-PR Process
 
@@ -74,7 +74,16 @@ The review path adapts review rigor to the risk and complexity of the change:
 - **Standard Orchestrator Review:** Default path for self-contained, low-risk, or routine changes. The orchestrator conducts the review directly against the plan's checklist, likely findings, and test suites.
 - **Independent Adversarial Review:** Triggered when prescribed by `# Ticket-specific review decision` in the plan, or when the orchestrator determines the real diff touches critical invariants (parsers, ranking rules, delete rails, server lifecycle), presents unexpected complexity, or involved difficult implementer iterations.
 - **Reviewer Selection:** The orchestrator owns reviewer selection because it sees the real diff. At dispatch time it re-verifies official model availability, selects and justifies one exact model ID and native effort from the current **Independent Review** mapping below, and records the actual provider/model/effort and any fallback. A different model family from the implementer is preferred when available, but independence requires a separate fresh context and read-only remit rather than a different provider.
-- **Execution via Fresh Context:** The orchestrator copies the reusable adversarial-review prompt from [handoffs/templates/orchestrator.md](templates/orchestrator.md), substitutes only its declared fields, and hands it to a fresh agent session with no planner or implementer conversation history. It configures a read-only sandbox or permission profile when the runtime supports one; the prompt's no-write constraint remains mandatory in every runtime. The reviewer actively hunts for subtle regressions, edge cases, and missing negative tests, but never edits the branch. Findings are returned to the orchestrator, who routes fixes back to the implementer before PR creation and sends the complete updated diff back to an independent reviewer for re-review.
+- **Execution via Fresh Context:** The orchestrator creates a detached disposable checkout pinned to the recorded head SHA, copies the reusable adversarial-review prompt from [handoffs/templates/orchestrator.md](templates/orchestrator.md), substitutes only its declared fields, and hands both to a fresh agent session with no planner or implementer conversation history. The reviewer may write only ephemeral verification artifacts in that checkout or its assigned temporary directory and never edits tracked implementation or durable repository state. It independently reruns applicable checks, explicitly treats a skipped required browser suite as a failure, and labels any command it could not run rather than silently trusting the orchestrator's output. Findings are returned to the orchestrator, who routes fixes back to the implementer before PR creation and sends the complete updated diff back to an independent reviewer for re-review.
+
+### Finding Severity, Blocking, and Disposition
+
+- **P0 — Critical:** Exploitable security exposure, data loss, or catastrophic safety/correctness failure. Blocks PR creation.
+- **P1 — High:** Material correctness, security, contract, or regression defect. Blocks PR creation.
+- **P2 — Medium:** Meaningful defect or verification/coverage gap. Normally blocks; deferral requires explicit human-owner approval, recorded rationale, and a follow-up reference when work remains.
+- **P3 — Low:** Worthwhile non-blocking improvement. Advisory unless elevated by the orchestrator or owner.
+
+The orchestrator records one disposition for every finding: `accepted/fixed`, `rejected` with contrary evidence, or `deferred` under the rule above. Reviewer conclusions are not automatically authoritative. Unresolved P0/P1 disagreements go to the human owner, and also to the planner when resolution would alter the canonical plan or scope. Accepted fixes on an independent-review path require a new complete-diff independent review at the updated immutable head.
 
 ## Manual Cross-Provider Execution (v1)
 
