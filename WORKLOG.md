@@ -72,6 +72,38 @@ for the independent adversarial reviewer rather than a decision record.
   - Chromium and node are present on the plan host, so
     `VAULT_CLEANER_BROWSER_REQUIRED=1` genuinely runs the browser suite here; a
     skip in an implementer report means the variable was not set.
+- **Corrections made during plan review (same session, before merge):**
+  - **Baseline reproduction was self-staling.** The plan told the reader to
+    reproduce its measurements with `git rev-parse origin/main`, which stops
+    reporting `91a4e5b` the moment the plan merges. Now pinned to
+    `git show 91a4e5b:<path>` with an explicit instruction that the implementer
+    re-measures from its own base and treats the named function or literal, not
+    the line number, as authoritative.
+  - **The scope-suffix table named the wrong vocabulary.** It listed the kind
+    source as `exact_duplicate`, which is a group's `groupKind`. The selector
+    stores `"all" | "exact" | "same_stat"`
+    (`review_server.js:872-873`), so an implementer following the table
+    literally would have compared against a token that never matches and the
+    `exact duplicates` clause would have silently never rendered while the rest
+    of the line looked right. Only `same_stat` is spelled the same in both
+    vocabularies, which is what makes the trap easy to walk into. Added as
+    likely finding 5 and checklist item 3a.
+  - **Suffix test coverage was one case for seven inputs.** Because the suffix
+    format has no source outside this plan, its test is the specification rather
+    than a guard; a single filtered case would pass with six parts missing. Now
+    a parametrised table, one case per selector plus a combined ordering case.
+  - Also recorded: the suffix must be built from the query *after*
+    `reconcileArmorQueryForGroups` clears facets that no longer exist, and a
+    single-kind report cannot distinguish a correct denominator from a
+    kind-scoped one because the kind selector only renders when both kinds are
+    present.
+  - **Template gaps for #124.** Two of the three corrections generalise beyond
+    this plan. `planner.md` requires claims to be pinned to a path and line or
+    an empirical command, but does not require that command to be
+    baseline-pinned; and it requires exact copy to be stated verbatim, but has
+    no clause requiring copy a planner *invents* to carry a matching test
+    obligation. A third candidate clause: quote state tokens from the source
+    line rather than from prose.
 
 ## 2026-09-03 — #122: integrated multi-agent handoff workflow into repository
 

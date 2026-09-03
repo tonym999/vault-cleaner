@@ -67,8 +67,24 @@ provider/model/effort used together with any fallback.
 ## Context & Measurement
 
 All line numbers below were measured against the plan baseline
-`91a4e5b` on 2026-09-03. Reproduce with `git rev-parse origin/main` followed by
-the greps in each subsection.
+`91a4e5b1c5059138b231ed915bfdbd8352a15eae` on 2026-09-03.
+
+Reproduce against that immutable SHA, not against `origin/main`, which advances
+the moment this plan merges:
+
+```bash
+git show 91a4e5b:src/vault_cleaner/ui/review_ui.js | grep -n 'function armorGroupTable'
+```
+
+or, for a whole-tree pass, `git worktree add --detach /tmp/vc-119-baseline 91a4e5b`.
+
+**The implementer must re-measure before editing.** The implementation branch
+starts from a newer `main` than this baseline. This plan changes only
+`handoffs/` and `WORKLOG.md`, so it moves no source line itself, but anything
+else that lands first will. Every line number below is a pointer to a named
+function, string literal or CSS selector; when they disagree, the name is
+authoritative and the number is stale. Report any drift to the orchestrator
+rather than silently re-anchoring a scope item.
 
 ### File sizes at baseline
 
@@ -313,15 +329,41 @@ because the surface has four facets and a search box in addition to the kind
 selector. The suffix is `" — filtered to "` followed by the active parts joined
 with `", "`, in this fixed order:
 
-| Source | Part |
-|---|---|
-| kind selector `exact_duplicate` | `exact duplicates` |
-| kind selector `same_stat` | `same-stat groups` |
-| `armorQuery.guardianClass` | `class VALUE` |
-| `armorQuery.type` | `slot VALUE` |
-| `armorQuery.itemArchetype` | `archetype VALUE` |
-| `armorQuery.tuningModSlot` | `tuning slot VALUE` |
-| `armorQuery.text` | `search "VALUE"` |
+| Source | Active when | Part |
+|---|---|---|
+| `state.armorGroupKind` | `=== "exact"` | `exact duplicates` |
+| `state.armorGroupKind` | `=== "same_stat"` | `same-stat groups` |
+| `armorQuery.guardianClass` | non-empty | `class VALUE` |
+| `armorQuery.type` | non-empty | `slot VALUE` |
+| `armorQuery.itemArchetype` | non-empty | `archetype VALUE` |
+| `armorQuery.tuningModSlot` | non-empty | `tuning slot VALUE` |
+| `armorQuery.text` | non-empty after `trim()` | `search "VALUE"` |
+
+**Read the kind token from the selector state, not from a group.** The selector
+stores `"all" | "exact" | "same_stat"`
+([review_server.js:872-873](../src/vault_cleaner/ui/review_server.js#L872-L873),
+consumed by `armorGroupsForKind` at
+[review_server.js:219-231](../src/vault_cleaner/ui/review_server.js#L219-L231)).
+A group's `groupKind` is a different vocabulary — `"exact_duplicate"` |
+`"same_stat"` — and only `same_stat` is spelled the same in both. Comparing
+`state.armorGroupKind` against `"exact_duplicate"` never matches, and the
+`exact duplicates` suffix would silently never render while every other part of
+the line looked correct.
+
+`"all"` contributes no part, and the kind selector is only rendered at all when
+both kinds are present
+([review_server.js:866-867](../src/vault_cleaner/ui/review_server.js#L866-L867)),
+so in a single-kind report `state.armorGroupKind` stays `"all"` and
+`state.armorGroups` equals `selectedArmorGroups`. A single-kind fixture
+therefore cannot distinguish a correct denominator from a kind-scoped one; only
+the mixed-kind case can.
+
+**Build the suffix from the reconciled query.** Changing the kind runs
+`reconcileArmorQueryForGroups`
+([review_server.js:242-252](../src/vault_cleaner/ui/review_server.js#L242-L252)),
+which clears facet values that no longer exist among the newly selected groups.
+The suffix must be computed after that reconciliation, or it can name a filter
+that was just dropped.
 
 Worked example:
 `12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates, class Titan, search "Reaver"`.
@@ -470,6 +512,29 @@ Replace the `Showing 1 of 1 groups` assertion with the scoped summary text,
 including a filtered case whose group and piece numbers differ. Leave
 [tests/test_server_ui_js.py:511](../tests/test_server_ui_js.py#L511) alone.
 
+**The suffix needs table-driven coverage, one case per selector.** The format
+above has no source outside this plan — the #113 record specifies only the kind
+case — so the test is its specification rather than a guard on someone else's.
+A single filtered case would pass while six of the seven parts were missing.
+Cover, as a parametrised table asserting the **exact** full summary string:
+
+| Case | Asserts |
+|---|---|
+| no filters | `N groups · M pieces`, no `of`, no suffix |
+| kind `exact` | `exact duplicates` — the part most likely mis-tokenised |
+| kind `same_stat` | `same-stat groups` |
+| `guardianClass` only | `class VALUE` |
+| `type` only | `slot VALUE` |
+| `itemArchetype` only | `archetype VALUE` |
+| `tuningModSlot` only | `tuning slot VALUE` |
+| `text` only | `search "VALUE"`, including the quotes |
+| kind + two facets + text | all four parts present **in the table's order** |
+| singular counts | `1 group`, `1 piece` |
+| filtered, mixed-kind | group and piece numbers differ, and the totals are not kind-scoped |
+
+The combined case is the one that pins ordering; per-selector cases alone pass
+under any permutation.
+
 #### [MODIFY] [tests/test_server_browser.py](../tests/test_server_browser.py#L268-L388)
 
 Browser coverage must exercise, using committed fake fixtures only:
@@ -578,7 +643,14 @@ Escalation route: `implementer → orchestrator → planner`.
    fixture and be wrong only in a mixed report. The mixed-report browser case is
    the guard.
 
-5. **Browser suite skipped.** `tests/test_server_browser.py` skips silently when
+5. **The kind token is taken from the wrong vocabulary.** The suffix needs
+   `state.armorGroupKind === "exact"`, but the adjacent and more familiar token
+   is a group's `groupKind === "exact_duplicate"`. Getting this wrong is
+   invisible: the line still renders, the counts are still right, and only the
+   `exact duplicates` clause is missing. Check the comparison operand, not the
+   rendered output of a same-stat fixture.
+
+6. **Browser suite skipped.** `tests/test_server_browser.py` skips silently when
    managed Chromium is absent unless `VAULT_CLEANER_BROWSER_REQUIRED=1` is set.
    Chromium is present on the plan host, so a skip in the implementer's report
    means the variable was not set. A skipped browser run is not a pass.
@@ -642,7 +714,10 @@ and native effort at dispatch time.
 
 - [ ] Check 1: `#vc-duplicate-scope` is static markup outside `#vc-duplicate-list`, carries `aria-live="polite"`, and is updated by `textContent` rather than recreated. Confirm it survives a filter change in the browser test.
 - [ ] Check 2: The group total comes from `state.armorGroups`, not `selectedArmorGroups`. Confirm against a mixed-kind report that a kind-filtered view still shows the unfiltered total.
-- [ ] Check 3: Both nouns pluralise independently; the unfiltered form omits "of"; the scope suffix matches the plan's table exactly.
+- [ ] Check 3: Both nouns pluralise independently; the unfiltered form omits "of"; the scope suffix matches the plan's table exactly, including part order.
+- [ ] Check 3a: The kind part is derived from `state.armorGroupKind === "exact"`, never from the group vocabulary token `"exact_duplicate"`. Grep the diff for `exact_duplicate` outside the projection layer.
+- [ ] Check 3b: The suffix is built from the query **after** `reconcileArmorQueryForGroups` runs, so a kind change cannot leave it naming a cleared facet.
+- [ ] Check 3c: The scope-suffix table test exists, is parametrised, covers each of the seven selectors individually, and includes the combined ordering case and the mixed-kind case.
 - [ ] Check 4: The `SHOWN` tile is gone from the duplicates surface and unchanged on the proposals surface. `tests/test_server_ui_js.py:511` is untouched.
 - [ ] Check 5: The same-stat banner's first sentence is unconditional and its second is gated on `armorMemberCanVerdict` over projected members, with no DOM query. Verify it still appears in a read-only session.
 - [ ] Check 6: After transposition, `memberValues` still gates `Seasonal Mod`, `Holofoil` and `Tuning Stat` on the same predicates. Verify both the present and absent case.
@@ -662,6 +737,6 @@ Planned #119 in [handoffs/issue-119-implementation-plan.md](https://github.com/t
 - **Implementer tier & effort:** `claude-sonnet-5`, native `output_config.effort = xhigh` (Complex Implementation: DOM transposition plus Playwright coverage)
 - **Implementation branch:** `feat/issue-119-duplicate-count-hierarchy`
 - **Recommended review path:** `independent adversarial review` — the orchestrator confirms against the real diff and selects the reviewer's exact model and effort at dispatch time.
-- **Likely findings:** live region recreated inside the cleared list host and never announced; same-stat banner eligibility read from the DOM instead of `armorMemberCanVerdict`; transposition dropping the `memberValues` conditional columns; the group total left kind-scoped, which only a mixed-kind report exposes; browser suite skipped without `VAULT_CLEANER_BROWSER_REQUIRED=1`.
+- **Likely findings:** live region recreated inside the cleared list host and never announced; same-stat banner eligibility read from the DOM instead of `armorMemberCanVerdict`; transposition dropping the `memberValues` conditional columns; the group total left kind-scoped, which only a mixed-kind report exposes; the scope suffix comparing `state.armorGroupKind` against the group token `"exact_duplicate"` instead of the selector token `"exact"`; browser suite skipped without `VAULT_CLEANER_BROWSER_REQUIRED=1`.
 
 **Staleness resolved during planning:** #118 (PR #121) already removed the `"Exact duplicate group · " + group.groupKind` concatenation that item 11 names as its replacement target, and already added the facet `group`/`groups` pluralisation from item 13; what remains there is the wrong noun on member-derived tuning counts. #119 rebases onto #118 rather than the reverse.
