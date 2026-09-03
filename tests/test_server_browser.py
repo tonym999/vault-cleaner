@@ -14,6 +14,7 @@ from playwright.sync_api import (
     Browser,
     BrowserType,
     Dialog,
+    Locator,
     Page,
     expect,
 )
@@ -31,6 +32,7 @@ CLASS_ARMOR_EXPORT = FIXTURES / "armor_classes.csv"
 ARMOR_CLOSE_EXPORT = FIXTURES / "armor_close.csv"
 ARMOR_DUPLICATES_UI_EXPORT = FIXTURES / "armor_duplicates_ui.csv"
 ARMOR_SAME_STAT_UI_EXPORT = FIXTURES / "armor_same_stat_ui.csv"
+ARMOR_SAME_STAT_FOUR_UI_EXPORT = FIXTURES / "armor_same_stat_four_ui.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
@@ -134,6 +136,32 @@ def authenticate(page: Page, live_server: LiveServer) -> None:
     page.goto(live_server.bootstrap_url, wait_until="domcontentloaded")
     expect(page).to_have_url(f"{live_server.origin}/")
     expect(page.locator("#vc-status")).to_contain_text("Connected")
+
+
+def badge_width_and_heading_budget(badge: Locator) -> tuple[float, float]:
+    """Return (badge offsetWidth, its ``.armor-member-heading``'s fixed min-width).
+
+    ``el.scrollWidth <= el.clientWidth`` on the badge itself is true by
+    construction here: the badge sits in an auto-width ``<th>`` inside
+    ``.scroller { overflow-x: auto }``, so a non-wrapping (``white-space:
+    nowrap``) badge never overflows *itself* -- it just grows the ``<th>``
+    to fit. That makes the naive scrollWidth/clientWidth check pass in both
+    the wrapping and non-wrapping states, so it cannot detect a regression.
+
+    Compare the badge's rendered width against the *fixed* min-width of its
+    ``.armor-member-heading`` container instead. That budget comes from a
+    separate selector (``.armor-member-heading { min-width: 11rem }``) that
+    this ticket does not touch, and it does not grow with the badge's
+    content the way the heading's own offsetWidth does -- so it is a real,
+    independent layout budget: a wrapped badge stays within it, a
+    non-wrapping badge blows through it (measured: 160px vs a 176px budget
+    with the CSS rule in place; 252px vs the same 176px budget without it).
+    """
+    width, budget = badge.evaluate(
+        "el => { var h = el.closest('.armor-member-heading');"
+        " return [el.offsetWidth, h ? parseFloat(getComputedStyle(h).minWidth) : NaN]; }"
+    )
+    return float(width), float(budget)
 
 
 @pytest.mark.browser
@@ -281,6 +309,11 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(page.locator("#vc-duplicates")).to_be_visible()
     group = page.locator("article.armor-group")
     expect(group).to_have_count(1)
+    expect(group.locator("p.armor-group-pieces")).to_have_text("3 pieces")
+    expect(group.locator("p.sub")).to_have_text("Exact")
+    expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 3 pieces")
+    expect(page.locator("#vc-duplicate-scope")).to_have_attribute("role", "status")
+    expect(page.locator("#vc-duplicate-scope")).to_have_attribute("aria-live", "polite")
     expect(group).to_contain_text("Archetype Plate")
     expect(group).to_contain_text("Chest Armor")
     expect(group).to_contain_text("Hunter")
@@ -330,17 +363,187 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
 
     group = page.locator("article.armor-group")
     expect(group).to_have_count(1)
-    expect(group).to_contain_text("Same stats, different tuning")
-    expect(group).to_contain_text("review-only")
+    expect(group.locator("p.armor-group-pieces")).to_have_text("2 pieces")
+    expect(group.locator("p.sub")).to_have_text("Same stats · review only")
+    expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 2 pieces")
+    expect(group.locator("p.hint").first).to_contain_text(
+        "Base stats match but tuning differs, so this pass selects no survivor."
+    )
     expect(group).to_contain_text("8301")
     expect(group).to_contain_text("8302")
     expect(group).to_contain_text("Tuning Mod Slot")
     expect(group).to_contain_text("Weapons")
     expect(group).to_contain_text("Health")
-    expect(group.locator("th[scope='row']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
     expect(group.locator("button.approve")).to_have_count(2)
     expect(group).not_to_contain_text("Preferred survivor")
     expect(group).not_to_contain_text("Proposed junk")
+
+
+@pytest.mark.browser
+def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Four-member same-stat groups wrap badges cleanly and transpose columns."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_FOUR_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+    expect(group.locator("p.armor-group-pieces")).to_have_text("4 pieces")
+    expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 4 pieces")
+
+    # Transposed layout: 4 rows in tbody
+    expect(group.locator("tbody tr")).to_have_count(4)
+    expect(group.locator("th[scope='col']").filter(has_text="Member")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Protection")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Verdict")).to_be_visible()
+
+    # Viewport checks at desktop and mobile widths
+    for width, height in ((1440, 900), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        scroll_width = page.evaluate("document.documentElement.scrollWidth")
+        assert scroll_width <= width, (
+            f"document scrolled horizontally at {width}px: scrollWidth={scroll_width}"
+        )
+
+    # Badges wrap within their heading's fixed width budget instead of
+    # forcing the cell wider (see badge_width_and_heading_budget for why a
+    # bare scrollWidth <= clientWidth check on the badge cannot catch this).
+    badges = page.locator("article.armor-group .armor-member-heading .badge")
+    assert badges.count() == 4
+    for i in range(badges.count()):
+        badge = badges.nth(i)
+        width, budget = badge_width_and_heading_budget(badge)
+        assert width <= budget, (
+            f"badge {i} exceeded its heading's {budget}px width budget: {width}px"
+        )
+
+    # Light and dark color schemes: assert theme-sensitive computed values
+    # actually change, not just that emulate_media was called.
+    scope_summary = page.locator(".scope-summary").first
+    group_pieces = page.locator(".armor-group-pieces").first
+    transparent_values = {"rgba(0, 0, 0, 0)", "transparent"}
+
+    def theme_snapshot() -> dict[str, str]:
+        return {
+            "scope-summary backgroundColor": scope_summary.evaluate(
+                "el => getComputedStyle(el).backgroundColor"
+            ),
+            "scope-summary borderLeftColor": scope_summary.evaluate(
+                "el => getComputedStyle(el).borderLeftColor"
+            ),
+            "armor-group-pieces color": group_pieces.evaluate(
+                "el => getComputedStyle(el).color"
+            ),
+            "armor-group-pieces borderColor": group_pieces.evaluate(
+                "el => getComputedStyle(el).borderColor"
+            ),
+        }
+
+    page.emulate_media(color_scheme="dark")
+    dark_theme = theme_snapshot()
+    dark_scroll_width = page.evaluate("document.documentElement.scrollWidth")
+    assert dark_scroll_width <= page.viewport_size["width"]
+    for i in range(badges.count()):
+        badge = badges.nth(i)
+        width, budget = badge_width_and_heading_budget(badge)
+        assert width <= budget, (
+            f"badge {i} exceeded its heading's {budget}px width budget in dark mode: {width}px"
+        )
+
+    page.emulate_media(color_scheme="light")
+    light_theme = theme_snapshot()
+    light_scroll_width = page.evaluate("document.documentElement.scrollWidth")
+    assert light_scroll_width <= page.viewport_size["width"]
+    for i in range(badges.count()):
+        badge = badges.nth(i)
+        width, budget = badge_width_and_heading_budget(badge)
+        assert width <= budget, (
+            f"badge {i} exceeded its heading's {budget}px width budget in light mode: {width}px"
+        )
+
+    for label, value in dark_theme.items():
+        assert value not in transparent_values, f"dark {label} was transparent: {value}"
+    for label, value in light_theme.items():
+        assert value not in transparent_values, f"light {label} was transparent: {value}"
+    for label in dark_theme:
+        assert dark_theme[label] != light_theme[label], (
+            f"{label} did not change between dark and light color schemes: "
+            f"{dark_theme[label]!r}"
+        )
+
+
+@pytest.mark.browser
+def test_armor_duplicates_mixed_report_scope_summary_and_filtering(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Mixed report displays scope summary, and kind/facet filters update it accurately."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_CLOSE_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+
+    # Proposals surface keeps the "shown" tile -- pin its presence here first
+    # so the later absence check on the duplicates surface proves a surface
+    # distinction, not just that the string never renders anywhere.
+    shown_tile = page.locator("#vc-summary .tile .k:text-is('shown')")
+    expect(shown_tile).to_have_count(1)
+
+    page.locator("#vc-view-duplicates").click()
+
+    scope = page.locator("#vc-duplicate-scope")
+    expect(scope).to_be_visible()
+    expect(scope).to_have_attribute("role", "status")
+    expect(scope).to_have_attribute("aria-live", "polite")
+
+    # The duplicates surface has no per-item filter to "show", so #vc-summary
+    # must not carry the "shown" tile here (#119 review Check 4).
+    expect(shown_tile).to_have_count(0)
+
+    # The scope region lives outside the list host that renderList clears on
+    # every keystroke -- pin that here so a future change that instead builds
+    # this element inside #vc-duplicate-list (destroy-and-recreate on every
+    # render, never reliably announced) is caught rather than merely passing
+    # a same-id text check.
+    assert scope.evaluate("el => el.parentElement && el.parentElement.id") == "vc-duplicates"
+    scope_node_before_filter = scope.element_handle()
+    assert scope_node_before_filter is not None
+
+    # Unfiltered mixed report: 2 groups, 4 pieces
+    expect(scope).to_have_text("2 groups · 4 pieces")
+
+    # Filter to exact duplicates: group count and piece count differ (1 group vs 2 pieces)
+    page.locator("#vc-dup-kind-exact").click()
+    expect(scope).to_have_text(
+        "1 of 2 groups · 2 of 4 pieces — filtered to exact duplicates"
+    )
+    assert scope.evaluate("el => el.parentElement && el.parentElement.id") == "vc-duplicates"
+    scope_node_after_filter = page.locator("#vc-duplicate-scope").element_handle()
+    assert scope_node_after_filter is not None
+    same_node = scope_node_before_filter.evaluate(
+        "(el, other) => el === other", scope_node_after_filter
+    )
+    assert same_node, (
+        "#vc-duplicate-scope was destroyed and recreated by the kind filter "
+        "change instead of being updated in place"
+    )
+
+    # Filter to same-stat groups: group count and piece count differ (1 group vs 2 pieces)
+    page.locator("#vc-dup-kind-same_stat").click()
+    expect(scope).to_have_text(
+        "1 of 2 groups · 2 of 4 pieces — filtered to same-stat groups"
+    )
+
+    # Reset kind to all
+    page.locator("#vc-dup-kind-all").click()
+    expect(scope).to_have_text("2 groups · 4 pieces")
 
 
 @pytest.mark.browser

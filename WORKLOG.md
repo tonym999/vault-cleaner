@@ -3,6 +3,256 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #119: implementation of duplicate count hierarchy and table transposition (PR 2)
+
+Implementation session for issue #119 under the two-PR lifecycle, following the
+merged plan at `handoffs/issue-119-implementation-plan.md`.
+
+- **What happened:**
+  - Branched `feat/issue-119-duplicate-count-hierarchy` from `main` at base SHA
+    `b8b297e2a9f0981bcf91334c7e6b16ce85fea0b6`.
+  - Added persistent live region
+    `<p id="vc-duplicate-scope" class="scope-summary" role="status" aria-live="polite"></p>`
+    in `review_server.html` above `#vc-duplicate-list`.
+  - Removed `shown` summary tile on the armor duplicates surface in
+    `review_server.js` while retaining it untouched on the proposals surface.
+  - Updated `duplicateOptions` in `review_server.js` to pluralise option labels
+    using `entry.unit || "group"`.
+  - Exported `duplicateScopeText` and `countGroupPieces` from `review_server.js`,
+    and updated `renderList` to write the exact scope summary string to
+    `#vc-duplicate-scope` (a reconcile call this bullet originally described
+    `renderList` as making was removed in the third fix round below, H2 —
+    reconciliation is instead guaranteed by the two callers that can change
+    the group universe).
+  - Updated `countArmorGroups` in `review_ui.js` to return `unit`, counting pieces
+    (per member) across both exact and same-stat groups for `tuningModSlot`, and
+    groups for other facets.
+  - Updated `armorGroupHeader` in `review_ui.js` to prepend `p.armor-group-pieces`,
+    render kind sub-line as `"Exact"` or `"Same stats · review only"`, and add the
+    conditional same-stat banner based on `armorMemberCanVerdict(group, member)`.
+  - Transposed `armorGroupTable` in `review_ui.js` with members as rows and comparison
+    fields as columns, keeping conditional column logic intact and preserving
+    `armorMemberCell` untouched in the Verdict cell.
+  - Scoped badge-wrapping styling `.armor-member-heading .badge` in `review.css`
+    so the global `.badge` rule is untouched, styled `.scope-summary` and
+    `.armor-group-pieces` with existing custom properties, and adjusted table layout.
+  - Adapted `tests/test_review_ui_js.py` to test the column-based layout, pieces counts,
+    singular piece count, banner sentences, and facet units.
+  - Added table-driven parameterized test in `tests/test_server_ui_js.py` covering
+    all 7 selectors individually, combined ordering with all 6 parts, independent
+    pluralisation, and mixed-kind filtering.
+  - Added browser tests in `tests/test_server_browser.py` for four-member same-stat
+    groups (`armor_same_stat_four_ui.csv`), badge wrapping without clipping,
+    390x844 and 1440x900 viewport horizontal scroll invariants, light/dark mode,
+    and mixed-report filtering (`armor_close.csv`).
+- **Decisions made:**
+  - Preserved `armorMemberCell` completely untouched, mounting it directly into the
+    Verdict cell in transposed member rows, preserving DOM identities and
+    `state.duplicateRows` occurrences registration.
+  - Placed `#vc-duplicate-scope` outside `#vc-duplicate-list` in `review_server.html`
+    so `view.clear(host)` does not destroy the live region across keystrokes.
+  - **Facet-unit decision and its consequence:** the `tuningModSlot` facet counts
+    pieces (one per member, for both exact and same-stat groups), while every
+    other facet counts groups; `duplicateOptions` labels each with `entry.unit`.
+    Consequence: the tuning facet's number stops predicting how many groups the
+    filter will show — the option now answers "how many pieces have this tuning
+    slot", not "how many groups". The scoped summary region
+    (`#vc-duplicate-scope`) is the surface that answers the group question
+    instead.
+  - **Scope-suffix format:** `" — filtered to "` followed by the active parts
+    joined with `", "`, in the fixed order kind, class, slot, archetype, tuning
+    slot, search — e.g.
+    `12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates, class Titan, search "Reaver"`.
+- **Surprises the next agent should know about:**
+  - `ARMOR_CLOSE_EXPORT` contains 1 exact group (2 members) and 1 same-stat group
+    (2 members) for a total of 4 pieces. Filtered exact/same-stat views each show
+    `1 of 2 groups · 2 of 4 pieces`, cleanly exercising differing group and piece counts.
+  - In Node test environments that mock `Document`, added `vc-duplicate-scope` to the
+    element lookup map.
+
+### Fix round: independent adversarial review follow-up
+
+Independent adversarial review of `482a63a` found no P0/P1 defects, two
+blocking P2 coverage gaps (F1, F2), and two accepted non-blocking fold-ins
+(F3, F4). The production code from `482a63a` was found correct by that
+review; only tests and this worklog entry changed.
+
+- **F1 (blocking, test-only):** `test_armor_same_stat_four_member_badge_wrapping_and_transposition`
+  called `page.emulate_media(color_scheme=...)` for dark then light with no
+  assertion between or after either call, so the plan's "light and dark"
+  checklist item asserted nothing theme-dependent. Added computed-style
+  assertions under each scheme (`.scope-summary` `backgroundColor` /
+  `borderLeftColor`, `.armor-group-pieces` `color` / `borderColor`), asserting
+  non-transparent values that differ between dark and light, plus re-running
+  the scroll-width and badge-clipping checks inside each scheme.
+- **F2 (blocking, test-only):** `test_armor_duplicates_mixed_report_scope_summary_and_filtering`
+  re-queried `#vc-duplicate-scope` by id after each kind-selector click, so an
+  implementation that destroyed and recreated the region inside
+  `#vc-duplicate-list` on every render (the plan's Likely Finding #1) would
+  still pass. Measured: with the region moved into `renderList`/`host.appendChild`
+  and deleted from `review_server.html`, all 8 browser tests and all 123 node
+  tests still passed before this fix. Added an assertion that
+  `el.parentElement.id === "vc-duplicates"` and that the element node identity
+  (`element_handle()` equality) survives a kind-selector click. Proved the
+  guard load-bearing with a temporary recreated-region variant (removed the
+  `<p id="vc-duplicate-scope">` line from `review_server.html`; in
+  `review_server.js` `renderList`, built the element with `view.el` and
+  `host.appendChild`ed it instead of `byId` lookup): the new
+  `parentElement.id` assertion failed red
+  (`AssertionError: assert 'vc-duplicate-list' == 'vc-duplicates'`), then the
+  variant was fully reverted with `git checkout --` and the tree confirmed
+  clean against the intended change set before re-running green.
+- **F3 (accepted, non-blocking):** `renderSummary` in `review_server.js`
+  computed the `shown` scan of `state.items` via `ui.filterItems` on every
+  render regardless of surface, even though the result is only consumed
+  inside the `state.surface !== "armor-duplicates"` branch. Moved the
+  computation inside that guard so it no longer runs (and is discarded) on the
+  duplicates surface. Pure performance change — the proposals surface tile
+  renders identically, and `tests/test_server_ui_js.py:511` (the `"shown"`
+  literal assertion) is untouched and passing.
+- **F4 (this entry):** the original entry omitted the facet-unit consequence,
+  the scope-suffix format, and this fix round; both are now recorded above.
+
+### Second fix round: independent adversarial review of `b8b297e...2acef1b`
+
+A second independent adversarial review of the complete `b8b297e...2acef1b`
+range found no P0/P1, one new blocking P2 (G1), and two accepted non-blocking
+items (G2, G3). Production code changed only for G2; G1 and G3 are test-only.
+
+- **G1 (blocking, test-only):** no assertion distinguished
+  `armorGroupHeader`'s data-derived same-stat banner eligibility
+  (`armorMemberCanVerdict(group, member)`, which reads only
+  `currentProposalAction`/`isProposalMember` and never `readOnly` or the DOM)
+  from a render-derived one gating on whether a verdict button would actually
+  render (the #115 prior-art defect). Measured: replacing the eligibility
+  check with `!readOnly && (group.members || []).some(function (m) { return
+  armorMemberCanVerdict(group, m); })` left all 123 node tests and all 8
+  browser tests passing (`950 passed` in the full suite run before this fix,
+  since a same-stat proposing member always has a rendered `.approve` button
+  under the harness's normal, non-read-only views). Added a read-only-view
+  case to `test_same_stat_projection_and_cross_kind_dom_overlap` in
+  `tests/test_review_ui_js.py`: a same-stat group with a member whose
+  `currentProposalAction` is `"junk"`, rendered through
+  `api.createView({..., readOnly: true})`, asserting both that the second
+  banner sentence ("Pieces below that already carry a proposal keep their
+  verdict controls.") is present and that zero `button.approve` elements
+  render in that article (new key `sameBannerPresentWhenReadOnly`). Proved
+  the guard load-bearing with the temporary render-derived variant above:
+  the new assertion went red —
+  `AssertionError: ... Differing items: {'sameBannerPresentWhenReadOnly':
+  False} != {'sameBannerPresentWhenReadOnly': True}` — with the rest of the
+  suite (950 of 951 tests) still green, then the variant was fully reverted
+  with `git checkout -- src/vault_cleaner/ui/review_ui.js` and the tree
+  confirmed clean against the intended change set before re-running green.
+- **G2 (accepted, non-blocking):** `renderList` in `review_server.js` wrote
+  `scopeTarget.textContent` unconditionally on every `#vc-dup-search` input
+  event, so the `role="status"`/`aria-live="polite"` `#vc-duplicate-scope`
+  region re-announced the whole scope line to screen readers even when the
+  computed string had not changed. Guarded the assignment to only write when
+  the new string differs from the current `textContent`; behaviour is
+  otherwise identical.
+- **G3 (accepted, non-blocking, test-only):** the `shown` tile's absence from
+  the duplicates surface was pinned only by reading code — a regression that
+  re-added the tile there would go undetected, since
+  `tests/test_server_ui_js.py:511` (left untouched) only pins the tile's
+  presence on the proposals surface via a source-literal check. Added a
+  negative assertion in
+  `test_armor_duplicates_mixed_report_scope_summary_and_filtering` in
+  `tests/test_server_browser.py`: `#vc-summary .tile .k:text-is('shown')`
+  has count 1 on the proposals surface (asserted first, before switching) and
+  count 0 after switching to the duplicates surface, proving a surface
+  distinction rather than the absence of a string anywhere on the page.
+
+### Third fix round: independent adversarial review of `b8b297e...fd9af2a`
+
+A third independent adversarial review of the complete `b8b297e...fd9af2a`
+range found no P0/P1, one blocking P2 (H1), and three accepted items (H2,
+H3, H4). Production code changed only for H2 (a reversal of a decision this
+worklog previously recorded as rejected); H1, H1b, and H3 are test-only.
+
+- **H1 (blocking, test-only):** the three badge non-clipping assertions in
+  `test_armor_same_stat_four_member_badge_wrapping_and_transposition`
+  (`tests/test_server_browser.py`) read `el.scrollWidth <= el.clientWidth`
+  on the badge itself — true by construction, since the badge sits in an
+  auto-width `<th>` inside `.scroller { overflow-x: auto }`: a non-wrapping
+  badge simply grows the cell rather than overflowing itself, so the check
+  cannot fail regardless of whether `.armor-member-heading .badge`'s
+  `white-space: normal; overflow-wrap: anywhere` rule (`review.css:180`)
+  is present. Measured: deleting that CSS rule left all 8 browser tests and
+  all 951 non-browser tests passing before this fix. Replaced all three
+  occurrences with `badge_width_and_heading_budget`, comparing the badge's
+  `offsetWidth` against its `.armor-member-heading` container's *fixed*
+  `min-width` (11rem/176px, from a separate, untouched selector, so it does
+  not grow with the badge's content the way the heading's own `offsetWidth`
+  does). Proved the new assertion load-bearing by deleting `review.css:180`
+  and re-running: it failed red (`AssertionError: badge 0 exceeded its
+  heading's 176.0px width budget: 252.0px`), then `review.css` was fully
+  reverted with `git checkout --` and confirmed unchanged in the final diff
+  before re-running green.
+- **H1b (vacuity audit, test-only):** audited every assertion this ticket
+  added across `tests/test_server_browser.py`, `tests/test_review_ui_js.py`,
+  and `tests/test_server_ui_js.py` in the `b8b297e...HEAD` range for the same
+  "passes by construction" class as H1, F1/F2, and G1. Found no further
+  vacuous assertion: the remaining checks are string/attribute/count
+  equalities tied 1:1 to a specific production value (scope text, piece
+  counts, `role`/`aria-live` attributes read from `review_server.html:72`,
+  column-header presence after the row-to-column transposition, theme
+  computed-value differences from F1, and the region-identity/read-only-view
+  checks from F2/G1) — each one requires a distinct, identifiable production
+  change to fail. The H2 and H3 fixes below each added a new assertion;
+  both were proved load-bearing by an explicit inverted-ordering mutation
+  (see their entries).
+- **H2 (accepted — reverses this worklog's F3-adjacent prior rejection):**
+  `renderList` called `reconcileArmorQueryForGroups(state.armorQuery,
+  selectedArmorGroups)` on every duplicates render, with no `invalidated`
+  collector — unlike its two sibling call sites (`applySessionEnvelope` and
+  the kind-selector click handler), which both report a dropped filter via
+  `state.viewInvalidated`. This implementer had rejected the same finding
+  twice in earlier rounds; three independent reviews flagging it, plus
+  `AGENTS.md`'s sibling-path rule, changed that. Removed the call: the
+  kind-selector handler already reconciles `state.armorQuery` for the new
+  kind's group universe before it calls `renderList`, and `renderList` is
+  the only caller that can change `state.armorGroupKind`'s selected universe
+  without a prior reconcile, so the scope suffix `renderList` computes never
+  names a facet value the current universe has already dropped. Extended
+  the existing `test_local_duplicate_kind_switch_renders_filter_reconciliation`
+  in `tests/test_server_ui_js.py` with a `scope` field capturing
+  `#vc-duplicate-scope`'s textContent after the kind-selector switches from
+  `same_stat` (with `tuningModSlot: Health` set) to `exact` (where `Health`
+  no longer exists): asserted it reads `"1 of 2 groups · 1 of 3 pieces —
+  filtered to exact duplicates"` with no mention of `Health`. Proved
+  load-bearing by temporarily moving
+  the click handler's `renderControls(); renderList(); renderSummary();`
+  call to before its `reconcileArmorQueryForGroups` call (simulating the
+  now-removed `renderList`-side reconcile no longer covering this path): the
+  assertion went red (`'0 of 2 groups · 0 of 3 pieces — filtered to exact
+  duplicates, tuning slot Health'` instead), then the variant was fully
+  reverted with a diff against the pre-mutation copy and confirmed clean
+  before re-running green.
+- **H3 (accepted, test-only):** `renderList` writes the scope text to
+  `#vc-duplicate-scope` before its `if (!filteredGroups.length) { ...;
+  return; }` early return, but nothing pinned that ordering — a filter
+  matching nothing could regress to leaving the region stale or blank.
+  Added `test_duplicate_list_states_scope_before_the_empty_result_hint` in
+  `tests/test_server_ui_js.py`: a search matching no groups still leaves
+  `#vc-duplicate-scope` reading `"0 of 2 groups · 0 of 3 pieces — filtered to
+  search \"no-such-armor-piece\""` alongside the `"No armor duplicate groups
+  match these filters."` hint. Also added a "no matches" case to the
+  existing `test_duplicate_scope_summary_formats_exact_table` parametrized
+  suite pinning `duplicateScopeText`'s zero-match formatting in isolation.
+  Proved the DOM-level test load-bearing by temporarily moving the scope
+  write in `renderList` to after the early return: it failed red (`'2
+  groups · 3 pieces' == '0 of 2 group...-armor-piece"'`, i.e. the write was
+  skipped entirely on the empty-result path), then the variant was fully
+  reverted and confirmed clean before re-running green.
+- **H4 (open question carried forward, not built):** the plan's out-of-scope
+  list flagged collapsing the four-member tile row at 390px as worth its own
+  look during #119, and instructed raising rather than building it. It was
+  correctly not built in the implementation, but the review found it was
+  never raised anywhere reaching the PR. Recording it here per that
+  instruction: collapsing the tile row layout at the 390px viewport remains
+  an open question for a follow-up ticket, out of scope for #119.
+
 ## 2026-09-03 — #119: planning session (plan PR 1)
 
 Planning-only session under the new two-PR lifecycle. Authored

@@ -253,6 +253,41 @@
     return query;
   }
 
+  function countGroupPieces(groups) {
+    return (groups || []).reduce(function (sum, group) {
+      return sum + ((group.members && group.members.length) || 0);
+    }, 0);
+  }
+
+  function duplicateScopeText(allGroups, filteredGroups, kind, query) {
+    var totalGroups = (allGroups || []).length;
+    var totalPieces = countGroupPieces(allGroups);
+    var shownGroups = (filteredGroups || []).length;
+    var shownPieces = countGroupPieces(filteredGroups);
+
+    var parts = [];
+    if (kind === "exact") parts.push("exact duplicates");
+    else if (kind === "same_stat") parts.push("same-stat groups");
+
+    if (query) {
+      if (query.guardianClass) parts.push("class " + query.guardianClass);
+      if (query.type) parts.push("slot " + query.type);
+      if (query.itemArchetype) parts.push("archetype " + query.itemArchetype);
+      if (query.tuningModSlot) parts.push("tuning slot " + query.tuningModSlot);
+      if (query.text && query.text.trim()) parts.push('search "' + query.text.trim() + '"');
+    }
+
+    var groupWord = totalGroups === 1 ? "group" : "groups";
+    var pieceWord = totalPieces === 1 ? "piece" : "pieces";
+
+    if (!parts.length) {
+      return totalGroups + " " + groupWord + " · " + totalPieces + " " + pieceWord;
+    }
+    return shownGroups + " of " + totalGroups + " " + groupWord + " · " +
+      shownPieces + " of " + totalPieces + " " + pieceWord +
+      " — filtered to " + parts.join(", ");
+  }
+
   function applySessionEnvelope(envelope, state) {
     if (!isObject(envelope)) throw envelopeError("session envelope must be an object");
     if (!state || typeof state !== "object") throw new TypeError("state is required");
@@ -828,15 +863,14 @@
       var proposed = ui.actionCounts(state.items);
       var kept = ui.actionCounts(ui.keptItems(state.items, state.verdicts, state.persistedVetoIds));
       var reviewed = ui.reviewCounts(state.items, state.verdicts);
-      var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
-      var shown = state.surface === "armor-duplicates" && typeof ui.filterArmorGroups === "function"
-        ? ui.filterArmorGroups(selectedArmorGroups, state.armorQuery).length
-        : ui.filterItems(state.items, state.query, state.verdicts).length;
       host.appendChild(view.tile("proposed", String(proposed.total), proposed.junk + " junk, " + proposed.review + " review"));
       host.appendChild(view.tile("after vetoes", String(kept.total), kept.junk + " junk, " + kept.review + " review"));
       host.appendChild(view.tile("reviewed", String(reviewed.approved + reviewed.vetoed), reviewed.approved + " approved, " + reviewed.vetoed + " vetoed"));
-      host.appendChild(view.tile("shown", String(shown), state.surface === "armor-duplicates"
-        ? "matching duplicate groups" : "matching the current filters"));
+      if (state.surface !== "armor-duplicates") {
+        var shown = typeof ui.filterItems === "function"
+          ? ui.filterItems(state.items, state.query, state.verdicts).length : 0;
+        host.appendChild(view.tile("shown", String(shown), "matching the current filters"));
+      }
       host.appendChild(view.tile("unreviewed", String(reviewed.unreviewed), "without a current-session verdict"));
       var overrideHost = byId("vc-overrides");
       if (!overrideHost) return;
@@ -915,7 +949,8 @@
           var values = typeof ui.countArmorGroups === "function"
             ? ui.countArmorGroups(selectedArmorGroups, field) : [];
           values.forEach(function (entry) {
-            var noun = entry.count === 1 ? "group" : "groups";
+            var unit = entry.unit || "group";
+            var noun = entry.count === 1 ? unit : (unit === "piece" ? "pieces" : "groups");
             options.push(view.el("option", {
               value: entry.value, text: entry.value + " (" + entry.count + " " + noun + ")"
             }));
@@ -989,13 +1024,27 @@
       view.clear(host);
       if (state.surface === "armor-duplicates") {
         state.duplicateRows = emptyMap();
+        // armorQuery is reconciled for the current armorGroupKind's universe
+        // by every caller that can change that universe (applySessionEnvelope
+        // on a new report/session, and the kind-selector click handler on a
+        // kind switch) before it calls renderList -- so the scope suffix
+        // below never names a facet value the current universe has already
+        // dropped. Do not re-reconcile here without an `invalidated`
+        // collector: a silent clear on every render (search input, sort
+        // toggle, ...) would desync the <select> from state without
+        // reporting it, unlike the two sibling reconcile call sites.
         var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
         var filteredGroups = typeof ui.filterArmorGroups === "function"
           ? ui.filterArmorGroups(selectedArmorGroups, state.armorQuery) : [];
-        host.appendChild(view.el("p", {
-          id: "vc-duplicate-count", class: "hint",
-          text: "Showing " + filteredGroups.length + " of " + selectedArmorGroups.length + " groups"
-        }));
+        var scopeTarget = byId("vc-duplicate-scope");
+        if (scopeTarget) {
+          var scopeText = duplicateScopeText(
+            state.armorGroups, filteredGroups, state.armorGroupKind, state.armorQuery
+          );
+          if (scopeTarget.textContent !== scopeText) {
+            scopeTarget.textContent = scopeText;
+          }
+        }
         if (!filteredGroups.length) {
           host.appendChild(view.el("p", { class: "hint", text: "No armor duplicate groups match these filters." }));
           return;
@@ -1347,6 +1396,7 @@
     SHUTDOWN_ENDPOINT: SHUTDOWN_ENDPOINT, applySessionEnvelope: applySessionEnvelope,
     createState: createState, persistedVetoIds: persistedVetoIds, copyVerdicts: copyVerdicts,
     armorGroupsForKind: armorGroupsForKind, armorGroupKinds: armorGroupKinds,
+    countGroupPieces: countGroupPieces, duplicateScopeText: duplicateScopeText,
     showReconnect: showReconnect, responseError: responseError, fetchEnvelope: fetchEnvelope,
     makeVerdictPayload: makeVerdictPayload, makeFinalizePayload: makeFinalizePayload,
     makeResetPayload: makeResetPayload, makeShutdownOptions: makeShutdownOptions,
