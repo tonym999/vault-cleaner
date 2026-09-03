@@ -33,18 +33,25 @@ font stacks, so the stills above match what it renders.
 
 The two alternative stills are both shown filtered to Exact, so each lists only
 exact groups; the kind hierarchy is shown once, unfiltered, in the third.
-`narrow-390-specimens.html` is a purpose-built harness holding the two
-treatments with no document chrome, so opening it at 390×844 gives each the full
-width the review UI would have. `narrow-390-alternative-a.png` and
-`narrow-390-alternative-b.png` are captured from it. Measured there: neither
-overflows, A totals 248px, B totals 371px because its tile row stacks to 178px.
+`narrow-390-specimens.html` is a thin **production shell**: it links the real
+`src/vault_cleaner/ui/review.css` and reuses its `main.wrap` / `section.panel` /
+`.tiles` structure, so both treatments are measured in the layout they would ship
+into. Run `scripts/measure_narrow_specimens.py`, which asserts the viewport, the
+absence of document overflow, the production panel width (370.8px, from
+`review.css:166`) and a four-tile row in each specimen before reporting a height.
+`narrow-390-alternative-a.png` and `narrow-390-alternative-b.png` come from it.
+
+Measured at 390×844: neither overflows; **A totals 652px, B totals 617px.** The
+tile row is **413px in both** — `review.css:167` sets `.tile { min-width: 100% }`
+at ≤640px, so all four stack full width — and the difference is A's 62px scope
+line, which B does not need.
 
 Narrow behaviour is deliberately **not** measured inside `count-treatments.html`.
 A fixed-width box in a desktop document never activates a narrow media query, and
 at a genuine 390px viewport that document's own padding leaves a specimen 241px
-wide. The harness also drops the 30rem minimum width the comparison page sets on
-`.vc`, which is an authoring convenience for desktop reading rather than a
-property of either treatment.
+wide. An earlier harness also omitted A's tile row, which made A look compact by
+leaving out a component it keeps; the script now fails rather than report a
+height when the two specimens do not carry equivalent content.
 
 The mixed export is the two committed fixtures concatenated: one exact
 duplicate group of three members, one same-stat group of four. The hostile
@@ -87,8 +94,9 @@ Only **Member 1** of each group is visible. The comparison table is wrapped in
 shows one member at a time cannot be used to compare, which is the strongest
 single argument for transposing members from columns to rows.
 
-The five report tiles stack to roughly an eighth of the page height before any
-group content is reached, and the report fingerprint overflows its line.
+The report tiles stack full width (`review.css:167`), consuming a large share of
+the viewport before any group content is reached — measured at 413px for four
+tiles, and the live surface has five. The report fingerprint overflows its line.
 
 ## What the hostile-text capture shows
 

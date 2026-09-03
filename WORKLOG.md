@@ -3,6 +3,44 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #113 fifth review round: the narrow comparison was not a comparison
+
+- **The narrow harness compared A without a tile row against B with one.**
+  Alternative A deletes only the `SHOWN` tile, so it keeps four; the harness gave
+  it none. That is not a mis-measurement, it is two different things being
+  measured and the difference reported as a result. It made A look compact by
+  omitting a component it actually has, and it reversed the conclusion.
+- Rebuilt the harness as a **thin production shell**: it links the real
+  `src/vault_cleaner/ui/review.css` and reuses `main.wrap` / `section.panel` /
+  `.tiles`, with only treatment-specific rules layered on. Both alternatives now
+  carry complete content.
+- Added `scripts/measure_narrow_specimens.py`, which **asserts its preconditions
+  before reporting**: viewport is really 390px, the document does not scroll
+  sideways, panels sit at the production width, both specimens carry four tiles,
+  and no remote request is made. The panel-width assertion immediately caught a
+  wrong expectation of mine — `review.css:166` drops `.wrap` padding to `.6rem`
+  at ≤640px, so a panel is 370.8px, not 358px.
+- **True figures: A 652px, B 617px — B is the more compact**, the opposite of the
+  previous entry's claim. The difference is A's 62px scope line.
+- **The "B's expanded tile row" reasoning was empty all along.** At ≤640px
+  `review.css:167` sets `.tile { min-width: 100% }`, so all four tiles stack full
+  width and the tile row is **413px in both treatments**. It was never a
+  differentiator, and the decision text had been leaning on it.
+- Re-evaluated rather than renumbered: the narrow criterion now favours B, so
+  measurement *weakens* the recommendation by one criterion of eight rather than
+  strengthening it. The hybrid still stands on single-authoritative-scope, one
+  live region, and no paired numbers to keep in sync, and now says plainly that
+  it buys those for 35px of height.
+- New, and larger than either treatment: four stacked tiles occupy 413px of an
+  844px viewport before any group is reached, and the live surface has five.
+  Recorded as an open question for #119.
+- Replaced `aria-pressed` on static `span` chips with `data-selected` in both the
+  harness and the comparison document — `aria-pressed` is toggle-button state and
+  these have no button semantics.
+- **Worth knowing:** four attempts at one number produced four answers. What
+  finally worked was not more care, it was a script that refuses to print a
+  height until the layout it is measuring is demonstrably the production one.
+
 ## 2026-09-03 — #113 fourth review round: measured 390px properly
 
 - **The previous entry's "measurement" was invalid, twice over.** Setting a

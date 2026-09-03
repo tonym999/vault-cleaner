@@ -67,8 +67,8 @@ piece count.
 - **Wins on** answering "how big is this review" in one place; one live region
   to announce on filter change; the tile row becomes homogeneous.
 - **Costs** scope that scrolls away on a long list, and four numbers in one
-  sentence, which wraps at 390px — measured at 62px, and the cheaper of the two
-  narrow costs.
+  sentence, which wraps at 390px to a 62px line — the more expensive of the two
+  narrow treatments, giving a 652px block against B's 617px.
 
 ### B — every count carries its own noun
 
@@ -80,9 +80,9 @@ totals. Each group header leads with a piece count.
   per-kind totals without clicking through.
 - **Costs** pairs of numbers that must agree forever — `12` in both the `Groups`
   tile and the `Exact` chip, `74` in both the tile and the `All kinds` chip — and
-  no single answer to the size of the review. At 390px its tile row stacks rather
-  than overflowing, but stacking costs 178px before the first group, giving a
-  371px block against A's 248px.
+  no single answer to the size of the review. Its chips carry more text than A's
+  (58px against 26px), but it needs no scope line, so at 390px it is the more
+  compact of the two: a 617px block against A's 652px.
 
 ## 3. Decision
 
@@ -90,20 +90,31 @@ totals. Each group header leads with a piece count.
 scroll away, B's weakness is a permanent consistency obligation across paired
 call sites.
 
-**One correction from measuring.** The comparison originally scored the 390px
-row as a win for B, reasoning that tiles and chips stack. Measured in
-`evidence/issue-113/narrow-390-specimens.html` at a true 390×844 viewport,
-neither treatment overflows and **A is the more compact** — a 248px block
-against B's 371px, because stacking B's tile row costs 178px. This does not
-change the decision; it strengthens it, since the hybrid adopts A's line and
-specifically declines B's expanded tile row.
+**The narrow criterion favours B, and the decision accepts that cost.** Measured
+by `scripts/measure_narrow_specimens.py` against a production shell at 390×844:
+neither treatment overflows, and **B is the more compact** — a 617px block
+against A's 652px, because A adds a 62px scope line that B does not need.
 
-Two earlier attempts at this number were wrong, and the reason is worth
-recording: a fixed-width box inside a desktop document never activates a narrow
-media query, and measuring inside the comparison document at a real 390px
-viewport leaves the specimen only 241px wide once that document's own padding is
-taken. Narrow behaviour has to be measured with the specimen at full width and
-no surrounding chrome, which is what the harness does.
+Two things this measurement killed. First, an earlier claim that the hybrid
+"declines B's expanded tile row" was empty: at ≤640px `review.css:167` sets
+`.tile { min-width: 100% }`, so all four tiles stack full width and **the tile
+row is 413px in both treatments**. It was never a differentiator. Second, an
+earlier revision of this document claimed measurement *strengthened* the
+decision. It does not. It weakens it by one criterion of eight.
+
+The decision stands on the others — one authoritative statement of scope, one
+live region to announce, and no pair of numbers that must agree forever. The
+hybrid knowingly accepts 35px of extra height at 390px to buy them.
+
+Getting this number took four attempts, three of them wrong, and the failures are
+worth recording because they are easy to repeat: a box given `width:390px` inside
+a desktop document activates no narrow media query; measuring inside the
+comparison document at a real 390px viewport leaves the specimen 241px once that
+document's padding is taken; and one revision omitted Alternative A's tile row
+altogether, which is not a mis-measurement but a comparison of two different
+things. The committed script now asserts the viewport, the absence of document
+overflow, the production panel width, and that both specimens carry four tiles,
+before it will report a height.
 
 Adopt **A's single scoped line** as the one authoritative statement, and **B's
 per-group piece count and review-only banner** as local reinforcement that never
@@ -165,8 +176,14 @@ runtime dependencies. `RULESET_VERSION` is not bumped — presentation only.
   filter selects whole groups, whereas a future member-level filter (tuning
   slot, protection) would select members — at which point "pieces shown" and
   "members of shown groups" diverge and the line needs re-deciding.
-- **Should the summary line pin on scroll?** It would erase A's only real
-  weakness, at the cost of vertical space already scarce at 390px.
+- **Should the summary line pin on scroll?** It would erase A's scroll-away
+  weakness, at the cost of vertical space that measurement shows is scarcer than
+  assumed at 390px.
+- **Should the tile row collapse at 390px?** Measured, four stacked tiles occupy
+  413px — roughly half an 844px viewport — before any group is reached, and the
+  live surface has five. This affects the baseline as much as either treatment,
+  and is the largest single narrow-layout cost on the screen. Out of scope here;
+  worth its own look during #119.
 - **Not verified against the running app.** Both treatments are specimens.
   Contrast, focus order and live-region announcement need checking during #119.
 

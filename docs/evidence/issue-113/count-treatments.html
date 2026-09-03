@@ -128,7 +128,7 @@ section{display:flex;flex-direction:column;gap:1.1rem}
 .vc .chips{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center}
 .vc .chip{font-size:.76rem;border:1px solid var(--vline);border-radius:99px;
   padding:.25em .7em;background:var(--panel)}
-.vc .chip[aria-pressed="true"]{border-color:var(--vaccent);color:var(--vaccent);font-weight:600}
+.vc .chip[data-selected="true"]{border-color:var(--vaccent);color:var(--vaccent);font-weight:600}
 .vc .scope{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;
   border-left:3px solid var(--vaccent);padding:.45rem .7rem;background:var(--panel);
   border-radius:0 6px 6px 0}
@@ -245,9 +245,9 @@ a{color:var(--brand)}
           <div class="tile"><span class="lab">Unreviewed</span><span class="val">385</span><span class="sub">without a current-session verdict</span></div>
         </div>
         <div class="chips">
-          <span class="chip" aria-pressed="false">All kinds</span>
-          <span class="chip" aria-pressed="true">Exact</span>
-          <span class="chip" aria-pressed="false">Same stats</span>
+          <span class="chip">All kinds</span>
+          <span class="chip" data-selected="true">Exact</span>
+          <span class="chip">Same stats</span>
         </div>
         <div class="scope">
           <span class="big">12 of 74 groups</span>
@@ -265,7 +265,7 @@ a{color:var(--brand)}
   </figure>
 
   <p class="prose"><strong>Why it works.</strong> One place answers every counting question, and it is the last thing read before the list. Both denominators are unfiltered totals, so the reader always knows what they are not seeing. The tile row becomes homogeneous — every remaining tile counts proposals.</p>
-  <p class="prose"><strong>What it costs.</strong> Scroll past the line and scope is gone; on a long list the reader re-scrolls to check. It also puts four numbers in one sentence, which wraps at 390px — measured at 62px tall, and the cheaper of the two narrow costs.</p>
+  <p class="prose"><strong>What it costs.</strong> Scroll past the line and scope is gone; on a long list the reader re-scrolls to check. It also puts four numbers in one sentence, which wraps at 390px to a 62px line — the more expensive of the two narrow treatments.</p>
 </section>
 
 <!-- ============ B ============ -->
@@ -287,9 +287,9 @@ a{color:var(--brand)}
           <div class="tile"><span class="lab">Reviewed</span><span class="val">9</span><span class="sub">6 approved, 3 vetoed</span></div>
         </div>
         <div class="chips">
-          <span class="chip" aria-pressed="false">All kinds · 74 groups</span>
-          <span class="chip" aria-pressed="true">Exact · 12 groups</span>
-          <span class="chip" aria-pressed="false">Same stats · 62 groups</span>
+          <span class="chip">All kinds · 74 groups</span>
+          <span class="chip" data-selected="true">Exact · 12 groups</span>
+          <span class="chip">Same stats · 62 groups</span>
         </div>
         <div class="grp">
           <div class="chips" style="margin-bottom:.4rem">
@@ -302,7 +302,7 @@ a{color:var(--brand)}
     </div>
   </figure>
 
-  <p class="prose"><strong>Why it works.</strong> Scope is local, so it survives scrolling — the piece count sits on the group you are actually reading. The chips answer “how many of each kind” without clicking through. Nothing needs re-reading after a scroll. Note the narrow cost, measured below: the tile row stacks rather than overflowing, but stacking is not free — it takes 178px before any group is reached, measured at 390px.</p>
+  <p class="prose"><strong>Why it works.</strong> Scope is local, so it survives scrolling — the piece count sits on the group you are actually reading. The chips answer “how many of each kind” without clicking through. Nothing needs re-reading after a scroll. Note the narrow result, measured below: B is the more compact of the two at 390px, because it needs no scope line.</p>
   <p class="prose"><strong>What it costs.</strong> Count information is spread across tiles, filter chips and group headers, and they must agree: <code>12</code> appears in both the <code>Groups</code> tile and the <code>Exact</code> chip, <code>74</code> in both the tile and the <code>All kinds</code> chip. Each pair is a drift risk. Nothing answers “how big is this review” in one glance, and the tile row mixes four different nouns — groups, pieces, proposals, reviewed — at equal weight, which is a milder version of the problem being fixed.</p>
 </section>
 
@@ -319,9 +319,9 @@ a{color:var(--brand)}
     <div class="stage">
       <div class="vc">
         <div class="chips">
-          <span class="chip" aria-pressed="true">All kinds</span>
-          <span class="chip" aria-pressed="false">Exact</span>
-          <span class="chip" aria-pressed="false">Same stats</span>
+          <span class="chip" data-selected="true">All kinds</span>
+          <span class="chip">Exact</span>
+          <span class="chip">Same stats</span>
         </div>
         <div class="scope">
           <span class="big">74 groups</span>
@@ -355,18 +355,21 @@ a{color:var(--brand)}
     <h2>Both treatments at 390px</h2>
   </div>
   <p class="prose">Narrow behaviour is <strong>not</strong> measured on this page, and an earlier revision that tried to was wrong twice over: a fixed-width box inside a desktop document never activates a narrow media query, and at a genuine 390px viewport this page's own padding takes about 67px, squeezing a specimen to 241px — neither is what the review UI would get.</p>
-  <p class="prose">The measurement lives in <code>narrow-390-specimens.html</code>, a harness holding the two treatments with no document chrome, opened at 390×844 so each gets the full width. It also drops the 30rem minimum width this page sets on <code>.vc</code>, which is an authoring convenience for desktop reading, not a property of either treatment.</p>
+  <p class="prose">The measurement lives in <code>narrow-390-specimens.html</code>, a thin production shell that links the real <code>review.css</code> and reuses its <code>main.wrap</code> / <code>section.panel</code> / <code>.tiles</code> structure, with both treatments carrying complete content. <code>scripts/measure_narrow_specimens.py</code> asserts the viewport, the absence of document overflow, the production panel width and a four-tile row in each before it reports a height.</p>
+  <p class="prose"><strong>The result reverses this page's earlier claim.</strong> B is the more compact — and the tile row, once production CSS stacks it, is <em>identical</em> in both, so “B's expanded tile row” was never a real difference. An earlier revision also omitted A's tile row entirely, which made A look compact by leaving out a component it actually keeps.</p>
 
   <figure class="spec">
-    <figcaption><span>Measured at 390×844 · full width · no page overflow</span><span class="badge base">harness</span></figcaption>
+    <figcaption><span>Measured at 390×844 in a production shell</span><span class="badge base">harness</span></figcaption>
     <div class="stage">
       <div class="tbl-scroll" style="box-shadow:none;border:0">
         <table class="cmp">
           <thead><tr><th>At 390px</th><th>A · summary line</th><th>B · distributed</th></tr></thead>
           <tbody>
             <tr><td>Horizontal overflow</td><td class="win">none</td><td class="win">none</td></tr>
-            <tr><td>Block height</td><td class="win"><strong>248px</strong></td><td class="lose"><strong>371px</strong></td></tr>
-            <tr><td>What costs the height</td><td>scope line wraps to 62px</td><td class="lose">tile row stacks to 178px</td></tr>
+            <tr><td>Block height</td><td class="lose"><strong>652px</strong></td><td class="win"><strong>617px</strong></td></tr>
+            <tr><td>Tile row</td><td>413px</td><td>413px — <em>identical</em></td></tr>
+            <tr><td>Chips</td><td class="win">26px</td><td>58px</td></tr>
+            <tr><td>Scope line</td><td class="lose">62px</td><td class="win">none needed</td></tr>
           </tbody>
         </table>
       </div>
@@ -388,7 +391,7 @@ a{color:var(--brand)}
         <tr><td>Survives scrolling a long list</td><td class="lose">Scope scrolls away</td><td class="win">Piece count is on every group</td></tr>
         <tr><td>Filtered vs unfiltered legible</td><td class="win">Explicit <code>N of M</code>, both nouns</td><td>Chips give per-kind totals; the “shown” sub-caption carries it</td></tr>
         <tr><td>Places the same number is stated</td><td class="win">One</td><td class="lose">Three — drift risk</td></tr>
-        <tr><td>Fits 390px <em>(measured in the harness)</em></td><td class="win">No overflow; block totals <strong>248px</strong>, scope line 62px</td><td class="lose">No overflow, but the tile row stacks to 178px; block totals <strong>371px</strong></td></tr>
+        <tr><td>Fits 390px <em>(measured in a production shell)</em></td><td class="lose">No overflow; block totals <strong>652px</strong>, of which a 62px scope line</td><td class="win">No overflow; block totals <strong>617px</strong>, no scope line needed</td></tr>
         <tr><td>Exact vs same-stat without colour</td><td>Text chip, dashed border</td><td class="win">Text chip, dashed border, plus the review-only banner</td></tr>
         <tr><td>Implies no cleanup decision</td><td>Neutral</td><td class="win">Banner states it explicitly</td></tr>
         <tr><td>Accessible semantics</td><td class="win">One live region to announce on filter change</td><td class="lose">Several regions, or none</td></tr>
@@ -406,7 +409,7 @@ a{color:var(--brand)}
   <div class="verdict">
     <h2>A hybrid, weighted toward B</h2>
     <p>The comparison splits cleanly: <strong>A wins on stating scope once and correctly</strong>, <strong>B wins on keeping it available while scrolling</strong>. They are not mutually exclusive, and the costs are not symmetric — A's weakness is a scroll away, B's weakness is pairs of numbers that must agree forever.</p>
-    <p><strong>One correction from measuring.</strong> This page originally scored the 390px row as a win for B, on the reasoning that tiles and chips stack. Measured, neither treatment overflows and <em>A is the more compact</em> — 248px against B's 371px, because stacking B's tile row costs 178px. That does not change the recommendation; it strengthens it, since the hybrid keeps A's line and specifically declines B's expanded tile row.</p>
+    <p><strong>The narrow criterion favours B, and this recommendation accepts that.</strong> Measured in a production shell, B is the more compact — 617px against A's 652px, because A adds a 62px scope line B does not need. Earlier revisions of this page claimed first that B won this row on reasoning, then that A won it on a faulty measurement, then that measurement strengthened the recommendation. None was right. It weakens it, by one criterion of eight. The decision stands on the others — one authoritative statement of scope, one live region, and no pair of numbers that must agree forever — and knowingly buys them for 35px.</p>
     <p>So: adopt <strong>A's single scoped line</strong> as the one authoritative statement, and <strong>B's per-group piece count and review-only banner</strong> as local reinforcement that never restates a total. The tile row keeps only proposal-shaped counts, and <code>SHOWN</code> leaves this surface entirely.</p>
   </div>
 
