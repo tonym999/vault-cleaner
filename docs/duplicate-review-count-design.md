@@ -67,8 +67,8 @@ piece count.
 - **Wins on** answering "how big is this review" in one place; one live region
   to announce on filter change; the tile row becomes homogeneous.
 - **Costs** scope that scrolls away on a long list, and four numbers in one
-  sentence, which wraps to three lines at 390px — measured at 61px, and the
-  cheaper of the two narrow costs.
+  sentence, which wraps at 390px — measured at 62px, and the cheaper of the two
+  narrow costs.
 
 ### B — every count carries its own noun
 
@@ -81,7 +81,8 @@ totals. Each group header leads with a piece count.
 - **Costs** pairs of numbers that must agree forever — `12` in both the `Groups`
   tile and the `Exact` chip, `74` in both the tile and the `All kinds` chip — and
   no single answer to the size of the review. At 390px its tile row stacks rather
-  than overflowing, but stacking costs 178px before the first group.
+  than overflowing, but stacking costs 178px before the first group, giving a
+  371px block against A's 248px.
 
 ## 3. Decision
 
@@ -90,11 +91,19 @@ scroll away, B's weakness is a permanent consistency obligation across paired
 call sites.
 
 **One correction from measuring.** The comparison originally scored the 390px
-row as a win for B, reasoning that tiles and chips stack. Rendered at exactly
-390px, neither treatment overflows and **A is the more compact** — a 235px block
-against B's 358px, because stacking B's tile row costs 178px. This does not
+row as a win for B, reasoning that tiles and chips stack. Measured in
+`evidence/issue-113/narrow-390-specimens.html` at a true 390×844 viewport,
+neither treatment overflows and **A is the more compact** — a 248px block
+against B's 371px, because stacking B's tile row costs 178px. This does not
 change the decision; it strengthens it, since the hybrid adopts A's line and
 specifically declines B's expanded tile row.
+
+Two earlier attempts at this number were wrong, and the reason is worth
+recording: a fixed-width box inside a desktop document never activates a narrow
+media query, and measuring inside the comparison document at a real 390px
+viewport leaves the specimen only 241px wide once that document's own padding is
+taken. Narrow behaviour has to be measured with the specimen at full width and
+no surrounding chrome, which is what the harness does.
 
 Adopt **A's single scoped line** as the one authoritative statement, and **B's
 per-group piece count and review-only banner** as local reinforcement that never
@@ -205,6 +214,10 @@ dependency. The skill declares no API and no network; its one script
 contrast ratios only. Nothing left the machine. No runtime dependency was added
 to this project.
 
+**Prerequisite amended.** #113 was formally amended on 2026-09-03 to waive the
+paired-design-skill requirement and narrow its acceptance criterion, so the
+delivered process matches the agreed scope rather than departing from it.
+
 **Known limitation, and how the pairing was handled.** The skill refuses
 greenfield build work. Read closely, that refusal governs *new* UI: its finding
 schema still mandates a `Recommendation` field including verbatim copy rewrites,
@@ -214,9 +227,9 @@ requires.
 
 #113 anticipated this and asked for a paired design skill. The pairing used was
 `artifact-design`, which was already available in the working environment rather
-than installed for this ticket. **This is a deviation from the prerequisite as
-written**, which expects a user-scoped install, and it is recorded rather than
-papered over: a second global skill was assessed as unnecessary once a design
+than installed for this ticket. **This was a deviation from the prerequisite as
+originally written**, which expected a user-scoped install; the issue has since
+been amended to waive it explicitly rather than leave the exception unresolved: a second global skill was assessed as unnecessary once a design
 capability was already present, and no candidate was found that would have added
 anything for this specific job. If a durable, user-installed design companion is
 wanted for future passes, that is a small follow-up — the audit half, which is

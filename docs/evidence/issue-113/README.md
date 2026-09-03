@@ -33,10 +33,18 @@ font stacks, so the stills above match what it renders.
 
 The two alternative stills are both shown filtered to Exact, so each lists only
 exact groups; the kind hierarchy is shown once, unfiltered, in the third.
-`narrow-390-alternative-a.png` and `narrow-390-alternative-b.png` are the two
-treatments constrained to exactly 390px, and the comparison's narrow row is
-measured from them rather than reasoned about: neither overflows, A totals 235px,
-B totals 358px because its tile row stacks to 178px.
+`narrow-390-specimens.html` is a purpose-built harness holding the two
+treatments with no document chrome, so opening it at 390×844 gives each the full
+width the review UI would have. `narrow-390-alternative-a.png` and
+`narrow-390-alternative-b.png` are captured from it. Measured there: neither
+overflows, A totals 248px, B totals 371px because its tile row stacks to 178px.
+
+Narrow behaviour is deliberately **not** measured inside `count-treatments.html`.
+A fixed-width box in a desktop document never activates a narrow media query, and
+at a genuine 390px viewport that document's own padding leaves a specimen 241px
+wide. The harness also drops the 30rem minimum width the comparison page sets on
+`.vc`, which is an authoring convenience for desktop reading rather than a
+property of either treatment.
 
 The mixed export is the two committed fixtures concatenated: one exact
 duplicate group of three members, one same-stat group of four. The hostile
