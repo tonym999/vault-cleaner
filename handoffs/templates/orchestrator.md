@@ -33,6 +33,7 @@ When acting as the **Orchestrator**:
      VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py
      git diff --check origin/main...HEAD
      test -z "$(git ls-files data/)"
+     test -z "$(git status --porcelain)"
      ```
      > [!IMPORTANT]
      > **A skip is not a pass.** Running with `VAULT_CLEANER_BROWSER_REQUIRED=1` ensures browser tests fail rather than skip silently when managed Chromium is absent.
