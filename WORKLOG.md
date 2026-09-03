@@ -3,6 +3,91 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #124: workflow pilot outcome (orchestration session)
+
+Ran the committed planner → orchestrator → implementer → independent adversarial
+review workflow end to end on #119, its selected subject. Plan PR #125 merged;
+implementation PR #126 opened. No vault-cleaner behaviour changed in this
+session — the orchestration produced #119's diff, and this entry records the
+pilot itself.
+
+- **What happened:**
+  - Four independent adversarial review rounds against a disposable checkout
+    pinned to each immutable head. Rounds 1–3 each returned a blocking P2;
+    round 4 returned no P0/P1/P2 and recommended proceeding.
+  - **Every blocking finding was a missing guard, not broken behaviour.** The
+    production code from `482a63a` cleared all four rounds unchanged except two
+    deliberate edits: a discarded `filterItems` scan moved inside its surface
+    guard, and a redundant `reconcileArmorQueryForGroups` call removed from
+    `renderList`.
+  - Eleven injected defects were confirmed caught by the suite before PR 2
+    opened, including a kind-scoped denominator, the `"exact_duplicate"` token
+    mix-up, a fixed column set, render-derived banner eligibility, the live
+    region rebuilt inside the cleared list host, the same region replaced in
+    place with its parent unchanged, and deletion of the badge wrap rule.
+  - Posted #119's dispatch card retroactively and recorded the full dispatch
+    record and usability gaps on #124.
+- **Dispatch record:**
+  - Branch `feat/issue-119-duplicate-count-hierarchy`; base
+    `b8b297e2a9f0981bcf91334c7e6b16ce85fea0b6`; heads reviewed in order
+    `482a63a` → `2acef1b` → `fd9af2a` → `9fdd592` → `535e3ee`.
+  - Implementer round 1: Google Gemini, launched by a human operator under
+    Manual Cross-Provider Execution v1; exact model ID and effort not recorded
+    by the operator. Rounds 2–4: `claude-sonnet-5` in-runtime, matching the
+    plan's specified tier.
+  - Reviewer rounds 1–4: `claude-opus-5`, fresh context each round, read-only
+    remit, requested native effort `high`.
+  - **Native effort was not confirmable for either role.** The runtime
+    instantiates a model but exposes no effort control, so the plan's `xhigh`
+    and the matrix's `high` are unverified rather than met.
+- **Decisions made:**
+  - Reversed an orchestrator disposition mid-pilot. The redundant
+    `reconcileArmorQueryForGroups` call in `renderList` was rejected twice on
+    the grounds that it made review Check 3b locally verifiable. Round 3
+    measured that removing it left the suite green *and* that no test pinned
+    the ordering either way, so the rationale was defending an unchecked
+    property. `AGENTS.md`'s sibling-path rule decided it: the two other
+    reconcile call sites pass an `invalidated` collector so a dropped filter is
+    reported, and this one did not. The call was removed and Check 3b given an
+    actual test that goes red when the kind handler's ordering is inverted.
+  - Deferred to the planner rather than fixed in-branch: the plan's
+    Check 3e/§Tests contradiction over the singular `piece` form, the
+    `<th>Member</th>` header against the design record's retired-noun rule, and
+    the static panel hint at `review_server.html:71` whose replacement copy the
+    design record does not specify.
+- **Surprises the next agent should know about:**
+  - **A plan can prescribe an assertion that cannot fail.** #119's plan required
+    asserting the member badge's `scrollWidth <= clientWidth`. The badge sits in
+    an auto-width `<th>` inside `.scroller { overflow-x: auto }`, so a
+    non-wrapping badge grows the cell instead of overflowing itself. Deleting
+    the CSS rule that fixes the ticket's headline visual defect left the entire
+    suite green. Following the plan exactly shipped an unguarded defect.
+  - **Three consecutive rounds each found a guard that passed by construction**
+    — `emulate_media` calls with no assertion between or after them, a same-id
+    re-query blind to a recreated node, and the badge check above. That is a
+    pattern, not coincidence. A vacuity audit added by hand in round 3 ("for
+    each assertion, name the single production change that would break it")
+    found no further instances.
+  - **The reviewer's read-only remit forbids mutation testing**, which is
+    precisely what exposes guards that pass by construction. Rounds 1–2
+    reported they could not run mutants without editing tracked files; round 3
+    built its own isolated copy and immediately found the badge gap.
+  - **A disposable `git worktree` has no `.venv`.** The orchestrator template's
+    verification commands assume one. Falling back to the main repository's
+    editable install silently tests the *wrong source tree*; a dedicated venv
+    had to be built inside the checkout.
+  - **No role owns the dispatch card after the plan merges.** `AGENTS.md` makes
+    posting it the planner's step, but the planner's session ends when PR 1
+    opens. #119's card was never posted until this pilot noticed, and had to be
+    posted retroactively.
+  - **Acceptance criterion 3 was not cleanly met and is not ticked.** The
+    orchestrator received a supplementary brief alongside the template and
+    merged plan — base/head SHAs, the allocation variance, and five targeted
+    checks. Those mapped onto the plan's own likely findings and added no
+    information, but this was not the "committed template and merged plan only"
+    dispatch the criterion describes. A clean re-run needs a second subject
+    issue.
+
 ## 2026-09-03 — #119: implementation of duplicate count hierarchy and table transposition (PR 2)
 
 Implementation session for issue #119 under the two-PR lifecycle, following the
