@@ -50,6 +50,30 @@ surprises the next agent should know about.
   theming, and zero-base-stat suppression. An earlier code-only reading had
   wrongly flagged all four; rendering corrected it.
 
+## 2026-09-03 — #113 third review round: measured the narrow claim
+
+- **A comparison row asserted something the specimens could not show, and the
+  measurement reversed it.** The table scored "fits 390px" as a win for B on the
+  reasoning that tiles and chips stack, while `.vc` carried `min-width:30rem`, so
+  no specimen could render below 480px at all. Added specimens constrained to
+  exactly 390px and measured: neither treatment overflows, and **A is the more
+  compact** — a 235px block against B's 358px, because stacking B's tile row
+  costs 178px. The recommendation is unchanged and better supported, since the
+  hybrid takes A's line and declines B's expanded tile row.
+- Alternative B's "what it costs" prose described a specimen that was never
+  built — "the same numbers appear in three places", "two tiles count groups and
+  two count proposals" — where the specimen has one Groups, one Pieces, one
+  Proposals and one Reviewed tile. Rewritten against what is actually rendered:
+  the real duplication is pairs (`12` in tile and chip, `74` in tile and chip).
+- #119 was internally contradictory: settled item 5 still carried the original
+  conditional-banner rule while item 12 carried the corrected two-part rule.
+  Item 5 now defers to item 12.
+- **Worth knowing:** the recurring failure across three review rounds was not the
+  design, which has not moved. It was claims outrunning evidence — artifacts
+  described but not committed, prose describing a specimen that was not built,
+  and a responsive claim asserted rather than measured. Where a document argues
+  from evidence, every comparison row needs to name whether it was measured.
+
 ## 2026-09-02 — #113 second review round: specimen coherence
 
 - **The Exact-filtered specimens listed a same-stat group.** Both alternatives

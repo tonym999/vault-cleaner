@@ -33,6 +33,10 @@ font stacks, so the stills above match what it renders.
 
 The two alternative stills are both shown filtered to Exact, so each lists only
 exact groups; the kind hierarchy is shown once, unfiltered, in the third.
+`narrow-390-alternative-a.png` and `narrow-390-alternative-b.png` are the two
+treatments constrained to exactly 390px, and the comparison's narrow row is
+measured from them rather than reasoned about: neither overflows, A totals 235px,
+B totals 358px because its tile row stacks to 178px.
 
 The mixed export is the two committed fixtures concatenated: one exact
 duplicate group of three members, one same-stat group of four. The hostile

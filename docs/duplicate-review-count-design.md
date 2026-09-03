@@ -67,7 +67,8 @@ piece count.
 - **Wins on** answering "how big is this review" in one place; one live region
   to announce on filter change; the tile row becomes homogeneous.
 - **Costs** scope that scrolls away on a long list, and four numbers in one
-  sentence, which wraps to three lines at 390px.
+  sentence, which wraps to three lines at 390px — measured at 61px, and the
+  cheaper of the two narrow costs.
 
 ### B — every count carries its own noun
 
@@ -77,14 +78,23 @@ totals. Each group header leads with a piece count.
 
 - **Wins on** surviving a scroll — the piece count is on the group being read;
   per-kind totals without clicking through.
-- **Costs** the same number stated in three places that must agree forever, and
-  no single answer to the size of the review.
+- **Costs** pairs of numbers that must agree forever — `12` in both the `Groups`
+  tile and the `Exact` chip, `74` in both the tile and the `All kinds` chip — and
+  no single answer to the size of the review. At 390px its tile row stacks rather
+  than overflowing, but stacking costs 178px before the first group.
 
 ## 3. Decision
 
 **A hybrid, weighted toward B.** The costs are not symmetric: A's weakness is a
-scroll away, B's weakness is a permanent consistency obligation across three
+scroll away, B's weakness is a permanent consistency obligation across paired
 call sites.
+
+**One correction from measuring.** The comparison originally scored the 390px
+row as a win for B, reasoning that tiles and chips stack. Rendered at exactly
+390px, neither treatment overflows and **A is the more compact** — a 235px block
+against B's 358px, because stacking B's tile row costs 178px. This does not
+change the decision; it strengthens it, since the hybrid adopts A's line and
+specifically declines B's expanded tile row.
 
 Adopt **A's single scoped line** as the one authoritative statement, and **B's
 per-group piece count and review-only banner** as local reinforcement that never

@@ -136,6 +136,7 @@ section{display:flex;flex-direction:column;gap:1.1rem}
 .vc .scope .of{color:var(--vmuted);font-size:.8rem}
 .vc .pieces{font:600 .72rem/1 ui-monospace,monospace;border:1px solid var(--vline);
   border-radius:4px;padding:.35em .5em;color:var(--vmuted)}
+.vc.narrow{min-width:0;width:390px;max-width:100%}
 .vc .rule-note{font-size:.72rem;color:var(--vmuted);font-style:italic}
 
 /* ---- comparison table ---- */
@@ -264,7 +265,7 @@ a{color:var(--brand)}
   </figure>
 
   <p class="prose"><strong>Why it works.</strong> One place answers every counting question, and it is the last thing read before the list. Both denominators are unfiltered totals, so the reader always knows what they are not seeing. The tile row becomes homogeneous — every remaining tile counts proposals.</p>
-  <p class="prose"><strong>What it costs.</strong> Scroll past the line and scope is gone; on a long list the reader re-scrolls to check. It also puts four numbers in one sentence, which is dense at 390px.</p>
+  <p class="prose"><strong>What it costs.</strong> Scroll past the line and scope is gone; on a long list the reader re-scrolls to check. It also puts four numbers in one sentence, which wraps to three lines at 390px — measured at 61px tall, and the cheaper of the two narrow costs.</p>
 </section>
 
 <!-- ============ B ============ -->
@@ -301,8 +302,8 @@ a{color:var(--brand)}
     </div>
   </figure>
 
-  <p class="prose"><strong>Why it works.</strong> Scope is local, so it survives scrolling — the piece count sits on the group you are actually reading. The chips answer “how many of each kind” without clicking through. Nothing needs re-reading after a scroll.</p>
-  <p class="prose"><strong>What it costs.</strong> The same numbers appear in three places and must agree; every one is a drift risk. Nothing answers “how big is this review” in one glance, and the tile row still asks the reader to notice that two tiles count groups and two count proposals.</p>
+  <p class="prose"><strong>Why it works.</strong> Scope is local, so it survives scrolling — the piece count sits on the group you are actually reading. The chips answer “how many of each kind” without clicking through. Nothing needs re-reading after a scroll. Note the narrow cost, measured below: the tile row stacks rather than overflowing, but stacking is not free — it takes 178px before any group is reached.</p>
+  <p class="prose"><strong>What it costs.</strong> Count information is spread across tiles, filter chips and group headers, and they must agree: <code>12</code> appears in both the <code>Groups</code> tile and the <code>Exact</code> chip, <code>74</code> in both the tile and the <code>All kinds</code> chip. Each pair is a drift risk. Nothing answers “how big is this review” in one glance, and the tile row mixes four different nouns — groups, pieces, proposals, reviewed — at equal weight, which is a milder version of the problem being fixed.</p>
 </section>
 
 <!-- ============ BOTH KINDS ============ -->
@@ -347,6 +348,64 @@ a{color:var(--brand)}
   </figure>
 </section>
 
+<!-- ============ NARROW ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Measured</span>
+    <h2>Both treatments at 390px</h2>
+  </div>
+  <p class="prose">The narrow comparison below is <strong>measured on these specimens</strong>, not reasoned about. Each is constrained to exactly 390px — the width the browser checklist verifies at — and the figures in the comparison table come from rendering them.</p>
+
+  <figure class="spec">
+    <figcaption><span>Alternative A at 390px</span><span class="badge aa">A</span></figcaption>
+    <div class="stage">
+      <div class="vc narrow" id="narrow-a">
+        <div class="chips">
+          <span class="chip" aria-pressed="false">All kinds</span>
+          <span class="chip" aria-pressed="true">Exact</span>
+          <span class="chip" aria-pressed="false">Same stats</span>
+        </div>
+        <div class="scope">
+          <span class="big">12 of 74 groups</span>
+          <span class="of">·</span>
+          <span class="big">38 of 211 pieces</span>
+          <span class="of">— filtered to exact duplicates</span>
+        </div>
+        <div class="grp">
+          <span class="kind">Exact</span>
+          <h4>Archetype Plate</h4>
+          <p class="gsub">3 pieces · Hunter chest · tier 5 · Gunner</p>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="spec">
+    <figcaption><span>Alternative B at 390px</span><span class="badge bb">B</span></figcaption>
+    <div class="stage">
+      <div class="vc narrow" id="narrow-b">
+        <div class="tiles">
+          <div class="tile"><span class="lab">Groups</span><span class="val">74</span><span class="sub">12 shown</span></div>
+          <div class="tile"><span class="lab">Pieces</span><span class="val">211</span><span class="sub">38 shown</span></div>
+          <div class="tile"><span class="lab">Proposals</span><span class="val">394</span><span class="sub">90 junk, 304 review</span></div>
+          <div class="tile"><span class="lab">Reviewed</span><span class="val">9</span><span class="sub">6 approved, 3 vetoed</span></div>
+        </div>
+        <div class="chips">
+          <span class="chip" aria-pressed="false">All kinds · 74 groups</span>
+          <span class="chip" aria-pressed="true">Exact · 12 groups</span>
+        </div>
+        <div class="grp">
+          <div class="chips" style="margin-bottom:.4rem">
+            <span class="pieces">3 pieces</span><span class="kind">Exact</span>
+          </div>
+          <h4>Archetype Plate</h4>
+          <p class="gsub">Hunter chest · tier 5 · Gunner</p>
+        </div>
+      </div>
+    </div>
+  </figure>
+</section>
+
 <!-- ============ COMPARISON ============ -->
 <section>
   <div class="sec-head">
@@ -361,7 +420,7 @@ a{color:var(--brand)}
         <tr><td>Survives scrolling a long list</td><td class="lose">Scope scrolls away</td><td class="win">Piece count is on every group</td></tr>
         <tr><td>Filtered vs unfiltered legible</td><td class="win">Explicit <code>N of M</code>, both nouns</td><td>Chips give per-kind totals; the “shown” sub-caption carries it</td></tr>
         <tr><td>Places the same number is stated</td><td class="win">One</td><td class="lose">Three — drift risk</td></tr>
-        <tr><td>Fits 390px</td><td class="lose">Four numbers in one sentence wraps to 3 lines</td><td class="win">Tiles and chips already stack</td></tr>
+        <tr><td>Fits 390px <em>(measured)</em></td><td class="win">No overflow. Scope line wraps to 3 lines (61px); block totals <strong>235px</strong></td><td class="lose">No overflow, but the tile row stacks to 178px; block totals <strong>358px</strong></td></tr>
         <tr><td>Exact vs same-stat without colour</td><td>Text chip, dashed border</td><td class="win">Text chip, dashed border, plus the review-only banner</td></tr>
         <tr><td>Implies no cleanup decision</td><td>Neutral</td><td class="win">Banner states it explicitly</td></tr>
         <tr><td>Accessible semantics</td><td class="win">One live region to announce on filter change</td><td class="lose">Several regions, or none</td></tr>
@@ -378,7 +437,8 @@ a{color:var(--brand)}
   </div>
   <div class="verdict">
     <h2>A hybrid, weighted toward B</h2>
-    <p>The comparison splits cleanly: <strong>A wins on stating scope once and correctly</strong>, <strong>B wins on keeping it available while scrolling</strong>. They are not mutually exclusive, and the costs are not symmetric — A's weakness is a scroll away, B's weakness is three numbers that must agree forever.</p>
+    <p>The comparison splits cleanly: <strong>A wins on stating scope once and correctly</strong>, <strong>B wins on keeping it available while scrolling</strong>. They are not mutually exclusive, and the costs are not symmetric — A's weakness is a scroll away, B's weakness is pairs of numbers that must agree forever.</p>
+    <p><strong>One correction from measuring.</strong> This page originally scored the 390px row as a win for B, on the reasoning that tiles and chips stack. Measured, neither treatment overflows and <em>A is the more compact</em> — 235px against B's 358px, because stacking B's tile row costs 178px. That does not change the recommendation; it strengthens it, since the hybrid keeps A's line and specifically declines B's expanded tile row.</p>
     <p>So: adopt <strong>A's single scoped line</strong> as the one authoritative statement, and <strong>B's per-group piece count and review-only banner</strong> as local reinforcement that never restates a total. The tile row keeps only proposal-shaped counts, and <code>SHOWN</code> leaves this surface entirely.</p>
   </div>
 
