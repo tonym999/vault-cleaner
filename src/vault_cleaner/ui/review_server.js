@@ -915,8 +915,9 @@
           var values = typeof ui.countArmorGroups === "function"
             ? ui.countArmorGroups(selectedArmorGroups, field) : [];
           values.forEach(function (entry) {
+            var noun = entry.count === 1 ? "group" : "groups";
             options.push(view.el("option", {
-              value: entry.value, text: entry.value + " (" + entry.count + ")"
+              value: entry.value, text: entry.value + " (" + entry.count + " " + noun + ")"
             }));
           });
           return options;

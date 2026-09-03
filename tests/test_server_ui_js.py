@@ -2723,3 +2723,157 @@ setTimeout(function () {
         "notice": " Local view state dropped: duplicate filter tuningModSlot Health.",
         "noticeVisible": True, "focusedId": "vc-dup-kind-exact",
     }
+
+
+def test_duplicate_facet_options_state_the_counted_noun(tmp_path: Path):
+    """Every duplicate-surface facet option names what it counts (#118)."""
+    harness = tmp_path / "server-ui-duplicate-facet-noun-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+  this.hidden = false; this.value = ""; this.selectionStart = 0;
+  this.selectionEnd = 0; this.files = [];
+}
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null; return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || {target: this, preventDefault: function () {}};
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child; else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+Node.prototype.focus = function () { this.ownerDocument.activeElement = this; };
+function Document() {
+  this.readyState = "interactive"; this.nodes = Object.create(null);
+  this.listeners = Object.create(null); this.activeElement = null;
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+// Two groups, so a facet value shared by both is a plural count and a
+// facet value unique to one group is a singular count. ``type`` is left
+// unset on both groups, so it normalises to the same "none/unknown" value
+// on both and exercises the plural case without inventing a shared value.
+function envelope() {
+  return {schema_version: 1, state: "reviewing", report_revision: 1,
+    verdict_revision: 0, fingerprint: "facet-noun", snapshot: {sections: [{
+      kind: "armor", decisions: [], armor: {
+        exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g-exact",
+          hash: "h1", name: "Exact One", guardian_class: "Hunter",
+          item_archetype: "Gunner", tuning_mod_slot: "Melee",
+          preferred_survivor_id: "a-survivor", members: [
+            {id: "a-survivor", disposition: "preferred_survivor"}
+          ]}],
+        same_stat_groups: [{group_kind: "same_stat", group_id: "g-same",
+          hash: "h2", name: "Same One", guardian_class: "Titan",
+          item_archetype: "Reaver", members: [
+            {id: "b-one", tuning_mod_slot: "Melee"},
+            {id: "b-two", tuning_mod_slot: "Health"}
+          ]}]
+      }
+    }]}, verdicts: [], override_status: []};
+}
+var document = new Document();
+var context = {document: document, VaultCleanerReviewUI: shared, Promise: Promise,
+  Set: Set, setTimeout: setTimeout, fetch: function (path) {
+    return Promise.resolve({ok: true, status: 200,
+      json: function () { return Promise.resolve(envelope()); }});
+  }};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+setTimeout(function () {
+  document.nodes["vc-view-duplicates"].dispatch("click");
+  function options(id) {
+    return document.nodes[id].children.map(function (option) {
+      return {value: option.getAttribute("value"), text: option.textContent};
+    });
+  }
+  function textFor(id, value) {
+    var matches = options(id).filter(function (option) { return option.value === value; });
+    return matches.length ? matches[0].text : null;
+  }
+  process.stdout.write(JSON.stringify({
+    guardianClassSingular: textFor("vc-dup-f-guardianClass", "Hunter"),
+    guardianClassAllLabel: textFor("vc-dup-f-guardianClass", ""),
+    typePlural: textFor("vc-dup-f-type", "none/unknown"),
+    typeAllLabel: textFor("vc-dup-f-type", ""),
+    itemArchetypeSingular: textFor("vc-dup-f-itemArchetype", "Reaver"),
+    itemArchetypeAllLabel: textFor("vc-dup-f-itemArchetype", ""),
+    tuningPlural: textFor("vc-dup-f-tuningModSlot", "Melee"),
+    tuningSingular: textFor("vc-dup-f-tuningModSlot", "Health"),
+    tuningAllLabel: textFor("vc-dup-f-tuningModSlot", "")
+  }));
+}, 10);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "guardianClassSingular": "Hunter (1 group)",
+        "guardianClassAllLabel": "any class",
+        "typePlural": "none/unknown (2 groups)",
+        "typeAllLabel": "any slot / type",
+        "itemArchetypeSingular": "Reaver (1 group)",
+        "itemArchetypeAllLabel": "any archetype",
+        "tuningPlural": "Melee (2 groups)",
+        "tuningSingular": "Health (1 group)",
+        "tuningAllLabel": "any tuning slot",
+    }

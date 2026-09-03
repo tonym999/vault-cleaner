@@ -51,6 +51,7 @@ p { margin: .35rem 0; }
 a { color: var(--accent); }
 code, .mono, kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
 }
 kbd {
   border: 1px solid var(--line); border-radius: 3px; padding: 0 .25rem;
@@ -148,7 +149,7 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 .ok { color: var(--approve); }
 .hint { color: var(--muted); font-size: .85rem; }
 .armor-group { border: 1px solid var(--line); border-radius: 7px; padding: .75rem; margin: .75rem 0; }
-.armor-group-header h3 { font-size: 1rem; margin-top: 0; }
+.armor-group-header h3 { font-size: 1rem; margin-top: 0; overflow-wrap: anywhere; }
 .armor-group-meta, .armor-stat-summary { display: flex; flex-wrap: wrap; gap: .55rem; margin: .55rem 0; }
 .armor-group-meta .tile, .armor-stat-summary .tile { min-width: 9rem; flex: 1 1 9rem; }
 .armor-stat-summary .tile { min-width: 8rem; }

@@ -341,3 +341,48 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
     expect(group.locator("button.approve")).to_have_count(2)
     expect(group).not_to_contain_text("Preferred survivor")
     expect(group).not_to_contain_text("Proposed junk")
+
+
+@pytest.mark.browser
+def test_duplicates_surface_does_not_scroll_horizontally(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Wrapping guards, not scroller removal, keep the document from
+    overflowing sideways at narrow and desktop widths (#118)."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+
+    fingerprint = page.locator("#vc-fingerprint")
+    digest = fingerprint.inner_text()
+    assert digest
+
+    for width, height in ((390, 844), (1440, 1000)):
+        page.set_viewport_size({"width": width, "height": height})
+        scroll_width = page.evaluate("document.documentElement.scrollWidth")
+        assert scroll_width <= width, (
+            f"document scrolled horizontally at {width}px viewport: "
+            f"scrollWidth={scroll_width}"
+        )
+
+    # The fingerprint still renders its digest -- overflow was fixed by
+    # wrapping, not by hiding or emptying the element.
+    expect(fingerprint).to_have_text(digest)
+
+    heading_overflow_wrap = group.locator("h3").evaluate(
+        "el => getComputedStyle(el).overflowWrap"
+    )
+    assert heading_overflow_wrap == "anywhere"
+
+    # The comparison table keeps its own contained horizontal scroll --
+    # overflow was not "fixed" by removing it.
+    scroller_overflow_x = group.locator(".scroller").first.evaluate(
+        "el => getComputedStyle(el).overflowX"
+    )
+    assert scroller_overflow_x == "auto"

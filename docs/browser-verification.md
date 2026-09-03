@@ -223,6 +223,48 @@ terminal.
   can blur a verdict button that is focused while its acknowledgement is in
   flight; #102 did not alter server lifecycle or mutation semantics.
 
+## 2026-09-03 — issue #118 focused check
+
+- Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
+  151.0.7922.34 (Playwright Chromium revision 1234), headless.
+- Viewports and appearances: 1440×1000 desktop and 390×844 narrow, both
+  light and dark media appearances at each viewport.
+- Fixtures: `tests/fixtures/armor_duplicates_ui.csv` (exact group, for the
+  `Protection` label, `Exact duplicate group` sub-line, and facet-noun
+  copy), `tests/fixtures/armor_same_stat_ui.csv` (same-stat group, for the
+  overflow/wrapping fix — the same fixture the plan's own before/after
+  measurement used), and `tests/fixtures/weapons_hostile.csv` (Proposals
+  surface, to confirm the CSS change reaching `.mono` there causes no
+  regression). No real vault data, wishlists, or manifest network access.
+- Copy result: pass. The exact group rendered `Exact duplicate group` with
+  no `exact_duplicate` (or any other underscore token) in the article text,
+  and a `Protection` row with no `Hard protection` row, at both viewports
+  and both appearances. `Hunter (1 group)` and `Chest Armor (1 group)`
+  facet options confirmed the noun/pluralisation. The finalised group still
+  rendered the same `Protection` label and same-stat sub-line, and both its
+  verdict buttons were disabled (frozen), after finalising via
+  `#vc-finalize`.
+- Overflow result: pass. `document.documentElement.scrollWidth` matched the
+  viewport width exactly (390 and 1440) at both viewports in both light and
+  dark appearances on the same-stat fixture — no horizontal document
+  overflow. `article.armor-group .scroller`'s computed `overflow-x`
+  remained `auto` (the contained comparison-table scroll was not removed to
+  fix the document-level overflow), and `#vc-fingerprint` still rendered
+  its digest.
+- Focus/keyboard result: pass. The skip link (`Skip to review content`) was
+  the first tab stop from a fresh, unclicked load; the `:focus-visible`
+  ring rendered (`outline-style: solid`) during subsequent interaction.
+- Proposals-surface result: pass. This is the one place the `code, .mono,
+  kbd` change reaches beyond the duplicates surface (it also styles the
+  Proposals table's instance-id cells). Facet options remained noun-free —
+  `weapons (5)`, `Hunter (2)` — with no visible regression to table
+  layout or instance-id columns at either viewport.
+- Shutdown result: pass. The server thread stopped cleanly after the
+  headless session ended.
+- Overall result: pass. No part of #119 (the paired `Exact`/`Same stats ·
+  review only` kind labels, the `armorGroupTable` transposition, or any
+  count/hierarchy treatment) was implemented or tested.
+
 ## 2026-08-27 — issue #90 execution record
 
 - Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing

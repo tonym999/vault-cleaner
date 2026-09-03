@@ -1049,7 +1049,7 @@
         el("h3", { text: group.name || "(unnamed armor)" }),
         el("p", { class: "sub", text: group.groupKind === "same_stat"
           ? "Same stats, different tuning · review-only"
-          : "Exact duplicate group · " + group.groupKind }),
+          : "Exact duplicate group" }),
         el("div", { class: "armor-group-meta" }, [
           tile("Type / slot", group.type || "unknown"),
           tile("Guardian class", group.guardianClass || "class-neutral/unknown"),
@@ -1159,7 +1159,7 @@
         }
       }
       rows = rows.concat([
-        ["Hard protection", function (member) {
+        ["Protection", function (member) {
           return member.protectionLevel
             ? member.protectionLevel + (member.protectionReason ? " — " + member.protectionReason : "")
             : "—";
