@@ -1,8 +1,8 @@
 # Ticket
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#102 — M9 B: add an Armor duplicates view to the local review UI`
-**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#102 — M9 B: add an Armor duplicates view to the local review UI`  
+**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR  
 **Plan baseline:** `main` at `c3abe8aab6fd0baabbfa2567b2f6fae0776fdd96` (`Expose armor tuning slots across comparisons (#108)`, 2026-08-31)
 
 ## Objective

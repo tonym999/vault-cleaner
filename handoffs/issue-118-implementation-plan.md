@@ -8,7 +8,7 @@
 
 **Milestone:** `M9 — Duplicate Review UX`
 
-**Implementation model:** planner plans → orchestrator dispatches → implementer implements → orchestrator reviews → PR
+**Implementation model:** orchestrator plans → implementer implements → orchestrator reviews → PR
 
 **Implementation model selected:** **Claude Sonnet 5, extended thinking enabled**
 
@@ -18,7 +18,7 @@
 
 The implementer must **not** open a pull request. The implementation branch is reviewed by the orchestrator before any PR is created.
 
-This document uses role-neutral names (planner, orchestrator, implementer). Earlier handoffs in this repository, stored on the `handoff/issue-*-luna-plan` branches, call the roles *Sol* (orchestrator) and *Luna* (implementer); the 3-role topology is documented in [handoffs/README.md](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/handoffs/README.md).
+This document uses role-neutral names. Earlier handoffs in this repository, stored on the `handoff/issue-*-luna-plan` branches, call the same two roles *Sol* (orchestrator) and *Luna* (implementer); the structure below is theirs.
 
 ## Objective
 
@@ -627,13 +627,11 @@ Because #118 uses the standard orchestrator review path, no independent second r
 
 # Reusable implementer execution prompt
 
-Implement issue #118 in `tonym999/vault-cleaner` using the committed handoff at:
+Implement issue #118 in `tonym999/vault-cleaner` using the committed handoff on `main` at:
 
 ```text
 handoffs/issue-118-implementation-plan.md
 ```
-
-on the branch `handoff/issue-118-implementation-plan`.
 
 Read the entire handoff, issue #118, issue #119 (to know what must **not** be built), closed issue #113 and merged PR #120, `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and the current relevant code, tests and docs before editing. Note the handoff's *Dependencies and assumptions* section, which records where the issue is stale relative to the code and how this plan resolves it.
 

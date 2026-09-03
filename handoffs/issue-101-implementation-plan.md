@@ -1,8 +1,8 @@
 # Ticket
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#101 — M9 A: expose authoritative armor exact-duplicate groups in the report`
-**Plan base:** `main` at `190e8473fbd8e9c40b0ec486f6fa70305c10bb61`
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#101 — M9 A: expose authoritative armor exact-duplicate groups in the report`  
+**Plan base:** `main` at `190e8473fbd8e9c40b0ec486f6fa70305c10bb61`  
 **Implementation model:** Sol plans/orchestrates → **Luna xhigh** implements → orchestrating Sol reviews → independent Sol high reviews → PR
 
 Luna must **not** raise the pull request. Sol reviews the completed implementation before any PR is created.

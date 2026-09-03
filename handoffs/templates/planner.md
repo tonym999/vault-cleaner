@@ -15,7 +15,7 @@ When acting as the **Planner**:
 1. **Read and Measure First:**
    - Read the target issue body, neighbouring/overlapping issues, `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and relevant source files.
    - Measure real system state before prescribing changes (e.g. run layout measurements, inspect schemas, check exact line counts).
-   - Pin every claim to an exact `file:line` reference or an empirical measurement script/command.
+   - Pin every claim to an exact repository-relative path and line number (e.g. `src/vault_cleaner/ui/review_ui.js:1125`) or an empirical measurement script/command. Do NOT use non-portable machine-local `file:///` URIs.
 
 2. **Resolve Staleness:**
    - Treat the issue body as potentially stale relative to current `main`.
@@ -25,14 +25,19 @@ When acting as the **Planner**:
    - Allocate the implementation branch name (e.g. `fix/issue-N-...` or `feat/issue-N-...`).
    - State exact user-facing copy verbatim where copy is decided.
 
-4. **Construct the Mechanical Inclusion Test:**
+4. **Select Model & Native Reasoning Effort:**
+   - Consult the model family and reasoning-effort matrix in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix).
+   - Select and justify the implementer's exact model ID and native reasoning effort setting (e.g. `Sonnet 5` with `xhigh` effort) based on task complexity.
+
+5. **Construct the Mechanical Inclusion Test & Escalation Routing:**
    - Define a rule-based inclusion test with worked examples showing what changes are strictly in-scope and what changes are out-of-scope.
    - Specify explicit stop conditions that require the implementer to halt and return to the orchestrator.
+   - Note the escalation route: `implementer → orchestrator → planner`.
 
-5. **Predict Likely Findings:**
+6. **Predict Likely Findings:**
    - State 2–4 specific things most likely to be wrong during orchestrator review (e.g. scope leakage from adjacent tickets, tests passing without their fix).
 
-6. **Emit the Named-Section Contract:**
+7. **Emit the Named-Section Contract:**
    - You MUST emit all required named sections expected by the orchestrator template.
 
 ---
@@ -54,7 +59,7 @@ Author the handoff document using the following exact structure:
 
 **Implementation topology:** `planner → orchestrator → implementer → orchestrator reviews → PR`
 
-**Implementation model selected:** `<Model Tier>` (justified below)
+**Implementation model selected:** `<Model & Native Effort>` (justified below)
 
 **Plan baseline:** `main` at `<Commit SHA>` (<Date>)
 
@@ -70,7 +75,7 @@ This document uses role-neutral names (planner, orchestrator, implementer).
 
 ## Context & Measurement
 
-<Measured current state, reproducing commands/scripts, and exact file:line references.>
+<Measured current state, reproducing commands/scripts, and exact repo-relative file:line references.>
 
 ## Dependencies and assumptions
 
@@ -80,9 +85,9 @@ This document uses role-neutral names (planner, orchestrator, implementer).
 
 ### [Component Name]
 
-#### [MODIFY] [file.py](file:///path/to/file.py#L10-L20)
-#### [NEW] [new_file.py](file:///path/to/new_file.py)
-#### [DELETE] [old_file.py](file:///path/to/old_file.py)
+#### [MODIFY] [file.py](src/vault_cleaner/file.py#L10-L20)
+#### [NEW] [new_file.py](src/vault_cleaner/new_file.py)
+#### [DELETE] [old_file.py](src/vault_cleaner/old_file.py)
 
 <Detailed breakdown of changes per file.>
 
@@ -101,6 +106,8 @@ Stop implementation and return to orchestrator if:
 - <Stop condition 1>
 - <Stop condition 2>
 
+Escalation route: `implementer → orchestrator → planner`.
+
 ## Likely findings
 
 1. **<Finding 1 Title>:** <Prediction of potential defect or scope leak>
@@ -108,13 +115,11 @@ Stop implementation and return to orchestrator if:
 
 # Reusable implementer execution prompt
 
-Implement issue #N in `tonym999/vault-cleaner` using the committed handoff at:
+Implement issue #N in `tonym999/vault-cleaner` using the committed handoff on `main` at:
 
 ```text
 handoffs/issue-N-implementation-plan.md
 ```
-
-on the branch `handoff/issue-N-implementation-plan`.
 
 Read the entire handoff, issue #N, `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and current relevant code before editing.
 
@@ -135,7 +140,7 @@ When complete, provide the full implementer → orchestrator handoff specified i
 **Review path:** `standard orchestrator review`
 
 **Reason:**
-<Justification for standard review path vs replanning based on architectural risk and scope scope boundaries.>
+<Justification for standard review path vs replanning based on architectural risk and scope boundaries.>
 
 # Review checklist
 
@@ -145,11 +150,9 @@ When complete, provide the full implementer → orchestrator handoff specified i
 
 # Dispatch comment draft
 
-```markdown
-Planned #N in `handoffs/issue-N-implementation-plan.md` on `main`.
+Planned #N in [handoffs/issue-N-implementation-plan.md](handoffs/issue-N-implementation-plan.md) on `main`.
 
-- **Implementer tier:** <Model Tier>
+- **Implementer tier & effort:** <Model & Native Effort>
 - **Implementation branch:** `<allocated-branch-name>`
 - **Likely findings:** <Brief summary of predicted review focus areas>
-```
 ```

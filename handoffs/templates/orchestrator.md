@@ -14,7 +14,7 @@ When acting as the **Orchestrator**:
 
 2. **Dispatch Implementer:**
    - Launch an implementer agent using the exact text under `# Reusable implementer execution prompt` in the handoff document.
-   - Dispatch the implementer at the plan's specified **Implementer Tier** without downgrading it.
+   - Dispatch the implementer at the plan's specified **Implementer Tier & Effort** without downgrading model tier or reasoning level.
 
 3. **Zero Direct Implementation:**
    - You must **NEVER** edit source code, write tests, or implement any part of the ticket yourself.
@@ -38,9 +38,9 @@ When acting as the **Orchestrator**:
    - Re-review the updated diff once the implementer completes repairs.
 
 6. **Escalate Stop Conditions:**
-   - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, do **NOT** attempt to re-plan or widen implementation scope.
-   - Escalate to the **Planner** to amend or re-cut the plan.
+   - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, follow the escalation route: `implementer → orchestrator → planner`.
+   - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan in a revised plan PR.
 
 7. **Finalise & Open PR:**
    - When the implementation is clean and verified, open a pull request targeting `main` referencing the issue number.
-   - Ensure a dated `WORKLOG.md` entry is included in the implementation PR.
+   - Ensure a dated [WORKLOG.md](../WORKLOG.md) entry is included in the implementation PR.

@@ -9,3 +9,6 @@ tests/fixtures/** -text
 src/vault_cleaner/ui/*.css text eol=lf
 src/vault_cleaner/ui/*.js text eol=lf
 src/vault_cleaner/ui/*.html text eol=lf
+
+# Historical handoff documents contain intentional trailing whitespace for markdown hard line breaks
+handoffs/issue-*-implementation-plan.md -whitespace

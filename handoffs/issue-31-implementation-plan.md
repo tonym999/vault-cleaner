@@ -1,9 +1,9 @@
 # Issue #31 — Luna xhigh Implementation Plan
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#31 — Stop same-Hash weapon cleanup from junking distinct useful rolls`
-**Planning base:** `main` at `0a5460108fcd2a5473147920716b644147d076a8` (2026-08-28)
-**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → orchestrating Sol high reviews → independent Sol high reviews → PR
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#31 — Stop same-Hash weapon cleanup from junking distinct useful rolls`  
+**Planning base:** `main` at `0a5460108fcd2a5473147920716b644147d076a8` (2026-08-28)  
+**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → orchestrating Sol high reviews → independent Sol high reviews → PR  
 **Implementation PR:** Luna must **not** open one. Sol will review the completed implementation first.
 
 ## Objective
@@ -392,10 +392,10 @@ Measure at minimum:
 
 Record only safe aggregate results, public game/perk terminology where useful, and the resulting structural rule. Examples:
 
-- “`Perks 0..19` present”;
-- “selected marker is a trailing `*` and does not alter the option identity”;
-- “these structural socket categories were mutable”;
-- “candidate fingerprint produced N groups ≥2 / M redundant rows”;
+- “`Perks 0..19` present”; 
+- “selected marker is a trailing `*` and does not alter the option identity”; 
+- “these structural socket categories were mutable”; 
+- “candidate fingerprint produced N groups ≥2 / M redundant rows”; 
 - “Slammer hash X contained N distinct fingerprints and Y exact duplicate groups”.
 
 Do **not** record:

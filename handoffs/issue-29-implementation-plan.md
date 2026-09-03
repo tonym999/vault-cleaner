@@ -1,9 +1,9 @@
 # Ticket
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#29 — Make duplicate survivor references human-readable in notes and reports`
-**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → orchestrating Sol reviews → independent Sol high reviews → PR
-**Planning base:** `main` at `70746c3000ff1fbf5171a4c205863683af5952c8` (`Fix weapon duplicate identity with measured exact rolls (#100)`)
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#29 — Make duplicate survivor references human-readable in notes and reports`  
+**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → orchestrating Sol reviews → independent Sol high reviews → PR  
+**Planning base:** `main` at `70746c3000ff1fbf5171a4c205863683af5952c8` (`Fix weapon duplicate identity with measured exact rolls (#100)`)  
 **Plan branch:** `handoff/issue-29-luna-plan`
 
 ## Objective

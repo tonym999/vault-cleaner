@@ -1,9 +1,9 @@
 # Issue #32 — Luna xhigh Implementation Plan
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#32 — Recognize DIM's Crafted=crafted token in crafted-level safety rail`
-**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR
-**Plan date:** 2026-08-28
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#32 — Recognize DIM's Crafted=crafted token in crafted-level safety rail`  
+**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR  
+**Plan date:** 2026-08-28  
 **Planning baseline:** `main` at `88253914724291732536ec5e27c8476a7ea6b983`
 
 ## Objective

@@ -1,8 +1,8 @@
 # Ticket
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#105 — Model current location and Guardian class as distinct fields (Owner is not an owner)`
-**Planning baseline:** `main` at `afbde22bf124a19c97689a3c43dad8578d14f003`
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#105 — Model current location and Guardian class as distinct fields (Owner is not an owner)`  
+**Planning baseline:** `main` at `afbde22bf124a19c97689a3c43dad8578d14f003`  
 **Implementation model:** Sol plans/orchestrates → Luna xhigh implements → orchestrating Sol reviews → independent Sol high reviews → PR
 
 Luna must **not** raise the pull request. The implementation branch must be reviewed first.

@@ -1,8 +1,8 @@
 # Issue #51 — Luna xhigh Implementation Plan
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#51 — M8 cleanup: delete the browser-side validator and its parity suite`
-**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#51 — M8 cleanup: delete the browser-side validator and its parity suite`  
+**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR  
 **Plan date:** 2026-08-28
 
 ## Objective
@@ -87,10 +87,10 @@ Do not reintroduce a browser manifest path in another form.
 
 For **every proposed edit**, Luna must apply this two-question test:
 
-1. **Is this change necessary to remove the retired static `review-html` surface or browser-manifest path?**
+1. **Is this change necessary to remove the retired static `review-html` surface or browser-manifest path?**  
    Examples: static adapter, Python static renderer, CLI subcommand, static-only tests, stale user documentation, obsolete static/manifest-parser guidance.
 
-2. **Or is this change necessary to preserve an already-valid permanent invariant after those static dependencies are removed?**
+2. **Or is this change necessary to preserve an already-valid permanent invariant after those static dependencies are removed?**  
    Examples: moving a test helper so permanent Node tests remain self-contained; preserving opaque 64-bit ID handling, prototype-safe maps, terminal grouping parity, hostile-text inertness, or source-safety checks.
 
 If the answer to **both** questions is no, the change is out of scope.
@@ -731,7 +731,7 @@ Before handing the branch to Sol high, run:
 
 ```bash
 ruff check src tests scripts
-pytest -q
+.venv/bin/pytest -q
 python scripts/check_wheel_install.py
 git diff --check
 git status --short

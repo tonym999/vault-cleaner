@@ -2,10 +2,10 @@
 
 # Ticket
 
-**Repository:** `tonym999/vault-cleaner`
-**Issue:** `#110 — M9 C: add a same-stat / different-tuning comparison to the Armor duplicates view`
-**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR
-**Implementation model selected:** **Luna xhigh**
+**Repository:** `tonym999/vault-cleaner`  
+**Issue:** `#110 — M9 C: add a same-stat / different-tuning comparison to the Armor duplicates view`  
+**Implementation model:** Sol plans/orchestrates → Luna xhigh implements → Sol high reviews → PR  
+**Implementation model selected:** **Luna xhigh**  
 **Plan baseline:** `main` at `fb9a435e50a9a13e8c8afb0c93883296112ff4fa` (2026-09-01; merge commit for #102 / PR #111)
 
 Luna must **not** open a pull request. The implementation branch is reviewed by Sol high before any PR is created.
@@ -862,7 +862,7 @@ Do not create the PR unless the owner explicitly asks.
 Implement issue `#110` in `tonym999/vault-cleaner` using the Sol handoff plan at:
 
 ```text
-handoffs/issue-110-luna-xhigh-implementation-plan.md
+handoffs/issue-110-implementation-plan.md
 ```
 
 You are the implementation agent. Use **Luna xhigh**.
