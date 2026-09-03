@@ -14,6 +14,7 @@ from playwright.sync_api import (
     Browser,
     BrowserType,
     Dialog,
+    Locator,
     Page,
     expect,
 )
@@ -135,6 +136,32 @@ def authenticate(page: Page, live_server: LiveServer) -> None:
     page.goto(live_server.bootstrap_url, wait_until="domcontentloaded")
     expect(page).to_have_url(f"{live_server.origin}/")
     expect(page.locator("#vc-status")).to_contain_text("Connected")
+
+
+def badge_width_and_heading_budget(badge: Locator) -> tuple[float, float]:
+    """Return (badge offsetWidth, its ``.armor-member-heading``'s fixed min-width).
+
+    ``el.scrollWidth <= el.clientWidth`` on the badge itself is true by
+    construction here: the badge sits in an auto-width ``<th>`` inside
+    ``.scroller { overflow-x: auto }``, so a non-wrapping (``white-space:
+    nowrap``) badge never overflows *itself* -- it just grows the ``<th>``
+    to fit. That makes the naive scrollWidth/clientWidth check pass in both
+    the wrapping and non-wrapping states, so it cannot detect a regression.
+
+    Compare the badge's rendered width against the *fixed* min-width of its
+    ``.armor-member-heading`` container instead. That budget comes from a
+    separate selector (``.armor-member-heading { min-width: 11rem }``) that
+    this ticket does not touch, and it does not grow with the badge's
+    content the way the heading's own offsetWidth does -- so it is a real,
+    independent layout budget: a wrapped badge stays within it, a
+    non-wrapping badge blows through it (measured: 160px vs a 176px budget
+    with the CSS rule in place; 252px vs the same 176px budget without it).
+    """
+    width, budget = badge.evaluate(
+        "el => { var h = el.closest('.armor-member-heading');"
+        " return [el.offsetWidth, h ? parseFloat(getComputedStyle(h).minWidth) : NaN]; }"
+    )
+    return float(width), float(budget)
 
 
 @pytest.mark.browser
@@ -385,15 +412,17 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
             f"document scrolled horizontally at {width}px: scrollWidth={scroll_width}"
         )
 
-    # Badges do not clip / overflow their client width
+    # Badges wrap within their heading's fixed width budget instead of
+    # forcing the cell wider (see badge_width_and_heading_budget for why a
+    # bare scrollWidth <= clientWidth check on the badge cannot catch this).
     badges = page.locator("article.armor-group .armor-member-heading .badge")
     assert badges.count() == 4
     for i in range(badges.count()):
         badge = badges.nth(i)
-        is_not_overflowing = page.evaluate(
-            "el => el.scrollWidth <= el.clientWidth", badge.element_handle()
+        width, budget = badge_width_and_heading_budget(badge)
+        assert width <= budget, (
+            f"badge {i} exceeded its heading's {budget}px width budget: {width}px"
         )
-        assert is_not_overflowing, f"badge {i} clipped: scrollWidth > clientWidth"
 
     # Light and dark color schemes: assert theme-sensitive computed values
     # actually change, not just that emulate_media was called.
@@ -423,9 +452,10 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
     assert dark_scroll_width <= page.viewport_size["width"]
     for i in range(badges.count()):
         badge = badges.nth(i)
-        assert page.evaluate(
-            "el => el.scrollWidth <= el.clientWidth", badge.element_handle()
-        ), f"badge {i} clipped in dark mode: scrollWidth > clientWidth"
+        width, budget = badge_width_and_heading_budget(badge)
+        assert width <= budget, (
+            f"badge {i} exceeded its heading's {budget}px width budget in dark mode: {width}px"
+        )
 
     page.emulate_media(color_scheme="light")
     light_theme = theme_snapshot()
@@ -433,9 +463,10 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
     assert light_scroll_width <= page.viewport_size["width"]
     for i in range(badges.count()):
         badge = badges.nth(i)
-        assert page.evaluate(
-            "el => el.scrollWidth <= el.clientWidth", badge.element_handle()
-        ), f"badge {i} clipped in light mode: scrollWidth > clientWidth"
+        width, budget = badge_width_and_heading_budget(badge)
+        assert width <= budget, (
+            f"badge {i} exceeded its heading's {budget}px width budget in light mode: {width}px"
+        )
 
     for label, value in dark_theme.items():
         assert value not in transparent_values, f"dark {label} was transparent: {value}"

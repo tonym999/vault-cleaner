@@ -160,6 +160,96 @@ items (G2, G3). Production code changed only for G2; G1 and G3 are test-only.
   count 0 after switching to the duplicates surface, proving a surface
   distinction rather than the absence of a string anywhere on the page.
 
+### Third fix round: independent adversarial review of `b8b297e...fd9af2a`
+
+A third independent adversarial review of the complete `b8b297e...fd9af2a`
+range found no P0/P1, one blocking P2 (H1), and three accepted items (H2,
+H3, H4). Production code changed only for H2 (a reversal of a decision this
+worklog previously recorded as rejected); H1, H1b, and H3 are test-only.
+
+- **H1 (blocking, test-only):** the three badge non-clipping assertions in
+  `test_armor_same_stat_four_member_badge_wrapping_and_transposition`
+  (`tests/test_server_browser.py`) read `el.scrollWidth <= el.clientWidth`
+  on the badge itself — true by construction, since the badge sits in an
+  auto-width `<th>` inside `.scroller { overflow-x: auto }`: a non-wrapping
+  badge simply grows the cell rather than overflowing itself, so the check
+  cannot fail regardless of whether `.armor-member-heading .badge`'s
+  `white-space: normal; overflow-wrap: anywhere` rule (`review.css:180`)
+  is present. Measured: deleting that CSS rule left all 8 browser tests and
+  all 951 non-browser tests passing before this fix. Replaced all three
+  occurrences with `badge_width_and_heading_budget`, comparing the badge's
+  `offsetWidth` against its `.armor-member-heading` container's *fixed*
+  `min-width` (11rem/176px, from a separate, untouched selector, so it does
+  not grow with the badge's content the way the heading's own `offsetWidth`
+  does). Proved the new assertion load-bearing by deleting `review.css:180`
+  and re-running: it failed red (`AssertionError: badge 0 exceeded its
+  heading's 176.0px width budget: 252.0px`), then `review.css` was fully
+  reverted with `git checkout --` and confirmed unchanged in the final diff
+  before re-running green.
+- **H1b (vacuity audit, test-only):** audited every assertion this ticket
+  added across `tests/test_server_browser.py`, `tests/test_review_ui_js.py`,
+  and `tests/test_server_ui_js.py` in the `b8b297e...HEAD` range for the same
+  "passes by construction" class as H1, F1/F2, and G1. Found no further
+  vacuous assertion: the remaining checks are string/attribute/count
+  equalities tied 1:1 to a specific production value (scope text, piece
+  counts, `role`/`aria-live` attributes read from `review_server.html:72`,
+  column-header presence after the row-to-column transposition, theme
+  computed-value differences from F1, and the region-identity/read-only-view
+  checks from F2/G1) — each one requires a distinct, identifiable production
+  change to fail. The H2 and H3 fixes below each added a new assertion;
+  both were proved load-bearing by an explicit inverted-ordering mutation
+  (see their entries).
+- **H2 (accepted — reverses this worklog's F3-adjacent prior rejection):**
+  `renderList` called `reconcileArmorQueryForGroups(state.armorQuery,
+  selectedArmorGroups)` on every duplicates render, with no `invalidated`
+  collector — unlike its two sibling call sites (`applySessionEnvelope` and
+  the kind-selector click handler), which both report a dropped filter via
+  `state.viewInvalidated`. This implementer had rejected the same finding
+  twice in earlier rounds; three independent reviews flagging it, plus
+  `AGENTS.md`'s sibling-path rule, changed that. Removed the call: the
+  kind-selector handler already reconciles `state.armorQuery` for the new
+  kind's group universe before it calls `renderList`, and `renderList` is
+  the only caller that can change `state.armorGroupKind`'s selected universe
+  without a prior reconcile, so the scope suffix `renderList` computes never
+  names a facet value the current universe has already dropped. Extended
+  the existing `test_local_duplicate_kind_switch_renders_filter_reconciliation`
+  in `tests/test_server_ui_js.py` with a `scope` field capturing
+  `#vc-duplicate-scope`'s textContent after the kind-selector switches from
+  `same_stat` (with `tuningModSlot: Health` set) to `exact` (where `Health`
+  no longer exists): asserted it reads `"1 of 2 groups · 1 of 3 pieces —
+  filtered to exact duplicates"` with no mention of `Health`. Proved
+  load-bearing by temporarily moving
+  the click handler's `renderControls(); renderList(); renderSummary();`
+  call to before its `reconcileArmorQueryForGroups` call (simulating the
+  now-removed `renderList`-side reconcile no longer covering this path): the
+  assertion went red (`'0 of 2 groups · 0 of 3 pieces — filtered to exact
+  duplicates, tuning slot Health'` instead), then the variant was fully
+  reverted with a diff against the pre-mutation copy and confirmed clean
+  before re-running green.
+- **H3 (accepted, test-only):** `renderList` writes the scope text to
+  `#vc-duplicate-scope` before its `if (!filteredGroups.length) { ...;
+  return; }` early return, but nothing pinned that ordering — a filter
+  matching nothing could regress to leaving the region stale or blank.
+  Added `test_duplicate_list_states_scope_before_the_empty_result_hint` in
+  `tests/test_server_ui_js.py`: a search matching no groups still leaves
+  `#vc-duplicate-scope` reading `"0 of 2 groups · 0 of 3 pieces — filtered to
+  search \"no-such-armor-piece\""` alongside the `"No armor duplicate groups
+  match these filters."` hint. Also added a "no matches" case to the
+  existing `test_duplicate_scope_summary_formats_exact_table` parametrized
+  suite pinning `duplicateScopeText`'s zero-match formatting in isolation.
+  Proved the DOM-level test load-bearing by temporarily moving the scope
+  write in `renderList` to after the early return: it failed red (`'2
+  groups · 3 pieces' == '0 of 2 group...-armor-piece"'`, i.e. the write was
+  skipped entirely on the empty-result path), then the variant was fully
+  reverted and confirmed clean before re-running green.
+- **H4 (open question carried forward, not built):** the plan's out-of-scope
+  list flagged collapsing the four-member tile row at 390px as worth its own
+  look during #119, and instructed raising rather than building it. It was
+  correctly not built in the implementation, but the review found it was
+  never raised anywhere reaching the PR. Recording it here per that
+  instruction: collapsing the tile row layout at the 390px viewport remains
+  an open question for a follow-up ticket, out of scope for #119.
+
 ## 2026-09-03 — #119: planning session (plan PR 1)
 
 Planning-only session under the new two-PR lifecycle. Authored

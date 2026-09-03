@@ -1024,8 +1024,16 @@
       view.clear(host);
       if (state.surface === "armor-duplicates") {
         state.duplicateRows = emptyMap();
+        // armorQuery is reconciled for the current armorGroupKind's universe
+        // by every caller that can change that universe (applySessionEnvelope
+        // on a new report/session, and the kind-selector click handler on a
+        // kind switch) before it calls renderList -- so the scope suffix
+        // below never names a facet value the current universe has already
+        // dropped. Do not re-reconcile here without an `invalidated`
+        // collector: a silent clear on every render (search input, sort
+        // toggle, ...) would desync the <select> from state without
+        // reporting it, unlike the two sibling reconcile call sites.
         var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
-        reconcileArmorQueryForGroups(state.armorQuery, selectedArmorGroups);
         var filteredGroups = typeof ui.filterArmorGroups === "function"
           ? ui.filterArmorGroups(selectedArmorGroups, state.armorQuery) : [];
         var scopeTarget = byId("vc-duplicate-scope");
