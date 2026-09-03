@@ -528,12 +528,31 @@ Cover, as a parametrised table asserting the **exact** full summary string:
 | `itemArchetype` only | `archetype VALUE` |
 | `tuningModSlot` only | `tuning slot VALUE` |
 | `text` only | `search "VALUE"`, including the quotes |
-| kind + two facets + text | all four parts present **in the table's order** |
-| singular counts | `1 group`, `1 piece` |
+| kind + all four facets + text | all **six** parts present, in the table's order |
+| `1 group · 2 pieces` | the two nouns pluralise independently |
 | filtered, mixed-kind | group and piece numbers differ, and the totals are not kind-scoped |
 
-The combined case is the one that pins ordering; per-selector cases alone pass
-under any permutation.
+The combined case must activate every part the suffix can render — one kind
+part, four facet parts and the text part. Per-selector cases prove presence, not
+order, and a subset combination leaves the relative order of the parts it omits
+unpinned: with only two facets active, an implementation that emits
+`tuning slot` before `archetype` is never exercised. Build that state directly
+in the node harness rather than looking for a fixture that satisfies all six at
+once.
+
+**On cardinality.** `1 group · 2 pieces` is both the smallest reachable report
+and the only case that catches a shared plural suffix computed from one number.
+Two states that look like natural companions to it are **not reachable** and
+must not be required: both duplicate passes skip groups with fewer than two
+members
+([armor_dupes.py:306](../src/vault_cleaner/rules/armor_dupes.py#L306),
+[armor_close.py:131](../src/vault_cleaner/rules/armor_close.py#L131),
+[armor_close.py:290](../src/vault_cleaner/rules/armor_close.py#L290)), so pieces
+is always at least twice groups. That makes `2 groups · 1 piece` impossible, and
+the singular `1 piece` form unreachable from any real report. Keep a single
+shared pluralisation helper and unit-test it directly at `n = 1` and `n = 2` if
+the singular `piece` form is worth covering at all; do not fabricate an
+impossible report state to reach it.
 
 #### [MODIFY] [tests/test_server_browser.py](../tests/test_server_browser.py#L268-L388)
 
@@ -717,7 +736,9 @@ and native effort at dispatch time.
 - [ ] Check 3: Both nouns pluralise independently; the unfiltered form omits "of"; the scope suffix matches the plan's table exactly, including part order.
 - [ ] Check 3a: The kind part is derived from `state.armorGroupKind === "exact"`, never from the group vocabulary token `"exact_duplicate"`. Grep the diff for `exact_duplicate` outside the projection layer.
 - [ ] Check 3b: The suffix is built from the query **after** `reconcileArmorQueryForGroups` runs, so a kind change cannot leave it naming a cleared facet.
-- [ ] Check 3c: The scope-suffix table test exists, is parametrised, covers each of the seven selectors individually, and includes the combined ordering case and the mixed-kind case.
+- [ ] Check 3c: The scope-suffix table test exists, is parametrised, covers each of the seven selectors individually, and includes the mixed-kind case.
+- [ ] Check 3d: The combined ordering case activates **all six** renderable parts (kind, four facets, text), not a subset — a subset leaves the relative order of the omitted parts unpinned.
+- [ ] Check 3e: Cardinality coverage is `1 group · 2 pieces`. No test requires `2 groups · 1 piece` or a `1 piece` state; both passes skip groups under two members, so pieces is always at least twice groups.
 - [ ] Check 4: The `SHOWN` tile is gone from the duplicates surface and unchanged on the proposals surface. `tests/test_server_ui_js.py:511` is untouched.
 - [ ] Check 5: The same-stat banner's first sentence is unconditional and its second is gated on `armorMemberCanVerdict` over projected members, with no DOM query. Verify it still appears in a read-only session.
 - [ ] Check 6: After transposition, `memberValues` still gates `Seasonal Mod`, `Holofoil` and `Tuning Stat` on the same predicates. Verify both the present and absent case.

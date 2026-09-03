@@ -97,6 +97,23 @@ for the independent adversarial reviewer rather than a decision record.
     single-kind report cannot distinguish a correct denominator from a
     kind-scoped one because the kind selector only renders when both kinds are
     present.
+  - **Second review round.** The corrected test matrix drew two further
+    findings, both accepted in substance. The combined ordering case activated
+    only four of the six renderable suffix parts, which leaves the relative
+    order of the omitted facets unpinned — an implementation emitting
+    `tuning slot` before `archetype` would never be exercised; it now activates
+    all six. The cardinality row was `1 group, 1 piece`, which does not prove
+    the two nouns pluralise independently.
+  - **Partially rejected, with evidence.** The suggested companion cases
+    `2 groups · 1 piece` and any `1 piece` state are unreachable: both duplicate
+    passes skip groups with fewer than two members
+    (`armor_dupes.py:306`, `armor_close.py:131`, `armor_close.py:290`), so
+    pieces is always at least twice groups. `1 group · 2 pieces` is therefore
+    both the smallest reachable report and the only case that catches a shared
+    plural suffix computed from one number, and it is the one the plan now
+    requires. The singular `piece` form, if covered at all, belongs in a direct
+    unit test of the pluralisation helper rather than a fabricated report state.
+    Recorded because it is easy to re-derive the same impossible case later.
   - **Template gaps for #124.** Two of the three corrections generalise beyond
     this plan. `planner.md` requires claims to be pinned to a path and line or
     an empirical command, but does not require that command to be
