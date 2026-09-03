@@ -47,7 +47,7 @@ When acting as the **Planner**:
 
 Author the handoff document using the following exact structure:
 
-```markdown
+````markdown
 # Issue #N — implementation handoff
 
 # Ticket
@@ -128,7 +128,7 @@ Rules:
 - work on `<allocated-branch-name>`; branch from latest `main` and record the base SHA;
 - apply the plan's mechanical inclusion test to every production hunk;
 - update `WORKLOG.md` with a dated entry;
-- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`;
+- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py` (if touching UI), `git diff --check origin/main...HEAD`;
 - commit and push the implementation branch; and
 - **do not open a pull request.**
 
@@ -156,4 +156,4 @@ Planned #N in [handoffs/issue-N-implementation-plan.md](https://github.com/tonym
 - **Implementer tier & effort:** <Exact Model ID & Native Effort>
 - **Implementation branch:** `<allocated-branch-name>`
 - **Likely findings:** <Brief summary of predicted review focus areas>
-```
+````

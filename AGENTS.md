@@ -178,17 +178,17 @@ Every ticket follows a multi-agent two-PR handoff workflow:
 2. **Planning Phase (PR 1):**
    - The **Planner** researches the issue, measures code state, resolves staleness, allocates branch names, and authors a handoff document using [handoffs/templates/planner.md](handoffs/templates/planner.md).
    - Saved as `handoffs/issue-N-implementation-plan.md` on a plan branch (`handoff/issue-N-implementation-plan`).
-   - Appends a dated entry to [WORKLOG.md](WORKLOG.md) and opens PR 1 targeting `main`.
+   - Appends a dated entry to [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know) and opens PR 1 targeting `main`.
    - Once merged to `main`, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer tier, allocated implementation branch name, and likely findings.
 3. **Implementation Phase (PR 2):**
    - The **Orchestrator** reads the merged plan from `main` using [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
    - Dispatches the **Implementer** to work on the allocated implementation branch (`fix/issue-N-...` or `feat/issue-N-...`) at the plan's specified model tier.
-   - The implementer follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](WORKLOG.md), and reports results without opening a PR.
+   - The implementer follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know), and reports results without opening a PR.
    - The orchestrator reviews the diff (`git diff base_sha...HEAD`) and command outputs against the plan's review checklist and likely findings. If defects exist, the orchestrator returns precise findings to the implementer on the same branch.
    - If a stop condition triggers or plan boundaries must change, escalation follows `implementer → orchestrator → planner` to re-cut the plan.
    - Once clean and verified, the orchestrator opens PR 2 targeting `main`.
 
-See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules.
+Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules.
 
 ## Creating issues
 

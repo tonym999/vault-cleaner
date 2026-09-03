@@ -30,15 +30,15 @@ When acting as the **Orchestrator**:
      ```bash
      .venv/bin/ruff check src tests scripts
      .venv/bin/pytest -q
-     .venv/bin/pytest -q -m browser tests/test_server_browser.py
+     VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py
      git diff --check origin/main...HEAD
      test -z "$(git ls-files data/)"
      ```
      > [!IMPORTANT]
-     > **A skip is not a pass.** Browser tests skip silently when managed Chromium is absent unless `VAULT_CLEANER_BROWSER_REQUIRED=1`. Verify browser tests actually execute and pass when UI code is touched.
+     > **A skip is not a pass.** Running with `VAULT_CLEANER_BROWSER_REQUIRED=1` ensures browser tests fail rather than skip silently when managed Chromium is absent.
 
-5. **Perform the Revert Spot-Check:**
-   - When likely findings identify tests that might pass without the fix, perform the fail-then-pass / revert spot-check: temporarily revert individual source edits (e.g. via `git stash` or commenting out specific lines) to confirm the corresponding test goes red, proving each fix is load-bearing.
+5. **Perform the Revert Spot-Check in an Isolated Checkout / Worktree:**
+   - When likely findings identify tests that might pass without the fix, perform the fail-then-pass / revert spot-check in an isolated disposable git worktree (e.g. `git worktree add ...`) or separate temporary branch: temporarily reverse individual source edits to confirm the corresponding test goes red, proving each fix is load-bearing. This diagnostic check is verification, not implementation.
 
 6. **Handle Review Findings & Legacy Plans:**
    - For plans using the modern template: evaluate the diff against `# Review checklist`, `## Likely findings`, and `## Mechanical inclusion test`.

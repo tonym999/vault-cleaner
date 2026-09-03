@@ -80,9 +80,9 @@ The dispatch record captures the **actual** provider/model/effort used and any f
 | Task Class | Model Selection & Effort Rationale | Recommended Model & Native Effort |
 |---|---|---|
 | **Routine Implementation** | Code edits with clear specs, simple bug fixes, label/presentation updates. | `claude-sonnet-5` (`high`), `gpt-5.6-terra` (`medium`), or `gemini-3.8-flash` (`high`) |
-| **Complex Implementation** | Multi-file architectural refactors, server lifecycle changes, complex DOM transposition / Playwright suites. | `claude-sonnet-5` (`xhigh`), `gpt-5.6-sol` (`high`), or `gemini-3.5-pro` (`high`) |
-| **Planning** | Codebase research, measurement, staleness resolution, inclusion test definition. | `claude-sonnet-5` (`xhigh`), `gpt-5.6-sol` (`xhigh`), or `gemini-3.5-pro` (`high`) |
-| **Independent Review** | Reviewing implementation diffs against plan checklists and likely findings. | `claude-opus-5` (`high`), `gpt-5.6-sol` (`high`), or `gemini-3.5-pro` (`high`) |
+| **Complex Implementation** | Multi-file architectural refactors, server lifecycle changes, complex DOM transposition / Playwright suites. | `claude-sonnet-5` (`xhigh`), `gpt-5.6-sol` (`high`), or `gemini-3.8-pro` (`high`) |
+| **Planning** | Codebase research, measurement, staleness resolution, inclusion test definition. | `claude-sonnet-5` (`xhigh`), `gpt-5.6-sol` (`xhigh`), or `gemini-3.8-pro` (`high`) |
+| **Independent Review** | Reviewing implementation diffs against plan checklists and likely findings. | `claude-opus-5` (`high`), `gpt-5.6-sol` (`high`), or `gemini-3.8-pro` (`high`) |
 
 ### Provider Catalog & Reasoning Controls
 
@@ -95,6 +95,6 @@ The dispatch record captures the **actual** provider/model/effort used and any f
 | **Anthropic** | Claude | `claude-opus-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `high`) | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
 | **Anthropic** | Claude | `claude-sonnet-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `high`) | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
 | **Anthropic** | Claude | `claude-haiku-4-5-20251001` | None | Effort control not supported on Haiku 4.5 | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview) |
+| **Google** | Gemini 3.x | `gemini-3.8-pro` | `thinking_level` | `minimal`, `low`, `medium`, `high` | Stable — [Google Gemini Models](https://ai.google.dev/gemini-api/docs/models), [Thinking Controls](https://ai.google.dev/gemini-api/docs/thinking) |
 | **Google** | Gemini 3.x | `gemini-3.8-flash` | `thinking_level` | `minimal`, `low`, `medium`, `high` | Stable — [Google Gemini 3.8 Flash](https://ai.google.dev/gemini-api/docs/latest-model), [Thinking Controls](https://ai.google.dev/gemini-api/docs/thinking) |
-| **Google** | Gemini 3.x | `gemini-3.5-pro` | `thinking_level` | `minimal`, `low`, `medium`, `high` | Stable — [Google Gemini Models](https://ai.google.dev/gemini-api/docs/models), [Thinking Controls](https://ai.google.dev/gemini-api/docs/thinking) |
-| **Google** | Gemini 3.x | `gemini-3.5-flash` | `thinking_level` | `minimal`, `low`, `medium`, `high` | Stable — [Google Gemini Models](https://ai.google.dev/gemini-api/docs/models), [Thinking Controls](https://ai.google.dev/gemini-api/docs/thinking) |
+| **Google** | Gemini 3.x | `gemini-3.8-flash-lite` | `thinking_level` | `minimal`, `low`, `medium`, `high` | Stable — [Google Gemini Models](https://ai.google.dev/gemini-api/docs/models), [Thinking Controls](https://ai.google.dev/gemini-api/docs/thinking) |
