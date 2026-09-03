@@ -15,11 +15,14 @@ pilot itself.
   - Four independent adversarial review rounds against a disposable checkout
     pinned to each immutable head. Rounds 1–3 each returned a blocking P2;
     round 4 returned no P0/P1/P2 and recommended proceeding.
-  - **Every blocking finding was a missing guard, not broken behaviour.** The
-    production code from `482a63a` cleared all four rounds unchanged except two
-    deliberate edits: a discarded `filterItems` scan moved inside its surface
-    guard, and a redundant `reconcileArmorQueryForGroups` call removed from
-    `renderList`.
+  - **Every blocking finding was a missing guard, not broken behaviour.** All
+    four blocking P2s (F1, F2, G1, H1) were fixed in tests alone. The
+    production code from `482a63a` changed only through three accepted
+    non-blocking findings: a discarded `filterItems` scan moved inside its
+    surface guard (F3), an equality guard before the `aria-live` scope
+    region's `textContent` write so an unchanged string is not re-announced
+    (G2), and a redundant `reconcileArmorQueryForGroups` call removed from
+    `renderList` (H2).
   - Eleven injected defects were confirmed caught by the suite before PR 2
     opened, including a kind-scoped denominator, the `"exact_duplicate"` token
     mix-up, a fixed column set, render-derived banner eligibility, the live
@@ -160,7 +163,8 @@ merged plan at `handoffs/issue-119-implementation-plan.md`.
 Independent adversarial review of `482a63a` found no P0/P1 defects, two
 blocking P2 coverage gaps (F1, F2), and two accepted non-blocking fold-ins
 (F3, F4). The production code from `482a63a` was found correct by that
-review; only tests and this worklog entry changed.
+review; F1, F2 and F4 changed tests and this worklog only, and the sole
+production change was F3's performance guard in `review_server.js`.
 
 - **F1 (blocking, test-only):** `test_armor_same_stat_four_member_badge_wrapping_and_transposition`
   called `page.emulate_media(color_scheme=...)` for dark then light with no
