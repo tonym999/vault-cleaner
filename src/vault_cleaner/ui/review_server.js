@@ -1030,9 +1030,12 @@
           ? ui.filterArmorGroups(selectedArmorGroups, state.armorQuery) : [];
         var scopeTarget = byId("vc-duplicate-scope");
         if (scopeTarget) {
-          scopeTarget.textContent = duplicateScopeText(
+          var scopeText = duplicateScopeText(
             state.armorGroups, filteredGroups, state.armorGroupKind, state.armorQuery
           );
+          if (scopeTarget.textContent !== scopeText) {
+            scopeTarget.textContent = scopeText;
+          }
         }
         if (!filteredGroups.length) {
           host.appendChild(view.el("p", { class: "hint", text: "No armor duplicate groups match these filters." }));

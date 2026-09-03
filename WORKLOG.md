@@ -110,6 +110,56 @@ review; only tests and this worklog entry changed.
 - **F4 (this entry):** the original entry omitted the facet-unit consequence,
   the scope-suffix format, and this fix round; both are now recorded above.
 
+### Second fix round: independent adversarial review of `b8b297e...2acef1b`
+
+A second independent adversarial review of the complete `b8b297e...2acef1b`
+range found no P0/P1, one new blocking P2 (G1), and two accepted non-blocking
+items (G2, G3). Production code changed only for G2; G1 and G3 are test-only.
+
+- **G1 (blocking, test-only):** no assertion distinguished
+  `armorGroupHeader`'s data-derived same-stat banner eligibility
+  (`armorMemberCanVerdict(group, member)`, which reads only
+  `currentProposalAction`/`isProposalMember` and never `readOnly` or the DOM)
+  from a render-derived one gating on whether a verdict button would actually
+  render (the #115 prior-art defect). Measured: replacing the eligibility
+  check with `!readOnly && (group.members || []).some(function (m) { return
+  armorMemberCanVerdict(group, m); })` left all 123 node tests and all 8
+  browser tests passing (`950 passed` in the full suite run before this fix,
+  since a same-stat proposing member always has a rendered `.approve` button
+  under the harness's normal, non-read-only views). Added a read-only-view
+  case to `test_same_stat_projection_and_cross_kind_dom_overlap` in
+  `tests/test_review_ui_js.py`: a same-stat group with a member whose
+  `currentProposalAction` is `"junk"`, rendered through
+  `api.createView({..., readOnly: true})`, asserting both that the second
+  banner sentence ("Pieces below that already carry a proposal keep their
+  verdict controls.") is present and that zero `button.approve` elements
+  render in that article (new key `sameBannerPresentWhenReadOnly`). Proved
+  the guard load-bearing with the temporary render-derived variant above:
+  the new assertion went red —
+  `AssertionError: ... Differing items: {'sameBannerPresentWhenReadOnly':
+  False} != {'sameBannerPresentWhenReadOnly': True}` — with the rest of the
+  suite (950 of 951 tests) still green, then the variant was fully reverted
+  with `git checkout -- src/vault_cleaner/ui/review_ui.js` and the tree
+  confirmed clean against the intended change set before re-running green.
+- **G2 (accepted, non-blocking):** `renderList` in `review_server.js` wrote
+  `scopeTarget.textContent` unconditionally on every `#vc-dup-search` input
+  event, so the `role="status"`/`aria-live="polite"` `#vc-duplicate-scope`
+  region re-announced the whole scope line to screen readers even when the
+  computed string had not changed. Guarded the assignment to only write when
+  the new string differs from the current `textContent`; behaviour is
+  otherwise identical.
+- **G3 (accepted, non-blocking, test-only):** the `shown` tile's absence from
+  the duplicates surface was pinned only by reading code — a regression that
+  re-added the tile there would go undetected, since
+  `tests/test_server_ui_js.py:511` (left untouched) only pins the tile's
+  presence on the proposals surface via a source-literal check. Added a
+  negative assertion in
+  `test_armor_duplicates_mixed_report_scope_summary_and_filtering` in
+  `tests/test_server_browser.py`: `#vc-summary .tile .k:text-is('shown')`
+  has count 1 on the proposals surface (asserted first, before switching) and
+  count 0 after switching to the duplicates surface, proving a surface
+  distinction rather than the absence of a string anywhere on the page.
+
 ## 2026-09-03 — #119: planning session (plan PR 1)
 
 Planning-only session under the new two-PR lifecycle. Authored

@@ -458,12 +458,23 @@ def test_armor_duplicates_mixed_report_scope_summary_and_filtering(
 
     expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
     expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+
+    # Proposals surface keeps the "shown" tile -- pin its presence here first
+    # so the later absence check on the duplicates surface proves a surface
+    # distinction, not just that the string never renders anywhere.
+    shown_tile = page.locator("#vc-summary .tile .k:text-is('shown')")
+    expect(shown_tile).to_have_count(1)
+
     page.locator("#vc-view-duplicates").click()
 
     scope = page.locator("#vc-duplicate-scope")
     expect(scope).to_be_visible()
     expect(scope).to_have_attribute("role", "status")
     expect(scope).to_have_attribute("aria-live", "polite")
+
+    # The duplicates surface has no per-item filter to "show", so #vc-summary
+    # must not carry the "shown" tile here (#119 review Check 4).
+    expect(shown_tile).to_have_count(0)
 
     # The scope region lives outside the list host that renderList clears on
     # every keystroke -- pin that here so a future change that instead builds

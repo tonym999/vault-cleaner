@@ -1287,6 +1287,21 @@ var sharedSameArticle = view.armorGroup({
   ]
 });
 var sharedSameHeaders = colHeaders(sharedSameArticle);
+var readOnlySameState = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var readOnlySameView = api.createView({
+  document: new Document(), state: readOnlySameState, readOnly: true,
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }
+});
+var readOnlySameArticle = readOnlySameView.armorGroup({
+  groupKind: "same_stat", groupId: "readonly-same", hash: "h", name: "ReadOnlySame",
+  type: "", guardianClass: "", itemArchetype: "", tier: 5, stats: {},
+  spiritSignature: [],
+  members: [
+    {id: "ro1", location: "Vault", tuningModSlot: "Weapons", currentProposalAction: "junk"},
+    {id: "ro2", location: "Vault", tuningModSlot: "Health"}
+  ]
+});
 process.stdout.write(JSON.stringify({
   order: projected.map(function (group) { return group.groupKind; }),
   memberOrder: projected[1].members.map(function (member) { return member.id; }),
@@ -1353,7 +1368,12 @@ process.stdout.write(JSON.stringify({
   conditionalColumnsAbsentWhenEqual: sharedSameHeaders.indexOf("Seasonal Mod") === -1 &&
     sharedSameHeaders.indexOf("Holofoil") === -1,
   facetUnits: api.countArmorGroups(projected, "tuningModSlot").every(function (e) { return e.unit === "piece"; }) &&
-    api.countArmorGroups(projected, "type").every(function (e) { return e.unit === "group"; })
+    api.countArmorGroups(projected, "type").every(function (e) { return e.unit === "group"; }),
+  sameBannerPresentWhenReadOnly: readOnlySameArticle.textContent.indexOf(
+    "Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls."
+  ) !== -1 && count(readOnlySameArticle, function (node) {
+    return node.tagName === "BUTTON" && node.className === "approve";
+  }) === 0
 }));
 ''',
         encoding="utf-8",
@@ -1388,6 +1408,7 @@ process.stdout.write(JSON.stringify({
         "conditionalColumnsPresentWhenDiffer": True,
         "conditionalColumnsAbsentWhenEqual": True,
         "facetUnits": True,
+        "sameBannerPresentWhenReadOnly": True,
     }
 
 
