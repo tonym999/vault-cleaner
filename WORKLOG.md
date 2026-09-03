@@ -5,12 +5,21 @@ surprises the next agent should know about.
 
 ## 2026-09-03 — #122: integrated multi-agent handoff workflow into repository
 
-- **Integrated multi-agent handoff workflow under `handoffs/` on `main`.** Created `handoffs/README.md` defining the 3-role topology (`planner → orchestrator → implementer → orchestrator reviews → PR`), document lifecycle (two-PR process), naming convention (`handoffs/issue-N-implementation-plan.md`), model tier selection rules, and stop-condition escalation routing (`implementer → orchestrator → planner`).
-- **Added provider-native model family and reasoning-effort matrix.** Documented task classes and native effort controls (`reasoning.effort`, `output_config.effort`, `thinking_level`) for OpenAI, Anthropic, and Google Gemini models in `handoffs/README.md`, with official documentation links and a rule requiring planners to verify settings before allocation.
-- **Committed operational templates.** Created `handoffs/templates/planner.md` (directs planner agents to plan issues, resolve staleness, use repo-relative links, select native model effort, and emit the required named-section contract) and `handoffs/templates/orchestrator.md` (boots orchestrator agents to read merged plans from `main`, dispatch implementers at stated tiers/effort, review real diffs, and handle findings/escalations).
-- **Migrated and normalised 10 handoffs onto `main` with byte-faithful trailing whitespace.** Retrieved all 10 unmerged handoff documents, preserved intentional Markdown hard line breaks (trailing spaces) backed by a narrow `handoffs/issue-*-implementation-plan.md -whitespace` rule in `.gitattributes`, retired role (`luna`) and model tier (`xhigh`) filename suffixes, corrected #118's self-description (topology and provenance note), and restored the 10 dangling remote `handoff/*` branches on origin until PR merge.
-- **Updated repository guidelines in `AGENTS.md`.** Documented the Planning Phase (PR 1) ahead of implementation, formalised the 3-role workflow, template paths, repo-relative link requirements, dispatch comment requirements, and escalation routing.
-- **Validated end-to-end template execution.** Re-cut `handoffs/issue-119-implementation-plan.md` for open Issue #119 against `main` at `9a14847` using the updated `planner.md` template contract without a hand-written brief, citing exact file/lines (`review_server.js:838`, `review_server.js:997`), model effort (`Sonnet 5` with `xhigh` effort), and repo-relative paths.
+- **What happened:**
+  - Integrated the multi-agent handoff workflow under `handoffs/` on `main`. Created `handoffs/README.md` defining the 3-role topology (`planner → orchestrator → implementer → orchestrator reviews → PR`), document lifecycle (two-PR process), naming convention (`handoffs/issue-N-implementation-plan.md`), model tier selection rules, manual cross-provider execution boundary (v1), and stop-condition escalation routing (`implementer → orchestrator → planner`).
+  - Added a provider-native model family and reasoning-effort matrix in `handoffs/README.md` documenting task classes and native effort controls (`reasoning.effort` for OpenAI, `output_config.effort` for Anthropic, `thinking_level` for Gemini), with exact model IDs and per-model support notes.
+  - Committed operational templates: `handoffs/templates/planner.md` (directs planner agents to plan issues, resolve staleness, use relative links, select native model effort, and emit the named-section contract) and `handoffs/templates/orchestrator.md` (boots orchestrator agents to read merged plans from `main`, dispatch implementers, enforce browser suite execution and revert spot-checks, and handle findings/escalation).
+  - Migrated and normalised 10 historical handoffs onto `main` under `handoffs/issue-N-implementation-plan.md`, retiring `luna` and `xhigh` filename suffixes and correcting #118's self-description. Restored the 10 source `handoff/*` branches on `origin` until PR merge.
+  - Narrowed `.gitattributes` whitespace exception rules from a blanket wildcard to the exact 10 migrated historical handoff files.
+  - Updated `AGENTS.md` to document the Planning Phase (PR 1) ahead of implementation, formalising the 3-role workflow, template paths, repo-relative links, dispatch comment requirements, and escalation routing.
+  - Validated planner-template usability against open Issue #119; split out the #119 plan from this PR so #119 lands via its own planning PR as the new lifecycle requires.
+- **Decisions made:**
+  - Standardised on two PRs per issue: Plan PR merged to `main` first, followed by Implementation PR.
+  - Established manual cross-provider execution for v1: orchestrators verify runtime support or prepare prompts for operator dispatch without automated multi-provider harnesses.
+  - Retained intentional Markdown hard line breaks in historical handoffs via narrow `.gitattributes` rules rather than stripping trailing spaces.
+- **Surprises the next agent should know about:**
+  - Browser tests in `test_server_browser.py` skip silently when managed Chromium is absent unless `VAULT_CLEANER_BROWSER_REQUIRED=1`; a test run with skips is not a verified browser pass.
+  - Relative links in GitHub issue comments resolve relative to the issue URL (`/issues/handoffs/...` -> 404), so the planner's dispatch comment draft must emit an absolute GitHub `blob/main/...` URL rather than a relative path.
 
 ## 2026-09-03 — #118: fix mislabelled and overflowing review UI text
 

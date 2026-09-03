@@ -15,7 +15,7 @@ When acting as the **Planner**:
 1. **Read and Measure First:**
    - Read the target issue body, neighbouring/overlapping issues, `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and relevant source files.
    - Measure real system state before prescribing changes (e.g. run layout measurements, inspect schemas, check exact line counts).
-   - Pin every claim to an exact repository-relative path and line number (e.g. `src/vault_cleaner/ui/review_ui.js:1125`) or an empirical measurement script/command. Do NOT use non-portable machine-local `file:///` URIs.
+   - Pin every claim to an exact repository-relative path and line number relative to the repository root (e.g. `src/vault_cleaner/ui/review_ui.js:1125`) or an empirical measurement script/command. In markdown links within the handoff file itself, use paths relative to the `handoffs/` directory (e.g. `[review_ui.js](../src/vault_cleaner/ui/review_ui.js#L1125)`). Do NOT use non-portable machine-local `file:///` URIs.
 
 2. **Resolve Staleness:**
    - Treat the issue body as potentially stale relative to current `main`.
@@ -27,7 +27,8 @@ When acting as the **Planner**:
 
 4. **Select Model & Native Reasoning Effort:**
    - Consult the model family and reasoning-effort matrix in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix).
-   - Select and justify the implementer's exact model ID and native reasoning effort setting (e.g. `Sonnet 5` with `xhigh` effort) based on task complexity.
+   - Select and justify the implementer's exact model ID and native reasoning effort setting (e.g. `claude-sonnet-5` with `xhigh` effort) based on task complexity. Note that neither the plan nor this workflow selects the planner or orchestrator tier.
+   - Note the manual cross-provider boundary: the orchestrator will verify whether its active runtime supports the target model, or prepare the prompt for a human operator.
 
 5. **Construct the Mechanical Inclusion Test & Escalation Routing:**
    - Define a rule-based inclusion test with worked examples showing what changes are strictly in-scope and what changes are out-of-scope.
@@ -35,7 +36,7 @@ When acting as the **Planner**:
    - Note the escalation route: `implementer → orchestrator → planner`.
 
 6. **Predict Likely Findings:**
-   - State 2–4 specific things most likely to be wrong during orchestrator review (e.g. scope leakage from adjacent tickets, tests passing without their fix).
+   - State 2–4 specific things most likely to be wrong during orchestrator review (e.g. scope leakage from adjacent tickets, tests passing without their fix, missing browser coverage).
 
 7. **Emit the Named-Section Contract:**
    - You MUST emit all required named sections expected by the orchestrator template.
@@ -59,7 +60,7 @@ Author the handoff document using the following exact structure:
 
 **Implementation topology:** `planner → orchestrator → implementer → orchestrator reviews → PR`
 
-**Implementation model selected:** `<Model & Native Effort>` (justified below)
+**Implementation model selected:** `<Exact Model ID & Native Effort>` (justified below)
 
 **Plan baseline:** `main` at `<Commit SHA>` (<Date>)
 
@@ -75,7 +76,7 @@ This document uses role-neutral names (planner, orchestrator, implementer).
 
 ## Context & Measurement
 
-<Measured current state, reproducing commands/scripts, and exact repo-relative file:line references.>
+<Measured current state, reproducing commands/scripts, and exact file:line references.>
 
 ## Dependencies and assumptions
 
@@ -85,9 +86,9 @@ This document uses role-neutral names (planner, orchestrator, implementer).
 
 ### [Component Name]
 
-#### [MODIFY] [file.py](src/vault_cleaner/file.py#L10-L20)
-#### [NEW] [new_file.py](src/vault_cleaner/new_file.py)
-#### [DELETE] [old_file.py](src/vault_cleaner/old_file.py)
+#### [MODIFY] [file.py](../src/vault_cleaner/file.py#L10-L20)
+#### [NEW] [new_file.py](../src/vault_cleaner/new_file.py)
+#### [DELETE] [old_file.py](../src/vault_cleaner/old_file.py)
 
 <Detailed breakdown of changes per file.>
 
@@ -150,9 +151,9 @@ When complete, provide the full implementer → orchestrator handoff specified i
 
 # Dispatch comment draft
 
-Planned #N in [handoffs/issue-N-implementation-plan.md](handoffs/issue-N-implementation-plan.md) on `main`.
+Planned #N in [handoffs/issue-N-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-N-implementation-plan.md) on `main`.
 
-- **Implementer tier & effort:** <Model & Native Effort>
+- **Implementer tier & effort:** <Exact Model ID & Native Effort>
 - **Implementation branch:** `<allocated-branch-name>`
 - **Likely findings:** <Brief summary of predicted review focus areas>
 ```
