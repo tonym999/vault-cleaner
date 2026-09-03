@@ -3,6 +3,28 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #122: integrated multi-agent handoff workflow into repository
+
+- **What happened:**
+  - Integrated the multi-agent handoff workflow under `handoffs/` on `main`. Created `handoffs/README.md` defining the orchestrator-owned topology (`planner → orchestrator → implementer → orchestrator-managed review → PR`), document lifecycle (two-PR process), naming convention (`handoffs/issue-N-implementation-plan.md`), model tier selection rules, manual cross-provider execution boundary (v1), and stop-condition escalation routing (`implementer → orchestrator → planner`).
+  - Added a provider-native model family and reasoning-effort matrix in `handoffs/README.md` documenting task classes and native effort controls (`reasoning.effort` for OpenAI, `output_config.effort` for Anthropic, `thinking_level` for Gemini), with exact current model IDs and per-model support notes. Corrected the Google rows after re-verification: complex work uses preview `gemini-3.1-pro-preview`, stable `gemini-3.8-flash` excludes unsupported `minimal` thinking, and the stable cost-oriented entry is `gemini-3.5-flash-lite`.
+  - Committed operational templates: `handoffs/templates/planner.md` (directs planner agents to plan issues, resolve staleness, use relative links, select native model effort, nest markdown examples within four backticks, and emit the named-section contract) and `handoffs/templates/orchestrator.md` (boots orchestrator agents to read merged plans from `main`, dispatch implementers, enforce browser suite execution with `VAULT_CLEANER_BROWSER_REQUIRED=1`, conduct isolated worktree revert spot-checks, and handle findings/escalation).
+  - Migrated and normalised 10 historical handoffs onto `main` under `handoffs/issue-N-implementation-plan.md`, retiring `luna` and `xhigh` filename suffixes and correcting #118's self-description. Restored the 10 source `handoff/*` branches on `origin` until PR merge.
+  - Narrowed `.gitattributes` whitespace exception rules from a blanket wildcard to the exact 10 migrated historical handoff files.
+  - Updated `AGENTS.md` to document the Planning Phase (PR 1) ahead of implementation, formalising the 3-role workflow, template paths, repo-relative links, dispatch comment requirements, worklog entry content contract, and escalation routing.
+  - Validated planner-template usability against open Issue #119; split out the #119 plan from this PR so #119 lands via its own planning PR as the new lifecycle requires.
+  - Moved the full post-merge, no-hand-written-brief workflow pilot to follow-up Issue #124, which is blocked by #122 and tracked as `Todo` on the project board. This keeps #122's integration PR honest about what has and has not been exercised while preserving the real end-to-end acceptance check.
+  - Added review path decision criteria (Standard Orchestrator Review vs. Independent Adversarial Review) across `AGENTS.md`, `handoffs/README.md`, `planner.md`, and `orchestrator.md`. For high-risk, complex, or sensitive changes, the orchestrator now selects and records the reviewer's exact provider/model/native effort after inspecting the real diff, applies the same manual cross-provider fallback as implementer dispatch, and sends a fixed findings-only prompt to a fresh read-only reviewer session. Any repaired head returns to an independent reviewer for a complete-diff re-review.
+  - Hardened independent review after PR feedback: the orchestrator now supplies a detached disposable checkout pinned to the reviewed head, the reviewer independently reruns verification while limiting writes to ephemeral test artifacts, and the prompt explicitly treats a skipped required browser suite as a failure. Defined P0-P3 severity and blocking semantics plus auditable `accepted/fixed`, evidence-backed `rejected`, and owner-approved `deferred` dispositions, including escalation for unresolved blocking disagreements.
+- **Decisions made:**
+  - Standardised on two PRs per issue: Plan PR merged to `main` first, followed by Implementation PR.
+  - Established manual cross-provider execution for v1: orchestrators verify runtime support or prepare prompts for operator dispatch without automated multi-provider harnesses.
+  - Defined reviewer read-only status as no tracked implementation or durable repository mutations, rather than a filesystem restriction that prevents independent test execution.
+  - Retained intentional Markdown hard line breaks in historical handoffs via narrow `.gitattributes` rules rather than stripping trailing spaces.
+- **Surprises the next agent should know about:**
+  - Browser tests in `test_server_browser.py` skip silently when managed Chromium is absent unless `VAULT_CLEANER_BROWSER_REQUIRED=1` is set; the orchestrator template now specifies this environment variable directly.
+  - Relative links in GitHub issue comments resolve relative to the issue URL (`/issues/handoffs/...` -> 404), so the planner's dispatch comment draft must emit an absolute GitHub `blob/main/...` URL rather than a relative path.
+
 ## 2026-09-03 — #118: fix mislabelled and overflowing review UI text
 
 Implemented the four presentation defects from #118, per the committed
@@ -103,7 +125,7 @@ regenerated.
   files; `pytest -q -m browser tests/test_server_browser.py` 6 passed
   (5 pre-existing + 1 new); full `pytest -q` 938 passed; `git diff --check`
   clean; `git ls-files data/` empty; `git status --short` shows exactly the
-  eight files in the plan's expected footprint.
+   eight files in the plan's expected footprint.
 
 ## 2026-09-03 — #113 fifth review round: the narrow comparison was not a comparison
 
