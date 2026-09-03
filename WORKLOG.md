@@ -19,8 +19,11 @@ merged plan at `handoffs/issue-119-implementation-plan.md`.
   - Updated `duplicateOptions` in `review_server.js` to pluralise option labels
     using `entry.unit || "group"`.
   - Exported `duplicateScopeText` and `countGroupPieces` from `review_server.js`,
-    and updated `renderList` to reconcile the query and write the exact scope
-    summary string to `#vc-duplicate-scope`.
+    and updated `renderList` to write the exact scope summary string to
+    `#vc-duplicate-scope` (a reconcile call this bullet originally described
+    `renderList` as making was removed in the third fix round below, H2 —
+    reconciliation is instead guaranteed by the two callers that can change
+    the group universe).
   - Updated `countArmorGroups` in `review_ui.js` to return `unit`, counting pieces
     (per member) across both exact and same-stat groups for `tuningModSlot`, and
     groups for other facets.
