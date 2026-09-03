@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Groups, Pieces, Proposals</title>
+<!-- No external requests: this file is opened straight from the repo.
+     Type falls back through the stacks declared below. -->
+<style>
+/* ---- page chrome tokens: neutral biased toward the review UI's accent ---- */
+:root{
+  --ground:#f4f6fa; --card:#ffffff; --ink:#141821; --dim:#59617340;
+  --muted:#565f73; --rule:#d5dae5; --rule-soft:#e6eaf1;
+  --brand:#2f5bd7; --brand-soft:#eaefff;
+  --a:#0d6d5c; --a-soft:#e2f4f0;
+  --b:#8a4a00; --b-soft:#fdf0dd;
+  --bad:#a8321f; --bad-soft:#fbeae7;
+  --shadow:0 1px 2px rgba(20,24,33,.05),0 8px 24px -12px rgba(20,24,33,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101318; --card:#191d25; --ink:#e8ebf2;
+    --muted:#a0a9ba; --rule:#2d3340; --rule-soft:#232833;
+    --brand:#8fabff; --brand-soft:#1b2337;
+    --a:#6fd8c0; --a-soft:#102b26;
+    --b:#f0c069; --b-soft:#2e2410;
+    --bad:#ff9d8a; --bad-soft:#331914;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101318; --card:#191d25; --ink:#e8ebf2;
+  --muted:#a0a9ba; --rule:#2d3340; --rule-soft:#232833;
+  --brand:#8fabff; --brand-soft:#1b2337;
+  --a:#6fd8c0; --a-soft:#102b26;
+  --b:#f0c069; --b-soft:#2e2410;
+  --bad:#ff9d8a; --bad-soft:#331914;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink); margin:0;
+  font:400 15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:60rem;margin:0 auto;padding:3.5rem 1.5rem 6rem;
+  display:flex;flex-direction:column;gap:3.5rem}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:2.1rem;font-weight:600;letter-spacing:-.02em}
+h2{font-size:1.4rem;font-weight:600;letter-spacing:-.015em}
+h3{font-size:1.02rem;font-weight:600}
+p{margin:0}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{font-size:.88em;background:var(--rule-soft);padding:.1em .35em;border-radius:3px}
+
+.eyebrow{font:600 .72rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted)}
+header.top{display:flex;flex-direction:column;gap:.85rem;
+  border-bottom:1px solid var(--rule);padding-bottom:2rem}
+header.top .lede{font-size:1.05rem;color:var(--muted);max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:.4rem .5rem;margin-top:.35rem}
+.tag{font:500 .72rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;
+  border:1px solid var(--rule);border-radius:99px;padding:.4em .7em;color:var(--muted)}
+
+section{display:flex;flex-direction:column;gap:1.1rem}
+.sec-head{display:flex;flex-direction:column;gap:.4rem}
+.prose{max-width:66ch;color:var(--muted)}
+.prose strong{color:var(--ink);font-weight:600}
+
+/* ---- evidence ---- */
+.ev{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.75rem}
+.ev div{background:var(--card);border:1px solid var(--rule);border-radius:9px;
+  padding:.9rem 1rem;display:flex;flex-direction:column;gap:.3rem;box-shadow:var(--shadow)}
+.ev .n{font:600 1.5rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em}
+.ev .k{font-size:.82rem;color:var(--muted)}
+.ev .bad .n{color:var(--bad)}
+
+/* ---- specimen frames ---- */
+.spec{background:var(--card);border:1px solid var(--rule);border-radius:11px;
+  overflow:hidden;box-shadow:var(--shadow)}
+.spec > figcaption{display:flex;align-items:center;justify-content:space-between;
+  gap:1rem;padding:.6rem .9rem;border-bottom:1px solid var(--rule-soft);
+  font:500 .78rem/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);flex-wrap:wrap}
+.spec .badge{font:600 .68rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
+  padding:.4em .6em;border-radius:4px;text-transform:uppercase}
+.badge.base{background:var(--rule-soft);color:var(--muted)}
+.badge.aa{background:var(--a-soft);color:var(--a)}
+.badge.bb{background:var(--b-soft);color:var(--b)}
+.stage{padding:1.1rem;overflow-x:auto}
+
+/* ---- the review UI's own token system, verbatim from review.css ---- */
+.vc{
+  --bg:#f6f7f9; --panel:#ffffff; --vink:#16181d; --vmuted:#5b6270;
+  --vline:#d8dce4; --vaccent:#2f5bd7; --junk:#a8321f; --vreview:#8a5a00;
+  background:var(--bg); color:var(--vink); border-radius:7px; padding:1rem;
+  font:400 14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;
+  display:flex;flex-direction:column;gap:.75rem;min-width:30rem;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .vc{--bg:#14161a;--panel:#1d2027;--vink:#e9ebf0;
+    --vmuted:#a2aab8;--vline:#333844;--vaccent:#8fabff;--junk:#ff9d8a;--vreview:#ffd166}
+}
+:root[data-theme="dark"] .vc{--bg:#14161a;--panel:#1d2027;--vink:#e9ebf0;
+  --vmuted:#a2aab8;--vline:#333844;--vaccent:#8fabff;--junk:#ff9d8a;--vreview:#ffd166}
+
+.vc .tiles{display:flex;gap:.5rem;flex-wrap:wrap}
+.vc .tile{background:var(--panel);border:1px solid var(--vline);border-radius:6px;
+  padding:.5rem .7rem;flex:1 1 7rem;display:flex;flex-direction:column;gap:.15rem}
+.vc .tile .lab{font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:var(--vmuted)}
+.vc .tile .val{font:600 1.25rem/1 ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.vc .tile .sub{font-size:.72rem;color:var(--vmuted)}
+.vc .tile.mixed{border-color:var(--junk);border-width:2px}
+.vc .hint{font-size:.8rem;color:var(--vmuted);margin:0}
+.vc .grp{background:var(--panel);border:1px solid var(--vline);border-radius:7px;padding:.75rem}
+.vc .grp h4{margin:0;font-size:.95rem;font-weight:600;overflow-wrap:anywhere}
+.vc .grp .gsub{font-size:.78rem;color:var(--vmuted);margin-top:.15rem}
+.vc .kind{display:inline-block;font:600 .66rem/1 ui-monospace,monospace;letter-spacing:.07em;
+  text-transform:uppercase;border:1px solid var(--vline);border-radius:4px;padding:.35em .5em}
+.vc .kind.same{border-style:dashed}
+.vc .banner{font-size:.78rem;color:var(--vmuted);border-left:3px solid var(--vline);
+  padding:.4rem .6rem;margin-top:.5rem;background:var(--bg)}
+.vc table{border-collapse:collapse;width:100%;margin-top:.6rem;font-size:.82rem}
+.vc th,.vc td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--vline)}
+.vc th{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--vmuted);font-weight:600}
+.vc td.num{font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.vc .chips{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center}
+.vc .chip{font-size:.76rem;border:1px solid var(--vline);border-radius:99px;
+  padding:.25em .7em;background:var(--panel)}
+.vc .chip[data-selected="true"]{border-color:var(--vaccent);color:var(--vaccent);font-weight:600}
+.vc .scope{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;
+  border-left:3px solid var(--vaccent);padding:.45rem .7rem;background:var(--panel);
+  border-radius:0 6px 6px 0}
+.vc .scope .big{font:600 .95rem/1.3 ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.vc .scope .of{color:var(--vmuted);font-size:.8rem}
+.vc .pieces{font:600 .72rem/1 ui-monospace,monospace;border:1px solid var(--vline);
+  border-radius:4px;padding:.35em .5em;color:var(--vmuted)}
+.vc.narrow{min-width:0;width:390px;max-width:100%}
+.vc .rule-note{font-size:.72rem;color:var(--vmuted);font-style:italic}
+
+/* ---- comparison table ---- */
+.cmp{width:100%;border-collapse:collapse;font-size:.9rem}
+.cmp th,.cmp td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--rule-soft);
+  vertical-align:top}
+.cmp thead th{font:600 .72rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule)}
+.cmp .win{color:var(--a);font-weight:600}
+.cmp .lose{color:var(--muted)}
+.tbl-scroll{overflow-x:auto;background:var(--card);border:1px solid var(--rule);
+  border-radius:9px;box-shadow:var(--shadow)}
+
+/* ---- verdict ---- */
+.verdict{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--a);
+  border-radius:0 10px 10px 0;padding:1.3rem 1.5rem;display:flex;flex-direction:column;
+  gap:.8rem;box-shadow:var(--shadow)}
+.verdict h2{font-size:1.15rem}
+ol.copy{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.55rem}
+ol.copy code{white-space:normal}
+.open li{margin-bottom:.5rem}
+ul.open{margin:0;padding-left:1.2rem;color:var(--muted)}
+footer{border-top:1px solid var(--rule);padding-top:1.5rem;color:var(--muted);font-size:.85rem}
+a{color:var(--brand)}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px;border-radius:3px}
+@media (max-width:640px){ .wrap{padding:2.5rem 1rem 4rem;gap:2.5rem} h1{font-size:1.7rem} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <span class="eyebrow">Issue #113 · decision record</span>
+  <h1>Groups, Pieces, Proposals</h1>
+  <p class="lede">The Armor duplicates view counts three different things and never says which is which. Two treatments, compared against rendered evidence.</p>
+  <div class="meta">
+    <span class="tag">audited with ux-audit 1.4.0</span>
+    <span class="tag">fake fixtures only</span>
+    <span class="tag">1440×900 · 390×844 · light + dark</span>
+  </div>
+</header>
+
+<!-- ============ EVIDENCE ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">01 — What the evidence says</span>
+    <h2>The counts disagree with each other</h2>
+  </div>
+  <p class="prose">Every number below was measured on the rendered view, not read off the source. The fixture is a mixed report: one exact group of three, one same-stat group of four.</p>
+
+  <div class="ev">
+    <div><span class="n">5</span><span class="k">tiles in the report row</span></div>
+    <div class="bad"><span class="n">4 : 1</span><span class="k">count items : count groups, same weight</span></div>
+    <div class="bad"><span class="n">1 of 1</span><span class="k"><code>Showing…</code> after filtering to Exact</span></div>
+    <div class="bad"><span class="n">5</span><span class="k">tuning facet counts, for 2 groups</span></div>
+    <div class="bad"><span class="n">1</span><span class="k">members visible per group at 390px</span></div>
+    <div><span class="n">0</span><span class="k">places stating a piece total</span></div>
+  </div>
+
+  <p class="prose"><strong>The tile row mixes nouns.</strong> <code>PROPOSED</code>, <code>AFTER VETOES</code>, <code>REVIEWED</code> and <code>UNREVIEWED</code> count items. <code>SHOWN</code> counts groups — but only on this surface. The label and its visual weight never change; only a small sub-caption does.</p>
+  <p class="prose"><strong>The <code>Showing N of M</code> denominator is already filtered.</strong> <code>M</code> is the count <em>after</em> the kind selector, so both numbers move together and the string can never reveal that groups of another kind exist. The ticket's <code>Showing 2 of 74 groups</code> actually means “2 of the 74 groups <em>of the currently selected kind</em>”.</p>
+
+  <figure class="spec">
+    <figcaption><span>Baseline · report row + list header</span><span class="badge base">current</span></figcaption>
+    <div class="stage">
+      <div class="vc">
+        <div class="tiles">
+          <div class="tile"><span class="lab">Proposed</span><span class="val">5</span><span class="sub">1 junk, 4 review</span></div>
+          <div class="tile"><span class="lab">After vetoes</span><span class="val">5</span><span class="sub">1 junk, 4 review</span></div>
+          <div class="tile"><span class="lab">Reviewed</span><span class="val">0</span><span class="sub">0 approved, 0 vetoed</span></div>
+          <div class="tile mixed"><span class="lab">Shown</span><span class="val">2</span><span class="sub">matching duplicate groups</span></div>
+          <div class="tile"><span class="lab">Unreviewed</span><span class="val">5</span><span class="sub">without a current-session verdict</span></div>
+        </div>
+        <p class="hint">Showing 2 of 2 groups</p>
+        <p class="rule-note">One tile counts groups; its four neighbours count items. The hint line restates the same number in different words, 300px away.</p>
+      </div>
+    </div>
+  </figure>
+</section>
+
+<!-- ============ THE FORK ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">02 — The fork</span>
+    <h2>Where should scope live?</h2>
+  </div>
+  <p class="prose">Both treatments fix the noun collision. They differ on one real axis: whether the reader learns scope from <strong>one authoritative place</strong>, or from <strong>every number carrying its own</strong>. That choice drives everything else.</p>
+</section>
+
+<!-- ============ A ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Alternative A</span>
+    <h2>One scoped summary line</h2>
+  </div>
+  <p class="prose">Delete the <code>SHOWN</code> tile from this surface. Replace it and the hint with a single accented line directly above the list that always states both nouns, both denominators, and the active filter. Group headers carry only local facts plus a piece count.</p>
+
+  <figure class="spec">
+    <figcaption><span>Alternative A · filtered to Exact</span><span class="badge aa">A</span></figcaption>
+    <div class="stage">
+      <div class="vc">
+        <div class="tiles">
+          <div class="tile"><span class="lab">Proposed</span><span class="val">394</span><span class="sub">90 junk, 304 review</span></div>
+          <div class="tile"><span class="lab">After vetoes</span><span class="val">391</span><span class="sub">87 junk, 304 review</span></div>
+          <div class="tile"><span class="lab">Reviewed</span><span class="val">9</span><span class="sub">6 approved, 3 vetoed</span></div>
+          <div class="tile"><span class="lab">Unreviewed</span><span class="val">385</span><span class="sub">without a current-session verdict</span></div>
+        </div>
+        <div class="chips">
+          <span class="chip">All kinds</span>
+          <span class="chip" data-selected="true">Exact</span>
+          <span class="chip">Same stats</span>
+        </div>
+        <div class="scope">
+          <span class="big">12 of 74 groups</span>
+          <span class="of">·</span>
+          <span class="big">38 of 211 pieces</span>
+          <span class="of">— filtered to exact duplicates</span>
+        </div>
+        <div class="grp">
+          <span class="kind">Exact</span>
+          <h4>Archetype Plate</h4>
+          <p class="gsub">3 pieces · Hunter chest · tier 5 · Gunner · tuning Weapons</p>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <p class="prose"><strong>Why it works.</strong> One place answers every counting question, and it is the last thing read before the list. Both denominators are unfiltered totals, so the reader always knows what they are not seeing. The tile row becomes homogeneous — every remaining tile counts proposals.</p>
+  <p class="prose"><strong>What it costs.</strong> Scroll past the line and scope is gone; on a long list the reader re-scrolls to check. It also puts four numbers in one sentence, which wraps at 390px to a 62px line — the more expensive of the two narrow treatments.</p>
+</section>
+
+<!-- ============ B ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Alternative B</span>
+    <h2>Every count carries its own noun</h2>
+  </div>
+  <p class="prose">Keep counts distributed, but make each one self-describing. The tile row gains a pieces tile and splits <code>SHOWN</code> into its two nouns. Filter chips state what they filter. Each group header leads with a prominent piece count.</p>
+
+  <figure class="spec">
+    <figcaption><span>Alternative B · filtered to Exact</span><span class="badge bb">B</span></figcaption>
+    <div class="stage">
+      <div class="vc">
+        <div class="tiles">
+          <div class="tile"><span class="lab">Groups</span><span class="val">74</span><span class="sub">12 shown</span></div>
+          <div class="tile"><span class="lab">Pieces</span><span class="val">211</span><span class="sub">38 shown</span></div>
+          <div class="tile"><span class="lab">Proposals</span><span class="val">394</span><span class="sub">90 junk, 304 review</span></div>
+          <div class="tile"><span class="lab">Reviewed</span><span class="val">9</span><span class="sub">6 approved, 3 vetoed</span></div>
+        </div>
+        <div class="chips">
+          <span class="chip">All kinds · 74 groups</span>
+          <span class="chip" data-selected="true">Exact · 12 groups</span>
+          <span class="chip">Same stats · 62 groups</span>
+        </div>
+        <div class="grp">
+          <div class="chips" style="margin-bottom:.4rem">
+            <span class="pieces">3 pieces</span><span class="kind">Exact</span>
+          </div>
+          <h4>Archetype Plate</h4>
+          <p class="gsub">Hunter chest · tier 5 · Gunner · tuning Weapons</p>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <p class="prose"><strong>Why it works.</strong> Scope is local, so it survives scrolling — the piece count sits on the group you are actually reading. The chips answer “how many of each kind” without clicking through. Nothing needs re-reading after a scroll. Note the narrow result, measured below: B is the more compact of the two at 390px, because it needs no scope line.</p>
+  <p class="prose"><strong>What it costs.</strong> Count information is spread across tiles, filter chips and group headers, and they must agree: <code>12</code> appears in both the <code>Groups</code> tile and the <code>Exact</code> chip, <code>74</code> in both the tile and the <code>All kinds</code> chip. Each pair is a drift risk. Nothing answers “how big is this review” in one glance, and the tile row mixes four different nouns — groups, pieces, proposals, reviewed — at equal weight, which is a milder version of the problem being fixed.</p>
+</section>
+
+<!-- ============ BOTH KINDS ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Alternatives A + B · shared</span>
+    <h2>Unfiltered, both kinds</h2>
+  </div>
+  <p class="prose">The kind hierarchy is the same under either treatment, so it is shown once, in the state where both kinds actually appear. Note the scope line drops "of" when nothing is filtered, and the banner's second sentence is present only because these members carry proposals.</p>
+
+  <figure class="spec">
+    <figcaption><span>Kind hierarchy · unfiltered · all kinds</span><span class="badge base">shared</span></figcaption>
+    <div class="stage">
+      <div class="vc">
+        <div class="chips">
+          <span class="chip" data-selected="true">All kinds</span>
+          <span class="chip">Exact</span>
+          <span class="chip">Same stats</span>
+        </div>
+        <div class="scope">
+          <span class="big">74 groups</span>
+          <span class="of">·</span>
+          <span class="big">211 pieces</span>
+        </div>
+        <div class="grp">
+          <div class="chips" style="margin-bottom:.4rem">
+            <span class="pieces">3 pieces</span><span class="kind">Exact</span>
+          </div>
+          <h4>Archetype Plate</h4>
+          <p class="gsub">Hunter chest · tier 5 · Gunner · tuning Weapons</p>
+        </div>
+        <div class="grp">
+          <div class="chips" style="margin-bottom:.4rem">
+            <span class="pieces">4 pieces</span><span class="kind same">Same stats · review only</span>
+          </div>
+          <h4>Fourfold Plate</h4>
+          <p class="gsub">Titan chest · tier 5 · Reaver · 4 tunings</p>
+          <div class="banner">Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls.</div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</section>
+
+<!-- ============ NARROW ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Measured</span>
+    <h2>Both treatments at 390px</h2>
+  </div>
+  <p class="prose">Narrow behaviour is <strong>not</strong> measured on this page, and an earlier revision that tried to was wrong twice over: a fixed-width box inside a desktop document never activates a narrow media query, and at a genuine 390px viewport this page's own padding takes about 67px, squeezing a specimen to 241px — neither is what the review UI would get.</p>
+  <p class="prose">The measurement lives in <code>narrow-390-specimens.html</code>, a thin production shell that links the real <code>review.css</code> and reuses its <code>main.wrap</code> / <code>section.panel</code> / <code>.tiles</code> structure, with both treatments carrying complete content. <code>scripts/measure_narrow_specimens.py</code> asserts the viewport, the absence of document overflow, the production panel width and a four-tile row in each before it reports a height.</p>
+  <p class="prose"><strong>The result reverses this page's earlier claim.</strong> B is the more compact — and the tile row, once production CSS stacks it, is <em>identical</em> in both, so “B's expanded tile row” was never a real difference. An earlier revision also omitted A's tile row entirely, which made A look compact by leaving out a component it actually keeps.</p>
+
+  <figure class="spec">
+    <figcaption><span>Measured at 390×844 in a production shell</span><span class="badge base">harness</span></figcaption>
+    <div class="stage">
+      <div class="tbl-scroll" style="box-shadow:none;border:0">
+        <table class="cmp">
+          <thead><tr><th>At 390px</th><th>A · summary line</th><th>B · distributed</th></tr></thead>
+          <tbody>
+            <tr><td>Horizontal overflow</td><td class="win">none</td><td class="win">none</td></tr>
+            <tr><td>Block height</td><td class="lose"><strong>652px</strong></td><td class="win"><strong>617px</strong></td></tr>
+            <tr><td>Tile row</td><td>413px</td><td>413px — <em>identical</em></td></tr>
+            <tr><td>Chips</td><td class="win">26px</td><td>58px</td></tr>
+            <tr><td>Scope line</td><td class="lose">62px</td><td class="win">none needed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </figure>
+</section>
+
+<!-- ============ COMPARISON ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">03 — Compared</span>
+    <h2>Against the evidence, not against taste</h2>
+  </div>
+  <div class="tbl-scroll">
+    <table class="cmp">
+      <thead><tr><th>Criterion</th><th>A · summary line</th><th>B · distributed</th></tr></thead>
+      <tbody>
+        <tr><td>Answers “how big is this review?”</td><td class="win">One line, both nouns</td><td class="lose">Two tiles, reader combines</td></tr>
+        <tr><td>Survives scrolling a long list</td><td class="lose">Scope scrolls away</td><td class="win">Piece count is on every group</td></tr>
+        <tr><td>Filtered vs unfiltered legible</td><td class="win">Explicit <code>N of M</code>, both nouns</td><td>Chips give per-kind totals; the “shown” sub-caption carries it</td></tr>
+        <tr><td>Places the same number is stated</td><td class="win">One</td><td class="lose">Three — drift risk</td></tr>
+        <tr><td>Fits 390px <em>(measured in a production shell)</em></td><td class="lose">No overflow; block totals <strong>652px</strong>, of which a 62px scope line</td><td class="win">No overflow; block totals <strong>617px</strong>, no scope line needed</td></tr>
+        <tr><td>Exact vs same-stat without colour</td><td>Text chip, dashed border</td><td class="win">Text chip, dashed border, plus the review-only banner</td></tr>
+        <tr><td>Implies no cleanup decision</td><td>Neutral</td><td class="win">Banner states it explicitly</td></tr>
+        <tr><td>Accessible semantics</td><td class="win">One live region to announce on filter change</td><td class="lose">Several regions, or none</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ RECOMMENDATION ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">04 — Recommendation</span>
+    <h2>Take B's group cues and A's summary line</h2>
+  </div>
+  <div class="verdict">
+    <h2>A hybrid, weighted toward B</h2>
+    <p>The comparison splits cleanly: <strong>A wins on stating scope once and correctly</strong>, <strong>B wins on keeping it available while scrolling</strong>. They are not mutually exclusive, and the costs are not symmetric — A's weakness is a scroll away, B's weakness is pairs of numbers that must agree forever.</p>
+    <p><strong>The narrow criterion favours B, and this recommendation accepts that.</strong> Measured in a production shell, B is the more compact — 617px against A's 652px, because A adds a 62px scope line B does not need. Earlier revisions of this page claimed first that B won this row on reasoning, then that A won it on a faulty measurement, then that measurement strengthened the recommendation. None was right. It weakens it, by one criterion of eight. The decision stands on the others — one authoritative statement of scope, one live region, and no pair of numbers that must agree forever — and knowingly buys them for 35px.</p>
+    <p>So: adopt <strong>A's single scoped line</strong> as the one authoritative statement, and <strong>B's per-group piece count and review-only banner</strong> as local reinforcement that never restates a total. The tile row keeps only proposal-shaped counts, and <code>SHOWN</code> leaves this surface entirely.</p>
+  </div>
+
+  <h3>Exact copy changes</h3>
+  <ol class="copy">
+    <li><strong>Delete</strong> the <code>SHOWN</code> tile on the duplicates surface, and delete <code>"Showing " + filteredGroups.length + " of " + selectedArmorGroups.length + " groups"</code>.</li>
+    <li><strong>Add</strong>, above the list, in one <code>aria-live="polite"</code> region:<br><code>12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates</code><br>Unfiltered, the same region reads <code>74 groups · 211 pieces</code> with no “of”.</li>
+    <li><strong>Group header gains</strong> a piece count as its first element: <code>3 pieces</code> — the noun is <em>pieces</em> everywhere; <code>copies</code>, <code>items</code> and <code>members</code> are retired from user-facing text.</li>
+    <li><strong>Kind label</strong> becomes <code>Exact</code> / <code>Same stats · review only</code>. The current <code>"Exact duplicate group · " + group.groupKind</code> — which renders <code>Exact duplicate group · exact_duplicate</code> — goes away.</li>
+    <li><strong>Same-stat banner</strong> replaces the bare sub-line, in two parts. Unconditional, because it is always true of a same-stat group:<br><code>Base stats match but tuning differs, so this pass selects no survivor.</code><br>Appended only when at least one member carries a proposal:<br><code>Pieces below that already carry a proposal keep their verdict controls.</code></li>
+    <li><strong>Facet options</strong> state their noun when it is not groups: <code>Melee (1 group)</code>, so the tuning facet's member-derived count stops reading as a group count.</li>
+  </ol>
+
+  <h3>Adopted separately: transpose the comparison table</h3>
+  <p class="prose">At 390px the current member-as-column table shows <strong>exactly one member</strong>; comparing requires scrolling inside the table. A comparison view that shows one thing at a time has lost its purpose. Members become rows. This is orthogonal to the count treatment and is the single largest piece of #119 — it must carry over the existing conditional-column behaviour, where <code>Seasonal Mod</code>, <code>Holofoil</code> and <code>Tuning Stat</code> appear only when members actually differ.</p>
+</section>
+
+<!-- ============ BOUNDARIES ============ -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">05 — Boundaries and open questions</span>
+    <h2>What this does not decide</h2>
+  </div>
+  <ul class="open">
+    <li><strong>Out of scope, already split:</strong> per-group bulk verdicts (#115), an armor score column (#116), the DIM query builder (#117). None is presupposed by either treatment.</li>
+    <li><strong>Baseline defects (#118)</strong> are fixed independently. Two were found only by rendering: the group <code>&lt;h3&gt;</code> has no <code>overflow-wrap</code>, so a 180-character item name gives the page a 2266px scroll width at a 390px viewport; and the report fingerprint does the same at 549px.</li>
+    <li><strong>Open — does the piece count include the survivor?</strong> “3 pieces” on an exact group counts the survivor plus two candidates. A reviewer scanning for work to do may read it as three deletions. Consider <code>3 pieces · 2 proposed</code>, at the cost of a fourth number.</li>
+    <li><strong>Open — what is a “piece” in a filtered view?</strong> Both figures count group members and are measured identically today, so the ratio is sound: 211 is the members of all 74 groups, 38 the members of the 12 shown, and pieces in no duplicate group are counted by neither. But the kind filter selects whole <em>groups</em>, so a future member-level filter would select <em>members</em> — at which point the two stop agreeing.</li>
+    <li><strong>Open — should the summary line pin to the top on scroll?</strong> It would erase A's only real weakness, at the cost of vertical space already scarce at 390px.</li>
+    <li><strong>Preserve one thing the old line did well:</strong> the empty state renders <code>Showing 0 of 2 groups</code>, the single case where the already-filtered denominator is genuinely informative. The replacement must keep that. The empty message also names no filter and offers no way to widen.</li>
+    <li><strong>Not verified:</strong> both treatments are specimens, not the running app. Contrast, focus order and live-region announcement need checking against the real build during #119.</li>
+  </ul>
+</section>
+
+<footer>
+  Evidence: rendered captures at 1440×900 and 390×844 in light and dark, a 160-entry count and label inventory, and a four-member same-stat fixture matching PR #112's shape. All data is fake. Specimens use <code>review.css</code>'s own tokens so the comparison is against the shipped UI, not a redesign of it.
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,5 @@
+Name,Hash,Id,Tag,Rarity,Tier,Type,Source,Equippable,Power,Energy Capacity,Archetype,Tertiary Stat,Tuning Stat,Masterwork Tier,Owner,Locked,Equipped,Holofoil,Year,Season,Event,Weapons,Health,Class,Grenade,Super,Melee,Total,Weapons (Base),Health (Base),Class (Base),Grenade (Base),Super (Base),Melee (Base),Total (Base),Seasonal Mod,Loadouts,Notes,Perks 0,Perks 1,Perks 2,Perks 3,Perks 4,Perks 5,Perks 6,Perks 7,Perks 8
+Fourfold Plate,990102,8401,,Legendary,5,Chest Armor,,Titan,550,,Reaver,,Melee,5,Titan(415),false,false,false,,,,20,0,30,0,0,25,75,20,0,30,0,0,25,75,,Raid Titan,,,,,,,,,,
+Fourfold Plate,990102,8402,,Legendary,5,Chest Armor,,Titan,550,,Reaver,,Class,0,Vault,false,false,false,,,,20,0,30,0,0,25,75,20,0,30,0,0,25,75,,,,,,,,,,,,
+Fourfold Plate,990102,8403,,Legendary,5,Chest Armor,,Titan,300,,Reaver,,Super,0,Vault,true,false,false,,,,20,0,30,0,0,25,75,20,0,30,0,0,25,75,,,,,,,,,,,,
+Fourfold Plate,990102,8404,,Legendary,5,Chest Armor,,Titan,300,,Reaver,,,0,Vault,false,false,false,,,,20,0,30,0,0,25,75,20,0,30,0,0,25,75,,,,,,,,,,,,

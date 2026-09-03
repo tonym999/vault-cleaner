@@ -3,6 +3,197 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #113 fifth review round: the narrow comparison was not a comparison
+
+- **The narrow harness compared A without a tile row against B with one.**
+  Alternative A deletes only the `SHOWN` tile, so it keeps four; the harness gave
+  it none. That is not a mis-measurement, it is two different things being
+  measured and the difference reported as a result. It made A look compact by
+  omitting a component it actually has, and it reversed the conclusion.
+- Rebuilt the harness as a **thin production shell**: it links the real
+  `src/vault_cleaner/ui/review.css` and reuses `main.wrap` / `section.panel` /
+  `.tiles`, with only treatment-specific rules layered on. Both alternatives now
+  carry complete content.
+- Added `scripts/measure_narrow_specimens.py`, which **asserts its preconditions
+  before reporting**: viewport is really 390px, the document does not scroll
+  sideways, panels sit at the production width, both specimens carry four tiles,
+  and no remote request is made. The panel-width assertion immediately caught a
+  wrong expectation of mine — `review.css:166` drops `.wrap` padding to `.6rem`
+  at ≤640px, so a panel is 370.8px, not 358px.
+- **True figures: A 652px, B 617px — B is the more compact**, the opposite of the
+  previous entry's claim. The difference is A's 62px scope line.
+- **The "B's expanded tile row" reasoning was empty all along.** At ≤640px
+  `review.css:167` sets `.tile { min-width: 100% }`, so all four tiles stack full
+  width and the tile row is **413px in both treatments**. It was never a
+  differentiator, and the decision text had been leaning on it.
+- Re-evaluated rather than renumbered: the narrow criterion now favours B, so
+  measurement *weakens* the recommendation by one criterion of eight rather than
+  strengthening it. The hybrid still stands on single-authoritative-scope, one
+  live region, and no paired numbers to keep in sync, and now says plainly that
+  it buys those for 35px of height.
+- New, and larger than either treatment: four stacked tiles occupy 413px of an
+  844px viewport before any group is reached, and the live surface has five.
+  Recorded as an open question for #119.
+- Replaced `aria-pressed` on static `span` chips with `data-selected` in both the
+  harness and the comparison document — `aria-pressed` is toggle-button state and
+  these have no button semantics.
+- **Worth knowing:** four attempts at one number produced four answers. What
+  finally worked was not more care, it was a script that refuses to print a
+  height until the layout it is measuring is demonstrably the production one.
+
+## 2026-09-03 — #113 fourth review round: measured 390px properly
+
+- **The previous entry's "measurement" was invalid, twice over.** Setting a
+  nested `.vc` to `width:390px` inside a 1180px document does not reproduce a
+  390px viewport: no narrow media query activates, and the surrounding padding
+  changes the content width. Measuring the same page at a genuine 390px viewport
+  is also wrong — its own `.wrap` and `.stage` padding take ~67px, leaving the
+  specimen 241px.
+- Added `docs/evidence/issue-113/narrow-390-specimens.html`, a committed harness
+  holding the two treatments with no document chrome, so each gets the full
+  width at 390×844. It reuses the artifact's `.vc` token block verbatim so the
+  two cannot drift, and drops the 30rem `min-width` the comparison page sets —
+  that is an authoring convenience for desktop reading, not a property of either
+  treatment, and it was itself forcing a 480px overflow at 390px.
+- True figures: neither treatment overflows; **A is 248px, B is 371px**, B's tile
+  row stacking to 178px. The earlier 235/358 pair was directionally right by
+  luck. The conclusion and the recommendation are unchanged.
+- Restored newest-first worklog order, which had drifted as entries were
+  prepended against inconsistent anchors. CodeRabbit flagged the ordering but
+  proposed moving the newest entry to the end, which is backwards for this file.
+- #119's acceptance criterion still described the whole same-stat banner as
+  conditional; narrowed to the verdict-controls sentence only.
+- **#113 formally amended** to waive the paired-design-skill prerequisite and
+  narrow its acceptance criterion, rather than leaving a documented exception
+  against an unchanged issue.
+- **Worth knowing:** measuring a responsive claim requires the component at the
+  width it will really have, with no enclosing chrome and no authoring-only
+  constraints. Three attempts here produced three different numbers, all from
+  the same markup.
+
+## 2026-09-03 — #113 third review round: measured the narrow claim
+
+- **A comparison row asserted something the specimens could not show, and the
+  measurement reversed it.** The table scored "fits 390px" as a win for B on the
+  reasoning that tiles and chips stack, while `.vc` carried `min-width:30rem`, so
+  no specimen could render below 480px at all. Added specimens constrained to
+  exactly 390px and measured: neither treatment overflows, and **A is the more
+  compact** — a 235px block against B's 358px, because stacking B's tile row
+  costs 178px. The recommendation is unchanged and better supported, since the
+  hybrid takes A's line and declines B's expanded tile row.
+- Alternative B's "what it costs" prose described a specimen that was never
+  built — "the same numbers appear in three places", "two tiles count groups and
+  two count proposals" — where the specimen has one Groups, one Pieces, one
+  Proposals and one Reviewed tile. Rewritten against what is actually rendered:
+  the real duplication is pairs (`12` in tile and chip, `74` in tile and chip).
+- #119 was internally contradictory: settled item 5 still carried the original
+  conditional-banner rule while item 12 carried the corrected two-part rule.
+  Item 5 now defers to item 12.
+- **Worth knowing:** the recurring failure across three review rounds was not the
+  design, which has not moved. It was claims outrunning evidence — artifacts
+  described but not committed, prose describing a specimen that was not built,
+  and a responsive claim asserted rather than measured. Where a document argues
+  from evidence, every comparison row needs to name whether it was measured.
+
+## 2026-09-02 — #113 second review round: specimen coherence
+
+- **The Exact-filtered specimens listed a same-stat group.** Both alternatives
+  were captioned "filtered to Exact", set the Exact chip pressed, and carried a
+  scope line reading "filtered to exact duplicates" — while rendering a
+  `Same stats · review only` group underneath. A self-contradiction, in a
+  document whose subject is filter and count coherence. Exact-filtered specimens
+  now list only exact groups, and the kind hierarchy moved to a new unfiltered
+  specimen, which is the state where both kinds legitimately appear. Added a
+  rendering assertion for it rather than trusting the eye.
+- The committed `count-treatments.html` still carried the pre-correction banner
+  copy and the superseded denominator wording, so it contradicted the design
+  record it illustrates. Synced.
+- Made that file a standalone document: it had been authored for a publisher
+  that supplies the wrapper, so committing it as-is left no doctype and put it
+  in quirks mode. It also pulled fonts from a remote host on open. Now has a
+  doctype and head, uses system font stacks, and makes zero network requests —
+  verified by asserting no non-`file://` request during render. Stills
+  re-rendered so they match.
+- **Worth knowing:** an artifact authored for one delivery target is not
+  automatically fit to commit. Doctype, wrapper elements, and remote assets are
+  all supplied by a publisher and all absent from the repo copy.
+
+## 2026-09-02 — #113 PR review corrections
+
+- **Banner logic error, caught in review.** The specified same-stat banner was
+  conditional on a group having *no* proposals, yet its second sentence
+  described members that *do* carry one. Those cannot both hold, and the
+  committed four-member fixture has proposals on every member — so the banner
+  would never have rendered for the canonical evidence case. Split it: the
+  no-survivor sentence is unconditional, and the verdict-controls sentence is
+  appended only when a member carries a proposal. Also replaced `Members` with
+  `Pieces`, which the same decision had already retired.
+- Committed the artifacts the record referenced but had left uncommitted: the
+  160-entry count and label inventory, the alternatives prototype
+  (`count-treatments.html`) and rendered stills of both treatments. The design
+  record and #119 previously linked a file that did not exist in the repo.
+- Completed the evidence matrix. Both viewports are now captured in both
+  appearances, rather than a subset presented as a complete set, and empty-state
+  and keyboard/focus results are recorded.
+- Recorded the design-skill pairing honestly: `ux-audit` covers audit and copy
+  but refuses greenfield work, and the exploration half used `artifact-design`,
+  already present in the environment rather than installed for this ticket. That
+  is a deviation from #113's user-scoped prerequisite and is now stated as one.
+- Defined the piece denominator in the copy: both figures count group members,
+  measured identically, and pieces in no duplicate group are counted by neither.
+  The open question is narrowed to what happens once member-level filters exist.
+- **New, from the empty-state capture:** `Showing 0 of 2 groups` is the one case
+  where the already-filtered denominator is genuinely useful, which the
+  replacement line should preserve. The empty message also names no filter and
+  offers no way to widen — recorded for #119.
+
+## 2026-09-02 — #113 duplicate report count and hierarchy design pass
+
+- Design pass only: no Python rule, report contract, or server contract
+  changed. Decision record and handoff in
+  [docs/duplicate-review-count-design.md](docs/duplicate-review-count-design.md);
+  baseline captures in [docs/evidence/issue-113](docs/evidence/issue-113/README.md).
+- Installed the required global design/audit skill at user scope — `ux-audit`
+  1.4.0, MIT, commit `f07ff760…` — via the skill-installer workflow. Nothing
+  committed to this repo. #113 names `~/.codex/skills`; this work ran in Claude
+  Code, so it went to both that path and `~/.claude/skills` from the same pinned
+  commit. Rejected candidates recorded, including microsoft/skills
+  `frontend-design-review`.
+- Added `tests/fixtures/armor_same_stat_four_ui.csv`, the #112 four-member
+  evidence shape as fake data (Reaver / Titan chest / tier 5; tunings Melee,
+  Class, Super, none-unknown), plus a projection test pinning it. No fixture
+  previously had a group larger than three, so nothing could exercise a complete
+  multi-member group.
+- **Decision:** one authoritative scoped summary line above the list, plus a
+  per-group piece count and a conditional review-only banner. `SHOWN` leaves the
+  duplicates surface. `pieces` becomes the single user-facing noun; `copies`,
+  `items` and `members` are retired from user-facing text. Six exact copy
+  changes are specified. Implementation is #119.
+- **Decision:** transpose the comparison table so members are rows. At 390px the
+  current member-as-column layout shows exactly one member, so comparing needs
+  horizontal scrolling inside the table. Any implementation must carry over the
+  existing conditional-column behaviour in `memberValues`.
+- Split out of #113 as separate issues: #115 per-group bulk verdicts, #116
+  exposing an armor score, #117 the DIM query builder, #118 baseline defects.
+  All four came from a prototype whose features #113's guardrails exclude.
+- **Surprise, worth knowing:** `Showing N of M groups` has an already-filtered
+  denominator. `M` is the count *after* the kind selector, so both numbers move
+  together and the string can never show that groups of another kind exist. The
+  reported `Showing 2 of 74 groups` means "2 of the 74 groups of the currently
+  selected kind" — a third reading nobody had proposed.
+- **Surprise:** every member of a same-stat group can carry a live proposal and
+  render verdict controls, so same-stat groups are not a verdict-free surface.
+  Any copy asserting "nothing is proposed" here is wrong in the common case.
+- **Surprise:** hostile-text rendering is inert (no dialog fired, no injected
+  element reached the DOM), but a 180-character unbroken item name gives the
+  page a 2266px scroll width at a 390px viewport. `article.armor-group h3` has
+  no `overflow-wrap`, though `review.css` already applies `anywhere` to
+  `.armor-member-heading .sub` and `.detail dd`. Tracked in #118.
+- Baseline behaviour confirmed good and not to be regressed: `.scroller`
+  overflow handling, the `:focus-visible` ring and skip link, light-by-default
+  theming, and zero-base-stat suppression. An earlier code-only reading had
+  wrongly flagged all four; rendering corrected it.
+
 ## 2026-09-01 — #112 second PR review corrections
 
 - Namespaced rendered armor member `data-member-id` attributes by validated

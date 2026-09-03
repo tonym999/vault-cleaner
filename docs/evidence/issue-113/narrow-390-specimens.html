@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Narrow specimens at 390px — issue #113</title>
+<!--
+  Narrow measurement harness for issue #113.
+
+  This is a thin PRODUCTION SHELL: it links the real src/vault_cleaner/ui/review.css
+  and reuses the real `main.wrap` / `section.panel` / `.tiles` / `.tile` structure,
+  so the two treatments are measured in the layout they would actually ship into.
+  Only treatment-specific rules are layered on below.
+
+  Both alternatives carry their COMPLETE content. An earlier revision omitted
+  Alternative A's tile row, which made A look artificially compact: A deletes
+  only the SHOWN tile, so it keeps four.
+
+  Measure with scripts/measure_narrow_specimens.py, which asserts the viewport
+  and panel width before printing heights. Do not measure these inside
+  count-treatments.html: a fixed-width box in a desktop document activates no
+  narrow media query, and that document's own padding leaves a specimen 241px.
+-->
+<link rel="stylesheet" href="../../../src/vault_cleaner/ui/review.css">
+<style>
+  /* Treatment-specific rules only. Everything else comes from review.css. */
+  .spec-label {
+    font: 600 .72rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); margin: 1rem 0 .35rem;
+  }
+  .chips { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; margin: .6rem 0; }
+  .chip {
+    font-size: .76rem; border: 1px solid var(--line); border-radius: 99px;
+    padding: .25em .7em; background: var(--panel); color: var(--ink);
+  }
+  .chip[data-selected="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  /* A: the single scoped summary line. */
+  .scope {
+    display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap;
+    border-left: 3px solid var(--accent); padding: .45rem .7rem;
+    background: var(--panel); border-radius: 0 6px 6px 0; margin: .6rem 0;
+  }
+  .scope .big { font: 600 .95rem/1.3 ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .scope .of { color: var(--muted); font-size: .8rem; }
+  /* Shared: group header treatment. */
+  .grp { border: 1px solid var(--line); border-radius: 7px; padding: .75rem; margin-top: .6rem; }
+  .grp h3 { margin: 0; font-size: .95rem; overflow-wrap: anywhere; }
+  .grp .gsub { color: var(--muted); font-size: .78rem; margin: .15rem 0 0; }
+  .kind {
+    display: inline-block; font: 600 .66rem/1 ui-monospace, monospace;
+    letter-spacing: .07em; text-transform: uppercase;
+    border: 1px solid var(--line); border-radius: 4px; padding: .35em .5em;
+  }
+  .pieces {
+    font: 600 .72rem/1 ui-monospace, monospace; border: 1px solid var(--line);
+    border-radius: 4px; padding: .35em .5em; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <p class="spec-label">A · one scoped summary line</p>
+  <section class="panel" id="narrow-a" aria-label="Alternative A at 390px">
+    <div class="tiles">
+      <div class="tile"><span class="k">proposed</span><span class="n">394</span><span class="sub">90 junk, 304 review</span></div>
+      <div class="tile"><span class="k">after vetoes</span><span class="n">391</span><span class="sub">87 junk, 304 review</span></div>
+      <div class="tile"><span class="k">reviewed</span><span class="n">9</span><span class="sub">6 approved, 3 vetoed</span></div>
+      <div class="tile"><span class="k">unreviewed</span><span class="n">385</span><span class="sub">without a current-session verdict</span></div>
+    </div>
+    <div class="chips">
+      <span class="chip">All kinds</span>
+      <span class="chip" data-selected="true">Exact</span>
+      <span class="chip">Same stats</span>
+    </div>
+    <div class="scope">
+      <span class="big">12 of 74 groups</span>
+      <span class="of">·</span>
+      <span class="big">38 of 211 pieces</span>
+      <span class="of">— filtered to exact duplicates</span>
+    </div>
+    <div class="grp">
+      <span class="kind">Exact</span>
+      <h3>Archetype Plate</h3>
+      <p class="gsub">3 pieces · Hunter chest · tier 5 · Gunner</p>
+    </div>
+  </section>
+
+  <p class="spec-label">B · every count carries its own noun</p>
+  <section class="panel" id="narrow-b" aria-label="Alternative B at 390px">
+    <div class="tiles">
+      <div class="tile"><span class="k">groups</span><span class="n">74</span><span class="sub">12 shown</span></div>
+      <div class="tile"><span class="k">pieces</span><span class="n">211</span><span class="sub">38 shown</span></div>
+      <div class="tile"><span class="k">proposals</span><span class="n">394</span><span class="sub">90 junk, 304 review</span></div>
+      <div class="tile"><span class="k">reviewed</span><span class="n">9</span><span class="sub">6 approved, 3 vetoed</span></div>
+    </div>
+    <div class="chips">
+      <span class="chip">All kinds · 74 groups</span>
+      <span class="chip" data-selected="true">Exact · 12 groups</span>
+      <span class="chip">Same stats · 62 groups</span>
+    </div>
+    <div class="grp">
+      <div class="chips" style="margin:0 0 .4rem">
+        <span class="pieces">3 pieces</span><span class="kind">Exact</span>
+      </div>
+      <h3>Archetype Plate</h3>
+      <p class="gsub">Hunter chest · tier 5 · Gunner</p>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
