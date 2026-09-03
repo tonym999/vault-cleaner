@@ -48,12 +48,67 @@ merged plan at `handoffs/issue-119-implementation-plan.md`.
     `state.duplicateRows` occurrences registration.
   - Placed `#vc-duplicate-scope` outside `#vc-duplicate-list` in `review_server.html`
     so `view.clear(host)` does not destroy the live region across keystrokes.
+  - **Facet-unit decision and its consequence:** the `tuningModSlot` facet counts
+    pieces (one per member, for both exact and same-stat groups), while every
+    other facet counts groups; `duplicateOptions` labels each with `entry.unit`.
+    Consequence: the tuning facet's number stops predicting how many groups the
+    filter will show — the option now answers "how many pieces have this tuning
+    slot", not "how many groups". The scoped summary region
+    (`#vc-duplicate-scope`) is the surface that answers the group question
+    instead.
+  - **Scope-suffix format:** `" — filtered to "` followed by the active parts
+    joined with `", "`, in the fixed order kind, class, slot, archetype, tuning
+    slot, search — e.g.
+    `12 of 74 groups · 38 of 211 pieces — filtered to exact duplicates, class Titan, search "Reaver"`.
 - **Surprises the next agent should know about:**
   - `ARMOR_CLOSE_EXPORT` contains 1 exact group (2 members) and 1 same-stat group
     (2 members) for a total of 4 pieces. Filtered exact/same-stat views each show
     `1 of 2 groups · 2 of 4 pieces`, cleanly exercising differing group and piece counts.
   - In Node test environments that mock `Document`, added `vc-duplicate-scope` to the
     element lookup map.
+
+### Fix round: independent adversarial review follow-up
+
+Independent adversarial review of `482a63a` found no P0/P1 defects, two
+blocking P2 coverage gaps (F1, F2), and two accepted non-blocking fold-ins
+(F3, F4). The production code from `482a63a` was found correct by that
+review; only tests and this worklog entry changed.
+
+- **F1 (blocking, test-only):** `test_armor_same_stat_four_member_badge_wrapping_and_transposition`
+  called `page.emulate_media(color_scheme=...)` for dark then light with no
+  assertion between or after either call, so the plan's "light and dark"
+  checklist item asserted nothing theme-dependent. Added computed-style
+  assertions under each scheme (`.scope-summary` `backgroundColor` /
+  `borderLeftColor`, `.armor-group-pieces` `color` / `borderColor`), asserting
+  non-transparent values that differ between dark and light, plus re-running
+  the scroll-width and badge-clipping checks inside each scheme.
+- **F2 (blocking, test-only):** `test_armor_duplicates_mixed_report_scope_summary_and_filtering`
+  re-queried `#vc-duplicate-scope` by id after each kind-selector click, so an
+  implementation that destroyed and recreated the region inside
+  `#vc-duplicate-list` on every render (the plan's Likely Finding #1) would
+  still pass. Measured: with the region moved into `renderList`/`host.appendChild`
+  and deleted from `review_server.html`, all 8 browser tests and all 123 node
+  tests still passed before this fix. Added an assertion that
+  `el.parentElement.id === "vc-duplicates"` and that the element node identity
+  (`element_handle()` equality) survives a kind-selector click. Proved the
+  guard load-bearing with a temporary recreated-region variant (removed the
+  `<p id="vc-duplicate-scope">` line from `review_server.html`; in
+  `review_server.js` `renderList`, built the element with `view.el` and
+  `host.appendChild`ed it instead of `byId` lookup): the new
+  `parentElement.id` assertion failed red
+  (`AssertionError: assert 'vc-duplicate-list' == 'vc-duplicates'`), then the
+  variant was fully reverted with `git checkout --` and the tree confirmed
+  clean against the intended change set before re-running green.
+- **F3 (accepted, non-blocking):** `renderSummary` in `review_server.js`
+  computed the `shown` scan of `state.items` via `ui.filterItems` on every
+  render regardless of surface, even though the result is only consumed
+  inside the `state.surface !== "armor-duplicates"` branch. Moved the
+  computation inside that guard so it no longer runs (and is discarded) on the
+  duplicates surface. Pure performance change — the proposals surface tile
+  renders identically, and `tests/test_server_ui_js.py:511` (the `"shown"`
+  literal assertion) is untouched and passing.
+- **F4 (this entry):** the original entry omitted the facet-unit consequence,
+  the scope-suffix format, and this fix round; both are now recorded above.
 
 ## 2026-09-03 — #119: planning session (plan PR 1)
 

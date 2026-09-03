@@ -395,9 +395,57 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
         )
         assert is_not_overflowing, f"badge {i} clipped: scrollWidth > clientWidth"
 
-    # Light and dark color schemes
+    # Light and dark color schemes: assert theme-sensitive computed values
+    # actually change, not just that emulate_media was called.
+    scope_summary = page.locator(".scope-summary").first
+    group_pieces = page.locator(".armor-group-pieces").first
+    transparent_values = {"rgba(0, 0, 0, 0)", "transparent"}
+
+    def theme_snapshot() -> dict[str, str]:
+        return {
+            "scope-summary backgroundColor": scope_summary.evaluate(
+                "el => getComputedStyle(el).backgroundColor"
+            ),
+            "scope-summary borderLeftColor": scope_summary.evaluate(
+                "el => getComputedStyle(el).borderLeftColor"
+            ),
+            "armor-group-pieces color": group_pieces.evaluate(
+                "el => getComputedStyle(el).color"
+            ),
+            "armor-group-pieces borderColor": group_pieces.evaluate(
+                "el => getComputedStyle(el).borderColor"
+            ),
+        }
+
     page.emulate_media(color_scheme="dark")
+    dark_theme = theme_snapshot()
+    dark_scroll_width = page.evaluate("document.documentElement.scrollWidth")
+    assert dark_scroll_width <= page.viewport_size["width"]
+    for i in range(badges.count()):
+        badge = badges.nth(i)
+        assert page.evaluate(
+            "el => el.scrollWidth <= el.clientWidth", badge.element_handle()
+        ), f"badge {i} clipped in dark mode: scrollWidth > clientWidth"
+
     page.emulate_media(color_scheme="light")
+    light_theme = theme_snapshot()
+    light_scroll_width = page.evaluate("document.documentElement.scrollWidth")
+    assert light_scroll_width <= page.viewport_size["width"]
+    for i in range(badges.count()):
+        badge = badges.nth(i)
+        assert page.evaluate(
+            "el => el.scrollWidth <= el.clientWidth", badge.element_handle()
+        ), f"badge {i} clipped in light mode: scrollWidth > clientWidth"
+
+    for label, value in dark_theme.items():
+        assert value not in transparent_values, f"dark {label} was transparent: {value}"
+    for label, value in light_theme.items():
+        assert value not in transparent_values, f"light {label} was transparent: {value}"
+    for label in dark_theme:
+        assert dark_theme[label] != light_theme[label], (
+            f"{label} did not change between dark and light color schemes: "
+            f"{dark_theme[label]!r}"
+        )
 
 
 @pytest.mark.browser
@@ -417,6 +465,15 @@ def test_armor_duplicates_mixed_report_scope_summary_and_filtering(
     expect(scope).to_have_attribute("role", "status")
     expect(scope).to_have_attribute("aria-live", "polite")
 
+    # The scope region lives outside the list host that renderList clears on
+    # every keystroke -- pin that here so a future change that instead builds
+    # this element inside #vc-duplicate-list (destroy-and-recreate on every
+    # render, never reliably announced) is caught rather than merely passing
+    # a same-id text check.
+    assert scope.evaluate("el => el.parentElement && el.parentElement.id") == "vc-duplicates"
+    scope_node_before_filter = scope.element_handle()
+    assert scope_node_before_filter is not None
+
     # Unfiltered mixed report: 2 groups, 4 pieces
     expect(scope).to_have_text("2 groups · 4 pieces")
 
@@ -424,6 +481,16 @@ def test_armor_duplicates_mixed_report_scope_summary_and_filtering(
     page.locator("#vc-dup-kind-exact").click()
     expect(scope).to_have_text(
         "1 of 2 groups · 2 of 4 pieces — filtered to exact duplicates"
+    )
+    assert scope.evaluate("el => el.parentElement && el.parentElement.id") == "vc-duplicates"
+    scope_node_after_filter = page.locator("#vc-duplicate-scope").element_handle()
+    assert scope_node_after_filter is not None
+    same_node = scope_node_before_filter.evaluate(
+        "(el, other) => el === other", scope_node_after_filter
+    )
+    assert same_node, (
+        "#vc-duplicate-scope was destroyed and recreated by the kind filter "
+        "change instead of being updated in place"
     )
 
     # Filter to same-stat groups: group count and piece count differ (1 group vs 2 pieces)

@@ -863,12 +863,12 @@
       var proposed = ui.actionCounts(state.items);
       var kept = ui.actionCounts(ui.keptItems(state.items, state.verdicts, state.persistedVetoIds));
       var reviewed = ui.reviewCounts(state.items, state.verdicts);
-      var shown = typeof ui.filterItems === "function"
-        ? ui.filterItems(state.items, state.query, state.verdicts).length : 0;
       host.appendChild(view.tile("proposed", String(proposed.total), proposed.junk + " junk, " + proposed.review + " review"));
       host.appendChild(view.tile("after vetoes", String(kept.total), kept.junk + " junk, " + kept.review + " review"));
       host.appendChild(view.tile("reviewed", String(reviewed.approved + reviewed.vetoed), reviewed.approved + " approved, " + reviewed.vetoed + " vetoed"));
       if (state.surface !== "armor-duplicates") {
+        var shown = typeof ui.filterItems === "function"
+          ? ui.filterItems(state.items, state.query, state.verdicts).length : 0;
         host.appendChild(view.tile("shown", String(shown), "matching the current filters"));
       }
       host.appendChild(view.tile("unreviewed", String(reviewed.unreviewed), "without a current-session verdict"));
