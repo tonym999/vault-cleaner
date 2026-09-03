@@ -3,6 +3,14 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #122: integrated multi-agent handoff workflow into repository
+
+- **Integrated multi-agent handoff workflow under `handoffs/` on `main`.** Created `handoffs/README.md` defining the 3-role topology (`planner → orchestrator → implementer → orchestrator reviews → PR`), document lifecycle (two-PR process), naming convention (`handoffs/issue-N-implementation-plan.md`), model tier selection rules, and stop-condition escalation routing (`implementer → orchestrator → planner`).
+- **Committed operational templates.** Created `handoffs/templates/planner.md` (directs planner agents to plan issues and emit the required named-section contract) and `handoffs/templates/orchestrator.md` (boots orchestrator agents to read merged plans from `main`, dispatch implementers at stated tiers, review real diffs, and handle findings/escalation).
+- **Migrated and normalised 10 handoffs onto `main`.** Retrieved all 10 unmerged handoff documents from their dangling branches, retired role (`luna`) and model tier (`xhigh`) filename suffixes to adopt `handoffs/issue-N-implementation-plan.md`, corrected #118's self-description (topology and provenance note), and deleted the 10 dangling remote `handoff/*` branches.
+- **Updated repository guidelines in `AGENTS.md`.** Documented the Planning Phase (PR 1) ahead of implementation, formalised the 3-role workflow, template paths, dispatch comment requirements, and escalation routing.
+- **Validated end-to-end template execution.** Generated `handoffs/issue-119-implementation-plan.md` for open Issue #119 using the new `planner.md` template contract without a hand-written brief.
+
 ## 2026-09-03 — #118: fix mislabelled and overflowing review UI text
 
 Implemented the four presentation defects from #118, per the committed
@@ -103,7 +111,7 @@ regenerated.
   files; `pytest -q -m browser tests/test_server_browser.py` 6 passed
   (5 pre-existing + 1 new); full `pytest -q` 938 passed; `git diff --check`
   clean; `git ls-files data/` empty; `git status --short` shows exactly the
-  eight files in the plan's expected footprint.
+   eight files in the plan's expected footprint.
 
 ## 2026-09-03 — #113 fifth review round: the narrow comparison was not a comparison
 
