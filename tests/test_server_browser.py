@@ -31,6 +31,7 @@ CLASS_ARMOR_EXPORT = FIXTURES / "armor_classes.csv"
 ARMOR_CLOSE_EXPORT = FIXTURES / "armor_close.csv"
 ARMOR_DUPLICATES_UI_EXPORT = FIXTURES / "armor_duplicates_ui.csv"
 ARMOR_SAME_STAT_UI_EXPORT = FIXTURES / "armor_same_stat_ui.csv"
+ARMOR_SAME_STAT_FOUR_UI_EXPORT = FIXTURES / "armor_same_stat_four_ui.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
@@ -281,6 +282,11 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(page.locator("#vc-duplicates")).to_be_visible()
     group = page.locator("article.armor-group")
     expect(group).to_have_count(1)
+    expect(group.locator("p.armor-group-pieces")).to_have_text("3 pieces")
+    expect(group.locator("p.sub")).to_have_text("Exact")
+    expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 3 pieces")
+    expect(page.locator("#vc-duplicate-scope")).to_have_attribute("role", "status")
+    expect(page.locator("#vc-duplicate-scope")).to_have_attribute("aria-live", "polite")
     expect(group).to_contain_text("Archetype Plate")
     expect(group).to_contain_text("Chest Armor")
     expect(group).to_contain_text("Hunter")
@@ -330,17 +336,105 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
 
     group = page.locator("article.armor-group")
     expect(group).to_have_count(1)
-    expect(group).to_contain_text("Same stats, different tuning")
-    expect(group).to_contain_text("review-only")
+    expect(group.locator("p.armor-group-pieces")).to_have_text("2 pieces")
+    expect(group.locator("p.sub")).to_have_text("Same stats · review only")
+    expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 2 pieces")
+    expect(group.locator("p.hint").first).to_contain_text(
+        "Base stats match but tuning differs, so this pass selects no survivor."
+    )
     expect(group).to_contain_text("8301")
     expect(group).to_contain_text("8302")
     expect(group).to_contain_text("Tuning Mod Slot")
     expect(group).to_contain_text("Weapons")
     expect(group).to_contain_text("Health")
-    expect(group.locator("th[scope='row']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
     expect(group.locator("button.approve")).to_have_count(2)
     expect(group).not_to_contain_text("Preferred survivor")
     expect(group).not_to_contain_text("Proposed junk")
+
+
+@pytest.mark.browser
+def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Four-member same-stat groups wrap badges cleanly and transpose columns."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_FOUR_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+    expect(group.locator("p.armor-group-pieces")).to_have_text("4 pieces")
+    expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 4 pieces")
+
+    # Transposed layout: 4 rows in tbody
+    expect(group.locator("tbody tr")).to_have_count(4)
+    expect(group.locator("th[scope='col']").filter(has_text="Member")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Protection")).to_be_visible()
+    expect(group.locator("th[scope='col']").filter(has_text="Verdict")).to_be_visible()
+
+    # Viewport checks at desktop and mobile widths
+    for width, height in ((1440, 900), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        scroll_width = page.evaluate("document.documentElement.scrollWidth")
+        assert scroll_width <= width, (
+            f"document scrolled horizontally at {width}px: scrollWidth={scroll_width}"
+        )
+
+    # Badges do not clip / overflow their client width
+    badges = page.locator("article.armor-group .armor-member-heading .badge")
+    assert badges.count() == 4
+    for i in range(badges.count()):
+        badge = badges.nth(i)
+        is_not_overflowing = page.evaluate(
+            "el => el.scrollWidth <= el.clientWidth", badge.element_handle()
+        )
+        assert is_not_overflowing, f"badge {i} clipped: scrollWidth > clientWidth"
+
+    # Light and dark color schemes
+    page.emulate_media(color_scheme="dark")
+    page.emulate_media(color_scheme="light")
+
+
+@pytest.mark.browser
+def test_armor_duplicates_mixed_report_scope_summary_and_filtering(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Mixed report displays scope summary, and kind/facet filters update it accurately."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_CLOSE_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    scope = page.locator("#vc-duplicate-scope")
+    expect(scope).to_be_visible()
+    expect(scope).to_have_attribute("role", "status")
+    expect(scope).to_have_attribute("aria-live", "polite")
+
+    # Unfiltered mixed report: 2 groups, 4 pieces
+    expect(scope).to_have_text("2 groups · 4 pieces")
+
+    # Filter to exact duplicates: group count and piece count differ (1 group vs 2 pieces)
+    page.locator("#vc-dup-kind-exact").click()
+    expect(scope).to_have_text(
+        "1 of 2 groups · 2 of 4 pieces — filtered to exact duplicates"
+    )
+
+    # Filter to same-stat groups: group count and piece count differ (1 group vs 2 pieces)
+    page.locator("#vc-dup-kind-same_stat").click()
+    expect(scope).to_have_text(
+        "1 of 2 groups · 2 of 4 pieces — filtered to same-stat groups"
+    )
+
+    # Reset kind to all
+    page.locator("#vc-dup-kind-all").click()
+    expect(scope).to_have_text("2 groups · 4 pieces")
 
 
 @pytest.mark.browser

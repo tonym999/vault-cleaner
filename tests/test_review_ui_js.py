@@ -690,10 +690,10 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
         "filtered": {"name": 1, "id": 1, "class": 1, "blankClass": 1,
                      "slot": 1, "archetype": 1, "blankArchetype": 1, "tuning": 1},
         "categories": {
-            "class": [{"value": "Hunter", "count": 1}, {"value": "none/unknown", "count": 1}],
-            "type": [{"value": "Chest Armor", "count": 1}, {"value": "none/unknown", "count": 1}],
-            "archetype": [{"value": "Gunner", "count": 1}, {"value": "none/unknown", "count": 1}],
-            "tuning": [{"value": "none/unknown", "count": 1}, {"value": "Weapons", "count": 1}],
+            "class": [{"value": "Hunter", "count": 1, "unit": "group"}, {"value": "none/unknown", "count": 1, "unit": "group"}],
+            "type": [{"value": "Chest Armor", "count": 1, "unit": "group"}, {"value": "none/unknown", "count": 1, "unit": "group"}],
+            "archetype": [{"value": "Gunner", "count": 1, "unit": "group"}, {"value": "none/unknown", "count": 1, "unit": "group"}],
+            "tuning": [{"value": "none/unknown", "count": 1, "unit": "piece"}, {"value": "Weapons", "count": 3, "unit": "piece"}],
         },
         "membersIntact": True,
         "roles": [["Primary", "weapons", 30], ["Secondary", "health", 25],
@@ -1234,28 +1234,59 @@ function collect(node, predicate) {
   })(node);
   return result;
 }
-function rowHeaders(article) {
+function colHeaders(article) {
   return collect(article, function (node) {
-    return node.tagName === "TH" && node.getAttribute("scope") === "row";
+    return node.tagName === "TH" && node.getAttribute("scope") === "col";
   }).map(function (node) { return node.textContent; });
 }
-function findRow(article, headerText) {
-  var rows = collect(article, function (node) { return node.tagName === "TR"; });
-  for (var i = 0; i < rows.length; i++) {
-    var th = rows[i].children[0];
-    if (th && th.tagName === "TH" && th.textContent === headerText) return rows[i];
+function columnCells(article, headerText) {
+  var thead = collect(article, function (node) { return node.tagName === "THEAD"; })[0];
+  if (!thead) return [];
+  var headers = collect(thead, function (node) { return node.tagName === "TH"; });
+  var colIndex = -1;
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i].textContent === headerText) {
+      colIndex = i;
+      break;
+    }
   }
-  return null;
+  if (colIndex === -1) return [];
+  var tbody = collect(article, function (node) { return node.tagName === "TBODY"; })[0];
+  if (!tbody) return [];
+  var rows = collect(tbody, function (node) { return node.tagName === "TR"; });
+  return rows.map(function (row) {
+    return row.children[colIndex] ? row.children[colIndex].textContent : "";
+  });
 }
-function cellTexts(row) {
-  return row.children.slice(1).map(function (td) { return td.textContent; });
-}
-var exactHeaders = rowHeaders(exactArticle);
-var sameHeaders = rowHeaders(sameArticle);
-var exactProtectionRow = findRow(exactArticle, "Protection");
-var sameProtectionRow = findRow(sameArticle, "Protection");
-var exactProtectionCells = exactProtectionRow ? cellTexts(exactProtectionRow) : [];
-var sameProtectionCells = sameProtectionRow ? cellTexts(sameProtectionRow) : [];
+var exactHeaders = colHeaders(exactArticle);
+var sameHeaders = colHeaders(sameArticle);
+var exactProtectionCells = columnCells(exactArticle, "Protection");
+var sameProtectionCells = columnCells(sameArticle, "Protection");
+var singleGroupArticle = view.armorGroup({
+  groupKind: "exact_duplicate", groupId: "single", hash: "h", name: "Single",
+  type: "", guardianClass: "", itemArchetype: "", tier: 5, stats: {},
+  tuningModSlot: "", spiritSignature: [],
+  members: [{id: "m1", location: "Vault", disposition: "preferred_survivor"}]
+});
+var unproposedSameArticle = view.armorGroup({
+  groupKind: "same_stat", groupId: "unprop", hash: "h", name: "Unproposed",
+  type: "", guardianClass: "", itemArchetype: "", tier: 5, stats: {},
+  spiritSignature: [],
+  members: [
+    {id: "u1", location: "Vault", tuningModSlot: "Weapons"},
+    {id: "u2", location: "Vault", tuningModSlot: "Health"}
+  ]
+});
+var sharedSameArticle = view.armorGroup({
+  groupKind: "same_stat", groupId: "shared", hash: "h", name: "Shared",
+  type: "", guardianClass: "", itemArchetype: "", tier: 5, stats: {},
+  spiritSignature: [],
+  members: [
+    {id: "s1", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Solar", holofoil: "true"},
+    {id: "s2", location: "Vault", tuningModSlot: "Health", seasonalMod: "Solar", holofoil: "true"}
+  ]
+});
+var sharedSameHeaders = colHeaders(sharedSameArticle);
 process.stdout.write(JSON.stringify({
   order: projected.map(function (group) { return group.groupKind; }),
   memberOrder: projected[1].members.map(function (member) { return member.id; }),
@@ -1264,8 +1295,7 @@ process.stdout.write(JSON.stringify({
   overlapArray: Array.isArray(overlap) && overlap.length === 2,
   exactReadOnly: overlap[0].approve === null && overlap[0].presentation.textContent.indexOf("Read-only") !== -1,
   sameRepainted: overlap[1].approve.getAttribute("aria-pressed") === "true" && overlap[1].approve.disabled,
-  labels: sameArticle.textContent.indexOf("Same stats, different tuning") !== -1 &&
-    sameArticle.textContent.indexOf("review-only") !== -1 &&
+  labels: sameArticle.textContent.indexOf("Same stats · review only") !== -1 &&
     sameArticle.textContent.indexOf("Tuning Mod Slot") !== -1 &&
     sameArticle.textContent.indexOf("<img src=tuning-slot>") !== -1,
   noExactDisposition: sameArticle.textContent.indexOf("Preferred survivor") === -1 &&
@@ -1282,20 +1312,21 @@ process.stdout.write(JSON.stringify({
   countsOnce: (function () {
     var counts = api.countArmorGroups(projected, "tuningModSlot");
     return counts.length === 3 && counts.every(function (entry) {
-      return entry.count === 1;
-    }) && counts.some(function (entry) { return entry.value === "none/unknown"; }) &&
-      counts.some(function (entry) { return entry.value === "Health"; }) &&
-      counts.some(function (entry) { return entry.value === "<img src=tuning-slot>"; });
+      return entry.unit === "piece";
+    }) && counts.some(function (entry) { return entry.value === "none/unknown" && entry.count === 2; }) &&
+      counts.some(function (entry) { return entry.value === "Health" && entry.count === 1; }) &&
+      counts.some(function (entry) { return entry.value === "<img src=tuning-slot>" && entry.count === 1; });
   }()),
   hostileInert: count(sameArticle, function (node) { return node.tagName === "IMG"; }) === 0 &&
     sameArticle.textContent.indexOf("<img src=x onerror=alert(1)>") !== -1,
   prototypeClean: Object.prototype.polluted === undefined,
   callback: JSON.stringify(toggles) === JSON.stringify([[sharedId, "approved"]]),
-  exactSubLine: exactArticle.textContent.indexOf("Exact duplicate group") !== -1,
+  exactSubLine: exactArticle.textContent.indexOf("Exact") !== -1 &&
+    exactArticle.textContent.indexOf("Exact duplicate group") === -1,
   exactNoEnumToken: exactArticle.textContent.indexOf("exact_duplicate") === -1 &&
     exactArticle.textContent.indexOf("_") === -1,
   sameSubLineUnchanged: sameArticle.textContent.indexOf(
-    "Same stats, different tuning · review-only") !== -1,
+    "Same stats · review only") !== -1,
   protectionHeaderPresent: exactHeaders.indexOf("Protection") !== -1 &&
     sameHeaders.indexOf("Protection") !== -1,
   noHardProtectionHeader: exactHeaders.indexOf("Hard protection") === -1 &&
@@ -1305,7 +1336,24 @@ process.stdout.write(JSON.stringify({
     exactProtectionCells[1] === "soft — locked" &&
     sameProtectionCells.length === 2 &&
     sameProtectionCells[0] === "—" &&
-    sameProtectionCells[1] === "soft — locked"
+    sameProtectionCells[1] === "soft — locked",
+  exactPieces: exactArticle.children[0].children[0].textContent === "2 pieces",
+  samePieces: sameArticle.children[0].children[0].textContent === "2 pieces",
+  singularPiece: singleGroupArticle.children[0].children[0].textContent === "1 piece",
+  sameBannerBothSentences: sameArticle.textContent.indexOf(
+    "Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls."
+  ) !== -1,
+  sameBannerUnconditionalOnly: unproposedSameArticle.textContent.indexOf(
+    "Base stats match but tuning differs, so this pass selects no survivor."
+  ) !== -1 && unproposedSameArticle.textContent.indexOf(
+    "Pieces below that already carry a proposal keep their verdict controls."
+  ) === -1,
+  conditionalColumnsPresentWhenDiffer: sameHeaders.indexOf("Seasonal Mod") !== -1 &&
+    sameHeaders.indexOf("Holofoil") !== -1 && sameHeaders.indexOf("Tuning Stat") === -1,
+  conditionalColumnsAbsentWhenEqual: sharedSameHeaders.indexOf("Seasonal Mod") === -1 &&
+    sharedSameHeaders.indexOf("Holofoil") === -1,
+  facetUnits: api.countArmorGroups(projected, "tuningModSlot").every(function (e) { return e.unit === "piece"; }) &&
+    api.countArmorGroups(projected, "type").every(function (e) { return e.unit === "group"; })
 }));
 ''',
         encoding="utf-8",
@@ -1332,6 +1380,14 @@ process.stdout.write(JSON.stringify({
         "sameSubLineUnchanged": True,
         "protectionHeaderPresent": True, "noHardProtectionHeader": True,
         "protectionCellsHonest": True,
+        "exactPieces": True,
+        "samePieces": True,
+        "singularPiece": True,
+        "sameBannerBothSentences": True,
+        "sameBannerUnconditionalOnly": True,
+        "conditionalColumnsPresentWhenDiffer": True,
+        "conditionalColumnsAbsentWhenEqual": True,
+        "facetUnits": True,
     }
 
 
@@ -1455,19 +1511,38 @@ function countExact(node, value) {
   node.children.forEach(function (child) { total += countExact(child, value); });
   return total;
 }
-function tuningRow(node) {
-  if (node.tagName === "TR" && countExact(node, "Tuning Stat") === 1) return node;
-  for (var i = 0; i < node.children.length; i++) {
-    var found = tuningRow(node.children[i]);
-    if (found) return found;
+function tuningColumnCells(article, headerText) {
+  function collectNodes(node, predicate) {
+    var res = [];
+    (function walk(n) {
+      if (predicate(n)) res.push(n);
+      (n.children || []).forEach(walk);
+    })(node);
+    return res;
   }
-  return null;
+  var thead = collectNodes(article, function (node) { return node.tagName === "THEAD"; })[0];
+  if (!thead) return [];
+  var headers = collectNodes(thead, function (node) { return node.tagName === "TH"; });
+  var colIndex = -1;
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i].textContent === headerText) {
+      colIndex = i;
+      break;
+    }
+  }
+  if (colIndex === -1) return [];
+  var tbody = collectNodes(article, function (node) { return node.tagName === "TBODY"; })[0];
+  if (!tbody) return [];
+  var rows = collectNodes(tbody, function (node) { return node.tagName === "TR"; });
+  return rows.map(function (row) {
+    return row.children[colIndex] ? row.children[colIndex].textContent : "";
+  });
 }
-var rawRow = tuningRow(article);
+var rawCells = tuningColumnCells(article, "Tuning Stat");
 process.stdout.write(JSON.stringify({
   rawRows: countExact(article, "Tuning Stat"),
   emptyVisible: article.textContent.indexOf("none/unknown") !== -1,
-  futureRawVisible: !!rawRow && rawRow.textContent.indexOf("future socket") !== -1,
+  futureRawVisible: rawCells.indexOf("future socket") !== -1,
   recognizedVisible: article.textContent.indexOf("Weapons") !== -1
 }));
 ''',

@@ -625,22 +625,26 @@
 
   function countArmorGroups(groups, field) {
     var counts = emptyMap();
+    var unit = field === "tuningModSlot" ? "piece" : "group";
     (groups || []).forEach(function (group) {
-      if (field === "tuningModSlot" && group.groupKind === "same_stat") {
-        var values = emptyMap();
-        (group.members || []).forEach(function (member) {
-          values[normalizeCategoricalValue(member.tuningModSlot)] = true;
-        });
-        Object.keys(values).forEach(function (value) {
-          counts[value] = (counts[value] || 0) + 1;
-        });
+      if (field === "tuningModSlot") {
+        if (group.groupKind === "same_stat") {
+          (group.members || []).forEach(function (member) {
+            var val = normalizeCategoricalValue(member.tuningModSlot);
+            counts[val] = (counts[val] || 0) + 1;
+          });
+        } else {
+          var val = normalizeCategoricalValue(group.tuningModSlot);
+          var memberCount = (group.members || []).length;
+          counts[val] = (counts[val] || 0) + memberCount;
+        }
         return;
       }
       var value = normalizeCategoricalValue(group[field]);
       counts[value] = (counts[value] || 0) + 1;
     });
     return Object.keys(counts).map(function (value) {
-      return { value: value, count: counts[value] };
+      return { value: value, count: counts[value], unit: unit };
     }).sort(function (a, b) { return compareText(a.value, b.value); });
   }
 
@@ -1045,11 +1049,30 @@
       var statNodes = statDisplay.rows.map(function (row) {
         return tile(row.role || "Base stat", str(row.name) + " " + str(row.value));
       });
+      var pieceCount = (group.members || []).length;
+      var piecesNode = el("p", {
+        class: "armor-group-pieces",
+        text: String(pieceCount) + (pieceCount === 1 ? " piece" : " pieces")
+      });
+      var subText = group.groupKind === "same_stat"
+        ? "Same stats · review only"
+        : "Exact";
+      var sameStatBanner = null;
+      if (group.groupKind === "same_stat") {
+        var bannerText = "Base stats match but tuning differs, so this pass selects no survivor.";
+        var hasProposingMember = (group.members || []).some(function (m) {
+          return armorMemberCanVerdict(group, m);
+        });
+        if (hasProposingMember) {
+          bannerText += " Pieces below that already carry a proposal keep their verdict controls.";
+        }
+        sameStatBanner = el("p", { class: "hint", text: bannerText });
+      }
       return el("header", { class: "armor-group-header" }, [
+        piecesNode,
         el("h3", { text: group.name || "(unnamed armor)" }),
-        el("p", { class: "sub", text: group.groupKind === "same_stat"
-          ? "Same stats, different tuning · review-only"
-          : "Exact duplicate group" }),
+        el("p", { class: "sub", text: subText }),
+        sameStatBanner,
         el("div", { class: "armor-group-meta" }, [
           tile("Type / slot", group.type || "unknown"),
           tile("Guardian class", group.guardianClass || "class-neutral/unknown"),
@@ -1124,41 +1147,32 @@
     }
 
     function armorGroupTable(group) {
-      var headerCells = [el("th", { scope: "col", text: "Comparison" })];
-      group.members.forEach(function (member, index) {
-        headerCells.push(el("th", { scope: "col", class: "armor-member-heading" }, [
-          el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
-          el("span", { class: "mono", text: member.id }),
-          el("span", { class: "sub", text: member.location || "location unknown" }),
-          el("span", { class: "badge", text: armorMemberLabel(group, member) })
-        ]));
-      });
-      var rows = [];
+      var fields = [];
       if (group.groupKind === "same_stat") {
-        rows.push(["Tuning Mod Slot", function (member) {
+        fields.push(["Tuning Mod Slot", function (member) {
           return normalizeCategoricalValue(member.tuningModSlot);
         }]);
         var seasonalValues = memberValues(group, "seasonalMod", normalizeCategoricalValue);
         if (seasonalValues.length > 1) {
-          rows.push(["Seasonal Mod", function (member) {
+          fields.push(["Seasonal Mod", function (member) {
             return normalizeCategoricalValue(member.seasonalMod);
           }]);
         }
         var holofoilValues = memberValues(group, "holofoil", normalizeCategoricalValue);
         if (holofoilValues.length > 1) {
-          rows.push(["Holofoil", function (member) {
+          fields.push(["Holofoil", function (member) {
             return normalizeCategoricalValue(member.holofoil);
           }]);
         }
         var rawTuningValues = memberValues(group, "tuningStat");
         var tuningSlots = memberValues(group, "tuningModSlot", normalizeCategoricalValue);
         if (rawTuningValues.length > tuningSlots.length) {
-          rows.push(["Tuning Stat", function (member) {
+          fields.push(["Tuning Stat", function (member) {
             return member.tuningStat || "none/unknown";
           }]);
         }
       }
-      rows = rows.concat([
+      fields = fields.concat([
         ["Protection", function (member) {
           return member.protectionLevel
             ? member.protectionLevel + (member.protectionReason ? " — " + member.protectionReason : "")
@@ -1174,18 +1188,29 @@
         ["Power", function (member) {
           return member.power === null || member.power === undefined ? "unknown" : str(member.power);
         }]
-      ]).map(function (row) {
-        return el("tr", null, [el("th", { scope: "row", text: row[0] })].concat(
-          group.members.map(function (member) {
-            return el("td", { text: row[1](member) });
-          })
-        ));
+      ]);
+
+      var headerCells = [el("th", { scope: "col", text: "Member" })].concat(
+        fields.map(function (field) {
+          return el("th", { scope: "col", text: field[0] });
+        }),
+        [el("th", { scope: "col", text: "Verdict" })]
+      );
+
+      var rows = (group.members || []).map(function (member, index) {
+        var memberHeading = el("th", { scope: "row", class: "armor-member-heading" }, [
+          el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
+          el("span", { class: "mono", text: member.id }),
+          el("span", { class: "sub", text: member.location || "location unknown" }),
+          el("span", { class: "badge", text: armorMemberLabel(group, member) })
+        ]);
+        var dataCells = fields.map(function (field) {
+          return el("td", { text: field[1](member) });
+        });
+        var verdictCell = armorMemberCell(member, group);
+        return el("tr", null, [memberHeading].concat(dataCells, [verdictCell]));
       });
-      rows.push(el("tr", { class: "armor-verdict-row" }, [
-        el("th", { scope: "row", text: "Verdict" })
-      ].concat(group.members.map(function (member) {
-        return armorMemberCell(member, group);
-      }))));
+
       return el("div", { class: "scroller armor-matrix" }, [
         el("table", { class: "armor-group-table" }, [
           el("thead", null, [el("tr", null, headerCells)]),

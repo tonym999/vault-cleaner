@@ -3,6 +3,58 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #119: implementation of duplicate count hierarchy and table transposition (PR 2)
+
+Implementation session for issue #119 under the two-PR lifecycle, following the
+merged plan at `handoffs/issue-119-implementation-plan.md`.
+
+- **What happened:**
+  - Branched `feat/issue-119-duplicate-count-hierarchy` from `main` at base SHA
+    `b8b297e2a9f0981bcf91334c7e6b16ce85fea0b6`.
+  - Added persistent live region
+    `<p id="vc-duplicate-scope" class="scope-summary" role="status" aria-live="polite"></p>`
+    in `review_server.html` above `#vc-duplicate-list`.
+  - Removed `shown` summary tile on the armor duplicates surface in
+    `review_server.js` while retaining it untouched on the proposals surface.
+  - Updated `duplicateOptions` in `review_server.js` to pluralise option labels
+    using `entry.unit || "group"`.
+  - Exported `duplicateScopeText` and `countGroupPieces` from `review_server.js`,
+    and updated `renderList` to reconcile the query and write the exact scope
+    summary string to `#vc-duplicate-scope`.
+  - Updated `countArmorGroups` in `review_ui.js` to return `unit`, counting pieces
+    (per member) across both exact and same-stat groups for `tuningModSlot`, and
+    groups for other facets.
+  - Updated `armorGroupHeader` in `review_ui.js` to prepend `p.armor-group-pieces`,
+    render kind sub-line as `"Exact"` or `"Same stats · review only"`, and add the
+    conditional same-stat banner based on `armorMemberCanVerdict(group, member)`.
+  - Transposed `armorGroupTable` in `review_ui.js` with members as rows and comparison
+    fields as columns, keeping conditional column logic intact and preserving
+    `armorMemberCell` untouched in the Verdict cell.
+  - Scoped badge-wrapping styling `.armor-member-heading .badge` in `review.css`
+    so the global `.badge` rule is untouched, styled `.scope-summary` and
+    `.armor-group-pieces` with existing custom properties, and adjusted table layout.
+  - Adapted `tests/test_review_ui_js.py` to test the column-based layout, pieces counts,
+    singular piece count, banner sentences, and facet units.
+  - Added table-driven parameterized test in `tests/test_server_ui_js.py` covering
+    all 7 selectors individually, combined ordering with all 6 parts, independent
+    pluralisation, and mixed-kind filtering.
+  - Added browser tests in `tests/test_server_browser.py` for four-member same-stat
+    groups (`armor_same_stat_four_ui.csv`), badge wrapping without clipping,
+    390x844 and 1440x900 viewport horizontal scroll invariants, light/dark mode,
+    and mixed-report filtering (`armor_close.csv`).
+- **Decisions made:**
+  - Preserved `armorMemberCell` completely untouched, mounting it directly into the
+    Verdict cell in transposed member rows, preserving DOM identities and
+    `state.duplicateRows` occurrences registration.
+  - Placed `#vc-duplicate-scope` outside `#vc-duplicate-list` in `review_server.html`
+    so `view.clear(host)` does not destroy the live region across keystrokes.
+- **Surprises the next agent should know about:**
+  - `ARMOR_CLOSE_EXPORT` contains 1 exact group (2 members) and 1 same-stat group
+    (2 members) for a total of 4 pieces. Filtered exact/same-stat views each show
+    `1 of 2 groups · 2 of 4 pieces`, cleanly exercising differing group and piece counts.
+  - In Node test environments that mock `Document`, added `vc-duplicate-scope` to the
+    element lookup map.
+
 ## 2026-09-03 — #119: planning session (plan PR 1)
 
 Planning-only session under the new two-PR lifecycle. Authored

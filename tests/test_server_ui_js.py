@@ -1476,7 +1476,7 @@ function Document() {
    "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
    "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
    "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
-   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
   this.nodes["vc-actions"].setAttribute("role", "group");
@@ -1761,6 +1761,7 @@ function finish() {
     searchPreserved: duplicateSearchPreserved,
     finalizedDisabled: duplicateFinalizedDisabled,
     visible: !document.nodes["vc-duplicates"].hidden,
+    scopeText: document.nodes["vc-duplicate-scope"] ? document.nodes["vc-duplicate-scope"].textContent : "",
     groupText: (function text(node) {
       return (node._textContent || "") + (node.children || []).map(text).join("");
     })(document.nodes["vc-duplicate-list"])
@@ -2267,9 +2268,12 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
             "searchPreserved": True,
             "finalizedDisabled": True,
             "visible": True,
+            "scopeText": result["duplicate"]["scopeText"],
             "groupText": result["duplicate"]["groupText"],
         }
-        assert result["duplicate"]["groupText"].startswith("Showing 1 of 1 groups")
+        assert result["duplicate"]["scopeText"] == (
+            '1 of 1 group · 3 of 3 pieces — filtered to search "9002"'
+        )
         assert "Armor Plate" in result["duplicate"]["groupText"]
 
 
@@ -2401,7 +2405,7 @@ function Document() {
    "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
    "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
    "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
-   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
 }
@@ -2632,7 +2636,7 @@ function Document() {
    "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
    "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
    "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
-   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
 }
@@ -2789,7 +2793,7 @@ function Document() {
    "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
    "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
    "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
-   "vc-duplicates", "vc-duplicate-list"].forEach(function (id) {
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
 }
@@ -2873,7 +2877,192 @@ setTimeout(function () {
         "typeAllLabel": "any slot / type",
         "itemArchetypeSingular": "Reaver (1 group)",
         "itemArchetypeAllLabel": "any archetype",
-        "tuningPlural": "Melee (2 groups)",
-        "tuningSingular": "Health (1 group)",
+        "tuningPlural": "Melee (2 pieces)",
+        "tuningSingular": "Health (1 piece)",
         "tuningAllLabel": "any tuning slot",
     }
+
+
+@pytest.mark.parametrize(
+    ("case_name", "all_groups", "filtered_groups", "kind", "query", "expected"),
+    [
+        (
+            "no filters",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            "all",
+            {"guardianClass": "", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "2 groups · 5 pieces",
+        ),
+        (
+            "kind exact",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "exact",
+            {"guardianClass": "", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "1 of 2 groups · 2 of 5 pieces — filtered to exact duplicates",
+        ),
+        (
+            "kind same_stat",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            "same_stat",
+            {"guardianClass": "", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "1 of 2 groups · 3 of 5 pieces — filtered to same-stat groups",
+        ),
+        (
+            "guardianClass only",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "all",
+            {"guardianClass": "Titan", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "1 of 2 groups · 2 of 5 pieces — filtered to class Titan",
+        ),
+        (
+            "type only",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "all",
+            {"guardianClass": "", "type": "Chest Armor", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "1 of 2 groups · 2 of 5 pieces — filtered to slot Chest Armor",
+        ),
+        (
+            "itemArchetype only",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "all",
+            {"guardianClass": "", "type": "", "itemArchetype": "Gunner", "tuningModSlot": "", "text": ""},
+            "1 of 2 groups · 2 of 5 pieces — filtered to archetype Gunner",
+        ),
+        (
+            "tuningModSlot only",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "all",
+            {"guardianClass": "", "type": "", "itemArchetype": "", "tuningModSlot": "Weapons", "text": ""},
+            "1 of 2 groups · 2 of 5 pieces — filtered to tuning slot Weapons",
+        ),
+        (
+            "text only",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "all",
+            {"guardianClass": "", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": "Reaver"},
+            '1 of 2 groups · 2 of 5 pieces — filtered to search "Reaver"',
+        ),
+        (
+            "kind + all four facets + text",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "exact",
+            {
+                "guardianClass": "Titan",
+                "type": "Chest Armor",
+                "itemArchetype": "Gunner",
+                "tuningModSlot": "Weapons",
+                "text": "Reaver",
+            },
+            '1 of 2 groups · 2 of 5 pieces — filtered to exact duplicates, class Titan, slot Chest Armor, archetype Gunner, tuning slot Weapons, search "Reaver"',
+        ),
+        (
+            "1 group · 2 pieces",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+            ],
+            "all",
+            {"guardianClass": "", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "1 group · 2 pieces",
+        ),
+        (
+            "filtered, mixed-kind",
+            [
+                {"groupKind": "exact_duplicate", "members": [{"id": "1"}, {"id": "2"}]},
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            [
+                {"groupKind": "same_stat", "members": [{"id": "3"}, {"id": "4"}, {"id": "5"}]},
+            ],
+            "same_stat",
+            {"guardianClass": "Hunter", "type": "", "itemArchetype": "", "tuningModSlot": "", "text": ""},
+            "1 of 2 groups · 3 of 5 pieces — filtered to same-stat groups, class Hunter",
+        ),
+    ],
+)
+def test_duplicate_scope_summary_formats_exact_table(
+    tmp_path: Path, case_name, all_groups, filtered_groups, kind, query, expected
+):
+    harness = tmp_path / "scope-test.js"
+    harness.write_text(
+        r'''
+"use strict";
+var server = require(process.argv[2]);
+var allGroups = JSON.parse(process.argv[3]);
+var filteredGroups = JSON.parse(process.argv[4]);
+var kind = process.argv[5];
+var query = JSON.parse(process.argv[6]);
+var text = server.duplicateScopeText(allGroups, filteredGroups, kind, query);
+process.stdout.write(JSON.stringify({text: text}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    with as_file(resource) as adapter:
+        completed = subprocess.run(
+            [
+                NODE, str(harness), str(adapter),
+                json.dumps(all_groups), json.dumps(filtered_groups),
+                kind, json.dumps(query),
+            ],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["text"] == expected
