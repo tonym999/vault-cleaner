@@ -3,6 +3,125 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #119: planning session (plan PR 1)
+
+Planning-only session under the new two-PR lifecycle. Authored
+`handoffs/issue-119-implementation-plan.md` from
+`handoffs/templates/planner.md` against `main` at `91a4e5b`. No production code
+changed. #119 was selected as the subject of the #124 workflow pilot because it
+is the only one of the four candidate issues (#115, #116, #117, #119) whose
+design direction is already settled, so it produces a real implementation diff
+for the independent adversarial reviewer rather than a decision record.
+
+- **What happened:**
+  - Measured the Armor duplicates surface against the plan baseline and pinned
+    every claim to a current file and line: the `SHOWN` tile
+    (`review_server.js:838-839`), the `Showing N of M groups` hint
+    (`review_server.js:995-998`), `armorGroupHeader` (`review_ui.js:1043-1067`),
+    `armorGroupTable` (`review_ui.js:1126-1197`), `memberValues`
+    (`review_ui.js:1034-1042`) and `countArmorGroups` (`review_ui.js:626-645`).
+  - Confirmed piece counts need no snapshot schema change: both armor group
+    projections already carry a non-empty `members` array, so a piece count is
+    `group.members.length`. No golden regeneration and no `_decision_config`
+    key.
+  - Inventoried the six existing assertions that pin strings this work deletes
+    (`test_review_ui_js.py:1267,1294,1297`, `test_server_ui_js.py:2272`,
+    `test_server_browser.py:333`) so the implementer adapts rather than deletes
+    them, and flagged that `test_server_ui_js.py:511` must stay untouched
+    because the `shown` tile survives on the proposals surface.
+  - Allocated `feat/issue-119-duplicate-count-hierarchy`, selected
+    `claude-sonnet-5` at native `xhigh` effort from the Complex Implementation
+    row of the model matrix, and recommended the `independent adversarial
+    review` path.
+- **Decisions made:**
+  - **Scope suffix format.** The #113 decision record specifies only the kind
+    case (`— filtered to exact duplicates`), but the surface has four facets and
+    a search box. The plan fixes a deterministic suffix — `" — filtered to "`
+    plus ordered parts `exact duplicates` / `same-stat groups`, `class V`,
+    `slot V`, `archetype V`, `tuning slot V`, `search "V"` — so the copy is
+    testable for every filter combination rather than only the documented one.
+  - **Facet units.** The `tuningModSlot` facet will count pieces for *both*
+    group kinds, and every other facet counts groups; entries gain a `unit`
+    field that `duplicateOptions` pluralises from. Counting pieces only for
+    same-stat groups was rejected because one facet value can be fed by both
+    kinds, which leaves that option's unit indeterminate. Consequence recorded
+    for the PR: the tuning facet's number stops predicting how many groups the
+    filter will show; the scoped summary region is what answers that.
+  - **Live region placement.** The scoped summary is static markup
+    (`#vc-duplicate-scope`) in `review_server.html`, outside `#vc-duplicate-list`,
+    updated by `textContent`. `renderList` clears the list host on every
+    keystroke, and a live region removed and re-inserted is not reliably
+    announced.
+- **Surprises the next agent should know about:**
+  - **#119's body is stale in two ways that matter.** Item 11 names
+    `"Exact duplicate group · " + group.groupKind` as the string its kind label
+    replaces, but #118 (PR #121) already removed that concatenation; the real
+    target is the plain sub-line at `review_ui.js:1050-1052`. Item 13 is
+    partly landed too — #118 added the `group`/`groups` pluralisation, so
+    `Melee (1 group)` already renders. What actually remains is the wrong noun
+    on member-derived tuning counts.
+  - **The #118 coordination clause resolved itself.** #119 says "whichever
+    lands second rebases"; #118 landed first, so #119 rebases onto it, and its
+    three fixes (the `Protection` header, the leaked enum, and the 390px
+    fingerprint overflow, fixed via `overflow-wrap: anywhere` on
+    `code, .mono, kbd`) are regression guards this work must not undo.
+  - **The node test harness assumes members are columns.** `findRow` and
+    `cellTexts` in `test_review_ui_js.py` walk the current layout, so the
+    transposition forces them to be reworked — which is exactly where a #118
+    guard could be silently weakened while the suite still passes.
+  - Chromium and node are present on the plan host, so
+    `VAULT_CLEANER_BROWSER_REQUIRED=1` genuinely runs the browser suite here; a
+    skip in an implementer report means the variable was not set.
+- **Corrections made during plan review (same session, before merge):**
+  - **Baseline reproduction was self-staling.** The plan told the reader to
+    reproduce its measurements with `git rev-parse origin/main`, which stops
+    reporting `91a4e5b` the moment the plan merges. Now pinned to
+    `git show 91a4e5b:<path>` with an explicit instruction that the implementer
+    re-measures from its own base and treats the named function or literal, not
+    the line number, as authoritative.
+  - **The scope-suffix table named the wrong vocabulary.** It listed the kind
+    source as `exact_duplicate`, which is a group's `groupKind`. The selector
+    stores `"all" | "exact" | "same_stat"`
+    (`review_server.js:872-873`), so an implementer following the table
+    literally would have compared against a token that never matches and the
+    `exact duplicates` clause would have silently never rendered while the rest
+    of the line looked right. Only `same_stat` is spelled the same in both
+    vocabularies, which is what makes the trap easy to walk into. Added as
+    likely finding 5 and checklist item 3a.
+  - **Suffix test coverage was one case for seven inputs.** Because the suffix
+    format has no source outside this plan, its test is the specification rather
+    than a guard; a single filtered case would pass with six parts missing. Now
+    a parametrised table, one case per selector plus a combined ordering case.
+  - Also recorded: the suffix must be built from the query *after*
+    `reconcileArmorQueryForGroups` clears facets that no longer exist, and a
+    single-kind report cannot distinguish a correct denominator from a
+    kind-scoped one because the kind selector only renders when both kinds are
+    present.
+  - **Second review round.** The corrected test matrix drew two further
+    findings, both accepted in substance. The combined ordering case activated
+    only four of the six renderable suffix parts, which leaves the relative
+    order of the omitted facets unpinned — an implementation emitting
+    `tuning slot` before `archetype` would never be exercised; it now activates
+    all six. The cardinality row was `1 group, 1 piece`, which does not prove
+    the two nouns pluralise independently.
+  - **Partially rejected, with evidence.** The suggested companion cases
+    `2 groups · 1 piece` and any `1 piece` state are unreachable: both duplicate
+    passes skip groups with fewer than two members
+    (`armor_dupes.py:306`, `armor_close.py:131`, `armor_close.py:290`), so
+    pieces is always at least twice groups. `1 group · 2 pieces` is therefore
+    both the smallest reachable report and the only case that catches a shared
+    plural suffix computed from one number, and it is the one the plan now
+    requires. The singular `piece` form, if covered at all, belongs in a direct
+    unit test of the pluralisation helper rather than a fabricated report state.
+    Recorded because it is easy to re-derive the same impossible case later.
+  - **Template gaps for #124.** Two of the three corrections generalise beyond
+    this plan. `planner.md` requires claims to be pinned to a path and line or
+    an empirical command, but does not require that command to be
+    baseline-pinned; and it requires exact copy to be stated verbatim, but has
+    no clause requiring copy a planner *invents* to carry a matching test
+    obligation. A third candidate clause: quote state tokens from the source
+    line rather than from prose.
+
 ## 2026-09-03 — #122: integrated multi-agent handoff workflow into repository
 
 - **What happened:**
