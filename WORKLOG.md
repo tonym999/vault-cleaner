@@ -3,6 +3,76 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-03 — #119: planning session (plan PR 1)
+
+Planning-only session under the new two-PR lifecycle. Authored
+`handoffs/issue-119-implementation-plan.md` from
+`handoffs/templates/planner.md` against `main` at `91a4e5b`. No production code
+changed. #119 was selected as the subject of the #124 workflow pilot because it
+is the only one of the four candidate issues (#115, #116, #117, #119) whose
+design direction is already settled, so it produces a real implementation diff
+for the independent adversarial reviewer rather than a decision record.
+
+- **What happened:**
+  - Measured the Armor duplicates surface against the plan baseline and pinned
+    every claim to a current file and line: the `SHOWN` tile
+    (`review_server.js:838-839`), the `Showing N of M groups` hint
+    (`review_server.js:995-998`), `armorGroupHeader` (`review_ui.js:1043-1067`),
+    `armorGroupTable` (`review_ui.js:1126-1197`), `memberValues`
+    (`review_ui.js:1034-1042`) and `countArmorGroups` (`review_ui.js:626-645`).
+  - Confirmed piece counts need no snapshot schema change: both armor group
+    projections already carry a non-empty `members` array, so a piece count is
+    `group.members.length`. No golden regeneration and no `_decision_config`
+    key.
+  - Inventoried the six existing assertions that pin strings this work deletes
+    (`test_review_ui_js.py:1267,1294,1297`, `test_server_ui_js.py:2272`,
+    `test_server_browser.py:333`) so the implementer adapts rather than deletes
+    them, and flagged that `test_server_ui_js.py:511` must stay untouched
+    because the `shown` tile survives on the proposals surface.
+  - Allocated `feat/issue-119-duplicate-count-hierarchy`, selected
+    `claude-sonnet-5` at native `xhigh` effort from the Complex Implementation
+    row of the model matrix, and recommended the `independent adversarial
+    review` path.
+- **Decisions made:**
+  - **Scope suffix format.** The #113 decision record specifies only the kind
+    case (`— filtered to exact duplicates`), but the surface has four facets and
+    a search box. The plan fixes a deterministic suffix — `" — filtered to "`
+    plus ordered parts `exact duplicates` / `same-stat groups`, `class V`,
+    `slot V`, `archetype V`, `tuning slot V`, `search "V"` — so the copy is
+    testable for every filter combination rather than only the documented one.
+  - **Facet units.** The `tuningModSlot` facet will count pieces for *both*
+    group kinds, and every other facet counts groups; entries gain a `unit`
+    field that `duplicateOptions` pluralises from. Counting pieces only for
+    same-stat groups was rejected because one facet value can be fed by both
+    kinds, which leaves that option's unit indeterminate. Consequence recorded
+    for the PR: the tuning facet's number stops predicting how many groups the
+    filter will show; the scoped summary region is what answers that.
+  - **Live region placement.** The scoped summary is static markup
+    (`#vc-duplicate-scope`) in `review_server.html`, outside `#vc-duplicate-list`,
+    updated by `textContent`. `renderList` clears the list host on every
+    keystroke, and a live region removed and re-inserted is not reliably
+    announced.
+- **Surprises the next agent should know about:**
+  - **#119's body is stale in two ways that matter.** Item 11 names
+    `"Exact duplicate group · " + group.groupKind` as the string its kind label
+    replaces, but #118 (PR #121) already removed that concatenation; the real
+    target is the plain sub-line at `review_ui.js:1050-1052`. Item 13 is
+    partly landed too — #118 added the `group`/`groups` pluralisation, so
+    `Melee (1 group)` already renders. What actually remains is the wrong noun
+    on member-derived tuning counts.
+  - **The #118 coordination clause resolved itself.** #119 says "whichever
+    lands second rebases"; #118 landed first, so #119 rebases onto it, and its
+    three fixes (the `Protection` header, the leaked enum, and the 390px
+    fingerprint overflow, fixed via `overflow-wrap: anywhere` on
+    `code, .mono, kbd`) are regression guards this work must not undo.
+  - **The node test harness assumes members are columns.** `findRow` and
+    `cellTexts` in `test_review_ui_js.py` walk the current layout, so the
+    transposition forces them to be reworked — which is exactly where a #118
+    guard could be silently weakened while the suite still passes.
+  - Chromium and node are present on the plan host, so
+    `VAULT_CLEANER_BROWSER_REQUIRED=1` genuinely runs the browser suite here; a
+    skip in an implementer report means the variable was not set.
+
 ## 2026-09-03 — #122: integrated multi-agent handoff workflow into repository
 
 - **What happened:**
