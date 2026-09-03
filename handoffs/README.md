@@ -5,22 +5,26 @@ This directory contains repository implementation plans ("handoffs") and operati
 ## Topology
 
 ```text
-planner → orchestrator → implementer → orchestrator reviews (or hands to independent adversarial reviewer) → PR
+planner → orchestrator → implementer → orchestrator-managed review (standard or independent adversarial) → PR
 ```
 
 ## Roles
 
 1. **Planner**
    - **Responsibility:** Researches an open issue, measures current code state, resolves any staleness in the issue body, designs the solution, allocates branch names, and authors the implementation handoff document using [handoffs/templates/planner.md](templates/planner.md).
-   - **Tier Selection:** Neither the plan nor this workflow selects the planner or orchestrator tier. The plan itself selects and justifies only the *implementer's* model tier and native reasoning effort.
+   - **Tier Selection:** Neither the plan nor this workflow selects the planner or orchestrator tier. The plan selects and justifies only the *implementer's* model tier and native reasoning effort, plus the recommended review path; it does not select the adversarial reviewer's model.
 
 2. **Orchestrator**
-   - **Responsibility:** Operates from `main` using [handoffs/templates/orchestrator.md](templates/orchestrator.md). Reads the merged plan from `main`, dispatches the implementer at the plan's specified tier and effort, reviews the resulting diff (`git diff base_sha...HEAD`) and test execution outputs, returns feedback if defects exist, and carries out the plan's review-outcome steps (opening the implementation PR, adding coordination comments).
+   - **Responsibility:** Operates from `main` using [handoffs/templates/orchestrator.md](templates/orchestrator.md). Reads the merged plan from `main`, dispatches the implementer at the plan's specified tier and effort, determines the final review path after inspecting the real diff, selects and dispatches an independent reviewer when required, routes findings, and carries out the plan's review-outcome steps (opening the implementation PR, adding coordination comments).
    - **Constraint:** Never writes production code or implements tickets directly.
 
 3. **Implementer**
    - **Responsibility:** Executes the handoff instructions on the allocated branch (`fix/issue-N-...` or `feat/issue-N-...`). Follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](../WORKLOG.md) and documentation, verifies with tests and linters, and reports results back to the orchestrator.
    - **Constraint:** Does not open pull requests or widen implementation scope.
+
+4. **Independent adversarial reviewer (optional, transient)**
+   - **Responsibility:** Starts in a fresh session with no planner or implementer conversation history, reads the canonical plan and exact `base_sha...head_sha` diff, treats the implementation as untrusted, and returns evidence-backed findings through the fixed review-result contract.
+   - **Constraint:** Read-only. Does not edit, commit, push, post comments, open a pull request, implement fixes, or re-plan the ticket. The orchestrator remains the owner of routing and the final review outcome.
 
 ## Document Lifecycle & Two-PR Process
 
@@ -35,6 +39,7 @@ Every ticket follows a two-PR lifecycle:
 2. **Implementation Phase (PR 2):**
    - The orchestrator reads the merged plan from `main` (`handoffs/issue-N-implementation-plan.md`).
    - Dispatches the implementer to work on the allocated implementation branch.
+   - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes any findings back to the implementer.
    - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` with a dated [WORKLOG.md](../WORKLOG.md) entry and executes any required issue comments.
 
 ## Naming Convention
@@ -68,11 +73,12 @@ The review path adapts review rigor to the risk and complexity of the change:
 
 - **Standard Orchestrator Review:** Default path for self-contained, low-risk, or routine changes. The orchestrator conducts the review directly against the plan's checklist, likely findings, and test suites.
 - **Independent Adversarial Review:** Triggered when prescribed by `# Ticket-specific review decision` in the plan, or when the orchestrator determines the real diff touches critical invariants (parsers, ranking rules, delete rails, server lifecycle), presents unexpected complexity, or involved difficult implementer iterations.
-- **Execution via Fresh Context:** When triggered, the orchestrator prepares the review prompt and hands the branch, base SHA, and head SHA to a fresh agent session running the review model tier (`claude-opus-5`, `gpt-5.6-sol`, or `gemini-3.1-pro-preview`) with unpolluted context. The adversarial reviewer treats the implementation as untrusted output and actively hunts for subtle regressions, edge cases, and missing negative tests. Findings are returned to the orchestrator, who routes fixes back to the implementer on the implementation branch before PR creation.
+- **Reviewer Selection:** The orchestrator owns reviewer selection because it sees the real diff. At dispatch time it re-verifies official model availability, selects and justifies one exact model ID and native effort from the current **Independent Review** mapping below, and records the actual provider/model/effort and any fallback. A different model family from the implementer is preferred when available, but independence requires a separate fresh context and read-only remit rather than a different provider.
+- **Execution via Fresh Context:** The orchestrator copies the reusable adversarial-review prompt from [handoffs/templates/orchestrator.md](templates/orchestrator.md), substitutes only its declared fields, and hands it to a fresh agent session with no planner or implementer conversation history. It configures a read-only sandbox or permission profile when the runtime supports one; the prompt's no-write constraint remains mandatory in every runtime. The reviewer actively hunts for subtle regressions, edge cases, and missing negative tests, but never edits the branch. Findings are returned to the orchestrator, who routes fixes back to the implementer before PR creation and sends the complete updated diff back to an independent reviewer for re-review.
 
 ## Manual Cross-Provider Execution (v1)
 
-The orchestrator records the requested provider, exact model ID, and native effort, then checks whether its active runtime can instantiate that target. If it cannot, the orchestrator prepares the exact implementer prompt and a human operator launches the external agent. The external agent returns its branch, base and head SHAs, test output, and completion handoff. The orchestrator treats that result as untrusted and reviews the complete diff against the plan. Any scope deviation follows `implementer → orchestrator → planner`. Automated provider discovery, authentication, launching, and monitoring are deferred to a separate issue.
+For every implementer or independent-reviewer dispatch, the orchestrator records the requested provider, exact model ID, and native effort, then checks whether its active runtime can instantiate that target. If it cannot, the orchestrator prepares the exact role prompt and a human operator launches the external agent. An external implementer returns its branch, base and head SHAs, test output, and completion handoff; an external reviewer returns the fixed findings report for the supplied immutable SHAs. The orchestrator treats every external result as untrusted. Any scope deviation follows `implementer → orchestrator → planner`. Automated provider discovery, authentication, launching, and monitoring are deferred to a separate issue.
 
 The dispatch record captures the **actual** provider/model/effort used and any fallback taken. A repository model table is selection guidance; it does not itself make that provider available to the active runtime.
 

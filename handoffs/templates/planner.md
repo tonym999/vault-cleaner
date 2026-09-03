@@ -27,7 +27,7 @@ When acting as the **Planner**:
 
 4. **Select Model & Native Reasoning Effort:**
    - Consult the model family and reasoning-effort matrix in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix).
-   - Select and justify the implementer's exact model ID and native reasoning effort setting (e.g. `claude-sonnet-5` with `xhigh` effort) based on task complexity. Note that neither the plan nor this workflow selects the planner or orchestrator tier.
+   - Select and justify the implementer's exact model ID and native reasoning effort setting (e.g. `claude-sonnet-5` with `xhigh` effort) based on task complexity. Note that neither the plan nor this workflow selects the planner or orchestrator tier, and the orchestrator selects any adversarial reviewer's exact model and effort only after inspecting the real diff.
    - Note the manual cross-provider boundary: the orchestrator will verify whether its active runtime supports the target model, or prepare the prompt for a human operator.
 
 5. **Construct the Mechanical Inclusion Test & Escalation Routing:**
@@ -62,7 +62,7 @@ Author the handoff document using the following exact structure:
 
 **Milestone:** `<Milestone>`
 
-**Implementation topology:** `planner → orchestrator → implementer → orchestrator reviews → PR`
+**Implementation topology:** `planner → orchestrator → implementer → orchestrator-managed review (standard or independent adversarial) → PR`
 
 **Implementation model selected:** `<Exact Model ID & Native Effort>` (justified below)
 
@@ -70,9 +70,9 @@ Author the handoff document using the following exact structure:
 
 **Allocated implementation branch:** `fix/issue-N-<short-name>`
 
-The implementer must **not** open a pull request. The implementation branch is reviewed by the orchestrator before any PR is created.
+The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
 
-This document uses role-neutral names (planner, orchestrator, implementer).
+This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
 
 ## Objective
 
@@ -142,10 +142,12 @@ When complete, provide the full implementer → orchestrator handoff specified i
 
 # Ticket-specific review decision
 
-**Review path:** `standard orchestrator review` | `independent adversarial review`
+**Review path:** <Choose exactly one: `standard orchestrator review` or `independent adversarial review`>
 
 **Reason:**
 <Justification for standard orchestrator review vs independent adversarial review based on architectural risk, invariant sensitivity, and blast radius.>
+
+The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
 # Review checklist
 

@@ -45,12 +45,13 @@ When acting as the **Orchestrator**:
    - Consult `# Ticket-specific review decision` in the plan and inspect the real diff:
      - **Standard Review:** For low-risk, self-contained, or routine changes. The orchestrator conducts the review directly against the plan's checklist, likely findings, and test suites.
      - **Independent Adversarial Review:** Triggered if mandated by the plan, or if the diff touches critical invariants (parsers, ranking rules, delete rails, server lifecycle), has unexpectedly high complexity, or underwent messy implementer iterations.
-   - **Adversarial Review Handoff:** When triggered, the orchestrator does not perform the sole audit. Instead, it prepares the review prompt and hands the branch, base SHA, and head SHA to a fresh agent session running the review model tier (e.g. `claude-opus-5` or `gpt-5.6-sol` with unpolluted context). The adversarial reviewer is instructed to actively hunt for regressions, edge cases, and missing negative tests against the plan on `main`. The orchestrator receives the reviewer's findings and routes any required fixes back to the implementer on the implementation branch.
+   - **Reviewer Selection:** The orchestrator owns this selection because it sees the real diff. Re-verify official provider documentation at dispatch time, then select and justify one exact model ID and native effort from the **Independent Review** row in [handoffs/README.md](../README.md#task-classes--recommended-mappings). Prefer a different model family from the implementer when available, but require a separate fresh context and read-only remit even when the same family is used. Record the requested and actual provider/model/effort plus any fallback.
+   - **Adversarial Review Handoff:** Copy the exact text under `## Reusable Independent Adversarial Review Prompt`, substitute only its angle-bracket fields, and dispatch it to a fresh agent session with no planner or implementer conversation history. Configure a read-only sandbox or permission profile when the runtime supports one; the prompt's no-write constraint is mandatory regardless. If the active runtime cannot instantiate the selected model and effort, give that exact prompt to a human operator for manual cross-provider launch. Do not add an implementation narrative or other hand-written brief.
 
 7. **Handle Review Findings & Legacy Plans:**
    - For plans using the modern template: evaluate the diff against `# Review checklist`, `## Likely findings`, and `## Mechanical inclusion test`.
    - For legacy migrated plans: evaluate against the plan's acceptance criteria, objective, and stated scope.
-   - If defects or scope leaks exist, return precise findings to the implementer and require fixes on the **same implementation branch**. Re-review the updated diff once repairs are complete.
+   - If defects or scope leaks exist, return precise findings to the implementer and require fixes on the **same implementation branch**. For an independent adversarial path, send the complete updated `base_sha...new_head_sha` diff back to the same independent reviewer, or a new fresh reviewer if that session cannot resume; do not replace the independent re-review with an orchestrator-only check.
 
 8. **Escalate Stop Conditions:**
    - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, follow the escalation route: `implementer → orchestrator → planner`.
@@ -58,3 +59,27 @@ When acting as the **Orchestrator**:
 
 9. **Carry Out Plan Review-Outcome Steps:**
    - When clean and verified, carry out all review-outcome steps specified in the plan (e.g. open a pull request targeting `main` referencing the issue, add any required coordination comments on issue threads, and ensure a dated [WORKLOG.md](../../WORKLOG.md) entry accompanies the PR).
+
+## Reusable Independent Adversarial Review Prompt
+
+Copy this prompt verbatim and replace only the angle-bracket fields:
+
+```text
+Act as the independent adversarial reviewer for issue #<N> in `tonym999/vault-cleaner`.
+
+Canonical plan on `main`: <handoffs/issue-N-implementation-plan.md>
+Implementation branch: <branch>
+Immutable review range: <base_sha>...<head_sha>
+
+Start from a fresh context. Read `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, the entire canonical plan, and all files relevant to the supplied diff before reaching conclusions. Treat the implementation and its reported test results as untrusted.
+
+Review the complete `git diff <base_sha>...<head_sha>`, not only the latest commit or the implementer's summary. Verify that both SHAs exist and that the head descends from the base. Evaluate correctness, regressions, security and safety rails, the plan's mechanical inclusion test, stop conditions, review checklist, likely findings, negative-test coverage, and repository-specific invariants. Inspect the orchestrator's recorded command output and run additional read-only diagnostics when useful and permitted.
+
+Remain read-only: do not edit files, commit, push, post comments, open a pull request, implement fixes, or re-plan the ticket. Return findings only to the orchestrator.
+
+Output contract:
+1. State the exact base and head SHAs reviewed.
+2. List actionable findings first, ordered P0 through P3. Every finding must include a concise title, repository-relative file and line, impact, evidence or reproduction, and the required correction boundary.
+3. If there are no actionable findings, say so explicitly.
+4. List residual risks, assumptions, and any verification you could not run.
+```
