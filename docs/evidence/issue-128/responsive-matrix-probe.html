@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>#128 matrix measurement specimen</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; }
+  .wrap { max-width: 78rem; margin: 0 auto; padding: 1rem; }
+  .panel { border: 1px solid #d8dce4; padding: .85rem 1rem; }
+  .armor-group { border: 1px solid #d8dce4; padding: .75rem; margin: .75rem 0; }
+  .scroller { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #d8dce4; vertical-align: top; }
+  th { font-size: .8rem; color: #5b6270; white-space: nowrap; }
+  .armor-matrix { margin-top: .75rem; container-type: inline-size; }
+  .matrix--rows .armor-group-table { min-width: 46rem; }
+  .matrix--rows .armor-member-heading, .matrix--rows .armor-member-cell { min-width: 11rem; }
+  .matrix--columns { display: none; }
+  .matrix--columns th[scope="row"] { min-width: 8.5rem; }
+  .matrix--columns .armor-member-heading, .matrix--columns .armor-member-cell { min-width: 12rem; }
+  .armor-member-heading > span { display: block; }
+  .mono, .armor-member-heading .sub, .armor-member-heading .badge, .matrix--columns td { white-space: normal; overflow-wrap: anywhere; }
+  .badge { border: 1px solid #d8dce4; border-radius: 999px; padding: 0 .5rem; max-width: 100%; }
+  @container (min-width: 33rem) {
+    .armor-matrix[data-member-count="2"] .matrix--rows { display: none; }
+    .armor-matrix[data-member-count="2"] .matrix--columns { display: block; }
+  }
+  @container (min-width: 45rem) {
+    .armor-matrix[data-member-count="3"] .matrix--rows { display: none; }
+    .armor-matrix[data-member-count="3"] .matrix--columns { display: block; }
+  }
+  @container (min-width: 57rem) {
+    .armor-matrix[data-member-count="4"] .matrix--rows { display: none; }
+    .armor-matrix[data-member-count="4"] .matrix--columns { display: block; }
+  }
+  @media (max-width: 640px) { .wrap { padding: .6rem; } .armor-group { padding: .6rem; } }
+</style>
+<main class="wrap"><section class="panel"><article class="armor-group"><div id="mount"></div></article></section></main>
+<script>
+  function e(tag, text) { const n = document.createElement(tag); n.textContent = text || ''; return n; }
+  function memberHeading(index) {
+    const th = e('th'); th.className = 'armor-member-heading';
+    th.append(e('span', 'Member ' + (index + 1)));
+    const id=e('span', '000922337203685477580' + index); id.className='mono'; th.append(id);
+    const location=e('span', 'Very long location label that wraps safely'); location.className='sub'; th.append(location);
+    const badge=e('span', 'Existing proposals action: review'); badge.className='badge'; th.append(badge); return th;
+  }
+  function matrix(count, conditional) {
+    const outer = e('div'); outer.className = 'armor-matrix'; outer.dataset.memberCount = count;
+    const fields = ['Protection', 'In loadout', 'Equipped', 'Locked', 'Masterwork Tier', 'Power'];
+    if (conditional) fields.unshift('Tuning Mod Slot', 'Seasonal Mod', 'Holofoil', 'Tuning Stat');
+    const rows = e('div'); rows.className = 'scroller matrix--rows';
+    const rowTable = e('table'); rowTable.className = 'armor-group-table'; const rh = e('tr');
+    ['Member'].concat(fields, ['Verdict']).forEach(v => { const th=e('th',v); th.scope='col'; rh.append(th); });
+    const rhead=e('thead'); rhead.append(rh); rowTable.append(rhead); const rbody=e('tbody');
+    for(let i=0;i<count;i++){const tr=e('tr'); const h=memberHeading(i); h.scope='row'; tr.append(h); fields.forEach(v=>tr.append(e('td',v+' value'))); tr.append(e('td','Approve Veto Unset')); rbody.append(tr);} rowTable.append(rbody); rows.append(rowTable);
+    const cols = e('div'); cols.className = 'scroller matrix--columns';
+    const colTable=e('table'); colTable.className='armor-group-table'; colTable.style.minWidth=(8.5 + 12 * count) + 'rem'; const ch=e('tr'); const ccorner=e('th','Comparison'); ccorner.scope='col'; ch.append(ccorner); for(let i=0;i<count;i++){const h=memberHeading(i);h.scope='col';ch.append(h);} const chead=e('thead');chead.append(ch);colTable.append(chead);const cbody=e('tbody');fields.concat(['Verdict']).forEach(field=>{const tr=e('tr');const h=e('th',field);h.scope='row';tr.append(h);for(let i=0;i<count;i++)tr.append(e('td',field==='Verdict'?'Approve Veto Unset':field+' value'));cbody.append(tr);});colTable.append(cbody);cols.append(colTable);
+    outer.append(rows, cols); return outer;
+  }
+  window.renderProbe = (count, conditional, width) => { const m = matrix(count, conditional); m.style.width = width; document.querySelector('#mount').replaceChildren(m); return m; };
+</script>

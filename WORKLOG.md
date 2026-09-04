@@ -3,6 +3,74 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-04 — #128: responsive Armor comparison planning session (plan PR 1)
+
+Planning-only session for #128. No production code, test, fixture, snapshot,
+or server contract changed.
+
+- **What happened:**
+  - Corrected #128 from a design-record-only issue into an implementation ticket
+    with a measured planning phase and a required implementation PR.
+  - Re-read the #113/#119 decision and implementation trail, current
+    `armorGroupTable`, `armorMemberCell`, verdict repaint/disable paths, CSS,
+    and the Node/Playwright regression tests. Reproduced the pre-#119
+    member-column matrix from `fb9a435` to measure its minimum-width budget.
+  - Authored `handoffs/issue-128-implementation-plan.md`, allocating
+    `feat/issue-128-responsive-armor-matrix` and an independent adversarial
+    review path. It was subsequently rebased onto `main` at
+    `37c054a40ecbf2b79e403ab88fcf96f2156ed720` after PR #127. #127 changes
+    workflow/worklog documentation only, so the measured production UI remains
+    the issue #119 state at `3a9ee98b8489306b47ae56cb7bb80f0b1190325d`.
+  - Ran the required browser suite with
+    `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`:
+    8 passed in 6.24s. The same command cannot launch Chromium inside this
+    environment's filesystem sandbox (`sandbox_host_linux.cc:41`), but passed
+    in the required unsandboxed verification environment; a later implementation
+    must still report the required browser suite, never a skip.
+  - Added a committed, isolated rendered measurement specimen at
+    `docs/evidence/issue-128/responsive-matrix-probe.html` and its Playwright
+    runner `scripts/measure_responsive_matrix.py`. It records the selected
+    2/3/4-member transition values in CSS pixels, 390px and 1440px behavior,
+    constrained-panel/zoom reflow, and conditional-field row growth.
+  - Strengthened that probe so it asserts every documented precondition before
+    reporting: exact container width, active orientation, document containment,
+    threshold flips, and conditional 7-to-11 row growth. Added a requirement
+    for a genuine test-owned three-member server input at the `45rem` boundary;
+    the existing 2- and 4-member checks remain required.
+- **Decisions made:**
+  - Use a CSS inline-size container query on each comparison, not a viewport
+    media query. The default is the current member-row table. The member-column
+    table activates at `33rem`, `45rem`, or `57rem` for 2, 3, or 4 members,
+    respectively: the pre-#119 comparison matrix needs an `8.5rem` comparison
+    column plus `12rem` per member (`32.5rem`, `44.5rem`, `56.5rem`), with a
+    0.5rem guard. Conditional same-stat fields add rows, not columns.
+  - Render both semantic table shapes from one field list and let `display:none`
+    hide the inactive one. This gives a no-container-query fallback of member
+    rows and removes the hidden table from the accessibility tree/keyboard
+    order without a stale static `aria-hidden` state. Both `armorMemberCell`
+    occurrences remain registered so a CSS resize cannot surface a stale verdict.
+  - Limit columns deliberately to exactly 2/3/4 members. The authoritative
+    group producers have no maximum, while a live singleton is producer-
+    impossible (though the exact untrusted snapshot adapter accepts non-empty
+    arrays). Both a defensive singleton and 5+ groups remain in the row
+    fallback at all sizes: that is safer than a growing matrix selecting a
+    borrowed 2/3/4 threshold.
+  - Preserve all existing copy, field labels, authoritative projections,
+    grouping/ranking/rules, verdict API, and lifecycle. The work must not absorb
+    #115/#116/#117 or the separate mobile tile-row question.
+- **Surprises the next agent should know about:**
+  - Existing tests assume one table and, in places, assume registry positions
+    correspond only to exact then same-stat occurrences. Dual rendering doubles
+    occurrences; tests must select by group kind/orientation and assert updates
+    across every occurrence, not just `[0]`.
+  - Any visible-control or badge-width assertion must scope itself to the active
+    matrix. Hidden `display:none` nodes have no usable geometry and cannot
+    demonstrate wrapping or keyboard behavior.
+  - The original `46rem` row-table minimum would invalidate the 33rem and 45rem
+    column thresholds if inherited. The implementation must override it with
+    the selected column minima; the committed probe confirms all transitions
+    fit exactly once opaque-id/location/badge text is allowed to wrap.
+
 ## 2026-09-03 — #124: workflow pilot outcome (orchestration session)
 
 Ran the committed planner → orchestrator → implementer → independent adversarial
