@@ -172,17 +172,37 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   padding: .45rem .7rem;
   margin: .5rem 0;
 }
-.armor-matrix { margin-top: .75rem; }
-.armor-group-table { min-width: 46rem; }
-.armor-member-heading { min-width: 11rem; }
-.armor-member-heading > span { display: block; }
-.armor-member-heading .sub { font-weight: normal; white-space: normal; overflow-wrap: anywhere; }
-.armor-member-heading .badge { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.armor-matrix { margin-top: .75rem; container-type: inline-size; }
+.armor-matrix-columns { display: none; }
+.armor-matrix-rows .armor-group-table { min-width: 46rem; }
+.armor-matrix-rows .armor-member-heading { min-width: 11rem; }
+.armor-matrix .armor-member-heading > span { display: block; }
+.armor-matrix .armor-member-heading .sub { font-weight: normal; white-space: normal; overflow-wrap: anywhere; }
+.armor-matrix .armor-member-heading .badge { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.armor-matrix td { overflow-wrap: anywhere; }
 .armor-member-number { color: var(--muted); font-size: .78rem; }
-.armor-member-cell { min-width: 11rem; }
+.armor-matrix-rows .armor-member-cell { min-width: 11rem; }
 .armor-member-cell .row-actions { flex-wrap: wrap; }
 .armor-group-table tbody tr:last-child th,
 .armor-group-table tbody tr:last-child td { border-bottom: 0; }
+.armor-matrix-columns .armor-group-table { min-width: 32.5rem; }
+.armor-matrix[data-member-count="3"] .armor-matrix-columns .armor-group-table { min-width: 44.5rem; }
+.armor-matrix[data-member-count="4"] .armor-matrix-columns .armor-group-table { min-width: 56.5rem; }
+.armor-matrix-columns .armor-comparison-heading { min-width: 8.5rem; }
+.armor-matrix-columns .armor-member-heading,
+.armor-matrix-columns .armor-member-cell { min-width: 12rem; }
+@container (min-width: 33rem) {
+  .armor-matrix[data-member-count="2"] .armor-matrix-rows { display: none; }
+  .armor-matrix[data-member-count="2"] .armor-matrix-columns { display: block; }
+}
+@container (min-width: 45rem) {
+  .armor-matrix[data-member-count="3"] .armor-matrix-rows { display: none; }
+  .armor-matrix[data-member-count="3"] .armor-matrix-columns { display: block; }
+}
+@container (min-width: 57rem) {
+  .armor-matrix[data-member-count="4"] .armor-matrix-rows { display: none; }
+  .armor-matrix[data-member-count="4"] .armor-matrix-columns { display: block; }
+}
 @media (max-width: 640px) {
   .wrap { padding: .6rem; }
   .tile { min-width: 100%; }

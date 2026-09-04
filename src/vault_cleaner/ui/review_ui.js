@@ -1146,7 +1146,7 @@
       return cell;
     }
 
-    function armorGroupTable(group) {
+    function armorComparisonFields(group) {
       var fields = [];
       if (group.groupKind === "same_stat") {
         fields.push(["Tuning Mod Slot", function (member) {
@@ -1189,7 +1189,19 @@
           return member.power === null || member.power === undefined ? "unknown" : str(member.power);
         }]
       ]);
+      return fields;
+    }
 
+    function armorMemberHeading(group, member, index, scope) {
+      return el("th", { scope: scope, class: "armor-member-heading" }, [
+        el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
+        el("span", { class: "mono", text: member.id }),
+        el("span", { class: "sub", text: member.location || "location unknown" }),
+        el("span", { class: "badge", text: armorMemberLabel(group, member) })
+      ]);
+    }
+
+    function armorRowMatrix(group, fields) {
       var headerCells = [el("th", { scope: "col", text: "Member" })].concat(
         fields.map(function (field) {
           return el("th", { scope: "col", text: field[0] });
@@ -1198,25 +1210,54 @@
       );
 
       var rows = (group.members || []).map(function (member, index) {
-        var memberHeading = el("th", { scope: "row", class: "armor-member-heading" }, [
-          el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
-          el("span", { class: "mono", text: member.id }),
-          el("span", { class: "sub", text: member.location || "location unknown" }),
-          el("span", { class: "badge", text: armorMemberLabel(group, member) })
-        ]);
         var dataCells = fields.map(function (field) {
           return el("td", { text: field[1](member) });
         });
         var verdictCell = armorMemberCell(member, group);
-        return el("tr", null, [memberHeading].concat(dataCells, [verdictCell]));
+        return el("tr", null, [armorMemberHeading(group, member, index, "row")]
+          .concat(dataCells, [verdictCell]));
       });
 
-      return el("div", { class: "scroller armor-matrix" }, [
+      return el("div", { class: "scroller armor-matrix-rows" }, [
         el("table", { class: "armor-group-table" }, [
           el("thead", null, [el("tr", null, headerCells)]),
           el("tbody", null, rows)
         ])
       ]);
+    }
+
+    function armorColumnMatrix(group, fields) {
+      var members = group.members || [];
+      var headerCells = [el("th", { scope: "col", class: "armor-comparison-heading", text: "Comparison" })]
+        .concat(members.map(function (member, index) {
+          return armorMemberHeading(group, member, index, "col");
+        }));
+      var rows = fields.map(function (field) {
+        return el("tr", null, [
+          el("th", { scope: "row", class: "armor-comparison-heading", text: field[0] })
+        ].concat(members.map(function (member) {
+          return el("td", { text: field[1](member) });
+        })));
+      });
+      rows.push(el("tr", null, [
+        el("th", { scope: "row", class: "armor-comparison-heading", text: "Verdict" })
+      ].concat(members.map(function (member) {
+        return armorMemberCell(member, group);
+      }))));
+      return el("div", { class: "scroller armor-matrix-columns" }, [
+        el("table", { class: "armor-group-table" }, [
+          el("thead", null, [el("tr", null, headerCells)]),
+          el("tbody", null, rows)
+        ])
+      ]);
+    }
+
+    function armorGroupTable(group) {
+      var fields = armorComparisonFields(group);
+      var memberCount = (group.members || []).length;
+      return el("div", {
+        class: "armor-matrix", "data-member-count": String(memberCount)
+      }, [armorRowMatrix(group, fields), armorColumnMatrix(group, fields)]);
     }
 
     function armorGroup(group) {

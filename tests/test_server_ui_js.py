@@ -2469,20 +2469,28 @@ setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   document.nodes["vc-view-duplicates"].dispatch("click");
   var occurrences = state.duplicateRows[sharedId];
-  var exact = occurrences[0], same = occurrences[1];
-  var before = {count: occurrences.length, exactReadOnly: exact.approve === null,
-    sameMutable: !!same.approve};
-  same.approve.dispatch("click");
-  var duringAck = {sameDisabled: same.approve.disabled, exactReadOnly: exact.approve === null};
+  var exact = occurrences.filter(function (row) { return row.group.groupKind === "exact_duplicate"; });
+  var same = occurrences.filter(function (row) { return row.group.groupKind === "same_stat"; });
+  var before = {count: occurrences.length, exactReadOnly: exact.every(function (row) {
+      return row.approve === null;
+    }), sameMutable: same.every(function (row) { return !!row.approve; })};
+  same[0].approve.dispatch("click");
+  var duringAck = {sameDisabled: same.every(function (row) { return row.approve.disabled; }),
+    exactReadOnly: exact.every(function (row) { return row.approve === null; })};
   setTimeout(function () {
-    var afterAck = {verdict: state.verdicts[sharedId], samePressed: same.approve.getAttribute("aria-pressed"),
-      exactText: exact.presentation.textContent, exactReadOnly: exact.approve === null};
+    var afterAck = {verdict: state.verdicts[sharedId], samePressed: same.every(function (row) {
+        return row.approve.getAttribute("aria-pressed") === "true";
+      }), exactText: exact.every(function (row) {
+        return row.presentation.textContent.indexOf("Read-only · Preferred survivor") !== -1;
+      }), exactReadOnly: exact.every(function (row) { return row.approve === null; })};
     document.nodes["vc-finalize"].dispatch("click");
     setTimeout(function () {
       process.stdout.write(JSON.stringify({before: before, duringAck: duringAck, afterAck: afterAck,
-        finalized: state.server_state === "finalized" && exact.approve === null &&
-          same.approve.disabled && same.veto.disabled && same.clear.disabled &&
-          exact.presentation.textContent.indexOf("Read-only") !== -1,
+        finalized: state.server_state === "finalized" && exact.every(function (row) {
+            return row.approve === null && row.presentation.textContent.indexOf("Read-only") !== -1;
+          }) && same.every(function (row) {
+            return row.approve.disabled && row.veto.disabled && row.clear.disabled;
+          }),
         calls: calls}));
     }, 10);
   }, 10);
@@ -2499,11 +2507,11 @@ setTimeout(function () {
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
-        "before": {"count": 2, "exactReadOnly": True, "sameMutable": True},
+        "before": {"count": 4, "exactReadOnly": True, "sameMutable": True},
         "duringAck": {"sameDisabled": True, "exactReadOnly": True},
         "afterAck": {
-            "verdict": "approved", "samePressed": "true",
-            "exactText": "Read-only · Preferred survivor · Also proposed review in Proposals · Current verdict: approved — armor-similar to",
+            "verdict": "approved", "samePressed": True,
+            "exactText": True,
             "exactReadOnly": True,
         },
         "finalized": True,

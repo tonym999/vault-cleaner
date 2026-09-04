@@ -6,6 +6,7 @@ import os
 import tempfile
 import threading
 from collections.abc import Callable, Iterator
+from csv import DictReader, DictWriter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -162,6 +163,25 @@ def badge_width_and_heading_budget(badge: Locator) -> tuple[float, float]:
         " return [el.offsetWidth, h ? parseFloat(getComputedStyle(h).minWidth) : NaN]; }"
     )
     return float(width), float(budget)
+
+
+def same_stat_members_export(tmp_path: Path, member_count: int) -> Path:
+    """Build a test-owned same-stat input with the requested member count."""
+    with ARMOR_SAME_STAT_FOUR_UI_EXPORT.open(encoding="utf-8", newline="") as source:
+        reader = DictReader(source)
+        rows = list(reader)
+        assert reader.fieldnames is not None
+        fieldnames = reader.fieldnames
+    if member_count == 5:
+        extra = rows[-1].copy()
+        extra["Id"] = "8405"
+        rows.append(extra)
+    target = tmp_path / f"same-stat-{member_count}.csv"
+    with target.open("w", encoding="utf-8", newline="") as destination:
+        writer = DictWriter(destination, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows[:member_count])
+    return target
 
 
 @pytest.mark.browser
@@ -326,14 +346,16 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(group).to_contain_text("The other three base stats are 0")
 
     for member_id in ("8201", "8202", "8203"):
-        expect(group.locator(f'[data-member-id="exact_duplicate:{member_id}"]')).to_be_visible()
+        expect(group.locator(
+            f'.armor-matrix-columns [data-member-id="exact_duplicate:{member_id}"]'
+        )).to_be_visible()
         expect(group).to_contain_text(member_id)
     expect(group).to_contain_text("Preferred survivor")
     expect(group).to_contain_text("Retained protected")
     expect(group).to_contain_text("Proposed junk")
-    assert group.locator('[data-member-id="exact_duplicate:8201"] button.approve').count() == 0
-    assert group.locator('[data-member-id="exact_duplicate:8202"] button.veto').count() == 0
-    proposal = group.locator('[data-member-id="exact_duplicate:8203"]')
+    assert group.locator('.armor-matrix-columns [data-member-id="exact_duplicate:8201"] button.approve').count() == 0
+    assert group.locator('.armor-matrix-columns [data-member-id="exact_duplicate:8202"] button.veto').count() == 0
+    proposal = group.locator('.armor-matrix-columns [data-member-id="exact_duplicate:8203"]')
     expect(proposal.locator("button.approve")).to_be_enabled()
 
     proposal.locator("button.approve").click()
@@ -374,17 +396,78 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
     expect(group).to_contain_text("Tuning Mod Slot")
     expect(group).to_contain_text("Weapons")
     expect(group).to_contain_text("Health")
-    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
-    expect(group.locator("button.approve")).to_have_count(2)
+    matrix = group.locator(".armor-matrix")
+    rows = group.locator(".armor-matrix-rows")
+    columns = group.locator(".armor-matrix-columns")
+    expect(matrix).to_have_attribute("data-member-count", "2")
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(rows).to_be_visible()
+    expect(columns).to_be_hidden()
+    visible_approve = rows.locator("button.approve").first
+    expect(visible_approve).to_be_visible()
+    visible_approve.click()
+    expect(visible_approve).to_have_attribute("aria-pressed", "true")
+
+    page.set_viewport_size({"width": 1440, "height": 900})
+    matrix.evaluate("el => { el.style.width = '527px'; }")
+    expect(rows).to_be_visible()
+    expect(columns).to_be_hidden()
+    matrix.evaluate("el => { el.style.width = '528px'; }")
+    expect(columns).to_be_visible()
+    expect(rows).to_be_hidden()
+    expect(group.locator(
+        ".armor-matrix-columns th[scope='row']"
+    ).filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator(".armor-matrix-columns button.approve")).to_have_count(2)
     expect(group).not_to_contain_text("Preferred survivor")
     expect(group).not_to_contain_text("Proposed junk")
 
 
 @pytest.mark.browser
-def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
+def test_armor_same_stat_three_member_matrix_switches_at_45rem(
+    page: Page, live_server: LiveServer, tmp_path: Path
+) -> None:
+    """A real three-member input switches only at the measured 45rem floor."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(same_stat_members_export(tmp_path, 3))
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    matrix = group.locator(".armor-matrix")
+    rows = group.locator(".armor-matrix-rows")
+    columns = group.locator(".armor-matrix-columns")
+    expect(matrix).to_have_attribute("data-member-count", "3")
+    matrix.evaluate("el => { el.style.width = '719px'; }")
+    expect(rows).to_be_visible()
+    expect(columns).to_be_hidden()
+    matrix.evaluate("el => { el.style.width = '720px'; }")
+    expect(columns).to_be_visible()
+    expect(rows).to_be_hidden()
+
+
+@pytest.mark.browser
+def test_armor_same_stat_five_member_matrix_stays_in_row_fallback(
+    page: Page, live_server: LiveServer, tmp_path: Path
+) -> None:
+    """An unbounded five-member group never borrows a four-member threshold."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(same_stat_members_export(tmp_path, 5))
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    page.locator("#vc-view-duplicates").click()
+
+    page.set_viewport_size({"width": 1440, "height": 900})
+    matrix = page.locator('.armor-matrix[data-member-count="5"]')
+    expect(matrix).to_have_attribute("data-member-count", "5")
+    expect(matrix.locator(".armor-matrix-rows")).to_be_visible()
+    expect(matrix.locator(".armor-matrix-columns")).to_be_hidden()
+
+
+@pytest.mark.browser
+def test_armor_same_stat_four_member_responsive_member_matrix(
     page: Page, live_server: LiveServer
 ) -> None:
-    """Four-member same-stat groups wrap badges cleanly and transpose columns."""
+    """Four-member comparisons switch by container size, not viewport size."""
     authenticate(page, live_server)
     page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_FOUR_UI_EXPORT)
 
@@ -397,25 +480,38 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
     expect(group.locator("p.armor-group-pieces")).to_have_text("4 pieces")
     expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 4 pieces")
 
-    # Transposed layout: 4 rows in tbody
-    expect(group.locator("tbody tr")).to_have_count(4)
-    expect(group.locator("th[scope='col']").filter(has_text="Member")).to_be_visible()
-    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
-    expect(group.locator("th[scope='col']").filter(has_text="Protection")).to_be_visible()
-    expect(group.locator("th[scope='col']").filter(has_text="Verdict")).to_be_visible()
+    rows = group.locator(".armor-matrix-rows")
+    columns = group.locator(".armor-matrix-columns")
+    matrix = group.locator(".armor-matrix")
+    expect(matrix).to_have_attribute("data-member-count", "4")
+    expect(columns).to_be_visible()
+    expect(rows).to_be_hidden()
+    expect(columns.locator("thead th").first).to_have_text("Comparison")
+    expect(columns.locator("th[scope='row']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(columns.locator("th[scope='row']").filter(has_text="Protection")).to_be_visible()
+    expect(columns.locator("th[scope='row']").filter(has_text="Verdict")).to_be_visible()
 
-    # Viewport checks at desktop and mobile widths
-    for width, height in ((1440, 900), (390, 844)):
-        page.set_viewport_size({"width": width, "height": height})
-        scroll_width = page.evaluate("document.documentElement.scrollWidth")
-        assert scroll_width <= width, (
-            f"document scrolled horizontally at {width}px: scrollWidth={scroll_width}"
-        )
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(rows).to_be_visible()
+    expect(columns).to_be_hidden()
+    expect(rows.locator("tbody tr")).to_have_count(4)
+    assert page.evaluate("document.documentElement.scrollWidth") <= 390
+    assert rows.locator("button:visible").count() == rows.locator("button").count()
+    assert columns.locator("button:visible").count() == 0
+
+    page.set_viewport_size({"width": 1440, "height": 900})
+    matrix.evaluate("el => { el.style.width = '911px'; }")
+    expect(rows).to_be_visible()
+    expect(columns).to_be_hidden()
+    matrix.evaluate("el => { el.style.width = '912px'; }")
+    expect(columns).to_be_visible()
+    expect(rows).to_be_hidden()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 1440
 
     # Badges wrap within their heading's fixed width budget instead of
     # forcing the cell wider (see badge_width_and_heading_budget for why a
     # bare scrollWidth <= clientWidth check on the badge cannot catch this).
-    badges = page.locator("article.armor-group .armor-member-heading .badge")
+    badges = columns.locator(".armor-member-heading .badge")
     assert badges.count() == 4
     for i in range(badges.count()):
         badge = badges.nth(i)

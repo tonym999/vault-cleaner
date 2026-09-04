@@ -3,6 +3,36 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-04 — #128: responsive Armor member matrix implementation (PR 2)
+
+- **What changed:** Each Armor duplicate comparison now renders the existing
+  member-row table plus the restored semantic member-column table from one
+  ordered field definition. The enclosing `.armor-matrix` records the actual
+  member count and is an inline-size container: rows are the default/fallback,
+  while columns appear only for exactly two, three, or four members at
+  `33rem`, `45rem`, and `57rem`, respectively. The column table keeps its
+  measured `8.5rem + 12rem × N` budgets (`32.5rem`, `44.5rem`, `56.5rem`) and
+  therefore does not inherit the row table's `46rem` floor. One-member and
+  five-or-more matrices stay rows at every width.
+- **Accessibility and verdict state:** The inactive scroller uses CSS
+  `display: none`, so it is absent from the accessibility tree and keyboard
+  order without a competing ARIA state. Both control cells remain registered;
+  repaint, acknowledgement, and finalisation now update/disable both
+  orientation occurrences rather than relying on prior single-table indices.
+- **Coverage:** Node tests assert both semantic shapes, conditional-field
+  parity, cross-kind identities, duplicate occurrence synchronisation, and
+  defensive singleton/five-member cardinalities. Browser tests exercise the
+  390px row fallback and usable visible control, genuine 2/3/4-member
+  boundaries at 527/528px, 719/720px, and 911/912px, a constrained desktop
+  fallback, column semantics, contained document width, active-matrix badge
+  wrapping in light/dark themes, and a real test-owned five-member row
+  fallback. The temporary CSV inputs use only fake fixture rows and are not
+  tracked.
+- **Surprise:** Rendering both shapes doubles the `duplicateRows` handles,
+  including cross-kind overlaps. Tests must choose occurrences by group kind
+  and active matrix, never by historical registry position or an unqualified
+  duplicate DOM selector.
+
 ## 2026-09-04 — #128: responsive Armor comparison planning session (plan PR 1)
 
 Planning-only session for #128. No production code, test, fixture, snapshot,
