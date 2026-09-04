@@ -1053,6 +1053,7 @@
           }));
         }
         var sameStatStatus = el("div", { class: "armor-member-status" }, details);
+        sameStatStatus.armorStructuredStatus = true;
         sameStatStatus.armorVerdictNode = sameStatVerdict;
         return sameStatStatus;
       }
@@ -1083,6 +1084,7 @@
         }
       }
       var exactStatus = el("div", { class: "armor-member-status" }, details);
+      exactStatus.armorStructuredStatus = true;
       if (exactVerdict) exactStatus.armorVerdictNode = exactVerdict;
       return exactStatus;
     }
@@ -1487,7 +1489,7 @@
           if (row.presentation.armorVerdictNode) {
             row.presentation.armorVerdictNode.textContent =
               "Current verdict: " + verdictText(row.member, current);
-          } else {
+          } else if (!row.presentation.armorStructuredStatus) {
             row.presentation.textContent = armorMemberCanVerdict(row.group, row.member)
               ? verdictText(row.member, current) : row.group.groupKind === "same_stat"
                 ? "Read-only comparison · Current verdict: " + verdictText(row.member, current)

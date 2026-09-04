@@ -306,7 +306,8 @@ terminal.
 - Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
   151.0.7922.34 (managed Playwright Chromium), headless.
 - Method: the automated `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q
-  -m browser tests/test_server_browser.py` run (14 passed in 9.86s) plus a
+  -m browser tests/test_server_browser.py` run (14 passed, 3 deselected in
+  10.04s) plus a
   direct run of `scripts/measure_armor_matrix_orientation.py`, which itself
   asserts its own preconditions (exactly one orientation visible, no document
   horizontal overflow) before writing
@@ -343,6 +344,10 @@ terminal.
   plan's own likely-finding #1 called out as missing, since flipping the
   width between acknowledgement and assertion is exactly what a stale
   `[0]`-indexed repaint would fail.
+- Structured read-only repaint result: pass. After acknowledging an exact-group
+  proposal, both the preferred-survivor and retained-protected occurrences
+  kept their `.armor-member-status` badge and labelled disposition children;
+  the all-row repaint no longer flattens either status into one text node.
 - Difference-only result: pass. A group with a uniform Masterwork
   Tier/Power/In loadout/Equipped alongside a differing Protection and Locked
   rendered only the differing axes as rows in both orientations, and restated

@@ -63,9 +63,13 @@ SEARCH_HI = 1800
 # plateau for the N=5/N=6 unreachable-thresholds note.
 WIDE_CAP_VIEWPORT = (2560, 1200)
 
-PROBE = """() => {
-  const group = document.querySelector('article.armor-group');
-  if (!group) return null;
+PROBE = """(memberCount) => {
+  const selector = memberCount === null
+    ? 'article.armor-group'
+    : `article.armor-group[data-member-count="${memberCount}"]`;
+  const groups = document.querySelectorAll(selector);
+  if (groups.length !== 1) return null;
+  const group = groups[0];
   const comparison = group.querySelector('.armor-comparison .scroller');
   const columns = group.querySelector('table.armor-matrix-columns');
   const rows = group.querySelector('table.armor-matrix-rows');
@@ -89,9 +93,11 @@ PROBE = """() => {
 }"""
 
 
-def probe_at(page: Page, width: int, height: int) -> dict | None:
+def probe_at(
+    page: Page, width: int, height: int, member_count: int | None
+) -> dict | None:
     page.set_viewport_size({"width": width, "height": height})
-    return page.evaluate(PROBE)
+    return page.evaluate(PROBE, member_count)
 
 
 def find_flip_point(
@@ -105,11 +111,11 @@ def find_flip_point(
     bisection result, per the "fail rather than report" requirement --
     reports nothing and appends a failure instead of guessing.
     """
-    lo_probe = probe_at(page, SEARCH_LO, 900)
-    hi_probe = probe_at(page, SEARCH_HI, 900)
+    lo_probe = probe_at(page, SEARCH_LO, 900, member_count)
+    hi_probe = probe_at(page, SEARCH_HI, 900, member_count)
     if lo_probe is None or hi_probe is None:
         failures.append(
-            f"{fixture_name}: flip-point search found no article.armor-group"
+            f"{fixture_name}: flip-point search found no unique matching armor group"
         )
         return None
     if lo_probe["columnsVisible"] or not lo_probe["rowsVisible"]:
@@ -132,10 +138,11 @@ def find_flip_point(
     lo, hi = SEARCH_LO, SEARCH_HI
     while hi - lo > 1:
         mid = (lo + hi) // 2
-        result = probe_at(page, mid, 900)
+        result = probe_at(page, mid, 900, member_count)
         if result is None:
             failures.append(
-                f"{fixture_name}: flip-point search lost article.armor-group at {mid}px"
+                f"{fixture_name}: flip-point search lost its unique matching group "
+                f"at {mid}px"
             )
             return None
         if result["columnsVisible"] and not result["rowsVisible"]:
@@ -150,10 +157,13 @@ def find_flip_point(
             )
             return None
 
-    below = probe_at(page, lo, 900)
-    at_flip = probe_at(page, hi, 900)
+    below = probe_at(page, lo, 900, member_count)
+    at_flip = probe_at(page, hi, 900, member_count)
     if below is None or at_flip is None:
-        failures.append(f"{fixture_name}: flip-point search lost the group at the boundary")
+        failures.append(
+            f"{fixture_name}: flip-point search lost its unique matching group "
+            "at the boundary"
+        )
         return None
     if not (below["rowsVisible"] and not below["columnsVisible"]):
         failures.append(
@@ -182,9 +192,9 @@ def measure_unreachable_cap(page: Page, failures: list[str]) -> dict | None:
     could need. Whatever group is currently loaded is fine: the cap comes
     from the page chrome, not the group's own member count."""
     width, height = WIDE_CAP_VIEWPORT
-    result = probe_at(page, width, height)
+    result = probe_at(page, width, height, None)
     if result is None:
-        failures.append("unreachable-cap measurement found no article.armor-group")
+        failures.append("unreachable-cap measurement found no unique armor group")
         return None
     if result["docScrollWidth"] > width:
         failures.append(
@@ -293,10 +303,11 @@ def main() -> int:
                     report_lines.append("|---|---|---|---|---|---|---|")
 
                     for width, height in VIEWPORTS:
-                        result = probe_at(page, width, height)
+                        result = probe_at(page, width, height, member_count)
                         if result is None:
                             failures.append(
-                                f"{fixture_name} @ {width}x{height}: no article.armor-group found"
+                                f"{fixture_name} @ {width}x{height}: no unique matching "
+                                "armor group found"
                             )
                             continue
                         both_visible = result["columnsVisible"] and result["rowsVisible"]

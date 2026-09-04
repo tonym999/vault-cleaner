@@ -518,6 +518,32 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
   tests/test_server_browser.py` — **14 passed in 11.31s**, not skipped;
   `.venv/bin/python scripts/measure_armor_matrix_orientation.py` — passed,
   threshold matches recorded and evidence written; no data files are tracked.
+- **Post-review correctness follow-up (same branch):** accepted the owner's
+  high-severity finding that the in-place verdict repaint assigned
+  `textContent` to exact-group `.armor-member-status` containers without a
+  dynamic verdict child, destroying their badge/detail DOM after the first
+  acknowledgement. Every structured armor status is now marked explicitly;
+  repaint updates its dedicated dynamic verdict child when present and leaves
+  an intentionally static structured status untouched otherwise. This differs
+  deliberately from the literal suggestion to always add a verdict node:
+  simple preferred-survivor/retained-protected exact statuses intentionally
+  omit the redundant current-verdict line. Extended both the Node DOM test and
+  the live exact-group browser flow to repaint every occurrence and assert the
+  read-only badge/disposition children survive; the Node case also covers a
+  read-only exact proposal with an empty current action.
+- Accepted the non-blocking measurement hardening note with a stronger
+  fail-safe: every fixture probe now receives its expected member count and
+  requires exactly one matching `article.armor-group`; zero or multiple
+  matches fail the measurement instead of silently selecting the first group.
+  The unrelated wide-cap probe likewise requires one unique current group.
+  Added a unit seam asserting the count is passed and uniqueness guard remains
+  in the probe. The real measurement rerun still produced exact 616/816/1016px
+  threshold matches and no evidence diff.
+- **Verification after the post-review follow-up:** `ruff check src tests
+  scripts` — all checks passed; focused unit coverage — **4 passed**; focused
+  live Chromium regression — **1 passed**; full `.venv/bin/pytest -q` — **967
+  passed in 29.50s**; required browser suite — **14 passed, 3 deselected in
+  10.04s**; real measurement script — passed; `git diff --check` — clean.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

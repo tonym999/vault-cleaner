@@ -199,6 +199,33 @@ def test_css_threshold_match_preserves_good_run():
     assert failures == []
 
 
+def test_orientation_probe_targets_one_group_by_member_count():
+    module = load_measurement_module()
+
+    class FakePage:
+        def __init__(self):
+            self.viewport = None
+            self.script = None
+            self.argument = None
+
+        def set_viewport_size(self, viewport):
+            self.viewport = viewport
+
+        def evaluate(self, script, argument):
+            self.script = script
+            self.argument = argument
+            return {"measured": True}
+
+    page = FakePage()
+    result = module.probe_at(page, 900, 700, 4)
+
+    assert result == {"measured": True}
+    assert page.viewport == {"width": 900, "height": 700}
+    assert page.argument == 4
+    assert "data-member-count" in page.script
+    assert "groups.length !== 1" in page.script
+
+
 @pytest.mark.browser
 def test_hostile_export_remains_inert_in_live_dom(
     page: Page, live_server: LiveServer
@@ -410,6 +437,19 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(proposal.locator("button.approve")).to_have_attribute(
         "aria-pressed", "true"
     )
+    # The acknowledgement repaints every registered member occurrence. Its
+    # static read-only statuses must retain their structured badge/detail DOM.
+    expect(group.locator(".armor-member-status:visible .badge.status")).to_have_count(2)
+    expect(
+        group.locator(".armor-member-status:visible .status-detail").filter(
+            has_text="Disposition: Preferred survivor"
+        )
+    ).to_have_count(1)
+    expect(
+        group.locator(".armor-member-status:visible .status-detail").filter(
+            has_text="Disposition: Retained protected"
+        )
+    ).to_have_count(1)
 
     page.locator("#vc-view-proposals").click()
     proposal_row = page.locator('#vc-list tr[data-id="8203"]')

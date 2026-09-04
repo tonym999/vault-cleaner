@@ -944,6 +944,8 @@ var beforeCells = proposalRows.map(function (row) { return row.cell; });
 proposal.approve.click();
 state.verdicts.proposal = "approved";
 view.paintArmorMember("proposal");
+view.paintArmorMember("survivor");
+view.paintArmorMember("retained");
 proposal.veto.click();
 proposal.clear.click();
 var laterState = {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)};
@@ -973,6 +975,7 @@ var malformedArticle = malformedView.armorGroup({
     {id: "bad", location: "Vault", disposition: "proposed_junk", proposalAction: ""}
   ]
 });
+malformedView.paintArmorMember("bad");
 var finalizedState = {expanded: Object.create(null), rows: Object.create(null),
   duplicateRows: Object.create(null), verdicts: Object.create(null)};
 var finalizedView = api.createView({document: new Document(), state: finalizedState,
@@ -991,7 +994,9 @@ process.stdout.write(JSON.stringify({
   }) === 0,
   malformedReadOnly: count(malformedArticle, function (node) {
     return node.tagName === "BUTTON";
-  }) === 0,
+  }) === 0 && malformedState.duplicateRows.bad.every(function (row) {
+    return row.presentation.children.length === 2;
+  }),
   finalizedDisabled: finalizedProposalRows.every(function (row) {
     return row.approve.disabled && row.veto.disabled && row.clear.disabled;
   }),
@@ -1008,6 +1013,13 @@ process.stdout.write(JSON.stringify({
     return row.cell === beforeCells[index];
   }) && proposalRows.every(function (row) {
     return row.approve.getAttribute("aria-pressed") === "true";
+  }),
+  structuredReadOnlySurvivesRepaint: ["survivor", "retained"].every(function (id) {
+    return state.duplicateRows[id].every(function (row) {
+      return row.presentation.children.length === 2 &&
+        row.presentation.children[0].className.indexOf("badge status") !== -1 &&
+        row.presentation.children[1].className === "status-detail";
+    });
   }),
   labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1,
   equipped: article.textContent.indexOf("Equipped") !== -1 && article.textContent.indexOf("Yes") !== -1 && article.textContent.indexOf("No") !== -1,
@@ -1040,6 +1052,7 @@ process.stdout.write(JSON.stringify({
         "proposalControls": True,
         "callback": True,
         "repaintedInPlace": True,
+        "structuredReadOnlySurvivesRepaint": True,
         "labels": True,
         "equipped": True,
         "laterProposalDisclosure": True,
