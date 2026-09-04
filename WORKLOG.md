@@ -25,6 +25,11 @@ or server contract changed.
     environment's filesystem sandbox (`sandbox_host_linux.cc:41`), but passed
     in the required unsandboxed verification environment; a later implementation
     must still report the required browser suite, never a skip.
+  - Added a committed, isolated rendered measurement specimen at
+    `docs/evidence/issue-128/responsive-matrix-probe.html` and its Playwright
+    runner `scripts/measure_responsive_matrix.py`. It records the selected
+    2/3/4-member transition values in CSS pixels, 390px and 1440px behavior,
+    constrained-panel/zoom reflow, and conditional-field row growth.
 - **Decisions made:**
   - Use a CSS inline-size container query on each comparison, not a viewport
     media query. The default is the current member-row table. The member-column
@@ -37,6 +42,12 @@ or server contract changed.
     rows and removes the hidden table from the accessibility tree/keyboard
     order without a stale static `aria-hidden` state. Both `armorMemberCell`
     occurrences remain registered so a CSS resize cannot surface a stale verdict.
+  - Limit columns deliberately to exactly 2/3/4 members. The authoritative
+    group producers have no maximum, while a live singleton is producer-
+    impossible (though the exact untrusted snapshot adapter accepts non-empty
+    arrays). Both a defensive singleton and 5+ groups remain in the row
+    fallback at all sizes: that is safer than a growing matrix selecting a
+    borrowed 2/3/4 threshold.
   - Preserve all existing copy, field labels, authoritative projections,
     grouping/ranking/rules, verdict API, and lifecycle. The work must not absorb
     #115/#116/#117 or the separate mobile tile-row question.
@@ -48,6 +59,10 @@ or server contract changed.
   - Any visible-control or badge-width assertion must scope itself to the active
     matrix. Hidden `display:none` nodes have no usable geometry and cannot
     demonstrate wrapping or keyboard behavior.
+  - The original `46rem` row-table minimum would invalidate the 33rem and 45rem
+    column thresholds if inherited. The implementation must override it with
+    the selected column minima; the committed probe confirms all transitions
+    fit exactly once opaque-id/location/badge text is allowed to wrap.
 
 ## 2026-09-03 — #124: workflow pilot outcome (orchestration session)
 

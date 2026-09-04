@@ -73,6 +73,11 @@ member/disposition labels. The change is orientation and semantics only.
   above its matching threshold the member-column table is active; below it,
   member rows are active. A browser without container-query support keeps the
   default row matrix, which is the safe fallback.
+- The historical `46rem` `.armor-group-table` minimum must **not** leak into
+  the column representation: its deliberately scoped minima are exactly
+  `32.5rem`, `44.5rem`, and `56.5rem` for 2/3/4 members. Otherwise a two- or
+  three-member column matrix would incorrectly overflow at its selected
+  threshold.
 - #113's committed decision record says the prior matrix at 390px showed one
   member and required an internal horizontal scroll to compare. It chose member
   rows ([`duplicate-review-count-design.md`](../docs/duplicate-review-count-design.md#L141-L150)).
@@ -90,14 +95,49 @@ member/disposition labels. The change is orientation and semantics only.
   the required unsandboxed verification environment. That operational detail is
   not a product failure and must not be hidden by a skipped browser run.
 
+### Reproducible rendered probe (planning evidence)
+
+`docs/evidence/issue-128/responsive-matrix-probe.html` is a faithful, isolated
+specimen of the selected DOM/CSS budgets: the current row fallback (`46rem` /
+`11rem`), the restored column budget (`8.5rem + 12rem × N`), realistic opaque
+IDs, long location/badge text, both matrix shapes, and the proposed container
+queries. It is intentionally planning evidence, not production UI. Reproduce
+the measurements with:
+
+```text
+.venv/bin/python scripts/measure_responsive_matrix.py
+```
+
+Observed in managed Chromium on 2026-09-04 (all widths are CSS pixels):
+
+| Probe | container | active orientation | table/document result |
+| --- | ---: | --- | --- |
+| 390px viewport, 4 members | 316px | rows | row scroll 786px; document 390px |
+| 1440px viewport, 4 members | 1156px | columns | column scroll 1156px; document 1440px |
+| 2 members, 527px / 528px container | 527 / 528px | rows / columns | boundary flips exactly; 528px column scroll is 528px |
+| 3 members, 719px / 720px container | 719 / 720px | rows / columns | boundary flips exactly; 720px column scroll is 720px |
+| 4 members, 911px / 912px container | 911 / 912px | rows / columns | boundary flips exactly; 912px column scroll is 912px |
+| 1440px viewport, 1 or 5 members | 1156px | rows | no column matrix selected |
+| 4 members at 912px, conditional absent/present | 912px | columns | 7 / 11 comparison rows; both scroll 912px |
+| 720px CSS viewport, 4 members | 628px | rows | row scroll 786px; document 720px |
+
+The final row is the zoom/reflow probe: browser zoom changes the CSS viewport
+and therefore the available container inline size, rather than a separate
+physical-pixel layout. A 1440px display at approximately 200% browser zoom
+has the same relevant 720-CSS-pixel reflow constraint; no device-scale-factor
+claim is being made. The selected container query therefore returns to rows
+before the four-member `57rem` floor. The conditional-state probe verifies
+that those fields add comparison **rows** (7 to 11), never inline width.
+
 ### Design selected for implementation
 
 Render both valid table shapes from the same authoritative group and field
 list, enclosed by one `.armor-matrix` container with
 `container-type: inline-size` and a `data-member-count` value. CSS defaults to
 the row matrix and `display: none` for the column matrix. Container queries
-activate only the matching member-column table at `33rem`, `45rem`, or `57rem`
-and hide the row matrix.
+activate only the matching 2/3/4-member column table at `33rem`, `45rem`, or
+`57rem` and hide the row matrix. A one-member group and every group with five
+or more members deliberately stay in the proven row fallback at every width.
 
 `display: none`, rather than a static `aria-hidden` attribute, is intentional:
 the hidden matrix is removed from both the accessibility tree and sequential
@@ -126,6 +166,17 @@ wide field sets to be read without making members disappear sideways.
 - No schema, snapshot, Python rule, server API, HTML-template, or fixture
   change is needed. Both existing group projections already supply the members,
   dispositions, conditional values, and verdict state needed by both layouts.
+- The trusted group producers have no maximum cardinality. Exact grouping skips
+  fewer than two members (`armor_dupes.py` lines 284–307), and same-stat
+  grouping likewise skips fewer than two (`armor_close.py` lines 275–295), so
+  a live 1-member group is producer-impossible. The exact untrusted snapshot
+  adapter currently accepts any non-empty `members` array, while same-stat
+  rejects a singleton, so a defensive singleton still must render as rows.
+  There is no hard maximum: five or more members must remain rows even in a
+  wide panel. That intentional bounded column design avoids inventing a
+  mismatched static threshold for an unbounded group and preserves #128's
+  primary comparison guarantee; a 5+ group has all members vertically visible
+  instead of forcing a 68.5rem-and-growing horizontal matrix.
 - The existing Node tests have layout-shaped helpers that assume a single
   table and registry indices that assume one occurrence per group. For example,
   [`test_review_ui_js.py`](../tests/test_review_ui_js.py#L1218-L1325) expects
@@ -183,10 +234,13 @@ wide field sets to be read without making members disappear sideways.
 2. Add three container-query rules keyed by the outer `data-member-count`:
    `min-width: 33rem` for 2 members, `45rem` for 3, and `57rem` for 4. Each
    rule hides the row scroller and displays the matching column scroller. Do
-   not substitute a `min-width` viewport media query.
+   not substitute a `min-width` viewport media query. Do not add a generic
+   `>=5` selector: 1 and 5+ remain row fallback at all container sizes.
 3. Scope the column matrix's `8.5rem` comparison-header and `12rem`
-   member-heading/member-cell width budgets to the column representation. Keep
-   the current row matrix's `46rem` table and `11rem` member budgets.
+   member-heading/member-cell width budgets, including their `32.5rem` /
+   `44.5rem` / `56.5rem` table minima, to the column representation. Override
+   rather than inherit the current `46rem` row-table floor. Keep the current
+   row matrix's `46rem` table and `11rem` member budgets.
 4. Ensure long text in both table shapes can break within its cell; retain
    existing badge/location wrapping and add a narrowly scoped matrix-cell
    `overflow-wrap: anywhere` rule if the current one does not cover every
@@ -252,10 +306,20 @@ Replace the existing one-layout assertions with load-bearing live-server tests:
    one orientation's controls are in the visible keyboard scan. Preserve the
    existing singleton `#vc-duplicate-scope` node/identity assertion so the
    layout work does not duplicate live-region announcements.
+6. Add a direct Node rendering test for the defensive exact singleton and a
+   five-member group. Assert both expose `data-member-count` but neither can
+   match a column-query selector. Add a live browser case by building a
+   test-owned temporary five-member fake CSV from existing fake data (new fake
+   opaque id only; do not add a tracked fixture or use `data/`) and assert a
+   wide container still exposes rows alone. This prevents a future `>=5`
+   selector from activating a 2/3/4 threshold by mistake.
 
-No files are added or deleted. In particular, do not change report snapshots,
-fixtures, server HTML/JS, Python code, config, dependencies, or documentation
-outside the mandatory `WORKLOG.md` entry.
+The planning PR adds only the reproducible evidence specimen/measurement
+script above. The implementation PR adds no files or fixtures unless a
+test-owned temporary fixture is needed at runtime. In particular, do not
+change report snapshots, tracked fixtures, server HTML/JS, Python code,
+config, dependencies, or documentation outside the mandatory `WORKLOG.md`
+entry.
 
 ## Mechanical inclusion test
 
@@ -293,6 +357,9 @@ Stop implementation and return to orchestrator if:
   `8.5rem`/`12rem` budgets after the specified wrapping rules, or need a
   per-content JavaScript measurement/ARIA-state mechanism rather than the
   selected CSS container-query design;
+- a 5+ member group cannot safely retain the explicit row fallback, or the
+  authoritative producers acquire a cardinality constraint that makes this
+  plan's singleton/5+ assumptions stale;
 - browser support for the required container query is unavailable in the
   repository's managed Chromium, or the required browser command is skipped or
   cannot be made to run; or
@@ -319,6 +386,11 @@ Escalation route: `implementer → orchestrator → planner`.
    element has zero rendered width and a `display:none` control cannot prove
    active keyboard order. Review must scope width checks to the visible matrix
    and use actual active/visible controls for focus and interaction.
+5. **An unbounded group activates a borrowed threshold:** a broad selector
+   such as `[data-member-count]`, `:not([data-member-count="1"])`, or an
+   accidental `>=5` rule can show five members at the four-member `57rem`
+   threshold. Review must inspect all selectors and run the Node plus live
+   five-member fallback checks; singleton input must also remain rows.
 
 # Reusable implementer execution prompt
 
@@ -338,7 +410,8 @@ Rules:
   and record the base SHA;
 - apply the plan's mechanical inclusion test to every production hunk;
 - preserve the selected default-row/container-query column design and its
-  `33rem`/`45rem`/`57rem` thresholds unless a stated stop condition occurs;
+  `33rem`/`45rem`/`57rem` thresholds for exactly 2/3/4 members (1 and 5+ stay
+  rows) unless a stated stop condition occurs;
 - update `WORKLOG.md` with a dated entry;
 - run all verification commands:
 
@@ -389,10 +462,12 @@ ID, and native effort at dispatch time.
   read-only behavior, and verdict payload.
 - [ ] Row is the no-container-query/narrow fallback; the exact 2/3/4-member
   `33rem`/`45rem`/`57rem` rules activate columns only where the corresponding
-  `8.5rem + 12rem × N` matrix fits.
+  `8.5rem + 12rem × N` matrix fits, override the old 46rem column floor, and
+  never activate columns for a defensive singleton or 5+ group.
 - [ ] Browser tests prove 390px rows, fitting desktop columns, constrained
-  desktop rows, threshold transitions, no document overflow, both color
-  schemes, and actual visible/focusable controls—not hidden-node geometry.
+  desktop rows, all 2/3/4 threshold transitions, 5+ wide-container rows,
+  no document overflow, both color schemes, and actual visible/focusable
+  controls—not hidden-node geometry.
 - [ ] Node and adapter tests prove every duplicate occurrence (both
   orientations and both group kinds) repaints/disables on acknowledgement and
   finalization; existing cross-kind identities remain distinct.
@@ -406,4 +481,4 @@ Planned #128 in [handoffs/issue-128-implementation-plan.md](https://github.com/t
 
 - **Implementer tier & effort:** `gpt-5.6-terra` (`high`)
 - **Implementation branch:** `feat/issue-128-responsive-armor-matrix`
-- **Likely findings:** hidden duplicate control occurrences, panel-size versus viewport breakpoint behavior, row/column conditional-field parity, and non-load-bearing hidden-node accessibility assertions.
+- **Likely findings:** hidden duplicate control occurrences, panel-size versus viewport breakpoint behavior, row/column conditional-field parity, non-load-bearing hidden-node accessibility assertions, and an unbounded group accidentally borrowing a 2/3/4-member threshold.
