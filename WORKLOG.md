@@ -3,6 +3,80 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
+
+Planning-only session for #131. No production code, test, fixture, snapshot,
+CSS, or server contract changed.
+
+- **What happened:**
+  - Confirmed the ticket is startable: #131 is open in M9, and #102, #110, #113
+    and #119 are all closed/`Done` reference work rather than open dependencies.
+    Found no staleness between the issue body and `main` — every fidelity gap it
+    names is real on the baseline, and every delivered fact it leans on is
+    present.
+  - Read the #102 agreed artifact (`8f1266ab…`, *Armor Duplicates Mockup*) as the
+    design source of truth, and recorded which two of its frame elements #131
+    excludes: the structured `▸ decided` winner marker and the amber Health
+    "low-value for PvE" treatment.
+  - Measured the baseline before prescribing anything: `ruff` clean,
+    `pytest -q` 953 passed, and the required Chromium suite **8 passed in 6.02s**.
+    Chromium launches in this environment, so the browser gate is a real gate
+    here.
+  - Measured the real layout budget by uploading the committed fake fixtures into
+    the packaged server and reading live geometry: the comparison content box is
+    **1156px at 1440×1000, 932px at 1024×900 and 316px at 390×844**, against a
+    current `.armor-group-table` minimum of 736px (46rem) and 176px (11rem)
+    member cells. The temporary measurement test was deleted; the working tree
+    was left clean.
+  - Authored `handoffs/issue-131-implementation-plan.md`, allocating
+    `feat/issue-131-armor-duplicates-design-fidelity`, `claude-sonnet-5` at
+    `xhigh`, and an independent adversarial review path.
+- **Decisions made:**
+  - **Difference-only rows must not lose information.** Suppressing an axis
+    because it is identical would silently drop read-only protected context, so
+    every suppressed axis is restated once per group in a muted
+    `Identical across all pieces: …` line. That is what makes the artifact's
+    "rows are the differences" rule safe here.
+  - **Style the navigation as tabs; do not adopt `role="tablist"`.** Real tab
+    semantics also require `aria-controls`, `role="tabpanel"`, roving `tabindex`
+    and arrow-key handling; a partial version is less accessible than the working
+    `aria-pressed` toggle group that already exists and is already tested. Counts
+    go into the visible text *and* the `aria-label`, because `aria-label`
+    otherwise hides them from assistive technology.
+  - **Keep the per-group kind sub-line** (`Exact` / `Same stats · review only`)
+    even though the artifact's header omits it. It is delivered copy that #110's
+    and #118's acceptance checks and the Node tests depend on. Recorded as a
+    deliberate deviation rather than a silent one.
+  - **Do not move `#vc-duplicate-scope`.** The artifact puts its count note
+    inside the filter card, but an existing browser test pins that element to
+    parent `#vc-duplicates` and proves it is updated in place, not recreated.
+    Style it into position instead; keep one live-region announcement.
+  - **Orientation switch is a CSS container query on `.armor-group`**, with the
+    row table as the default so an unsupporting browser degrades to today's
+    behavior, and `display: none` (not `aria-hidden`) hiding the inactive
+    orientation so it leaves both the accessibility tree and the keyboard order.
+- **Surprises the next agent should know about:**
+  - `#128` and PR #130 are closed wrong-scope history and are explicitly not
+    design authority, so **every number in this plan was re-measured** on the
+    baseline rather than inherited from that trail. Their probe and runner no
+    longer exist in the repository; only the WORKLOG entries remain.
+  - Existing tests are coupled to the current layout in ways a redesign trips
+    over: `tests/test_review_ui_js.py:1355` asserts a header **child position**
+    (`children[0].children[0]`), `:1341` forbids any underscore anywhere in an
+    exact group's text, `:1324` counts exactly three buttons per article, and
+    `tests/test_server_ui_js.py:1860`/`:2478` index
+    `state.duplicateRows[id][0]` positionally. Rendering two orientations
+    doubles both the buttons and the registry entries, so `[0]` may become the
+    hidden one — those assertions must move to the whole occurrence list, not a
+    re-indexed position.
+  - `tests/test_server_browser.py:401` currently asserts the **member-row**
+    orientation for a four-member group under a docstring that says
+    "transposition". That test is not wrong today; #131 inverts what it should
+    assert at fitting desktop widths while keeping it for the narrow fallback.
+  - `.venv/bin/python` is **3.14.4** while `AGENTS.md` states Python 3.12. The
+    entire suite is green on it. Recorded as an observation; changing it is out
+    of scope for #131.
+
 ## 2026-09-04 — #132 authorization-boundary correction
 
 - Opened #132 to track this workflow-governance correction. Closed
