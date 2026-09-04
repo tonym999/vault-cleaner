@@ -451,7 +451,8 @@ table/control trees for every group and relies on CSS container queries for the
 correct accessibility and interaction surface. A regression can leave visible
 controls stale, accidentally expose duplicate controls to assistive technology,
 or pass layout tests against hidden zero-width nodes. This is comparable to the
-The DOM transposition/review history of issue #119 merits a fresh complete-diff review.
+DOM transposition/review history of issue #119 and merits a fresh complete-diff
+review.
 
 The orchestrator confirms the path against the real diff and, when adversarial
 review is required, selects and records the reviewer's exact provider, model
