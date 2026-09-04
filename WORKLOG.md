@@ -544,6 +544,19 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
   live Chromium regression — **1 passed**; full `.venv/bin/pytest -q` — **967
   passed in 29.50s**; required browser suite — **14 passed, 3 deselected in
   10.04s**; real measurement script — passed; `git diff --check` — clean.
+- **Final re-review cleanup:** accepted the owner's non-blocking observation
+  that the structured-status guard made `armorReadonlyText` and the
+  non-proposal arms of `paintArmorMember`'s fallback unreachable. Removed the
+  dead helper and reduced the fallback to its only possible case: repainting
+  an editable proposal's flat verdict span. Declined CodeRabbit's JSDoc nit:
+  `paintArmorMember` is an internal `createView` helper like the adjacent
+  undocumented `paintRow`, not a standalone public API; a two-line invariant
+  comment beside the structured/flat branch documents the non-obvious part
+  without introducing a one-off documentation convention.
+- **Verification after final cleanup:** `ruff check src tests scripts` — all
+  checks passed; focused Node regression — **1 passed**; full
+  `.venv/bin/pytest -q` — **967 passed in 27.49s**; required browser suite —
+  **14 passed, 3 deselected in 9.94s**; `git diff --check` — clean.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

@@ -1013,16 +1013,6 @@
         (member.disposition === "proposed_review" && member.proposalAction === "review");
     }
 
-    function armorReadonlyText(member, verdict) {
-      var text = "Read-only · " + dispositionLabel(member);
-      if (member.currentProposalAction) {
-        text += " · Also proposed " + member.currentProposalAction +
-          " in Proposals · Current verdict: " + verdictText(member, verdict);
-        if (member.currentProposalReason) text += " — " + member.currentProposalReason;
-      }
-      return text;
-    }
-
     // Read-only disclosures can contain several authoritative facts (the
     // disposition, a later proposal, its reason, and the current verdict).
     // Keep each fact as a labelled line so long reasons do not become one
@@ -1490,10 +1480,9 @@
             row.presentation.armorVerdictNode.textContent =
               "Current verdict: " + verdictText(row.member, current);
           } else if (!row.presentation.armorStructuredStatus) {
-            row.presentation.textContent = armorMemberCanVerdict(row.group, row.member)
-              ? verdictText(row.member, current) : row.group.groupKind === "same_stat"
-                ? "Read-only comparison · Current verdict: " + verdictText(row.member, current)
-                : armorReadonlyText(row.member, current);
+            // Only editable proposal presentations are flat; read-only
+            // statuses stay structured and are handled above when dynamic.
+            row.presentation.textContent = verdictText(row.member, current);
           }
         }
       });
