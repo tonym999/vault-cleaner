@@ -3436,3 +3436,178 @@ setTimeout(function () {
         },
         "headings": ["Exact duplicates", "Same stats, different tuning"],
     }
+
+
+def test_single_kind_report_renders_exactly_one_section_heading(tmp_path: Path):
+    """A single-kind filtered result renders exactly one section heading (#131).
+
+    Plan SS4/SS10 require a section heading only for kinds present in the
+    current filtered result. The regression this guards against is real, not
+    cosmetic: deleting the `if (!section.groups.length) return;` guard in
+    `review_server.js`'s duplicate-list render makes an exact-only (or
+    same-stat-only) report render a stray *empty* second section heading.
+    Render each kind alone and assert both the heading count and both
+    section rule lines verbatim, so a mutation of either the guard or either
+    rule string fails this test.
+    """
+    harness = tmp_path / "server-ui-single-kind-heading-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+  this.hidden = false; this.value = ""; this.selectionStart = 0;
+  this.selectionEnd = 0; this.files = [];
+}
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null; return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || {target: this, preventDefault: function () {}};
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child;
+      else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+function Document() {
+  this.nodes = Object.create(null); this.listeners = Object.create(null);
+  this.activeElement = null; this.body = new Node("body", this);
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function response(payload) {
+  return {ok: true, status: 200, json: function () { return Promise.resolve(payload); }};
+}
+function buildEnvelope(exactOnly) {
+  return {schema_version: 1, state: "reviewing", report_revision: 1,
+    verdict_revision: 0, fingerprint: "fp-single-kind",
+    snapshot: {sections: [
+      {kind: "armor", decisions: [
+        {id: "a1", hash: "h", action: "junk"}, {id: "a2", hash: "h", action: "review"}
+      ], armor: {
+        exact_duplicate_groups: exactOnly ? [{group_kind: "exact_duplicate", group_id: "e1",
+          hash: "h", name: "Exact", preferred_survivor_id: "e-surv", members: [
+            {id: "e-surv", disposition: "preferred_survivor"},
+            {id: "a1", disposition: "proposed_junk", proposal_action: "junk"}
+          ]}] : [],
+        same_stat_groups: exactOnly ? [] : [{group_kind: "same_stat", group_id: "s1",
+          hash: "h", name: "Same", members: [
+            {id: "a2", proposal_action: "review"}, {id: "other"}
+          ]}]
+      }}
+    ]}, verdicts: [], override_status: []};
+}
+function runCase(exactOnly, done) {
+  var document = new Document();
+  var context = {document: document, VaultCleanerReviewUI: shared, Promise: Promise, Set: Set,
+    fetch: function () { return Promise.resolve(response(buildEnvelope(exactOnly))); }};
+  context.globalThis = context;
+  vm.runInNewContext(source, context);
+  setTimeout(function () {
+    document.nodes["vc-view-duplicates"].dispatch("click");
+    var sections = collect(document.nodes["vc-duplicate-list"], function (n) {
+      return hasClass(n, "armor-section-head");
+    });
+    done({
+      headingCount: sections.length,
+      entries: sections.map(function (n) {
+        return {
+          heading: collect(n, function (c) { return c.tagName === "H3"; })[0].textContent,
+          rule: collect(n, function (c) { return hasClass(c, "rule"); })[0].textContent
+        };
+      })
+    });
+  }, 10);
+}
+runCase(true, function (exactOnly) {
+  runCase(false, function (sameStatOnly) {
+    process.stdout.write(JSON.stringify({exactOnly: exactOnly, sameStatOnly: sameStatOnly}));
+  });
+});
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "exactOnly": {
+            "headingCount": 1,
+            "entries": [{
+                "heading": "Exact duplicates",
+                "rule": "Same archetype, same stats, same tuning — one copy survives",
+            }],
+        },
+        "sameStatOnly": {
+            "headingCount": 1,
+            "entries": [{
+                "heading": "Same stats, different tuning",
+                "rule": "Review only — the tool never picks your tuning for you",
+            }],
+        },
+    }

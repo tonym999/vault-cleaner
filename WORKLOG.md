@@ -36,9 +36,10 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
     and swapped in per member count (2–6) via `@container (min-inline-size:
     …)` rules once its own measured budget (`13.5 + 12.5×N` rem — a 10.5rem
     axis-label column, 12.5rem per member column, 3rem guard) fits; the row
-    table keeps its existing 46rem minimum, uninherited. Added `.tabs`/
-    `.tab`, `.segbtns`/`.segb`, `.tuneline`/`.tuneline.warn`, `.badge.arch`,
-    the spike bar rules, and the section-heading rule.
+    table keeps its existing 46rem minimum, uninherited. Added `.tabs`
+    (with `.tabs button`), `.segbtns` (with `.segbtns button`),
+    `.tuneline`/`.tuneline.warn`, `.badge.arch`, the spike bar rules, and
+    the section-heading rule.
   - `review_server.js`: the surface selector restyles as `.tabs` with a
     monospace count chip and a count-carrying `aria-label` on each button
     (counts are visible text *and* accessible name, never a live-region
@@ -134,6 +135,91 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
   (`test_armor_stat_spike_bars_render_proportional_widths`,
   `test_armor_duplicates_surface_has_no_csp_violations`); both were
   confirmed failing against the pre-fix code before the fix landed.
+- **Independent adversarial review round (same session, same branch,
+  `e839e89...930912b` reviewed):** the orchestrator accepted six findings;
+  fixed all of them, tests only plus two doc/worklog corrections and one
+  dead-class removal, no rule/grouping/ranking/schema change.
+  - **P2-1 (blocking, real defect class):** three plan-mandated behaviours
+    had zero test coverage, most seriously that deleting the guard
+    `if (!section.groups.length) return;` in `review_server.js`'s
+    duplicate-list render made an exact-only or same-stat-only report
+    render a stray *empty* second section heading — nothing caught it.
+    Added `test_single_kind_report_renders_exactly_one_section_heading`
+    (`tests/test_server_ui_js.py`), which renders each kind alone and
+    asserts exactly one `.armor-section-head` with both rule lines
+    (`Same archetype, same stats, same tuning — one copy survives` /
+    `Review only — the tool never picks your tuning for you`) verbatim;
+    confirmed it fails both when the guard is deleted (heading count goes
+    to 2) and when either rule string is mutated. Also added the exact-group
+    tuning-banner N=1/N>1 suffix assertions to the existing mega-test in
+    `tests/test_review_ui_js.py` (`— identical across all 2 pieces, and
+    part of why they are one group.` / `— the only piece in this group.`),
+    each confirmed to fail under a one-character mutation of its string.
+  - **P2-2 (blocking):** the evidence file
+    (`docs/evidence/issue-131/orientation-measurements.md`) recorded
+    geometry at three fixed viewports but never the flip point itself,
+    even though `review.css` cites it as the source of truth for the
+    38.5/51/63.5/76/88.5rem thresholds. Extended
+    `scripts/measure_armor_matrix_orientation.py` to binary-search the real
+    browser viewport width at which each reachable member count's
+    orientation flips (bracketing the search and re-confirming both sides
+    of the boundary before trusting it — fail rather than guess), and to
+    measure the conditional same-stat axis row-count delta by reading
+    `tbody th.armor-matrix-axis-label` text for the two same-stat fixtures.
+    Regenerated the evidence file; the measured flip points are **616.0px
+    (38.5rem, N=2), 816.0px (51rem, N=3), 1016.0px (63.5rem, N=4)** —
+    exact matches to the shipped CSS thresholds — and the axis-row delta
+    between the two committed same-stat fixtures is **+3 rows** (4 vs 7),
+    driven entirely by which conditional axes actually differ in each
+    fixture's real data, not by member count. Also measured, at a
+    2560×1200 viewport far past any reachable need, that the comparison
+    content box plateaus at 1156.0px — below the N=5 threshold (1216px)
+    and well below N=6 (1416px) — confirming in the evidence file that
+    those two thresholds are deliberate defensive rules for a member count
+    the producer cannot emit today, not measured ones.
+  - **P3-4 (accepted, elevated):** no browser test flipped the panel width
+    *between* an acknowledgement and its assertion, despite the plan's own
+    likely-finding #1 calling this out as the highest-risk gap in the
+    dual-orientation registry. Added
+    `test_armor_verdict_acknowledgement_reflected_after_orientation_flip`
+    to `tests/test_server_browser.py`: approves a same-stat proposal member
+    at 680×900 (row fallback active), resizes to 760×900 (member-column
+    orientation active) *after* the click, and asserts the pressed/enabled
+    state in the newly visible occurrence and directly on the now-hidden
+    row occurrence's own attribute — proving the repaint is registry-wide,
+    not scoped to whatever was on screen at click time.
+  - **P3-2 (accepted):** the section heading (`h3`) and the group name
+    (also `h3`) were heading-level siblings under the same `h2`, which the
+    plan did not intend. Demoted the group name to `h4` in
+    `review_ui.js`'s `armorGroupHeader` and `.armor-group-header h3` to
+    `.armor-group-header h4` in `review.css`; updated
+    `tests/test_server_browser.py:703`'s `group.locator("h3")` to `"h4"`.
+    Re-grepped the whole tree for other `h3`/heading-level assertions —
+    none remained (the `.armor-section-head h3` selector and rule are
+    correctly untouched, and `review_ui.js`'s unrelated "Armor scoring"
+    `h3` is a different section entirely).
+  - **P3-1, P3-6, P3-3 (trivial truthfulness/cleanup):** corrected
+    `docs/browser-verification.md`'s recorded browser-suite run from a
+    stale `10 passed in 7.30s` to the real re-measured `13 passed in
+    9.42s` (12 from the prior round plus the new cross-orientation test);
+    corrected this file's own prior entry, which claimed CSS classes
+    `.tab` and `.segb` that were never added — only `.tabs button` and
+    `.segbtns button` exist; and dropped the dead `armor-matrix` class from
+    `review_ui.js`'s `armorGroupTable` scroller div (`930912b` had already
+    removed the only CSS rule that used it, and nothing else referenced it
+    — confirmed by grepping `tests/` before removing it).
+  - **Rejected, left as-is (P3-5):** the identical-axes line's restatement
+    of `Seasonal Mod none/unknown` / `Holofoil false` on same-stat groups is
+    exactly what plan §8a mandates; `Tuning Stat` alone carries
+    `skipIdentical` because its show-condition is genuinely stricter than
+    plain "differs". No change made.
+  - **Surprise for the next agent:** the flip-point binary search converges
+    on viewport pixel widths one apart from the CSS threshold in *content*
+    pixels (e.g. flip at 708px viewport / 616.0px measured content box for
+    N=2) because of the fixed chrome between the viewport and the
+    container's own inline size — the script reports both the viewport
+    width searched and the resulting content-box width, and only the
+    latter is comparable to the rem thresholds in `review.css`.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

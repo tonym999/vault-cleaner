@@ -700,7 +700,7 @@ def test_duplicates_surface_does_not_scroll_horizontally(
     # wrapping, not by hiding or emptying the element.
     expect(fingerprint).to_have_text(digest)
 
-    heading_overflow_wrap = group.locator("h3").evaluate(
+    heading_overflow_wrap = group.locator("h4").evaluate(
         "el => getComputedStyle(el).overflowWrap"
     )
     assert heading_overflow_wrap == "anywhere"
@@ -803,3 +803,74 @@ def test_armor_matrix_orientation_flips_at_its_measured_threshold(
     page.set_viewport_size({"width": 680, "height": 900})
     expect(rows_table).to_be_visible()
     expect(columns_table).to_be_hidden()
+
+
+@pytest.mark.browser
+def test_armor_verdict_acknowledgement_reflected_after_orientation_flip(
+    page: Page, live_server: LiveServer
+) -> None:
+    """An acknowledged verdict must not go stale in a hidden-then-shown orientation.
+
+    #131's own "likely findings" #1 warned that doubling `state.duplicateRows`
+    entries makes a repaint/disable path that only updates the first
+    occurrence the likeliest defect, with tests that still index `[0]`
+    passing anyway because `[0]` happens to be the visible one at the test's
+    width. This test proves the fix by flipping the width *between* the
+    acknowledgement and the assertion: approve a proposal member while the
+    row fallback is active, then resize so the member-column orientation
+    becomes active, and confirm the pressed/enabled state is correctly
+    reflected in the now-visible occurrence -- not just the one that was on
+    screen at click time. It also checks the now-hidden occurrence directly
+    via its DOM attribute (not visibility, since `display: none` is
+    legitimate there), proving the repaint is registry-wide.
+    """
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_UI_EXPORT)
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    columns_table = group.locator("table.armor-matrix-columns")
+    rows_table = group.locator("table.armor-matrix-rows")
+
+    # Row fallback active (measured comparison content box 588px, below the
+    # two-member 616px column budget).
+    page.set_viewport_size({"width": 680, "height": 900})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()
+
+    approve_row = rows_table.locator('[data-member-id="same_stat:8301"] button.approve')
+    veto_row = rows_table.locator('[data-member-id="same_stat:8301"] button.veto')
+    expect(approve_row).to_be_enabled()
+    approve_row.click()
+    expect(approve_row).to_have_attribute("aria-pressed", "true")
+    expect(veto_row).to_have_attribute("aria-pressed", "false")
+
+    # Flip to the member-column orientation (measured content box 668px,
+    # above the budget) *after* the acknowledgement, not before it.
+    page.set_viewport_size({"width": 760, "height": 900})
+    expect(columns_table).to_be_visible()
+    expect(rows_table).to_be_hidden()
+
+    approve_column = columns_table.locator('[data-member-id="same_stat:8301"] button.approve')
+    veto_column = columns_table.locator('[data-member-id="same_stat:8301"] button.veto')
+    expect(approve_column).to_have_attribute("aria-pressed", "true")
+    expect(approve_column).to_be_enabled()
+    expect(veto_column).to_have_attribute("aria-pressed", "false")
+
+    # The now-hidden row occurrence stays correctly in sync too -- a
+    # registry-wide repaint, not one scoped only to the occurrence that was
+    # visible at click time.
+    assert approve_row.get_attribute("aria-pressed") == "true"
+
+    # The other member, never acted on, is unaffected in the newly active
+    # orientation.
+    other_column = columns_table.locator('[data-member-id="same_stat:8302"] button.approve')
+    expect(other_column).to_have_attribute("aria-pressed", "false")
+
+    # Flipping back down again still reflects the acknowledged verdict.
+    page.set_viewport_size({"width": 680, "height": 900})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()
+    expect(approve_row).to_have_attribute("aria-pressed", "true")

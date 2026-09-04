@@ -1133,7 +1133,7 @@
       ].filter(Boolean);
       return el("header", { class: "armor-group-header" }, [
         el("div", { class: "armor-group-headline" }, [
-          el("h3", { text: group.name || "(unnamed armor)" }),
+          el("h4", { text: group.name || "(unnamed armor)" }),
           el("span", { class: "badge arch", text: group.itemArchetype || "none/unknown" }),
           el("span", { class: "sub", text: group.type || "unknown" }),
           el("span", { class: "sub", text: group.guardianClass || "class-neutral/unknown" }),
@@ -1366,7 +1366,7 @@
       var rowsTable = armorMatrixRowsTable(group, comparison.rows);
       var columnsTable = armorMatrixColumnsTable(group, comparison.rows);
       return el("div", { class: "armor-comparison" }, [
-        el("div", { class: "scroller armor-matrix" }, [rowsTable, columnsTable]),
+        el("div", { class: "scroller" }, [rowsTable, columnsTable]),
         armorIdenticalAxesLine(comparison.identicalAxes)
       ]);
     }

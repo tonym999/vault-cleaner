@@ -306,7 +306,7 @@ terminal.
 - Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
   151.0.7922.34 (managed Playwright Chromium), headless.
 - Method: the automated `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q
-  -m browser tests/test_server_browser.py` run (10 passed in 7.30s) plus a
+  -m browser tests/test_server_browser.py` run (13 passed in 9.42s) plus a
   direct run of `scripts/measure_armor_matrix_orientation.py`, which itself
   asserts its own preconditions (exactly one orientation visible, no document
   horizontal overflow) before writing
@@ -332,6 +332,17 @@ terminal.
 - Keyboard result: pass. A button inside the `display: none` orientation
   never accepted `.focus()` (`document.activeElement` stayed elsewhere); the
   same button in the active orientation focused normally.
+- Cross-orientation verdict result: pass (added in the independent
+  adversarial review round, `test_armor_verdict_acknowledgement_reflected_
+  after_orientation_flip`). Approving a same-stat proposal member while the
+  row fallback was active (680×900), then resizing to the member-column
+  orientation (760×900) *after* the click, showed the acknowledged
+  `aria-pressed="true"` / enabled state correctly in the newly active
+  occurrence, and directly on the now-hidden row occurrence's own attribute
+  (not just the one visible at click time) — the highest-value guard the
+  plan's own likely-finding #1 called out as missing, since flipping the
+  width between acknowledgement and assertion is exactly what a stale
+  `[0]`-indexed repaint would fail.
 - Difference-only result: pass. A group with a uniform Masterwork
   Tier/Power/In loadout/Equipped alongside a differing Protection and Locked
   rendered only the differing axes as rows in both orientations, and restated
@@ -343,6 +354,16 @@ terminal.
   only for kinds present; the stat spike showed lowercase `primary` /
   `secondary` / `tertiary` role text with the named zero-stat line; the
   same-stat banner used `.tuneline.warn`, not the generic `.hint` class.
+  A same-review-round Node regression test
+  (`test_single_kind_report_renders_exactly_one_section_heading`) now proves
+  the section-heading guard directly: a single-kind filtered result renders
+  exactly one `.armor-section-head`, with both rule lines asserted verbatim,
+  closing a gap where deleting the `if (!section.groups.length) return;`
+  guard would have rendered a stray empty second heading undetected. The
+  group name heading was also demoted from `h3` to `h4` in this round so it
+  no longer sits at the same heading level as its own section heading;
+  `test_duplicates_surface_does_not_scroll_horizontally`'s overflow-wrap
+  assertion was updated to locate it at its new level.
 - Overflow/theme result: pass (existing four-member test, extended rather
   than replaced): `document.documentElement.scrollWidth` matched the
   viewport width at 1440, 1000, and 390 in both appearances; badge widths

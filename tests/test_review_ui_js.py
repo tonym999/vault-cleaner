@@ -1401,7 +1401,16 @@ process.stdout.write(JSON.stringify({
     "Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls."
   ) !== -1 && count(readOnlySameArticle, function (node) {
     return node.tagName === "BUTTON" && node.className === "approve";
-  }) === 0
+  }) === 0,
+  // Exact-group tuning banner suffix, both branches (#131 P2-1): N > 1 names
+  // the count and the grouping reason; N === 1 (the untitled single-member
+  // article built above) uses the singular sentence instead.
+  tuningSuffixMultiplePieces: exactArticle.textContent.indexOf(
+    "— identical across all 2 pieces, and part of why they are one group."
+  ) !== -1,
+  tuningSuffixSinglePiece: singleGroupArticle.textContent.indexOf(
+    "— the only piece in this group."
+  ) !== -1
 }));
 ''',
         encoding="utf-8",
@@ -1437,6 +1446,8 @@ process.stdout.write(JSON.stringify({
         "conditionalColumnsAbsentWhenEqual": True,
         "facetUnits": True,
         "sameBannerPresentWhenReadOnly": True,
+        "tuningSuffixMultiplePieces": True,
+        "tuningSuffixSinglePiece": True,
     }
 
 

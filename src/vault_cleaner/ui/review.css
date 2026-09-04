@@ -193,7 +193,7 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   padding: .3em .5em;
   margin: 0;
 }
-.armor-group-header h3 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; }
+.armor-group-header h4 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; }
 .armor-group-headline {
   display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .3rem;
 }
