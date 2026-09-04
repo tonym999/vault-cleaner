@@ -3,6 +3,34 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-04 — #132 authorization-boundary correction
+
+- Opened #132 to track this workflow-governance correction. Closed
+  implementation PR #130 without merge and closed #128 as not planned.
+  Both retain explanatory comments and recoverable Git history. The issue was
+  scoped from #113's responsive-matrix follow-up, but the owner's intended
+  source was #102 and its linked agreed-design artifact.
+- Removed the now-obsolete #128 handoff, responsive probe, and probe runner
+  added by planning PR #129. The historical planning entry below remains so the
+  repository records what happened rather than silently rewriting the audit
+  trail.
+- Added explicit authorization gates to `AGENTS.md`: issue creation, planning,
+  plan merge, implementation, review, PR opening, and PR merge are separate
+  permissions. Repository workflow describes how authorized work proceeds; it
+  does not grant authority to advance phases.
+- Added mandatory source-of-truth and open-issue checks at phase transitions,
+  prohibited automatic issue reopening/repurposing, and reserved GitHub closing
+  keywords for intentional final implementation PR bodies. The planning commit
+  subject `Fix #128 handoff review sentence` had caused GitHub to close #128
+  when PR #129 merged; PR #130 was then opened while #128 was closed and the
+  issue was reopened afterward. The new guidance addresses both failures.
+- No production UI, Python rule, report/snapshot contract, runtime dependency,
+  or persisted-review behavior changed in this correction.
+- Validation: Ruff passed; full suite passed with `953 passed in 23.30s` after
+  rerunning with the required loopback/Chromium permissions; `git diff
+  --check` passed; no files under `data/` are tracked. The initial sandboxed
+  suite failed only at the documented socket and Chromium permission boundary.
+
 ## 2026-09-04 — #128: responsive Armor comparison planning session (plan PR 1)
 
 Planning-only session for #128. No production code, test, fixture, snapshot,

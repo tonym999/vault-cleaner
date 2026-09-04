@@ -172,6 +172,47 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 
 ## Workflow
 
+### User authorization gates
+
+The workflow below defines **how** to perform work that the user has authorized.
+It never authorizes the next phase by itself. Completing one phase does not grant
+permission to start, publish, or merge another phase.
+
+- **Create or update an issue:** issue operations only. Do not create a branch,
+  edit repository files, open a PR, merge, or start implementation. Report the
+  issue URL and stop unless the user explicitly authorized another phase.
+- **Plan a ticket:** research and author the planning branch/PR only. Opening the
+  planning PR does not authorize merging it.
+- **Merge a planning PR:** requires explicit user authorization. A request to
+  plan, review, or implement does not imply permission to merge.
+- **Implement a ticket:** create the implementation branch, code, tests, and
+  worklog entry only. Do not open or merge a PR unless the user explicitly asks
+  for those actions.
+- **Review:** read-only by default. Do not fix findings, push changes, change
+  issue/PR state, or merge unless the user explicitly requests the relevant
+  action.
+- **Open or merge an implementation PR:** each action requires explicit user
+  authorization. Permission to open a PR is not permission to merge it.
+
+When one request explicitly names several phases, those named phases may be
+performed in order. Ambiguous phrases such as "finish it", "once done", or
+"review it" do not broaden authority; stop at the last unambiguous phase or ask
+which object/action the user means before making an expansive repository change.
+
+Before every phase transition, re-read the user's request and verify the exact
+issue, design/source-of-truth links, current issue state, dependencies, and
+project status. If the issue is closed, the design source is ambiguous or
+unavailable, or the requested scope differs from the issue, stop and report it.
+Never reopen or repurpose an issue automatically.
+
+Use `Refs #N` in planning/documentation PR bodies and commit messages. Reserve
+`Closes #N`, `Fixes #N`, and `Resolves #N` for the final implementation PR body
+when closing that open issue is intended. Do not begin any commit subject with
+forms such as `Fix #N`: GitHub can interpret them as closing keywords when the
+commit reaches the default branch. Immediately before opening any PR, verify
+that its owning issue is open; immediately before any merge, verify both the
+authorization and issue state again.
+
 Every ticket follows a multi-agent two-PR handoff workflow:
 
 1. **Pick a ticket:** Pick an open issue from the [vault-cleaner project board](https://github.com/users/tonym999/projects/3); respect milestone order and dependencies in [PLAN.md](PLAN.md).
@@ -211,3 +252,8 @@ When creating a repository issue:
 4. Verify both project membership and the `Todo` status after creation before
    treating the issue as complete. Recheck the type/scope label and milestone
    at the same time.
+5. Record one explicit design or requirements source of truth in the issue when
+   the request depends on prior design work. If several plausible sources exist,
+   resolve the ambiguity before creating implementation scope.
+6. Return the verified issue URL and stop at the issue-creation authorization
+   gate unless the user explicitly requested a later phase.
