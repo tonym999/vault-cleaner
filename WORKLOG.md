@@ -43,6 +43,11 @@ surprises the next agent should know about.
   active matrix receives focus. The general adapter duplicate scenario now
   verifies every occurrence across acknowledgement, view reconciliation, and
   finalisation, rather than only registry index zero.
+- **Second independent-review follow-up:** The first Tab test proved the six
+  active controls were reachable but did not inspect the transition after the
+  last row control or before the first column control. It now presses forward
+  past the narrow row boundary and backward past the fitting column boundary,
+  asserting that focus is never inside the inactive matrix on either path.
 
 ## 2026-09-04 — #128: responsive Armor comparison planning session (plan PR 1)
 

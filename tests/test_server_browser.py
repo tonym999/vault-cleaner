@@ -484,27 +484,38 @@ def test_armor_matrix_tab_order_uses_only_the_active_orientation(
 
     matrix = page.locator(".armor-matrix")
 
-    def assert_tab_order(active_class: str) -> None:
+    def assert_tab_order(active_class: str) -> Locator:
         controls = matrix.locator(f".{active_class} button")
         assert controls.count() == 6
         controls.first.focus()
-        for _ in range(controls.count()):
+        for index in range(controls.count()):
             assert page.evaluate(
                 "(className) => document.activeElement.closest('.' + className) !== null",
                 active_class,
             )
-            page.keyboard.press("Tab")
+            if index < controls.count() - 1:
+                page.keyboard.press("Tab")
+        return controls
 
     page.set_viewport_size({"width": 390, "height": 844})
     expect(matrix.locator(".armor-matrix-rows")).to_be_visible()
     expect(matrix.locator(".armor-matrix-columns")).to_be_hidden()
     assert_tab_order("armor-matrix-rows")
+    page.keyboard.press("Tab")
+    assert page.evaluate(
+        "() => document.activeElement.closest('.armor-matrix-columns') === null"
+    )
 
     page.set_viewport_size({"width": 1440, "height": 900})
     matrix.evaluate("el => { el.style.width = '528px'; }")
     expect(matrix.locator(".armor-matrix-columns")).to_be_visible()
     expect(matrix.locator(".armor-matrix-rows")).to_be_hidden()
-    assert_tab_order("armor-matrix-columns")
+    column_controls = assert_tab_order("armor-matrix-columns")
+    column_controls.first.focus()
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(
+        "() => document.activeElement.closest('.armor-matrix-rows') === null"
+    )
 
 
 @pytest.mark.browser
