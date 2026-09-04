@@ -111,6 +111,29 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
     browser test was implicitly exercising the *new* column orientation
     even before any viewport resize in the test body — not just the
     four-member test the plan called out by name.
+- **Orchestrator review follow-up (same session, same branch):** the pushed
+  head rendered the stat-spike bar width as an inline `style="width:...%"`
+  attribute on the bar `span`. `src/vault_cleaner/server/app.py`'s
+  `SERVER_CSP` sends `style-src 'self'` with no `unsafe-inline`, so Chromium
+  silently drops every inline `style` attribute and logs a CSP violation —
+  measured on the pre-fix head at 1440×1000 as all three bars rendering at
+  an identical 86.39px regardless of their 30/25/20 values, three CSP
+  violation console messages per group render. Fixed by moving the bar
+  widths into `review.css` as three role-selector rules
+  (`.sv.p .bar { width: 100% }`, `.sv.s .bar { width: 83% }`,
+  `.sv.t .bar { width: 67% }`, alongside the existing per-role opacity
+  rules) and dropping the `style` attribute and the now-unused `barWidth`
+  field from `armorStatDisplay` in `review_ui.js`. Measured after the fix
+  (same viewport, same fixture): 86.39px / 71.70px / 57.88px — strictly
+  ordered and matching 100%/83%/67% of the column's own width. Lesson for
+  future UI work on this surface: never emit an inline `style` attribute
+  here — the CSP has no escape hatch for it, so any dynamic sizing/coloring
+  belongs in the stylesheet as selector-driven variants, not inline styles.
+  Also removed a leftover empty `.armor-matrix { }` rule in `review.css`.
+  Added two new browser tests to `tests/test_server_browser.py`
+  (`test_armor_stat_spike_bars_render_proportional_widths`,
+  `test_armor_duplicates_surface_has_no_csp_violations`); both were
+  confirmed failing against the pre-fix code before the fix landed.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

@@ -355,6 +355,79 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
 
 
 @pytest.mark.browser
+def test_armor_stat_spike_bars_render_proportional_widths(
+    page: Page, live_server: LiveServer
+) -> None:
+    """The 30/25/20 stat-spike bars must render at different widths (#131).
+
+    An inline `style="width:...%"` attribute is blocked outright by the
+    server's `style-src 'self'` CSP (no `unsafe-inline`), so Chromium drops
+    it and every bar previously rendered at the same width regardless of
+    value -- measured on the pre-fix head as an identical 86.39px for the
+    30/25/20 stats. Assert rendered geometry
+    (`getBoundingClientRect().width`), not the CSS declarations, so a fix
+    that only changes the stylesheet without the attribute actually being
+    dropped would still be caught.
+    """
+    authenticate(page, live_server)
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_DUPLICATES_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+    primary_bar = group.locator(".sv.p .bar")
+    secondary_bar = group.locator(".sv.s .bar")
+    tertiary_bar = group.locator(".sv.t .bar")
+    expect(primary_bar).to_be_visible()
+    expect(secondary_bar).to_be_visible()
+    expect(tertiary_bar).to_be_visible()
+
+    primary_width = primary_bar.evaluate("el => el.getBoundingClientRect().width")
+    secondary_width = secondary_bar.evaluate("el => el.getBoundingClientRect().width")
+    tertiary_width = tertiary_bar.evaluate("el => el.getBoundingClientRect().width")
+
+    assert primary_width > secondary_width > tertiary_width > 0, (
+        primary_width, secondary_width, tertiary_width
+    )
+
+
+@pytest.mark.browser
+def test_armor_duplicates_surface_has_no_csp_violations(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Loading and rendering Armor duplicates must trip no CSP violation.
+
+    The server's `SERVER_CSP` sends `style-src 'self'` with no
+    `unsafe-inline`; an inline `style` attribute anywhere in the rendered
+    Armor duplicates DOM would be silently dropped by Chromium and logged
+    as a console CSP violation without raising in Python. Attach the
+    console listener before navigation so it also catches a violation
+    during the initial page load, not only after the upload.
+    """
+    csp_violations: list[str] = []
+
+    def record_console_message(message: object) -> None:
+        text = message.text  # type: ignore[attr-defined]
+        if "Content Security Policy" in text:
+            csp_violations.append(text)
+
+    page.on("console", record_console_message)
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_DUPLICATES_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    expect(page.locator("article.armor-group")).to_have_count(1)
+    assert csp_violations == []
+
+
+@pytest.mark.browser
 def test_armor_same_stat_group_renders_member_tuning_variation(
     page: Page, live_server: LiveServer
 ) -> None:

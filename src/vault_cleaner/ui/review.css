@@ -208,9 +208,13 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 .armor-stat-summary.spike { align-items: flex-end; gap: .9rem; }
 .armor-stat-summary.spike .sv { display: flex; flex-direction: column; gap: .2rem; min-width: 5.4rem; }
 .armor-stat-summary.spike .sv .bar { height: .3rem; border-radius: 2px; background: var(--accent); }
-.armor-stat-summary.spike .sv.p .bar { opacity: 1; }
-.armor-stat-summary.spike .sv.s .bar { opacity: .72; }
-.armor-stat-summary.spike .sv.t .bar { opacity: .46; }
+/* Widths are set here, not as an inline `style` attribute, because the
+   server's `style-src 'self'` CSP has no `unsafe-inline` and Chromium
+   silently drops inline style — previously collapsing all three bars to an
+   identical width regardless of value (#131). 30/25/20 -> 100%/83%/67%. */
+.armor-stat-summary.spike .sv.p .bar { opacity: 1; width: 100%; }
+.armor-stat-summary.spike .sv.s .bar { opacity: .72; width: 83%; }
+.armor-stat-summary.spike .sv.t .bar { opacity: .46; width: 67%; }
 .armor-stat-summary.spike .sv .lbl {
   font-family: ui-monospace, monospace; font-size: .7rem; letter-spacing: .07em;
   text-transform: uppercase; color: var(--muted); font-weight: 600;
@@ -246,7 +250,6 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   margin: .5rem 0;
 }
 .armor-comparison { margin-top: .75rem; }
-.armor-matrix { }
 .armor-identical-axes { margin: .5rem 0 0; }
 .armor-group-table { min-width: 46rem; }
 .armor-member-heading { min-width: 11rem; }

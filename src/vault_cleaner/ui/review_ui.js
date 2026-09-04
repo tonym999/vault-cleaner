@@ -669,15 +669,14 @@
     var roles = { 30: "Primary", 25: "Secondary", 20: "Tertiary" };
     // 30 -> 100%, 25 -> 83%, 20 -> 67% of the spike bar's own column width;
     // these are decoration only, the value and role stay text alongside them.
-    var barWidths = { 30: 100, 25: 83, 20: 67 };
+    // The percentages themselves live in review.css as per-role bar widths
+    // (`.sv.p .bar`, `.sv.s .bar`, `.sv.t .bar`) — an inline `style` attribute
+    // here would be silently dropped by the server's `style-src 'self'` CSP.
     var zeroNames = names.filter(function (name) { return stats[name] === 0; });
     return {
       tier5: true,
       rows: names.filter(function (name) { return stats[name] !== 0; }).map(function (name) {
-        return {
-          name: name, value: stats[name], role: roles[stats[name]],
-          barWidth: barWidths[stats[name]]
-        };
+        return { name: name, value: stats[name], role: roles[stats[name]] };
       }),
       zeroSummary: zeroNames.join(" · ") + " · 0 base"
     };
@@ -1072,7 +1071,11 @@
         return el("div", { class: "sv " + (ROLE_BAR_CLASS[row.role] || "") }, [
           el("span", { class: "lbl", text: row.name }),
           el("span", { class: "val", text: String(row.value) }),
-          el("span", { class: "bar", style: "width:" + row.barWidth + "%" }),
+          // Width is a per-role CSS rule (.sv.p/.s/.t .bar), not an inline
+          // style attribute: the server's style-src 'self' CSP blocks
+          // inline style and Chromium silently drops it, which previously
+          // rendered all three bars at an identical width (#131).
+          el("span", { class: "bar" }),
           el("span", { class: "role", text: (row.role || "").toLowerCase() })
         ]);
       });
