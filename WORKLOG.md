@@ -420,6 +420,71 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
     `src/vault_cleaner/ui/review_ui.js`, `src/vault_cleaner/ui/review.css`,
     `tests/test_review_ui_js.py`, `tests/test_server_browser.py`, and this
     file.
+- **Fourth independent adversarial review round (same session, same branch,
+  `e839e89...608e968` reviewed):** no P0/P1/P2 findings; four advisory P3s,
+  three accepted and fixed (CSS-only plus a stale-figure correction), one
+  recorded here as an accepted decision rather than a code change.
+  - **P3 (accepted, real regression this ticket introduced):** the
+    `@media (max-width: 640px)` block in `review.css` used to force both
+    `.armor-group-meta .tile` and `.armor-stat-summary .tile` to
+    `min-width: 100%` on narrow panels. The #131 rewrite of that block kept
+    only `.armor-group-extra .tile`, silently dropping the
+    `.armor-stat-summary .tile` override — so the non-tier-5 stat fallback
+    (the only place `.armor-stat-summary .tile`'s own `min-width: 8rem` rule
+    still applies; the tier-5 spike uses `.armor-stat-summary.spike .sv`
+    instead) stopped collapsing to full width at ≤640px, a small regression
+    against pre-#131 behaviour that plan §6 requires to stay unchanged.
+    Restored `.armor-stat-summary .tile` alongside `.armor-group-extra .tile`
+    in the same selector list; CSS only, one line.
+  - **P3 (accepted, stale record):** `docs/browser-verification.md`'s #131
+    dated run still read `13 passed in 9.42s`, even though round three's own
+    worklog entry above already correctly reported 14 passed (the new
+    `test_armor_stat_spike_renders_primary_first_in_document_order`) — the
+    doc describing the actual browser-verification run was never updated to
+    match once that test landed, the same kind of drift already corrected
+    once in round one (P3-1/6/3). Re-ran
+    `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m browser
+    tests/test_server_browser.py` for real this round: **14 passed in
+    9.80s**. Updated the doc's headline figure and added a line describing
+    the inverted-stat-spike fix and its new browser test.
+  - **P3 (accepted decision — plan §3 filter-card restyle was consciously
+    reduced, not implemented in full):** plan §3 asked for a restyled
+    `.filters`/`.fgrid` card around the duplicate-surface filter controls.
+    No such card was added; only the static whole-group filtering hint
+    (`.armor-duplicate-filter-hint`) landed, with the reasoning previously
+    recorded only in a CSS comment above that rule. Recording it here per
+    AGENTS.md: the existing `#vc-controls` panel already renders the
+    controls in the artifact's own order (Search, Class, Slot/type,
+    Archetype, Tuning Mod Slot), so the substantive request in §3 — correct
+    control grouping and order — was already satisfied before this ticket
+    touched anything; a further visual card restyle was judged not to add
+    anything the artifact comparison required, and was intentionally left
+    out rather than done partially.
+  - **P3 (accepted decision — zero-stat summary order is payload order,
+    not a design-fixed order):** round three pinned the tier-5 spike rows to
+    a fixed `[30, 25, 20]` role order (see above), but `armorStatDisplay`'s
+    `zeroNames` for the zero-stat summary line still filters in
+    `Object.keys(stats)` order and was deliberately left that way. The three
+    zero stats are all `0` and carry no role information to pin an order to,
+    and plan §6 names no ordering requirement for them — unlike the spike
+    rows, where role order is real information. **Warning for future work on
+    this surface:** `report_run.py` serializes the report snapshot with
+    `sort_keys=True` (unchanged, out of scope here), so the real server
+    always emits `stats` keys alphabetically; any presentation code that
+    derives display order from `stats` payload key order — as `zeroNames`
+    does today — is alphabetical by construction, not incidentally. This is
+    exactly the failure mode round three's P2-1 hit for the spike rows,
+    accepted here for the zero-stat line only because there is no role order
+    to lose. Not changed: the ordering code in `armorStatDisplay`, or the
+    existing Node assertion on the literal zero-stat string.
+  - **Verification after this round:** `ruff check src tests scripts` — all
+    checks passed; `pytest -q` — 964 passed (unchanged from round three, no
+    new tests this round); `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m
+    browser tests/test_server_browser.py` — 14 passed in 9.86s, not skipped;
+    `git diff --check origin/main...HEAD` clean; `git ls-files data/` empty;
+    `git status --porcelain` clean after commit. Diff scope: only
+    `src/vault_cleaner/ui/review.css`, `docs/browser-verification.md`, and
+    this file — no rule/grouping/ranking/schema change.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

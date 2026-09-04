@@ -306,7 +306,7 @@ terminal.
 - Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
   151.0.7922.34 (managed Playwright Chromium), headless.
 - Method: the automated `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q
-  -m browser tests/test_server_browser.py` run (13 passed in 9.42s) plus a
+  -m browser tests/test_server_browser.py` run (14 passed in 9.86s) plus a
   direct run of `scripts/measure_armor_matrix_orientation.py`, which itself
   asserts its own preconditions (exactly one orientation visible, no document
   horizontal overflow) before writing
@@ -374,6 +374,14 @@ terminal.
   (`test_hostile_export_remains_inert_in_live_dom`) and the archetype-badge/
   header/banner/stat-spike text paths all go through the same `el()`
   `textContent` helper as before.
+- Stat-spike order result: pass (added in the third review round, after the
+  primary/secondary/tertiary bars were found rendering in reverse width
+  order). `test_armor_stat_spike_renders_primary_first_in_document_order`
+  asserts the primary stat's `.sv` element precedes secondary and tertiary
+  in document order, closing the gap where the visual bar widths (100%/
+  83%/67%) could regress independently of which stat they labelled. This is
+  the 14th `@pytest.mark.browser` test counted in this run's headline
+  figure above.
 - Shutdown result: pass (implicit in the automated suite's server teardown).
 - Overall result: pass. `RULESET_VERSION`, snapshot/server schema, grouping,
   ranking, and verdict validation were not touched; this run covered

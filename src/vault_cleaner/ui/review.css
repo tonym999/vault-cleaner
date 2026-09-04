@@ -350,6 +350,6 @@ article.armor-group[data-member-count="6"] .armor-matrix-columns { min-width: 88
   .view-selector { align-items: stretch; }
   .view-selector button { flex: 1 1 100%; }
   .armor-group { padding: .6rem; }
-  .armor-group-extra .tile { min-width: 100%; }
+  .armor-group-extra .tile, .armor-stat-summary .tile { min-width: 100%; }
   .scope-summary { width: 100%; }
 }
