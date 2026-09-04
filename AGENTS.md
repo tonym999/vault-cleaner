@@ -188,9 +188,12 @@ permission to start, publish, or merge another phase.
 - **Implement a ticket:** create the implementation branch, code, tests, and
   worklog entry only. Do not open or merge a PR unless the user explicitly asks
   for those actions.
-- **Review:** read-only by default. Do not fix findings, push changes, change
-  issue/PR state, or merge unless the user explicitly requests the relevant
-  action.
+- **User-requested standalone review:** read-only by default. Do not fix
+  findings, push changes, change issue/PR state, or merge unless the user
+  explicitly requests the relevant action. During an explicitly authorized
+  implementation workflow, the orchestrator may route accepted findings back
+  to the implementer for fixes as described below; the independent reviewer
+  remains read-only.
 - **Open or merge an implementation PR:** each action requires explicit user
   authorization. Permission to open a PR is not permission to merge it.
 
@@ -199,21 +202,32 @@ performed in order. Ambiguous phrases such as "finish it", "once done", or
 "review it" do not broaden authority; stop at the last unambiguous phase or ask
 which object/action the user means before making an expansive repository change.
 
-Before every phase transition, re-read the user's request and verify the exact
-issue, design/source-of-truth links, current issue state, dependencies, and
-project status. If the issue is closed, the design source is ambiguous or
-unavailable, or the requested scope differs from the issue, stop and report it.
-Never reopen or repurpose an issue automatically.
+Opening PRs, pushing branches, posting dispatch or coordination comments,
+requesting reviewers, changing issue/PR/project state, and merging are external
+mutations. They are permitted only when explicitly included in an authorized
+phase or separately authorized by the user.
 
-Use `Refs #N` in planning/documentation PR bodies and commit messages. Reserve
-`Closes #N`, `Fixes #N`, and `Resolves #N` for the final implementation PR body
-when closing that open issue is intended. Do not begin any commit subject with
-forms such as `Fix #N`: GitHub can interpret them as closing keywords when the
-commit reaches the default branch. Immediately before opening any PR, verify
-that its owning issue is open; immediately before any merge, verify both the
-authorization and issue state again.
+Before every phase transition, re-read the user's request and verify explicit
+user authorization for the next phase and each planned external mutation, the
+exact issue, design/source-of-truth links, current issue state, dependencies,
+and project status. If authorization is absent or unclear, the issue is closed,
+the design source is ambiguous or unavailable, or the requested scope differs
+from the issue, stop and report it. Never reopen or repurpose an issue
+automatically.
 
-Every ticket follows a multi-agent two-PR handoff workflow:
+Use `Refs #N` in every commit message and in non-final PR bodies. A GitHub
+closing keyword followed by an issue reference (`close`, `closes`, `closed`,
+`fix`, `fixes`, `fixed`, `resolve`, `resolves`, or `resolved`) must not appear
+anywhere in a commit subject, body, or trailer. Reserve closing-keyword syntax
+for the final implementation PR body when closing that open issue is intended.
+Immediately before opening any PR, verify that its owning issue is open;
+immediately before any merge, verify both the authorization and issue state
+again.
+
+Product implementation tickets follow the multi-agent two-PR handoff workflow
+below. A documentation- or maintenance-only ticket may use one direct PR only
+when the user explicitly authorizes that issue-to-PR route; never infer the
+exception from its label, and never treat it as permission to merge.
 
 1. **Pick a ticket:** Pick an open issue from the [vault-cleaner project board](https://github.com/users/tonym999/projects/3); respect milestone order and dependencies in [PLAN.md](PLAN.md).
 2. **Planning Phase (PR 1):**
