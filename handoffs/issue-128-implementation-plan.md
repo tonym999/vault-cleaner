@@ -27,7 +27,7 @@ independent adversarial reviewer).
 Implement a responsive orientation for each Armor-duplicates comparison: use
 member rows when its available inline size cannot safely show the member-column
 matrix, and member columns when it can. This preserves #113's measured 390px
-comparison benefit while restoring the desktop scan pattern from before #119.
+comparison benefit while restoring the desktop scan pattern from before issue #119.
 
 The planned switching rule is deliberately based on the **comparison
 container's inline size**, rather than a viewport breakpoint. A desktop browser
@@ -155,11 +155,11 @@ wide field sets to be read without making members disappear sideways.
 
 ## Dependencies and assumptions
 
-- #113, #119, PR #120, and PR #126 have landed. The issue correctly refers to
+- #113, issue #119, PR #120, and PR #126 have landed. The issue correctly refers to
   them as prior evidence/baseline, not open dependencies. The issue was amended
   on 2026-09-04 to make PR 2 implementation explicit; its initial version
   incorrectly ended at a design record.
-- Current `main` is exactly the #119 merge `3a9ee98`; there is no later
+- Current `main` is exactly the issue #119 merge `3a9ee98`; there is no later
   production change to rebase around. Re-measure from the implementer's actual
   base if `main` advances, but retain the container-size rule unless a measured
   repository change invalidates its `8.5rem + 12rem × N` inputs.
@@ -214,7 +214,7 @@ wide field sets to be read without making members disappear sideways.
    per group member; one body row per shared field with its field label as a
    row header; then a `Verdict` row containing one
    `armorMemberCell(member, group)` per member. This is the prior #102 shape,
-   restored with #119's current `Protection` wording and conditional fields.
+   restored with issue #119's current `Protection` wording and conditional fields.
 5. Return one outer `.armor-matrix` container with `data-member-count` set to
    the actual member count and two named `.scroller` children, one for each
    orientation. Call `armorMemberCell` separately in both tables. Do not change
@@ -297,8 +297,13 @@ Replace the existing one-layout assertions with load-bearing live-server tests:
    matrix is active. This proves the rule follows available panel width rather
    than viewport width. Add a 2-member check around `33rem` when using the
    existing two-member fixture; do not fake a four-member group's
-   `data-member-count` to claim the 2-member threshold.
-4. Exercise exact and same-stat projections, 2- and 4-member fixtures,
+   `data-member-count` to claim the 2-member threshold. Add a genuine
+   three-member group around `45rem`: build test-owned temporary fake input by
+   retaining exactly three members from the existing fake four-member group,
+   run it through the real review server, and assert rows at `719px` then
+   columns at `720px`. Do not set or mutate `data-member-count` to simulate
+   either transition.
+4. Exercise exact and same-stat projections, 2-, 3-, and 4-member inputs,
    conditional present/absent fields, a long badge/id/location case, and both
    light/dark themes. Scope badge-width checks to the visible orientation; a
    hidden node with a zero layout width is not evidence of wrapping.
@@ -379,7 +384,7 @@ Escalation route: `implementer → orchestrator → planner`.
    four-member matrix. Review must exercise just-below/at `57rem` container
    sizes within the same desktop viewport.
 3. **Field parity drifts between the two builders:** duplicating the old table
-   can lose #119's conditional `Seasonal Mod`/`Holofoil`/`Tuning Stat` logic or
+   can lose issue #119's conditional `Seasonal Mod`/`Holofoil`/`Tuning Stat` logic or
    restore the stale `Hard protection` label. Review must compare row and
    column field lists for present and absent conditional states.
 4. **Badge/focus accessibility assertions pass by construction:** a hidden
@@ -446,7 +451,7 @@ table/control trees for every group and relies on CSS container queries for the
 correct accessibility and interaction surface. A regression can leave visible
 controls stale, accidentally expose duplicate controls to assistive technology,
 or pass layout tests against hidden zero-width nodes. This is comparable to the
-#119 DOM transposition/review history and merits a fresh complete-diff review.
+The DOM transposition/review history of issue #119 merits a fresh complete-diff review.
 
 The orchestrator confirms the path against the real diff and, when adversarial
 review is required, selects and records the reviewer's exact provider, model
@@ -465,7 +470,7 @@ ID, and native effort at dispatch time.
   `8.5rem + 12rem × N` matrix fits, override the old 46rem column floor, and
   never activate columns for a defensive singleton or 5+ group.
 - [ ] Browser tests prove 390px rows, fitting desktop columns, constrained
-  desktop rows, all 2/3/4 threshold transitions, 5+ wide-container rows,
+  desktop rows, genuine 2/3/4 threshold transitions, 5+ wide-container rows,
   no document overflow, both color schemes, and actual visible/focusable
   controls—not hidden-node geometry.
 - [ ] Node and adapter tests prove every duplicate occurrence (both

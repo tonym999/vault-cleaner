@@ -30,6 +30,11 @@ or server contract changed.
     runner `scripts/measure_responsive_matrix.py`. It records the selected
     2/3/4-member transition values in CSS pixels, 390px and 1440px behavior,
     constrained-panel/zoom reflow, and conditional-field row growth.
+  - Strengthened that probe so it asserts every documented precondition before
+    reporting: exact container width, active orientation, document containment,
+    threshold flips, and conditional 7-to-11 row growth. Added a requirement
+    for a genuine test-owned three-member server input at the `45rem` boundary;
+    the existing 2- and 4-member checks remain required.
 - **Decisions made:**
   - Use a CSS inline-size container query on each comparison, not a viewport
     media query. The default is the current member-row table. The member-column
