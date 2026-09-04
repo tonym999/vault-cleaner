@@ -32,6 +32,17 @@ surprises the next agent should know about.
   including cross-kind overlaps. Tests must choose occurrences by group kind
   and active matrix, never by historical registry position or an unqualified
   duplicate DOM selector.
+- **Independent-review follow-up:** Accepted three P2 corrections. A 200-digit
+  opaque member id at the two-member `33rem` threshold exposed that the global
+  table-header `white-space: nowrap` still applied to `.mono` ids, expanding
+  the active scroller to 1885px. The member-heading id now explicitly wraps
+  anywhere in both matrices, with a live 528px regression test. Orientation
+  parity tests now inspect each matrix separately for complete ordered
+  conditional-present and conditional-absent fields, values, table scopes,
+  `Protection`, and verdict placement; live Tab traversal proves only the
+  active matrix receives focus. The general adapter duplicate scenario now
+  verifies every occurrence across acknowledgement, view reconciliation, and
+  finalisation, rather than only registry index zero.
 
 ## 2026-09-04 — #128: responsive Armor comparison planning session (plan PR 1)
 

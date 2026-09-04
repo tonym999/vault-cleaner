@@ -1772,7 +1772,7 @@ function finish() {
 }
 var beforeRow = null, beforeFocus = null, beforeFinalize = null, uploadBulkDisabled = null;
 var beforeSearch = null, beforeBulk = null, beforeClassFilter = null;
-var duplicateRejected = false, duplicateGateDisabled = false, duplicateCell = null;
+var duplicateRejected = false, duplicateGateDisabled = false, duplicateCells = null;
 var duplicateRepainted = false, duplicateCrossViewVerdict = null;
 var duplicateCrossViewPressed = null, duplicateFinalizedDisabled = false;
 var duplicateSurfacePreserved = false, duplicateSearchPreserved = false;
@@ -1844,7 +1844,9 @@ setTimeout(function () {
     var duplicateSearch = document.nodes["vc-dup-search"];
     duplicateSearch.value = armorProposalId;
     duplicateSearch.dispatch("input", { target: duplicateSearch });
-    duplicateCell = state.duplicateRows[armorProposalId][0].cell;
+    duplicateCells = state.duplicateRows[armorProposalId].map(function (row) {
+      return row.cell;
+    });
     var armorUpload = document.nodes["vc-upload-armor"];
     armorUpload.files = [{}];
     armorUpload.dispatch("change", { target: armorUpload });
@@ -1854,22 +1856,28 @@ setTimeout(function () {
         !document.nodes["vc-duplicates"].hidden &&
         document.nodes["vc-dup-search"].value === armorProposalId;
       state.duplicateRows[armorProposalId][0].approve.dispatch("click");
-      duplicateGateDisabled = state.duplicateRows[armorProposalId][0].approve.disabled;
+      duplicateGateDisabled = state.duplicateRows[armorProposalId].every(function (row) {
+        return row.approve.disabled;
+      });
       setTimeout(function () {
-        duplicateRepainted = state.duplicateRows[armorProposalId][0].cell === duplicateCell &&
-          state.duplicateRows[armorProposalId][0].approve.getAttribute("aria-pressed") === "true";
+        duplicateRepainted = state.duplicateRows[armorProposalId].every(function (row, index) {
+          return row.cell === duplicateCells[index] &&
+            row.approve.getAttribute("aria-pressed") === "true";
+        });
         document.nodes["vc-view-proposals"].dispatch("click");
         duplicateCrossViewVerdict = state.verdicts[armorProposalId];
         document.nodes["vc-view-duplicates"].dispatch("click");
-        duplicateCrossViewPressed = state.duplicateRows[armorProposalId][0].approve.getAttribute("aria-pressed");
+        duplicateCrossViewPressed = state.duplicateRows[armorProposalId].every(function (row) {
+          return row.approve.getAttribute("aria-pressed") === "true";
+        });
         duplicateSurfacePreserved = state.surface === "armor-duplicates";
         duplicateSearchPreserved = state.armorQuery.text === armorProposalId;
         document.nodes["vc-finalize"].dispatch("click");
         setTimeout(function () {
           duplicateFinalizedDisabled = state.server_state === "finalized" &&
-            state.duplicateRows[armorProposalId][0].approve.disabled &&
-            state.duplicateRows[armorProposalId][0].veto.disabled &&
-            state.duplicateRows[armorProposalId][0].clear.disabled;
+            state.duplicateRows[armorProposalId].every(function (row) {
+              return row.approve.disabled && row.veto.disabled && row.clear.disabled;
+            });
         }, 10);
       }, 5);
     }, 5);
@@ -2263,7 +2271,7 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
             "gateDisabled": True,
             "repaintedInPlace": True,
             "crossViewVerdict": "approved",
-            "crossViewPressed": "true",
+            "crossViewPressed": True,
             "surfacePreserved": True,
             "searchPreserved": True,
             "finalizedDisabled": True,

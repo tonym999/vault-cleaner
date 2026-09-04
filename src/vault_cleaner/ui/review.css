@@ -177,6 +177,7 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 .armor-matrix-rows .armor-group-table { min-width: 46rem; }
 .armor-matrix-rows .armor-member-heading { min-width: 11rem; }
 .armor-matrix .armor-member-heading > span { display: block; }
+.armor-matrix .armor-member-heading .mono { white-space: normal; overflow-wrap: anywhere; }
 .armor-matrix .armor-member-heading .sub { font-weight: normal; white-space: normal; overflow-wrap: anywhere; }
 .armor-matrix .armor-member-heading .badge { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
 .armor-matrix td { overflow-wrap: anywhere; }

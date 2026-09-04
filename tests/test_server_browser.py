@@ -165,7 +165,9 @@ def badge_width_and_heading_budget(badge: Locator) -> tuple[float, float]:
     return float(width), float(budget)
 
 
-def same_stat_members_export(tmp_path: Path, member_count: int) -> Path:
+def same_stat_members_export(
+    tmp_path: Path, member_count: int, *, long_member_id: bool = False
+) -> Path:
     """Build a test-owned same-stat input with the requested member count."""
     with ARMOR_SAME_STAT_FOUR_UI_EXPORT.open(encoding="utf-8", newline="") as source:
         reader = DictReader(source)
@@ -176,6 +178,8 @@ def same_stat_members_export(tmp_path: Path, member_count: int) -> Path:
         extra = rows[-1].copy()
         extra["Id"] = "8405"
         rows.append(extra)
+    if long_member_id:
+        rows[0]["Id"] = "9" * 200
     target = tmp_path / f"same-stat-{member_count}.csv"
     with target.open("w", encoding="utf-8", newline="") as destination:
         writer = DictWriter(destination, fieldnames=fieldnames, lineterminator="\n")
@@ -444,6 +448,63 @@ def test_armor_same_stat_three_member_matrix_switches_at_45rem(
     matrix.evaluate("el => { el.style.width = '720px'; }")
     expect(columns).to_be_visible()
     expect(rows).to_be_hidden()
+
+
+@pytest.mark.browser
+def test_armor_two_member_column_matrix_wraps_a_long_opaque_id(
+    page: Page, live_server: LiveServer, tmp_path: Path
+) -> None:
+    """A long opaque id cannot widen the active matrix past its 33rem budget."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(
+        same_stat_members_export(tmp_path, 2, long_member_id=True)
+    )
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    page.locator("#vc-view-duplicates").click()
+
+    matrix = page.locator('.armor-matrix[data-member-count="2"]')
+    matrix.evaluate("el => { el.style.width = '528px'; }")
+    columns = matrix.locator(".armor-matrix-columns")
+    expect(columns).to_be_visible()
+    scroll_width, client_width = columns.evaluate(
+        "el => [el.scrollWidth, el.clientWidth]"
+    )
+    assert scroll_width <= client_width
+
+
+@pytest.mark.browser
+def test_armor_matrix_tab_order_uses_only_the_active_orientation(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Tab traversal never reaches controls in the display:none matrix."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_UI_EXPORT)
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    page.locator("#vc-view-duplicates").click()
+
+    matrix = page.locator(".armor-matrix")
+
+    def assert_tab_order(active_class: str) -> None:
+        controls = matrix.locator(f".{active_class} button")
+        assert controls.count() == 6
+        controls.first.focus()
+        for _ in range(controls.count()):
+            assert page.evaluate(
+                "(className) => document.activeElement.closest('.' + className) !== null",
+                active_class,
+            )
+            page.keyboard.press("Tab")
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(matrix.locator(".armor-matrix-rows")).to_be_visible()
+    expect(matrix.locator(".armor-matrix-columns")).to_be_hidden()
+    assert_tab_order("armor-matrix-rows")
+
+    page.set_viewport_size({"width": 1440, "height": 900})
+    matrix.evaluate("el => { el.style.width = '528px'; }")
+    expect(matrix.locator(".armor-matrix-columns")).to_be_visible()
+    expect(matrix.locator(".armor-matrix-rows")).to_be_hidden()
+    assert_tab_order("armor-matrix-columns")
 
 
 @pytest.mark.browser

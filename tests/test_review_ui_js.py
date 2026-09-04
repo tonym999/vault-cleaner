@@ -1816,3 +1816,143 @@ process.stdout.write(JSON.stringify({
     assert '[data-member-count="1"]' not in css
     assert '[data-member-count="5"]' not in css
     assert css.count("[data-member-count=") == 8
+
+
+def test_armor_row_and_column_matrices_keep_ordered_field_and_member_parity(tmp_path):
+    script = tmp_path / "matrix-parity.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null); this._text = "";
+  this.listeners = Object.create(null); this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] || null; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+function collect(node, predicate) {
+  var found = [];
+  (function walk(current) {
+    if (predicate(current)) found.push(current);
+    (current.children || []).forEach(walk);
+  })(node);
+  return found;
+}
+function matrix(article, className) {
+  return collect(article, function (node) { return node.className === className; })[0];
+}
+function child(node, tag) {
+  return collect(node, function (candidate) { return candidate.tagName === tag; })[0];
+}
+function count(node, tag) {
+  return collect(node, function (candidate) { return candidate.tagName === tag; }).length;
+}
+function shape(article) {
+  var rowTable = child(matrix(article, "scroller armor-matrix-rows"), "TABLE");
+  var columnTable = child(matrix(article, "scroller armor-matrix-columns"), "TABLE");
+  var rowHead = child(rowTable, "THEAD").children[0].children;
+  var rowBody = child(rowTable, "TBODY").children;
+  var columnHead = child(columnTable, "THEAD").children[0].children;
+  var columnBody = child(columnTable, "TBODY").children;
+  var fields = Array.prototype.slice.call(rowHead, 1, -1).map(function (cell) {
+    return cell.textContent;
+  });
+  var columnFields = Array.prototype.slice.call(columnBody, 0, -1).map(function (row) {
+    return row.children[0].textContent;
+  });
+  var rowMembers = rowBody.map(function (row) {
+    return {heading: row.children[0].textContent,
+      values: Array.prototype.slice.call(row.children, 1, -1).map(function (cell) {
+        return cell.textContent;
+      })};
+  });
+  var columnMembers = Array.prototype.slice.call(columnHead, 1).map(function (heading, index) {
+    return {heading: heading.textContent,
+      values: Array.prototype.slice.call(columnBody, 0, -1).map(function (row) {
+        return row.children[index + 1].textContent;
+      })};
+  });
+  return {
+    rowHeaderScopes: Array.prototype.slice.call(rowHead).map(function (cell) {
+      return cell.getAttribute("scope");
+    }),
+    columnHeaderScopes: Array.prototype.slice.call(columnHead).map(function (cell) {
+      return cell.getAttribute("scope");
+    }),
+    rowMemberScopes: rowBody.map(function (row) { return row.children[0].getAttribute("scope"); }),
+    columnFieldScopes: columnBody.map(function (row) { return row.children[0].getAttribute("scope"); }),
+    rowFields: fields, columnFields: columnFields,
+    rowMembers: rowMembers, columnMembers: columnMembers,
+    rowVerdict: rowHead[rowHead.length - 1].textContent,
+    columnVerdict: columnBody[columnBody.length - 1].children[0].textContent,
+    rowButtons: count(rowTable, "BUTTON"), columnButtons: count(columnTable, "BUTTON")
+  };
+}
+function member(id, slot, seasonal, holofoil, tuning, protection) {
+  return {id: id, location: "Vault", tuningModSlot: slot, seasonalMod: seasonal,
+    holofoil: holofoil, tuningStat: tuning, currentProposalAction: "review",
+    protectionLevel: protection, protectionReason: protection ? "locked" : "",
+    inLoadout: false, equipped: false, locked: false, masterworkTier: 5, power: 450};
+}
+function group(id, members) {
+  return {groupKind: "same_stat", groupId: id, hash: "h", name: "Parity",
+    type: "Chest Armor", guardianClass: "Hunter", itemArchetype: "Gunner", tier: 5,
+    stats: {}, spiritSignature: [], members: members};
+}
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var view = api.createView({document: new Document(), state: state,
+  verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
+var present = shape(view.armorGroup(group("present", [
+  member("p1", "Weapons", "Solar", "true", "A", "hard"),
+  member("p2", "Health", "Arc", "false", "B", ""),
+  member("p3", "Health", "Arc", "false", "C", "soft")
+])));
+var absent = shape(view.armorGroup(group("absent", [
+  member("a1", "Weapons", "Solar", "false", "Weapons", ""),
+  member("a2", "Weapons", "Solar", "false", "Weapons", "")
+])));
+function parity(result, expectedFields, memberCount) {
+  return JSON.stringify(result.rowFields) === JSON.stringify(expectedFields) &&
+    JSON.stringify(result.columnFields) === JSON.stringify(expectedFields) &&
+    JSON.stringify(result.rowMembers) === JSON.stringify(result.columnMembers) &&
+    result.rowHeaderScopes.every(function (scope) { return scope === "col"; }) &&
+    result.columnHeaderScopes.every(function (scope) { return scope === "col"; }) &&
+    result.rowMemberScopes.every(function (scope) { return scope === "row"; }) &&
+    result.columnFieldScopes.every(function (scope) { return scope === "row"; }) &&
+    result.rowVerdict === "Verdict" && result.columnVerdict === "Verdict" &&
+    result.rowFields.indexOf("Protection") !== -1 &&
+    result.rowButtons === memberCount * 3 && result.columnButtons === memberCount * 3;
+}
+process.stdout.write(JSON.stringify({
+  present: parity(present, ["Tuning Mod Slot", "Seasonal Mod", "Holofoil", "Tuning Stat",
+    "Protection", "In loadout", "Equipped", "Locked", "Masterwork Tier", "Power"], 3),
+  absent: parity(absent, ["Tuning Mod Slot", "Protection", "In loadout", "Equipped",
+    "Locked", "Masterwork Tier", "Power"], 2),
+  protection: present.rowMembers[0].values[4] === "hard — locked" &&
+    present.columnMembers[2].values[4] === "soft — locked"
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "present": True, "absent": True, "protection": True,
+    }
