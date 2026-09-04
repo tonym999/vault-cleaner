@@ -2,6 +2,8 @@
 
 This template boots an **Orchestrator Agent** to manage the execution of a ticket whose plan has merged to `main`.
 
+This template describes how an authorized orchestration runs; it grants no authority to start or advance one. Opening or merging PRs, posting issue or PR comments, requesting reviewers, and changing issue/PR/project state are external mutations governed by the user-authorization gates in [`AGENTS.md`](../../AGENTS.md#user-authorization-gates). If that authority is absent or unclear, stop and report it.
+
 ---
 
 ## Orchestrator Operating Instructions
@@ -61,7 +63,7 @@ When acting as the **Orchestrator**:
    - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan in a revised plan PR.
 
 9. **Carry Out Plan Review-Outcome Steps:**
-   - When clean and verified, carry out all review-outcome steps specified in the plan (e.g. open a pull request targeting `main` referencing the issue, add any required coordination comments on issue threads, and ensure a dated [WORKLOG.md](../../WORKLOG.md) entry accompanies the PR).
+   - When clean and verified, carry out the review-outcome steps specified in the plan **only to the extent the user has authorized them** (e.g. open a pull request targeting `main` referencing the issue, add any required coordination comments on issue threads, and ensure a dated [WORKLOG.md](../../WORKLOG.md) entry accompanies the PR). Opening the PR and posting the comments are separately authorized actions, and neither authorizes a merge; when authorization for a step is absent or unclear, stop and report the completed work instead.
 
 ## Reusable Independent Adversarial Review Prompt
 

@@ -55,7 +55,7 @@ phases and mutations have been authorized under `AGENTS.md`:
 2. **Implementation Phase (PR 2):**
    - The orchestrator reads the merged plan from `main` (`handoffs/issue-N-implementation-plan.md`).
    - Dispatches the implementer to work on the allocated implementation branch.
-   - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes any findings back to the implementer.
+   - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes accepted, in-scope findings back to the implementer.
    - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` and executes any required issue comments only when those external mutations are authorized; the PR includes a dated [WORKLOG.md](../WORKLOG.md) entry.
 
 ## Naming Convention

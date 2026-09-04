@@ -24,6 +24,36 @@ surprises the next agent should know about.
   subject `Fix #128 handoff review sentence` had caused GitHub to close #128
   when PR #129 merged; PR #130 was then opened while #128 was closed and the
   issue was reopened afterward. The new guidance addresses both failures.
+- Review round 2 extended the gates beyond `AGENTS.md`. `handoffs/README.md`
+  gained an authorization-boundary section and conditional lifecycle wording;
+  the phase-transition checklist now verifies explicit authorization for the
+  next phase and each planned external mutation; and opening PRs, pushing
+  branches, posting dispatch/coordination comments, requesting reviewers,
+  changing issue/PR/project state, and merging are enumerated as external
+  mutations. The closing-keyword rule was widened from "commit subject starts
+  with `Fix #N`" to all nine GitHub keywords anywhere in a message, because
+  GitHub matches them in bodies and trailers too, not just at subject start.
+- **Decision:** product implementation tickets keep the two-PR handoff, but a
+  documentation- or maintenance-only ticket may use one direct issue-to-PR
+  route when the user explicitly authorizes it. The exception is never inferred
+  from a label and never implies permission to merge. #132 itself used it.
+- Review round 3 closed the gaps that round 2 left. `handoffs/templates/orchestrator.md`
+  is the prompt that actually boots the orchestrator, and its review-outcome
+  step still read as an unconditional instruction to open a PR and post
+  comments; it now carries the authorization boundary and a pointer to the
+  gates. **Surprise for the next agent:** fixing prose in `handoffs/README.md`
+  does not fix the templates beside it — the template is the operative
+  document, so treat the two as sibling paths and change them together.
+- **Decision:** committing and pushing the allocated implementation branch are
+  explicitly inside the implementation phase. Classifying pushes as external
+  mutations had otherwise deadlocked the normal workflow, since
+  `handoffs/templates/planner.md` tells the implementer to push and the
+  orchestrator reviews the pushed head. No other branch may be pushed.
+- The closing-keyword prohibition is now scoped to commit messages an agent
+  authors, so a merge or squash commit GitHub generates from an intentional
+  final PR body remains the supported closing path. Orchestrator finding
+  routing was also narrowed to accepted, in-scope findings, matching
+  `AGENTS.md` and the orchestrator template.
 - No production UI, Python rule, report/snapshot contract, runtime dependency,
   or persisted-review behavior changed in this correction.
 - Validation: Ruff passed; full suite passed with `953 passed in 23.30s` after
