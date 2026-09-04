@@ -320,20 +320,25 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(group).to_contain_text("Gunner")
     expect(group).to_contain_text("Tuning Mod Slot")
     expect(group).to_contain_text("Weapons")
-    expect(group).to_contain_text("Primary")
-    expect(group).to_contain_text("Secondary")
-    expect(group).to_contain_text("Tertiary")
-    expect(group).to_contain_text("The other three base stats are 0")
+    # Role labels are lowercase in the stat spike (settled #131 copy, matching
+    # the agreed artifact's "primary/secondary/tertiary" text).
+    expect(group).to_contain_text("primary")
+    expect(group).to_contain_text("secondary")
+    expect(group).to_contain_text("tertiary")
+    expect(group).to_contain_text("0 base")
 
+    # Two matrix orientations register every member id twice (row + column
+    # table); only one is ever visible at a time, so structural/interaction
+    # assertions below scope to the :visible occurrence (#131).
     for member_id in ("8201", "8202", "8203"):
-        expect(group.locator(f'[data-member-id="exact_duplicate:{member_id}"]')).to_be_visible()
+        expect(group.locator(f'[data-member-id="exact_duplicate:{member_id}"]:visible')).to_be_visible()
         expect(group).to_contain_text(member_id)
     expect(group).to_contain_text("Preferred survivor")
     expect(group).to_contain_text("Retained protected")
     expect(group).to_contain_text("Proposed junk")
-    assert group.locator('[data-member-id="exact_duplicate:8201"] button.approve').count() == 0
-    assert group.locator('[data-member-id="exact_duplicate:8202"] button.veto').count() == 0
-    proposal = group.locator('[data-member-id="exact_duplicate:8203"]')
+    assert group.locator('[data-member-id="exact_duplicate:8201"]:visible button.approve').count() == 0
+    assert group.locator('[data-member-id="exact_duplicate:8202"]:visible button.veto').count() == 0
+    proposal = group.locator('[data-member-id="exact_duplicate:8203"]:visible')
     expect(proposal.locator("button.approve")).to_be_enabled()
 
     proposal.locator("button.approve").click()
@@ -366,7 +371,9 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
     expect(group.locator("p.armor-group-pieces")).to_have_text("2 pieces")
     expect(group.locator("p.sub")).to_have_text("Same stats · review only")
     expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 2 pieces")
-    expect(group.locator("p.hint").first).to_contain_text(
+    # The same-stat banner is the artifact's always-visible .tuneline.warn
+    # treatment, not the generic .hint class (#131).
+    expect(group.locator(".tuneline.warn")).to_contain_text(
         "Base stats match but tuning differs, so this pass selects no survivor."
     )
     expect(group).to_contain_text("8301")
@@ -374,8 +381,11 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
     expect(group).to_contain_text("Tuning Mod Slot")
     expect(group).to_contain_text("Weapons")
     expect(group).to_contain_text("Health")
-    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
-    expect(group.locator("button.approve")).to_have_count(2)
+    # Whichever matrix orientation is active at this viewport, the Tuning Mod
+    # Slot axis is always present and visible (#131 acceptance: same-stat's
+    # defining axis is never suppressed).
+    expect(group.locator("th:visible").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(group.locator("button.approve:visible")).to_have_count(2)
     expect(group).not_to_contain_text("Preferred survivor")
     expect(group).not_to_contain_text("Proposed junk")
 
@@ -384,7 +394,15 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
 def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
     page: Page, live_server: LiveServer
 ) -> None:
-    """Four-member same-stat groups wrap badges cleanly and transpose columns."""
+    """Four-member same-stat groups render both matrix orientations correctly.
+
+    Member columns are the artifact orientation and are used only where a
+    four-member matrix actually fits (#131 measured evidence:
+    docs/evidence/issue-131/orientation-measurements.md); the row fallback is
+    used everywhere else, including 390px. Exactly one orientation is ever
+    visible, absent-from-accessibility-tree is proven by the hidden table
+    failing `to_be_visible`, and both use the same field list.
+    """
     authenticate(page, live_server)
     page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_FOUR_UI_EXPORT)
 
@@ -397,12 +415,40 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
     expect(group.locator("p.armor-group-pieces")).to_have_text("4 pieces")
     expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 4 pieces")
 
-    # Transposed layout: 4 rows in tbody
-    expect(group.locator("tbody tr")).to_have_count(4)
-    expect(group.locator("th[scope='col']").filter(has_text="Member")).to_be_visible()
-    expect(group.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
-    expect(group.locator("th[scope='col']").filter(has_text="Protection")).to_be_visible()
-    expect(group.locator("th[scope='col']").filter(has_text="Verdict")).to_be_visible()
+    columns_table = group.locator("table.armor-matrix-columns")
+    rows_table = group.locator("table.armor-matrix-rows")
+
+    # Fitting desktop panel (1440px): the 4-member budget (63.5rem/1016px)
+    # fits inside the ~1156px comparison content box, so member columns are
+    # the active orientation and the row fallback is hidden.
+    page.set_viewport_size({"width": 1440, "height": 900})
+    expect(columns_table).to_be_visible()
+    expect(rows_table).to_be_hidden()
+    expect(columns_table.locator("th.armor-matrix-corner")).to_have_text("Differs on")
+    expect(columns_table.locator("th.armor-matrix-col-heading")).to_have_count(4)
+    expect(columns_table.locator("th").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(columns_table.locator("th").filter(has_text="Protection")).to_be_visible()
+    expect(columns_table.locator("th").filter(has_text="Verdict")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 1440
+
+    # Non-fitting desktop panel (1000px, below the 1016px budget): the row
+    # fallback becomes active -- the orientation flip is width-driven, not a
+    # fixed desktop/mobile split.
+    page.set_viewport_size({"width": 1000, "height": 900})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 1000
+
+    # Narrow panel (390px): row fallback stays active. Transposed layout: 4
+    # rows in tbody, one per member.
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()
+    expect(rows_table.locator("tbody tr")).to_have_count(4)
+    expect(rows_table.locator("th[scope='col']").filter(has_text="Member")).to_be_visible()
+    expect(rows_table.locator("th[scope='col']").filter(has_text="Tuning Mod Slot")).to_be_visible()
+    expect(rows_table.locator("th[scope='col']").filter(has_text="Protection")).to_be_visible()
+    expect(rows_table.locator("th[scope='col']").filter(has_text="Verdict")).to_be_visible()
 
     # Viewport checks at desktop and mobile widths
     for width, height in ((1440, 900), (390, 844)):
@@ -415,7 +461,10 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
     # Badges wrap within their heading's fixed width budget instead of
     # forcing the cell wider (see badge_width_and_heading_budget for why a
     # bare scrollWidth <= clientWidth check on the badge cannot catch this).
-    badges = page.locator("article.armor-group .armor-member-heading .badge")
+    # Scoped to :visible -- the current viewport (390px, from the loop above)
+    # has the row orientation active, and a display:none heading has no
+    # usable geometry to budget against.
+    badges = page.locator("article.armor-group .armor-member-heading:visible .badge")
     assert badges.count() == 4
     for i in range(badges.count()):
         badge = badges.nth(i)
@@ -589,3 +638,95 @@ def test_duplicates_surface_does_not_scroll_horizontally(
         "el => getComputedStyle(el).overflowX"
     )
     assert scroller_overflow_x == "auto"
+
+
+@pytest.mark.browser
+def test_armor_matrix_inactive_orientation_is_unreachable_by_keyboard(
+    page: Page, live_server: LiveServer
+) -> None:
+    """The hidden matrix orientation is out of layout, not merely invisible.
+
+    `display: none` (never `aria-hidden` or `tabindex="-1"`) is what keeps the
+    inactive orientation out of both the accessibility tree and the keyboard
+    tab order (#131). Proven here by attempting to focus a control inside the
+    hidden table directly and confirming focus never lands there.
+    """
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_UI_EXPORT)
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    columns_table = group.locator("table.armor-matrix-columns")
+    rows_table = group.locator("table.armor-matrix-rows")
+
+    # Fitting desktop panel: columns active, row fallback out of layout.
+    page.set_viewport_size({"width": 1440, "height": 900})
+    expect(columns_table).to_be_visible()
+    expect(rows_table).to_be_hidden()
+    assert rows_table.evaluate("el => el.offsetParent") is None
+    hidden_focus_result = rows_table.locator("button.approve").first.evaluate(
+        "el => { el.focus(); return document.activeElement === el; }"
+    )
+    assert hidden_focus_result is False, (
+        "a button inside the display:none row table accepted focus"
+    )
+
+    # Narrow panel: row fallback active, columns out of layout.
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()
+    assert columns_table.evaluate("el => el.offsetParent") is None
+    hidden_focus_result_columns = columns_table.locator("button.approve").first.evaluate(
+        "el => { el.focus(); return document.activeElement === el; }"
+    )
+    assert hidden_focus_result_columns is False, (
+        "a button inside the display:none column table accepted focus"
+    )
+    # The now-active row table's own button remains focusable.
+    visible_focus_result = rows_table.locator("button.approve").first.evaluate(
+        "el => { el.focus(); return document.activeElement === el; }"
+    )
+    assert visible_focus_result is True
+
+
+@pytest.mark.browser
+def test_armor_matrix_orientation_flips_at_its_measured_threshold(
+    page: Page, live_server: LiveServer
+) -> None:
+    """The orientation switch is driven by the panel's own width (zoom/reflow).
+
+    A two-member group's measured column budget is 38.5rem (616px). A panel
+    just below that must show the row fallback; just above, member columns
+    -- proving the flip is a real, width-driven container query rather than
+    a fixed desktop/mobile breakpoint (#131).
+    """
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_SAME_STAT_UI_EXPORT)
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    columns_table = group.locator("table.armor-matrix-columns")
+    rows_table = group.locator("table.armor-matrix-rows")
+
+    # Comfortably below the 616px budget (measured comparison content box at
+    # this viewport: 588px): row fallback.
+    page.set_viewport_size({"width": 680, "height": 900})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 680
+
+    # Comfortably above it (measured comparison content box: 668px): member
+    # columns.
+    page.set_viewport_size({"width": 760, "height": 900})
+    expect(columns_table).to_be_visible()
+    expect(rows_table).to_be_hidden()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 760
+
+    # And back down again -- the flip is reversible, not a one-way transition.
+    page.set_viewport_size({"width": 680, "height": 900})
+    expect(rows_table).to_be_visible()
+    expect(columns_table).to_be_hidden()

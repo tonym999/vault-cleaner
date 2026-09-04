@@ -667,12 +667,19 @@
       };
     }
     var roles = { 30: "Primary", 25: "Secondary", 20: "Tertiary" };
+    // 30 -> 100%, 25 -> 83%, 20 -> 67% of the spike bar's own column width;
+    // these are decoration only, the value and role stay text alongside them.
+    var barWidths = { 30: 100, 25: 83, 20: 67 };
+    var zeroNames = names.filter(function (name) { return stats[name] === 0; });
     return {
       tier5: true,
       rows: names.filter(function (name) { return stats[name] !== 0; }).map(function (name) {
-        return { name: name, value: stats[name], role: roles[stats[name]] };
+        return {
+          name: name, value: stats[name], role: roles[stats[name]],
+          barWidth: barWidths[stats[name]]
+        };
       }),
-      zeroSummary: "The other three base stats are 0 on this tier-5 piece."
+      zeroSummary: zeroNames.join(" · ") + " · 0 base"
     };
   }
 
@@ -1044,20 +1051,40 @@
       return Object.keys(values);
     }
 
-    function armorGroupHeader(group) {
+    // Role labels are decoration alongside the always-present value/role text;
+    // the bar itself never carries information a screen reader needs.
+    var ROLE_BAR_CLASS = { Primary: "p", Secondary: "s", Tertiary: "t" };
+
+    function armorStatSpike(group) {
       var statDisplay = armorStatDisplay(group);
-      var statNodes = statDisplay.rows.map(function (row) {
-        return tile(row.role || "Base stat", str(row.name) + " " + str(row.value));
+      if (!statDisplay.tier5) {
+        var fallbackNodes = statDisplay.rows.map(function (row) {
+          return tile("Base stat", str(row.name) + " " + str(row.value));
+        });
+        return {
+          node: el("div", {
+            class: "armor-stat-summary", "aria-label": "Base stat summary"
+          }, fallbackNodes),
+          zeroSummary: ""
+        };
+      }
+      var spikeNodes = statDisplay.rows.map(function (row) {
+        return el("div", { class: "sv " + (ROLE_BAR_CLASS[row.role] || "") }, [
+          el("span", { class: "lbl", text: row.name }),
+          el("span", { class: "val", text: String(row.value) }),
+          el("span", { class: "bar", style: "width:" + row.barWidth + "%" }),
+          el("span", { class: "role", text: (row.role || "").toLowerCase() })
+        ]);
       });
-      var pieceCount = (group.members || []).length;
-      var piecesNode = el("p", {
-        class: "armor-group-pieces",
-        text: String(pieceCount) + (pieceCount === 1 ? " piece" : " pieces")
-      });
-      var subText = group.groupKind === "same_stat"
-        ? "Same stats · review only"
-        : "Exact";
-      var sameStatBanner = null;
+      return {
+        node: el("div", {
+          class: "armor-stat-summary spike", "aria-label": "Base stat summary"
+        }, spikeNodes),
+        zeroSummary: statDisplay.zeroSummary
+      };
+    }
+
+    function armorTuningBanner(group) {
       if (group.groupKind === "same_stat") {
         var bannerText = "Base stats match but tuning differs, so this pass selects no survivor.";
         var hasProposingMember = (group.members || []).some(function (m) {
@@ -1066,27 +1093,56 @@
         if (hasProposingMember) {
           bannerText += " Pieces below that already carry a proposal keep their verdict controls.";
         }
-        sameStatBanner = el("p", { class: "hint", text: bannerText });
+        return el("p", { class: "tuneline warn" }, [
+          el("span", { class: "k", text: "Tuning Mod Slot" }),
+          el("span", { text: " " + bannerText })
+        ]);
       }
-      return el("header", { class: "armor-group-header" }, [
-        piecesNode,
-        el("h3", { text: group.name || "(unnamed armor)" }),
-        el("p", { class: "sub", text: subText }),
-        sameStatBanner,
-        el("div", { class: "armor-group-meta" }, [
-          tile("Type / slot", group.type || "unknown"),
-          tile("Guardian class", group.guardianClass || "class-neutral/unknown"),
-          tile("Tier", group.tier === null || group.tier === undefined ? "unknown" : group.tier),
-          tile("Hash", group.hash),
-          tile("Archetype", group.itemArchetype || "none/unknown"),
-          group.groupKind === "same_stat" ? null : tile("Tuning Mod Slot", group.tuningModSlot)
-        ]),
-        el("div", { class: "armor-stat-summary", "aria-label": "Base stat summary" }, statNodes),
-        statDisplay.zeroSummary ? el("p", { class: "hint", text: statDisplay.zeroSummary }) : null,
-        group.spiritSignature.length ? tile("Spirit signature", group.spiritSignature.join(" · ")) : null,
+      var memberCount = (group.members || []).length;
+      var suffix = memberCount === 1
+        ? " — the only piece in this group."
+        : " — identical across all " + memberCount +
+          " pieces, and part of why they are one group.";
+      return el("p", { class: "tuneline" }, [
+        el("span", { class: "k", text: "Tuning Mod Slot" }),
+        el("span", { text: " " + group.tuningModSlot + suffix })
+      ]);
+    }
+
+    function armorGroupHeader(group) {
+      var pieceCount = (group.members || []).length;
+      var piecesNode = el("p", {
+        class: "armor-group-pieces",
+        text: String(pieceCount) + (pieceCount === 1 ? " piece" : " pieces")
+      });
+      var subText = group.groupKind === "same_stat"
+        ? "Same stats · review only"
+        : "Exact";
+      var tierText = group.tier === null || group.tier === undefined
+        ? "unknown" : String(group.tier);
+      var spike = armorStatSpike(group);
+      var extras = [
+        group.spiritSignature.length
+          ? tile("Spirit signature", group.spiritSignature.join(" · ")) : null,
         group.seasonalMod ? tile("Seasonal Mod", group.seasonalMod) : null,
         group.holofoil && group.holofoil.toLowerCase() !== "false"
           ? tile("Holofoil", group.holofoil) : null
+      ].filter(Boolean);
+      return el("header", { class: "armor-group-header" }, [
+        el("div", { class: "armor-group-headline" }, [
+          el("h3", { text: group.name || "(unnamed armor)" }),
+          el("span", { class: "badge arch", text: group.itemArchetype || "none/unknown" }),
+          el("span", { class: "sub", text: group.type || "unknown" }),
+          el("span", { class: "sub", text: group.guardianClass || "class-neutral/unknown" }),
+          el("span", { class: "sub", text: "Tier " + tierText }),
+          el("span", { class: "sub mono", text: "Hash " + group.hash }),
+          piecesNode
+        ]),
+        el("p", { class: "sub", text: subText }),
+        spike.node,
+        spike.zeroSummary ? el("p", { class: "hint", text: spike.zeroSummary }) : null,
+        armorTuningBanner(group),
+        extras.length ? el("div", { class: "armor-group-extra" }, extras) : null
       ]);
     }
 
@@ -1146,83 +1202,177 @@
       return cell;
     }
 
-    function armorGroupTable(group) {
-      var fields = [];
+    function valuesForField(group, get) {
+      var values = emptyMap();
+      (group.members || []).forEach(function (member) {
+        values[get(member)] = true;
+      });
+      return Object.keys(values);
+    }
+
+    /**
+     * Build the candidate comparison axes for a group and split them into
+     * rows the matrix actually shows and axes that are identical across
+     * every member. No information is lost: an axis suppressed because it
+     * is identical is always restated by the caller in the identical-axes
+     * summary line, in the same order it would have appeared as a row.
+     */
+    function armorComparisonSpecs(group) {
+      var specs = [];
       if (group.groupKind === "same_stat") {
-        fields.push(["Tuning Mod Slot", function (member) {
-          return normalizeCategoricalValue(member.tuningModSlot);
-        }]);
-        var seasonalValues = memberValues(group, "seasonalMod", normalizeCategoricalValue);
-        if (seasonalValues.length > 1) {
-          fields.push(["Seasonal Mod", function (member) {
-            return normalizeCategoricalValue(member.seasonalMod);
-          }]);
-        }
-        var holofoilValues = memberValues(group, "holofoil", normalizeCategoricalValue);
-        if (holofoilValues.length > 1) {
-          fields.push(["Holofoil", function (member) {
-            return normalizeCategoricalValue(member.holofoil);
-          }]);
-        }
+        specs.push({
+          label: "Tuning Mod Slot", always: true,
+          get: function (member) { return normalizeCategoricalValue(member.tuningModSlot); }
+        });
+        specs.push({
+          label: "Seasonal Mod",
+          get: function (member) { return normalizeCategoricalValue(member.seasonalMod); }
+        });
+        specs.push({
+          label: "Holofoil",
+          get: function (member) { return normalizeCategoricalValue(member.holofoil); }
+        });
         var rawTuningValues = memberValues(group, "tuningStat");
         var tuningSlots = memberValues(group, "tuningModSlot", normalizeCategoricalValue);
-        if (rawTuningValues.length > tuningSlots.length) {
-          fields.push(["Tuning Stat", function (member) {
-            return member.tuningStat || "none/unknown";
-          }]);
-        }
+        var tuningStatIsInformative = rawTuningValues.length > tuningSlots.length;
+        specs.push({
+          label: "Tuning Stat", skipIdentical: true,
+          showRow: function () { return tuningStatIsInformative; },
+          get: function (member) { return member.tuningStat || "none/unknown"; }
+        });
       }
-      fields = fields.concat([
-        ["Protection", function (member) {
-          return member.protectionLevel
-            ? member.protectionLevel + (member.protectionReason ? " — " + member.protectionReason : "")
-            : "—";
-        }],
-        ["In loadout", function (member) { return member.inLoadout ? "Yes" : "No"; }],
-        ["Equipped", function (member) { return member.equipped ? "Yes" : "No"; }],
-        ["Locked", function (member) { return member.locked ? "Yes" : "No"; }],
-        ["Masterwork Tier", function (member) {
-          return member.masterworkTier === null || member.masterworkTier === undefined
-            ? "unknown" : str(member.masterworkTier);
-        }],
-        ["Power", function (member) {
-          return member.power === null || member.power === undefined ? "unknown" : str(member.power);
-        }]
+      specs = specs.concat([
+        {
+          label: "Protection",
+          get: function (member) {
+            return member.protectionLevel
+              ? member.protectionLevel + (member.protectionReason ? " — " + member.protectionReason : "")
+              : "—";
+          }
+        },
+        { label: "In loadout", get: function (member) { return member.inLoadout ? "Yes" : "No"; } },
+        { label: "Equipped", get: function (member) { return member.equipped ? "Yes" : "No"; } },
+        { label: "Locked", get: function (member) { return member.locked ? "Yes" : "No"; } },
+        {
+          label: "Masterwork Tier",
+          get: function (member) {
+            return member.masterworkTier === null || member.masterworkTier === undefined
+              ? "unknown" : str(member.masterworkTier);
+          }
+        },
+        {
+          label: "Power",
+          get: function (member) {
+            return member.power === null || member.power === undefined ? "unknown" : str(member.power);
+          }
+        }
       ]);
 
+      var rows = [];
+      var identicalAxes = [];
+      specs.forEach(function (spec) {
+        var values = valuesForField(group, spec.get);
+        var differs = values.length > 1;
+        var showRow = spec.always ? true : (spec.showRow ? spec.showRow() : differs);
+        if (showRow) {
+          rows.push(spec);
+        } else if (!spec.skipIdentical && values.length <= 1) {
+          identicalAxes.push({
+            label: spec.label,
+            value: values.length ? values[0] : "—"
+          });
+        }
+      });
+      return { rows: rows, identicalAxes: identicalAxes };
+    }
+
+    function armorMemberHeadingContent(group, member, index) {
+      return [
+        el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
+        el("span", { class: "mono", text: member.id }),
+        el("span", { class: "sub", text: member.location || "location unknown" }),
+        el("span", { class: "badge", text: armorMemberLabel(group, member) })
+      ];
+    }
+
+    // Today's shape: members as rows, axes as columns. The accessible
+    // fallback for narrow panels, zoomed/reflowed viewports, and any
+    // browser that does not support container queries.
+    function armorMatrixRowsTable(group, rows) {
       var headerCells = [el("th", { scope: "col", text: "Member" })].concat(
-        fields.map(function (field) {
-          return el("th", { scope: "col", text: field[0] });
-        }),
+        rows.map(function (spec) { return el("th", { scope: "col", text: spec.label }); }),
         [el("th", { scope: "col", text: "Verdict" })]
       );
-
-      var rows = (group.members || []).map(function (member, index) {
-        var memberHeading = el("th", { scope: "row", class: "armor-member-heading" }, [
-          el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
-          el("span", { class: "mono", text: member.id }),
-          el("span", { class: "sub", text: member.location || "location unknown" }),
-          el("span", { class: "badge", text: armorMemberLabel(group, member) })
-        ]);
-        var dataCells = fields.map(function (field) {
-          return el("td", { text: field[1](member) });
+      var bodyRows = (group.members || []).map(function (member, index) {
+        var memberHeading = el("th", { scope: "row", class: "armor-member-heading" },
+          armorMemberHeadingContent(group, member, index));
+        var dataCells = rows.map(function (spec) {
+          return el("td", { text: spec.get(member) });
         });
         var verdictCell = armorMemberCell(member, group);
         return el("tr", null, [memberHeading].concat(dataCells, [verdictCell]));
       });
+      return el("table", { class: "armor-group-table armor-matrix-rows" }, [
+        el("thead", null, [el("tr", null, headerCells)]),
+        el("tbody", null, bodyRows)
+      ]);
+    }
 
-      return el("div", { class: "scroller armor-matrix" }, [
-        el("table", { class: "armor-group-table" }, [
-          el("thead", null, [el("tr", null, headerCells)]),
-          el("tbody", null, rows)
-        ])
+    // The artifact's orientation: axes as rows, members as columns. Active
+    // only when the group's own container has room for every member column;
+    // hidden (display: none, out of the accessibility tree and tab order)
+    // otherwise. Built from the same field list and the same
+    // armorMemberCell factory as the row table, so both orientations always
+    // register the same verdict cells.
+    function armorMatrixColumnsTable(group, rows) {
+      var headerCells = [
+        el("th", { scope: "col", class: "armor-matrix-corner", text: "Differs on" })
+      ].concat((group.members || []).map(function (member, index) {
+        return el("th", { scope: "col", class: "armor-member-heading armor-matrix-col-heading" },
+          armorMemberHeadingContent(group, member, index));
+      }));
+      var bodyRows = rows.map(function (spec) {
+        return el("tr", null, [
+          el("th", { scope: "row", class: "armor-matrix-axis-label", text: spec.label })
+        ].concat((group.members || []).map(function (member) {
+          return el("td", { class: "armor-matrix-col-cell", text: spec.get(member) });
+        })));
+      });
+      var verdictRow = el("tr", null, [
+        el("th", { scope: "row", class: "armor-matrix-axis-label", text: "Verdict" })
+      ].concat((group.members || []).map(function (member) {
+        return armorMemberCell(member, group);
+      })));
+      bodyRows.push(verdictRow);
+      return el("table", { class: "armor-matrix-columns" }, [
+        el("thead", null, [el("tr", null, headerCells)]),
+        el("tbody", null, bodyRows)
+      ]);
+    }
+
+    function armorIdenticalAxesLine(identicalAxes) {
+      if (!identicalAxes.length) return null;
+      var text = "Identical across all pieces: " + identicalAxes.map(function (axis) {
+        return axis.label + " " + axis.value;
+      }).join(" · ");
+      return el("p", { class: "hint armor-identical-axes", text: text });
+    }
+
+    function armorGroupTable(group) {
+      var comparison = armorComparisonSpecs(group);
+      var rowsTable = armorMatrixRowsTable(group, comparison.rows);
+      var columnsTable = armorMatrixColumnsTable(group, comparison.rows);
+      return el("div", { class: "armor-comparison" }, [
+        el("div", { class: "scroller armor-matrix" }, [rowsTable, columnsTable]),
+        armorIdenticalAxesLine(comparison.identicalAxes)
       ]);
     }
 
     function armorGroup(group) {
+      var memberCount = (group.members || []).length;
       return el("article", {
         class: "armor-group", "data-group-id": group.groupKind + ":" + group.groupId,
-        "data-group-kind": group.groupKind
+        "data-group-kind": group.groupKind, "data-member-count": String(memberCount)
       }, [armorGroupHeader(group), armorGroupTable(group)]);
     }
 

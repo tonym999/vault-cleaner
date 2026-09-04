@@ -1844,7 +1844,11 @@ setTimeout(function () {
     var duplicateSearch = document.nodes["vc-dup-search"];
     duplicateSearch.value = armorProposalId;
     duplicateSearch.dispatch("input", { target: duplicateSearch });
-    duplicateCell = state.duplicateRows[armorProposalId][0].cell;
+    // Two orientations register the same member id twice (once per matrix
+    // table); every occurrence must repaint, disable, and freeze together
+    // (#131) -- assertions below check the whole occurrence list, never a
+    // fixed position.
+    var duplicateCells = state.duplicateRows[armorProposalId].map(function (row) { return row.cell; });
     var armorUpload = document.nodes["vc-upload-armor"];
     armorUpload.files = [{}];
     armorUpload.dispatch("change", { target: armorUpload });
@@ -1854,22 +1858,30 @@ setTimeout(function () {
         !document.nodes["vc-duplicates"].hidden &&
         document.nodes["vc-dup-search"].value === armorProposalId;
       state.duplicateRows[armorProposalId][0].approve.dispatch("click");
-      duplicateGateDisabled = state.duplicateRows[armorProposalId][0].approve.disabled;
+      duplicateGateDisabled = state.duplicateRows[armorProposalId].every(function (row) {
+        return row.approve.disabled;
+      });
       setTimeout(function () {
-        duplicateRepainted = state.duplicateRows[armorProposalId][0].cell === duplicateCell &&
-          state.duplicateRows[armorProposalId][0].approve.getAttribute("aria-pressed") === "true";
+        var occurrences = state.duplicateRows[armorProposalId];
+        duplicateRepainted = occurrences.length === duplicateCells.length &&
+          occurrences.every(function (row, index) {
+            return row.cell === duplicateCells[index] &&
+              row.approve.getAttribute("aria-pressed") === "true";
+          });
         document.nodes["vc-view-proposals"].dispatch("click");
         duplicateCrossViewVerdict = state.verdicts[armorProposalId];
         document.nodes["vc-view-duplicates"].dispatch("click");
-        duplicateCrossViewPressed = state.duplicateRows[armorProposalId][0].approve.getAttribute("aria-pressed");
+        duplicateCrossViewPressed = state.duplicateRows[armorProposalId].map(function (row) {
+          return row.approve.getAttribute("aria-pressed");
+        });
         duplicateSurfacePreserved = state.surface === "armor-duplicates";
         duplicateSearchPreserved = state.armorQuery.text === armorProposalId;
         document.nodes["vc-finalize"].dispatch("click");
         setTimeout(function () {
           duplicateFinalizedDisabled = state.server_state === "finalized" &&
-            state.duplicateRows[armorProposalId][0].approve.disabled &&
-            state.duplicateRows[armorProposalId][0].veto.disabled &&
-            state.duplicateRows[armorProposalId][0].clear.disabled;
+            state.duplicateRows[armorProposalId].every(function (row) {
+              return row.approve.disabled && row.veto.disabled && row.clear.disabled;
+            });
         }, 10);
       }, 5);
     }, 5);
@@ -2263,7 +2275,9 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
             "gateDisabled": True,
             "repaintedInPlace": True,
             "crossViewVerdict": "approved",
-            "crossViewPressed": "true",
+            # Every registered occurrence (one per matrix orientation) must
+            # repaint identically, not just the first (#131).
+            "crossViewPressed": ["true", "true"],
             "surfacePreserved": True,
             "searchPreserved": True,
             "finalizedDisabled": True,
@@ -2468,21 +2482,43 @@ vm.runInNewContext(source, context);
 setTimeout(function () {
   var server = context.VaultCleanerServerUI, state = server.state;
   document.nodes["vc-view-duplicates"].dispatch("click");
+  // Two orientations register every occurrence twice, so sharedId (a member
+  // of both the exact and the same-stat group) now has four occurrences.
+  // Assertions below hold across every occurrence of each group kind, not a
+  // fixed position (#131).
   var occurrences = state.duplicateRows[sharedId];
-  var exact = occurrences[0], same = occurrences[1];
-  var before = {count: occurrences.length, exactReadOnly: exact.approve === null,
-    sameMutable: !!same.approve};
-  same.approve.dispatch("click");
-  var duringAck = {sameDisabled: same.approve.disabled, exactReadOnly: exact.approve === null};
+  var exactOccurrences = occurrences.filter(function (o) { return o.group.groupKind === "exact_duplicate"; });
+  var sameOccurrences = occurrences.filter(function (o) { return o.group.groupKind === "same_stat"; });
+  var before = {
+    count: occurrences.length,
+    exactReadOnly: exactOccurrences.every(function (o) { return o.approve === null; }),
+    sameMutable: sameOccurrences.every(function (o) { return !!o.approve; })
+  };
+  sameOccurrences[0].approve.dispatch("click");
+  var duringAck = {
+    sameDisabled: sameOccurrences.every(function (o) { return o.approve.disabled; }),
+    exactReadOnly: exactOccurrences.every(function (o) { return o.approve === null; })
+  };
   setTimeout(function () {
-    var afterAck = {verdict: state.verdicts[sharedId], samePressed: same.approve.getAttribute("aria-pressed"),
-      exactText: exact.presentation.textContent, exactReadOnly: exact.approve === null};
+    var afterAck = {
+      verdict: state.verdicts[sharedId],
+      samePressed: sameOccurrences.every(function (o) {
+        return o.approve.getAttribute("aria-pressed") === "true";
+      }),
+      exactText: exactOccurrences.every(function (o) {
+        return o.presentation.textContent === exactOccurrences[0].presentation.textContent;
+      }) ? exactOccurrences[0].presentation.textContent : null,
+      exactReadOnly: exactOccurrences.every(function (o) { return o.approve === null; })
+    };
     document.nodes["vc-finalize"].dispatch("click");
     setTimeout(function () {
       process.stdout.write(JSON.stringify({before: before, duringAck: duringAck, afterAck: afterAck,
-        finalized: state.server_state === "finalized" && exact.approve === null &&
-          same.approve.disabled && same.veto.disabled && same.clear.disabled &&
-          exact.presentation.textContent.indexOf("Read-only") !== -1,
+        finalized: state.server_state === "finalized" &&
+          exactOccurrences.every(function (o) { return o.approve === null &&
+            o.presentation.textContent.indexOf("Read-only") !== -1; }) &&
+          sameOccurrences.every(function (o) {
+            return o.approve.disabled && o.veto.disabled && o.clear.disabled;
+          }),
         calls: calls}));
     }, 10);
   }, 10);
@@ -2499,10 +2535,12 @@ setTimeout(function () {
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
-        "before": {"count": 2, "exactReadOnly": True, "sameMutable": True},
+        # count is 4: two occurrences (row + column orientation) per group,
+        # across the two groups sharedId belongs to (#131).
+        "before": {"count": 4, "exactReadOnly": True, "sameMutable": True},
         "duringAck": {"sameDisabled": True, "exactReadOnly": True},
         "afterAck": {
-            "verdict": "approved", "samePressed": "true",
+            "verdict": "approved", "samePressed": True,
             "exactText": "Read-only · Preferred survivor · Also proposed review in Proposals · Current verdict: approved — armor-similar to",
             "exactReadOnly": True,
         },
@@ -3226,3 +3264,175 @@ setTimeout(function () {
         'search "no-such-armor-piece"'
     )
     assert result["listText"] == "No armor duplicate groups match these filters."
+
+
+def test_tab_and_segment_counts_and_section_headings(tmp_path: Path):
+    """Surface tabs and the group-kind segment carry accurate counts (#131).
+
+    Both the visible count chip and the accessible name must state the
+    unfiltered total (proposals/groups, singular vs. plural correctly), and
+    a mixed report renders both section headings, exact first.
+    """
+    harness = tmp_path / "server-ui-tab-segment-counts-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+  this.hidden = false; this.value = ""; this.selectionStart = 0;
+  this.selectionEnd = 0; this.files = [];
+}
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null; return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || {target: this, preventDefault: function () {}};
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child;
+      else visit(child);
+    });
+  }
+  visit(this); return found;
+};
+function Document() {
+  this.nodes = Object.create(null); this.listeners = Object.create(null);
+  this.activeElement = null; this.body = new Node("body", this);
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this); node.textContent = text; return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function response(payload) {
+  return {ok: true, status: 200, json: function () { return Promise.resolve(payload); }};
+}
+var envelope = {schema_version: 1, state: "reviewing", report_revision: 1,
+  verdict_revision: 0, fingerprint: "fp-counts",
+  snapshot: {sections: [
+    {kind: "weapons", decisions: [{id: "w1", hash: "h", action: "junk"}]},
+    {kind: "armor", decisions: [
+      {id: "a1", hash: "h", action: "junk"}, {id: "a2", hash: "h", action: "review"}
+    ], armor: {
+      exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "e1", hash: "h",
+        name: "Exact", preferred_survivor_id: "e-surv", members: [
+          {id: "e-surv", disposition: "preferred_survivor"},
+          {id: "a1", disposition: "proposed_junk", proposal_action: "junk"}
+        ]}],
+      same_stat_groups: [{group_kind: "same_stat", group_id: "s1", hash: "h", name: "Same",
+        members: [{id: "a2", proposal_action: "review"}, {id: "other"}]}]
+    }}
+  ]}, verdicts: [], override_status: []};
+var document = new Document();
+var context = {document: document, VaultCleanerReviewUI: shared, Promise: Promise, Set: Set,
+  fetch: function () { return Promise.resolve(response(envelope)); }};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+setTimeout(function () {
+  var selector = document.nodes["vc-view-selector"];
+  var proposalsButton = document.nodes["vc-view-proposals"];
+  var duplicatesButton = document.nodes["vc-view-duplicates"];
+  var before = {
+    selectorClass: selector.className,
+    proposalsCount: collect(proposalsButton, function (n) { return hasClass(n, "count"); })[0].textContent,
+    proposalsLabel: proposalsButton.getAttribute("aria-label"),
+    duplicatesCount: collect(duplicatesButton, function (n) { return hasClass(n, "count"); })[0].textContent,
+    duplicatesLabel: duplicatesButton.getAttribute("aria-label")
+  };
+  duplicatesButton.dispatch("click");
+  var segAll = document.nodes["vc-dup-kind-all"];
+  var segExact = document.nodes["vc-dup-kind-exact"];
+  var segSame = document.nodes["vc-dup-kind-same_stat"];
+  var segment = {
+    allCount: collect(segAll, function (n) { return hasClass(n, "count"); })[0].textContent,
+    allLabel: segAll.getAttribute("aria-label"),
+    exactCount: collect(segExact, function (n) { return hasClass(n, "count"); })[0].textContent,
+    exactLabel: segExact.getAttribute("aria-label"),
+    sameCount: collect(segSame, function (n) { return hasClass(n, "count"); })[0].textContent,
+    sameLabel: segSame.getAttribute("aria-label")
+  };
+  var headings = collect(document.nodes["vc-duplicate-list"], function (n) {
+    return hasClass(n, "armor-section-head");
+  }).map(function (n) {
+    return collect(n, function (c) { return c.tagName === "H3"; })[0].textContent;
+  });
+  process.stdout.write(JSON.stringify({before: before, segment: segment, headings: headings}));
+}, 10);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "before": {
+            "selectorClass": "panel view-selector tabs",
+            "proposalsCount": "3", "proposalsLabel": "Proposals (3 proposals)",
+            "duplicatesCount": "2", "duplicatesLabel": "Armor duplicates (2 groups)",
+        },
+        "segment": {
+            "allCount": "2", "allLabel": "All (2 groups)",
+            "exactCount": "1", "exactLabel": "Exact (1 group)",
+            "sameCount": "1", "sameLabel": "Same stats (1 group)",
+        },
+        "headings": ["Exact duplicates", "Same stats, different tuning"],
+    }

@@ -3,6 +3,115 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
+
+Implementation-only session for #131 on `feat/issue-131-armor-duplicates-design-fidelity`
+(branched from `main` at `e839e89081cd96c6c9c07788bc538413a05d974a`), following
+`handoffs/issue-131-implementation-plan.md`. No Python rule, grouping key,
+ranking, snapshot/server schema, or `RULESET_VERSION` change; every hunk is
+under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
+`tests/test_server_ui_js.py`, `tests/test_server_browser.py`,
+`scripts/measure_armor_matrix_orientation.py`, `docs/evidence/issue-131/**`,
+`docs/browser-verification.md`, and this file.
+
+- **What changed:**
+  - `review_ui.js`: `armorGroupHeader` is now a single wrapping headline
+    (name, text-labelled `badge.arch` archetype, type/slot, guardian class,
+    tier, hash, piece count) instead of a tile row; `armorStatDisplay`'s
+    `zeroSummary` now names the zero stats (`grenade · super · melee · 0
+    base`) instead of a fixed sentence; a new `armorStatSpike` renders the
+    30/25/20 stats as labelled bars with lowercase `primary`/`secondary`/
+    `tertiary` role text; `armorTuningBanner` promotes both banners to
+    always-visible `.tuneline`/`.tuneline.warn` treatments. The comparison
+    (`armorGroupTable`) is rebuilt around `armorComparisonSpecs`, which
+    classifies each candidate axis as always-shown, differs (shown), or
+    uniform (suppressed and restated in a new `p.armor-identical-axes`
+    line) — then renders that same field list as two tables from the same
+    `armorMemberCell` factory: `table.armor-matrix-rows` (today's shape,
+    the accessible default) and `table.armor-matrix-columns` (the artifact
+    orientation, axes as rows/members as columns). `armorGroup` now stamps
+    `data-member-count` for the CSS switch.
+  - `review.css`: `article.armor-group` is a `container-type: inline-size`
+    query container; `.armor-matrix-columns` is `display: none` by default
+    and swapped in per member count (2–6) via `@container (min-inline-size:
+    …)` rules once its own measured budget (`13.5 + 12.5×N` rem — a 10.5rem
+    axis-label column, 12.5rem per member column, 3rem guard) fits; the row
+    table keeps its existing 46rem minimum, uninherited. Added `.tabs`/
+    `.tab`, `.segbtns`/`.segb`, `.tuneline`/`.tuneline.warn`, `.badge.arch`,
+    the spike bar rules, and the section-heading rule.
+  - `review_server.js`: the surface selector restyles as `.tabs` with a
+    monospace count chip and a count-carrying `aria-label` on each button
+    (counts are visible text *and* accessible name, never a live-region
+    announcement); the group-kind control restyles as `.segbtns` the same
+    way; `renderList`'s armor-duplicates branch now renders filtered groups
+    under "Exact duplicates" / "Same stats, different tuning" `h3` sections
+    (exact first, a heading only when that kind has a group in the current
+    result); a static (non-live) hint sentence was added to the duplicate
+    filter panel. `#vc-duplicate-scope`'s id/parent/`role`/`aria-live`/
+    in-place update were not touched.
+  - New `scripts/measure_armor_matrix_orientation.py` and
+    `docs/evidence/issue-131/orientation-measurements.md`: boots the real
+    packaged server, uploads the three committed armor-duplicate fixtures,
+    and measures the comparison content box and active orientation at
+    1440×1000/1024×900/390×844, asserting exactly-one-orientation-visible
+    and no document overflow before writing a number.
+- **Thresholds actually measured (not asserted):** at 1440×1000 the
+  comparison content box is 1156px and member columns are active for 2, 3,
+  and 4 members; at 1024×900 it is 932px and member columns are active for
+  2–3 but the 4-member group falls back to rows; at 390×844 it is 315.6px
+  and every member count uses rows. This matches the plan's stated
+  consequences exactly. A follow-up measurement at 680px/760px (588px/668px
+  content box) confirmed the two-member 616px (38.5rem) budget flips
+  correctly and reversibly — used as the "zoom/reflow" browser test.
+- **Decisions made / settled copy:**
+  - Stat-spike role labels render lowercase (`primary`/`secondary`/
+    `tertiary`) at display time — matching the artifact's own text exactly —
+    while `armorStatDisplay`'s underlying `role` field stays capitalized
+    (`"Primary"`, etc.) since an existing Node test asserts that API value
+    directly; only the render path lowercases it.
+  - The same-stat tuning banner moved from `p.hint` to `.tuneline.warn`; the
+    settled two-part sentence itself (`Base stats match but tuning differs,
+    so this pass selects no survivor.` / `Pieces below that already carry a
+    proposal keep their verdict controls.`) is unchanged.
+  - The zero-stat sentence changed from a fixed "The other three base stats
+    are 0…" to naming the zero stats in stats-object order plus a fixed
+    `· 0 base` tail — required by the plan, not optional polish.
+  - Identical axes are restated only when genuinely uniform. `Tuning Stat`
+    keeps its own stricter "does this carry information beyond the slot"
+    gate unchanged, and is *not* restated as identical when it is merely
+    hidden by that gate but not actually uniform — restating it there would
+    misrepresent the data.
+- **Surprises the next agent should know about:**
+  - The server's real `/api/report` JSON pipeline does not preserve the
+    Python-side stats-dict insertion order (`weapons, health, class,
+    grenade, super, melee`) end to end — a live upload of
+    `armor_duplicates_ui.csv` renders the zero-stat summary as `grenade ·
+    melee · super · 0 base`, not `grenade · super · melee`. The Node-level
+    tests (which build their own literal JSON snapshots) keep the literal
+    order they author; only the browser tests, which go through the real
+    server, were written against the measured real order. Nobody chased
+    down *where* the reordering happens (not in scope for #131) — it is a
+    factual observation for whoever next touches the stats payload.
+  - Doubling the DOM occurrences (row + column orientation) doubles
+    everything keyed by member id: button counts, `th[scope=col]` matches
+    across the whole article, and `state.duplicateRows[id]` occurrence
+    arrays. Every existing test asserting an exact count or indexing `[0]`
+    on these needed updating to either assert over the whole occurrence
+    list (Node tests) or scope Playwright locators to `:visible` (browser
+    tests) — this was the single largest source of test churn, exactly as
+    the plan's "likely findings" predicted. `paintArmorMember` itself needed
+    no change: its existing "iterate every registered occurrence" design
+    already handled two orientations correctly.
+  - `armorMemberCell`'s existing `state.duplicateRows[id]` push-per-call
+    design is what makes dual-orientation repaint work for free — worth
+    keeping in mind as a reusable pattern if a third orientation is ever
+    added.
+  - Default `pytest-playwright` viewport (1280×720) already exceeds the
+    2/3/4-member column budgets, so almost every existing armor-duplicates
+    browser test was implicitly exercising the *new* column orientation
+    even before any viewport resize in the test body — not just the
+    four-member test the plan called out by name.
+
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 
 Planning-only session for #131. No production code, test, fixture, snapshot,

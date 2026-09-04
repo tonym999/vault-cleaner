@@ -88,6 +88,38 @@ kbd {
 .view-selector { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
 .view-selector-label { color: var(--muted); font-size: .82rem; font-weight: 600; margin-right: .25rem; }
 .view-selector button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); font-weight: 600; }
+
+/* Surface navigation, styled as the artifact's compact tab strip. The
+   underlying buttons keep their existing aria-pressed toggle semantics --
+   see AGENTS.md/#131 on why real tab/tablist roles are not used here. */
+.tabs { border-bottom: 1px solid var(--line); padding-bottom: 0; }
+.tabs button {
+  background: none; border: 1px solid transparent; border-bottom: 0;
+  border-radius: 5px 5px 0 0; margin-bottom: -1px; text-align: center;
+}
+.tabs button[aria-pressed="true"] {
+  background: var(--panel); border-color: var(--line); color: var(--ink);
+  box-shadow: none;
+}
+.tabs button .count {
+  font-family: ui-monospace, monospace; font-size: .8em; color: var(--muted);
+  margin-left: .35rem;
+}
+
+/* Group-kind control, styled as the artifact's segmented control: one
+   bordered pill with hairline separators and a pressed underline. */
+.segbtns { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.segbtns button {
+  border: 0; border-left: 1px solid var(--line); border-radius: 0;
+  background: var(--panel); padding: .3rem .7rem;
+}
+.segbtns button:first-child { border-left: 0; }
+.segbtns button[aria-pressed="true"] {
+  background: var(--bg); box-shadow: inset 0 -2px 0 var(--accent); font-weight: 600;
+}
+.segbtns button .count {
+  font-family: ui-monospace, monospace; font-size: .8em; opacity: .75; margin-left: .3rem;
+}
 .field { display: flex; flex-direction: column; gap: .2rem; }
 .field > span { font-size: .78rem; color: var(--muted); }
 input[type="search"], input[type="file"], select, textarea {
@@ -148,7 +180,10 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 .err { color: var(--veto); font-weight: 600; }
 .ok { color: var(--approve); }
 .hint { color: var(--muted); font-size: .85rem; }
-.armor-group { border: 1px solid var(--line); border-radius: 7px; padding: .75rem; margin: .75rem 0; }
+.armor-group {
+  border: 1px solid var(--line); border-radius: 7px; padding: .75rem; margin: .75rem 0;
+  container-type: inline-size;
+}
 .armor-group-pieces {
   display: inline-block;
   font: 600 .78rem/1 ui-monospace, monospace;
@@ -156,12 +191,50 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: .3em .5em;
-  margin: 0 0 .35rem;
+  margin: 0;
 }
-.armor-group-header h3 { font-size: 1rem; margin-top: 0; overflow-wrap: anywhere; }
-.armor-group-meta, .armor-stat-summary { display: flex; flex-wrap: wrap; gap: .55rem; margin: .55rem 0; }
-.armor-group-meta .tile, .armor-stat-summary .tile { min-width: 9rem; flex: 1 1 9rem; }
+.armor-group-header h3 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; }
+.armor-group-headline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .3rem;
+}
+.badge.arch { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.armor-group-extra { display: flex; flex-wrap: wrap; gap: .55rem; margin: .55rem 0; }
+.armor-group-extra .tile { min-width: 9rem; flex: 1 1 9rem; }
+
+/* Stat spike: the three tier-5 stats that actually carry information. The
+   bar is redundant decoration -- value and role are always plain text. */
+.armor-stat-summary { display: flex; flex-wrap: wrap; gap: .55rem; margin: .55rem 0; }
 .armor-stat-summary .tile { min-width: 8rem; }
+.armor-stat-summary.spike { align-items: flex-end; gap: .9rem; }
+.armor-stat-summary.spike .sv { display: flex; flex-direction: column; gap: .2rem; min-width: 5.4rem; }
+.armor-stat-summary.spike .sv .bar { height: .3rem; border-radius: 2px; background: var(--accent); }
+.armor-stat-summary.spike .sv.p .bar { opacity: 1; }
+.armor-stat-summary.spike .sv.s .bar { opacity: .72; }
+.armor-stat-summary.spike .sv.t .bar { opacity: .46; }
+.armor-stat-summary.spike .sv .lbl {
+  font-family: ui-monospace, monospace; font-size: .7rem; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.armor-stat-summary.spike .sv .val {
+  font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums;
+  font-size: 1.1rem; font-weight: 600; line-height: 1;
+}
+.armor-stat-summary.spike .sv .role { font-size: .7rem; color: var(--muted); }
+
+/* Tuning banners: always visible, always text-labelled. The warn treatment
+   uses a left rule and background, never color alone, to read as distinct. */
+.tuneline {
+  margin: .6rem 0 0; padding: .42rem .65rem; border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: 4px; background: var(--bg);
+  font-size: .87rem;
+}
+.tuneline .k {
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+  font-size: .72rem; font-weight: 600; font-family: ui-monospace, monospace;
+  margin-right: .3rem;
+}
+.tuneline.warn { border-left-color: var(--review); background: var(--warn-bg); }
+
 .scope-summary {
   font-size: .88rem;
   color: var(--ink);
@@ -172,7 +245,9 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   padding: .45rem .7rem;
   margin: .5rem 0;
 }
-.armor-matrix { margin-top: .75rem; }
+.armor-comparison { margin-top: .75rem; }
+.armor-matrix { }
+.armor-identical-axes { margin: .5rem 0 0; }
 .armor-group-table { min-width: 46rem; }
 .armor-member-heading { min-width: 11rem; }
 .armor-member-heading > span { display: block; }
@@ -183,6 +258,77 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 .armor-member-cell .row-actions { flex-wrap: wrap; }
 .armor-group-table tbody tr:last-child th,
 .armor-group-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Difference-only matrix, artifact orientation: axes as rows, members as
+   columns. Hidden by default (and for any browser without container query
+   support, and for member counts of 1 or 7+) so the row fallback above is
+   the safe default. */
+.armor-matrix-columns { display: none; border-collapse: collapse; width: 100%; }
+.armor-matrix-columns th, .armor-matrix-columns td {
+  border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+  padding: .42rem .6rem; vertical-align: top;
+}
+.armor-matrix-columns thead th { border-top: 0; background: var(--panel); }
+.armor-matrix-columns th.armor-matrix-corner {
+  border-left: 0; font-family: ui-monospace, monospace; font-size: .71rem;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  white-space: normal; min-width: 10.5rem;
+}
+.armor-matrix-columns th.armor-matrix-axis-label {
+  border-left: 0; font-weight: 600; white-space: normal; min-width: 10.5rem;
+  background: var(--bg); text-align: left;
+}
+.armor-matrix-columns th.armor-matrix-col-heading { text-align: left; }
+.armor-matrix-columns th.armor-matrix-col-heading,
+.armor-matrix-columns td.armor-matrix-col-cell,
+.armor-matrix-columns td.armor-member-cell { min-width: 12.5rem; }
+
+/* Per-member-count fitting budget: axis label column + N member columns +
+   guard, measured against the real comparison content box (#131 evidence:
+   docs/evidence/issue-131/orientation-measurements.md). The column table's
+   own min-width matches its container-query threshold exactly, so the row
+   fallback stays active until there really is room for every column. */
+article.armor-group[data-member-count="2"] .armor-matrix-columns { min-width: 38.5rem; }
+article.armor-group[data-member-count="3"] .armor-matrix-columns { min-width: 51rem; }
+article.armor-group[data-member-count="4"] .armor-matrix-columns { min-width: 63.5rem; }
+article.armor-group[data-member-count="5"] .armor-matrix-columns { min-width: 76rem; }
+article.armor-group[data-member-count="6"] .armor-matrix-columns { min-width: 88.5rem; }
+
+@container (min-inline-size: 38.5rem) {
+  article.armor-group[data-member-count="2"] .armor-matrix-columns { display: table; }
+  article.armor-group[data-member-count="2"] .armor-matrix-rows { display: none; }
+}
+@container (min-inline-size: 51rem) {
+  article.armor-group[data-member-count="3"] .armor-matrix-columns { display: table; }
+  article.armor-group[data-member-count="3"] .armor-matrix-rows { display: none; }
+}
+@container (min-inline-size: 63.5rem) {
+  article.armor-group[data-member-count="4"] .armor-matrix-columns { display: table; }
+  article.armor-group[data-member-count="4"] .armor-matrix-rows { display: none; }
+}
+@container (min-inline-size: 76rem) {
+  article.armor-group[data-member-count="5"] .armor-matrix-columns { display: table; }
+  article.armor-group[data-member-count="5"] .armor-matrix-rows { display: none; }
+}
+@container (min-inline-size: 88.5rem) {
+  article.armor-group[data-member-count="6"] .armor-matrix-columns { display: table; }
+  article.armor-group[data-member-count="6"] .armor-matrix-rows { display: none; }
+}
+
+/* Filter panel: the shared #vc-controls host already renders as a bordered
+   panel row (see .panel / .controls above); this only adds the artifact's
+   static, non-live-region hint about whole-group filtering. */
+.armor-duplicate-filter-hint { margin: .3rem 0 0; }
+
+/* Section headings for Exact duplicates / Same stats, different tuning. */
+.armor-section-head {
+  display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap;
+  margin: 1.25rem 0 .15rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line);
+}
+.armor-section-head:first-child { margin-top: 0; }
+.armor-section-head h3 { font-size: 1rem; margin: 0; }
+.armor-section-head .rule { font-size: .82rem; color: var(--muted); }
+
 @media (max-width: 640px) {
   .wrap { padding: .6rem; }
   .tile { min-width: 100%; }
@@ -191,6 +337,6 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   .view-selector { align-items: stretch; }
   .view-selector button { flex: 1 1 100%; }
   .armor-group { padding: .6rem; }
-  .armor-group-meta .tile, .armor-stat-summary .tile { min-width: 100%; }
+  .armor-group-extra .tile { min-width: 100%; }
   .scope-summary { width: 100%; }
 }
