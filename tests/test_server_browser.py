@@ -547,9 +547,21 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
         )
 
     # Light and dark color schemes: assert theme-sensitive computed values
-    # actually change, not just that emulate_media was called.
+    # actually change, not just that emulate_media was called. Coverage
+    # extended (#131 P3-2) beyond the scope summary and piece-count chip to
+    # the archetype badge, a tuning banner, the stat spike and a section
+    # heading, since #131's new CSS for those elements uses only
+    # --accent/--muted/--line/--review/--warn-bg with no hardcoded colors.
+    # This fixture is same-stat only, so only the `.tuneline.warn` variant
+    # is exercised here; the plain `.tuneline` variant shares the same
+    # `--accent`/`--line` tokens already covered by the archetype badge and
+    # scope summary assertions below.
     scope_summary = page.locator(".scope-summary").first
     group_pieces = page.locator(".armor-group-pieces").first
+    archetype_badge = page.locator(".badge.arch").first
+    tuning_banner = page.locator(".tuneline.warn").first
+    stat_spike_bar = page.locator(".armor-stat-summary.spike .sv.p .bar").first
+    section_heading = page.locator(".armor-section-head h3").first
     transparent_values = {"rgba(0, 0, 0, 0)", "transparent"}
 
     def theme_snapshot() -> dict[str, str]:
@@ -565,6 +577,21 @@ def test_armor_same_stat_four_member_badge_wrapping_and_transposition(
             ),
             "armor-group-pieces borderColor": group_pieces.evaluate(
                 "el => getComputedStyle(el).borderColor"
+            ),
+            "archetype-badge color": archetype_badge.evaluate(
+                "el => getComputedStyle(el).color"
+            ),
+            "tuning-banner backgroundColor": tuning_banner.evaluate(
+                "el => getComputedStyle(el).backgroundColor"
+            ),
+            "tuning-banner borderLeftColor": tuning_banner.evaluate(
+                "el => getComputedStyle(el).borderLeftColor"
+            ),
+            "stat-spike-bar backgroundColor": stat_spike_bar.evaluate(
+                "el => getComputedStyle(el).backgroundColor"
+            ),
+            "section-heading color": section_heading.evaluate(
+                "el => getComputedStyle(el).color"
             ),
         }
 

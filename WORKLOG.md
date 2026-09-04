@@ -220,6 +220,94 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
     container's own inline size — the script reports both the viewport
     width searched and the resulting content-box width, and only the
     latter is comparable to the rem thresholds in `review.css`.
+- **Second independent adversarial review round (same session, same branch,
+  `e839e89...98342f7` reviewed):** the orchestrator accepted one blocking
+  finding and four advisory ones; fixed all five, tests plus two small
+  production hunks (a static-class move and a dead-CSS-class removal), no
+  rule/grouping/ranking/schema change.
+  - **P2-1 (blocking, real coverage gap):** `armorComparisonSpecs`'s
+    same-stat `Tuning Mod Slot` spec carries `always: true` so the
+    difference-only suppression rule never drops the group's defining axis
+    — but every same-stat fixture in the whole suite already varies
+    `Tuning Mod Slot` itself, so the axis always showed as a row from the
+    plain "differs" check anyway and the `always: true` rail was never
+    actually exercised. The reviewer proved this by deleting `always: true`
+    and finding the full 128-Node/13-browser suite still green. The rail is
+    reachable, not defensive: `armor_close.py`'s same-stat grouping key
+    forms a group whenever *any* of `Tuning Stat`, `Seasonal Mod` or
+    `Holofoil` differs, so a group can exist whose members share one
+    identical `Tuning Mod Slot` and differ only in `Seasonal Mod` or
+    `Holofoil` — and in that exact shape the `Tuning Stat` fallback is also
+    dropped, because `rawTuningValues.length > tuningSlots.length`
+    evaluates `1 > 1` (both are uninformative-uniform), so nothing else
+    would have kept the axis visible. Added
+    `test_same_stat_tuning_mod_slot_defining_axis_never_suppressed`
+    (`tests/test_review_ui_js.py`) with exactly that shape (one shared
+    `tuningModSlot`, `tuningStat` left unset on every member, `seasonalMod`
+    and `holofoil` varying) and asserted `Tuning Mod Slot` is a row in both
+    `table.armor-matrix-rows` and `table.armor-matrix-columns` and absent
+    from `p.armor-identical-axes`. Confirmed load-bearing in a scratch
+    edit: deleting `always: true` flips the result to
+    `rowsHasTuningModSlot: False` / `columnsHasTuningModSlot: False` and
+    `Tuning Mod Slot Weapons` appearing in the identical-axes text — the
+    test goes red exactly as expected, then the source was restored from a
+    backup copy before committing.
+  - **P3-4 (accepted):** `review_server.js`'s `renderViewSelector` did
+    `selectorPanel.className = "panel view-selector tabs"` on every render,
+    unconditionally overwriting whatever `review_server.html` set on
+    `#vc-view-selector` — `review_server.html` was never touched despite
+    plan §1 listing it `[MODIFY]`, so the strip was unstyled between first
+    paint and the first render. Moved `tabs` into the static class list on
+    `#vc-view-selector` in `review_server.html` and dropped the JS
+    assignment; the existing static `aria-label="Review surface"` was left
+    exactly as-is. Updated the two `tests/test_server_ui_js.py` fake-DOM
+    `Document()` constructors that back the tests reading `selector`'s
+    `className` / rendering it, so the fake `#vc-view-selector` node starts
+    with `"panel view-selector tabs"` the way the real static markup now
+    does — mirroring, in the test harness, what the real HTML/JS split
+    looks like post-fix.
+  - **P3-1 (accepted):** dropped the dead `seg` class from
+    `review_server.js`'s `#vc-dup-kind-selector` (`class: "view-selector
+    seg"` → `class: "view-selector"`); `.seg` had zero rules in
+    `review.css` (only `.segbtns` exists). Grepped tests first — nothing
+    asserted `seg`.
+  - **P3-3 (accepted):** `review_ui.js`'s `valuesForField` and
+    `memberValues` were two near-identical distinct-value collectors in the
+    same closure, both already using `Object.create(null)` (via
+    `emptyMap()`) for `__proto__`-shaped-value safety. Collapsed to one:
+    `memberValues` now delegates to `valuesForField` with a getter closure
+    instead of re-implementing the collection loop; `valuesForField`'s own
+    `emptyMap()`-based body is unchanged and is now the sole collector. No
+    call site or test needed to change — the full suite stayed green
+    unmodified, as the finding required.
+  - **P3-2 (accepted):** `tests/test_server_browser.py`'s
+    `theme_snapshot()` (inside
+    `test_armor_same_stat_four_member_badge_wrapping_and_transposition`)
+    covered only `.scope-summary` and `.armor-group-pieces`, leaving the
+    new #131 elements — which the reviewer confirmed use only
+    `--accent`/`--muted`/`--line`/`--review`/`--warn-bg` with no hardcoded
+    colors — without a light/dark computed-value assertion. Extended it
+    with the archetype badge's `color` (`--accent`), the `.tuneline.warn`
+    banner's `backgroundColor`/`borderLeftColor` (`--warn-bg`/`--review`),
+    the stat spike's primary bar `backgroundColor` (`--accent`), and the
+    section heading's inherited `color` (`--ink`); all four flow through
+    the existing generic "changed between light and dark, and never
+    transparent" loops with no new assertion code needed. This fixture
+    (`armor_same_stat_four_ui.csv`) only produces same-stat groups, so only
+    the `.tuneline.warn` variant is exercised here — the plain `.tuneline`
+    banner shares the same `--accent`/`--line` tokens already covered by
+    the archetype badge and scope-summary assertions, so a second upload
+    just to reach it was judged not worth the added test complexity.
+  - **Not changed (P3-5, explicitly out of scope for this round):** the
+    `N=5`/`N=6` container-query rules remain unreachable-but-documented
+    defensive rules, per the orchestrator's instruction to leave them.
+  - **Verification after this round:** `ruff check src tests scripts` —
+    all checks passed; `pytest -q` — 962 passed (953 baseline + this
+    round's one new Node test + prior-round additions already on the
+    branch); `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m browser
+    tests/test_server_browser.py` — 13 passed, not skipped; `git diff
+    --check origin/main...HEAD` clean; `git ls-files data/` empty;
+    `git status --porcelain` clean after commit.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

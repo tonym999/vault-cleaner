@@ -1900,3 +1900,107 @@ process.stdout.write(JSON.stringify({
             "Masterwork Tier 5 · Power 400"
         ),
     }
+
+
+def test_same_stat_tuning_mod_slot_defining_axis_never_suppressed(tmp_path: Path):
+    """A same-stat group's defining axis is a row even when it is uniform (#131).
+
+    ``armorComparisonSpecs`` forms a same-stat group whenever ``Tuning Stat``,
+    ``Seasonal Mod`` or ``Holofoil`` differs -- so a group can be formed purely
+    by a Seasonal Mod / Holofoil difference while every member shares one
+    identical ``Tuning Mod Slot``. In that shape, the difference-only
+    suppression rule would drop ``Tuning Mod Slot`` as an "identical" axis if
+    it were not pinned ``always: true``, and the ``Tuning Stat`` fallback is
+    also dropped here because it is uninformative (one raw value, one slot).
+    This is the only shape that actually exercises the ``always: true`` rail:
+    every other same-stat fixture in this suite varies ``Tuning Mod Slot``
+    itself, so the axis would show as a row anyway from the plain differs
+    check, and the rail would go untested by mutation (it did, in the #131
+    independent review -- removing ``always: true`` left the whole suite
+    green).
+    """
+    script = tmp_path / "tuning-mod-slot-never-suppressed.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+// Every member shares one Tuning Mod Slot; only Seasonal Mod and Holofoil
+// differ. Tuning Stat is left unset on every member, so it normalises to
+// the same "none/unknown" value on all three and is uninformative relative
+// to the (also uniform) Tuning Mod Slot -- it must not stand in for the
+// defining axis.
+var group = {
+  groupKind: "same_stat", groupId: "same-slot", hash: "h", name: "Same Slot Plate",
+  type: "Chest Armor", guardianClass: "Titan", itemArchetype: "Reaver", tier: 5,
+  stats: {}, spiritSignature: [], members: [
+    {id: "m1", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Solar", holofoil: "true"},
+    {id: "m2", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Arc", holofoil: "true"},
+    {id: "m3", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Solar", holofoil: "false"}
+  ]
+};
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var view = api.createView({document: new Document(), state: state});
+var article = view.armorGroup(group);
+var rowsTableHeaders = collect(
+  collect(article, function (n) { return hasClass(n, "armor-matrix-rows"); })[0],
+  function (n) { return n.tagName === "TH" && n.getAttribute("scope") === "col"; }
+).map(function (n) { return n.textContent; });
+var columnsTableAxisLabels = collect(
+  collect(article, function (n) { return hasClass(n, "armor-matrix-columns"); })[0],
+  function (n) { return hasClass(n, "armor-matrix-axis-label"); }
+).map(function (n) { return n.textContent; });
+var identicalLine = collect(article, function (n) { return hasClass(n, "armor-identical-axes"); })[0];
+process.stdout.write(JSON.stringify({
+  rowsHasTuningModSlot: rowsTableHeaders.indexOf("Tuning Mod Slot") !== -1,
+  columnsHasTuningModSlot: columnsTableAxisLabels.indexOf("Tuning Mod Slot") !== -1,
+  rowsHasSeasonalMod: rowsTableHeaders.indexOf("Seasonal Mod") !== -1,
+  rowsHasHolofoil: rowsTableHeaders.indexOf("Holofoil") !== -1,
+  identicalText: identicalLine ? identicalLine.textContent : null
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "rowsHasTuningModSlot": True,
+        "columnsHasTuningModSlot": True,
+        "rowsHasSeasonalMod": True,
+        "rowsHasHolofoil": True,
+        "identicalText": (
+            "Identical across all pieces: Protection — · In loadout No · "
+            "Equipped No · Locked No · Masterwork Tier unknown · Power unknown"
+        ),
+    }

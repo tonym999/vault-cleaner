@@ -3338,6 +3338,10 @@ function Document() {
    "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
+  // Mirrors review_server.html's static class list: the adapter no longer
+  // hard-assigns className on render (#131 P3-4), so the fake DOM must
+  // start with the class the real static markup carries.
+  this.nodes["vc-view-selector"].className = "panel view-selector tabs";
 }
 Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
 Document.prototype.createElement = function (tag) { return new Node(tag, this); };
@@ -3515,6 +3519,10 @@ function Document() {
    "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
     this.nodes[id] = new Node("div", this);
   }, this);
+  // Mirrors review_server.html's static class list: the adapter no longer
+  // hard-assigns className on render (#131 P3-4), so the fake DOM must
+  // start with the class the real static markup carries.
+  this.nodes["vc-view-selector"].className = "panel view-selector tabs";
 }
 Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
 Document.prototype.createElement = function (tag) { return new Node(tag, this); };

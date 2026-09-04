@@ -1041,13 +1041,13 @@
       return action + " " + kind + " armor member id " + member.id;
     }
 
+    // Distinct values for a field across a group's members, by field name.
+    // Delegates to valuesForField (defined below) for the actual collection
+    // so there is exactly one distinct-value collector in this closure.
     function memberValues(group, field, normalize) {
-      var values = emptyMap();
-      (group.members || []).forEach(function (member) {
-        var value = normalize ? normalize(member[field]) : str(member[field]);
-        values[value] = true;
+      return valuesForField(group, function (member) {
+        return normalize ? normalize(member[field]) : str(member[field]);
       });
-      return Object.keys(values);
     }
 
     // Role labels are decoration alongside the always-present value/role text;

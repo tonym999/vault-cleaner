@@ -640,7 +640,6 @@
       if (!selectorPanel || !view) return;
       var focusedId = document.activeElement && document.activeElement.id;
       view.clear(selectorPanel);
-      selectorPanel.className = "panel view-selector tabs";
       var hasGroups = state.armorGroups.length > 0;
       var proposalCount = state.items.length;
       var groupCount = state.armorGroups.length;
@@ -910,7 +909,7 @@
         var availableKinds = armorGroupKinds(state.armorGroups);
         if (availableKinds.exact && availableKinds.same_stat) {
           var kindSelector = view.el("div", {
-            id: "vc-dup-kind-selector", class: "view-selector seg", role: "group",
+            id: "vc-dup-kind-selector", class: "view-selector", role: "group",
             "aria-label": "Armor duplicate group kind"
           }, [view.el("span", { class: "view-selector-label", text: "Show" })]);
           var segButtons = view.el("span", { class: "segbtns" });
