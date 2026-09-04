@@ -15,10 +15,12 @@ or server contract changed.
     `armorGroupTable`, `armorMemberCell`, verdict repaint/disable paths, CSS,
     and the Node/Playwright regression tests. Reproduced the pre-#119
     member-column matrix from `fb9a435` to measure its minimum-width budget.
-  - Authored `handoffs/issue-128-implementation-plan.md` against `main` at
-    `3a9ee98b8489306b47ae56cb7bb80f0b1190325d`, allocating
+  - Authored `handoffs/issue-128-implementation-plan.md`, allocating
     `feat/issue-128-responsive-armor-matrix` and an independent adversarial
-    review path.
+    review path. It was subsequently rebased onto `main` at
+    `37c054a40ecbf2b79e403ab88fcf96f2156ed720` after PR #127. #127 changes
+    workflow/worklog documentation only, so the measured production UI remains
+    the issue #119 state at `3a9ee98b8489306b47ae56cb7bb80f0b1190325d`.
   - Ran the required browser suite with
     `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`:
     8 passed in 6.24s. The same command cannot launch Chromium inside this

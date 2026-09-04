@@ -12,7 +12,7 @@
 
 **Implementation model selected:** `gpt-5.6-terra` (`high`) (justified below)
 
-**Plan baseline:** `main` at `3a9ee98b8489306b47ae56cb7bb80f0b1190325d` (2026-09-04)
+**Plan baseline:** `main` at `37c054a40ecbf2b79e403ab88fcf96f2156ed720` (2026-09-04)
 
 **Allocated implementation branch:** `feat/issue-128-responsive-armor-matrix`
 
@@ -42,6 +42,12 @@ member/disposition labels. The change is orientation and semantics only.
 ## Context & Measurement
 
 ### Shipped baseline
+
+- This plan was rebased onto `37c054a` after PR #127 merged. That merge changes
+  only `WORKLOG.md` workflow/pilot documentation, not production UI, tests, or
+  assets. The plan baseline is therefore `37c054a`, while the rendered
+  production UI measured below remains the unchanged issue #119 state at
+  `3a9ee98`.
 
 - Current [`armorGroupTable`](../src/vault_cleaner/ui/review_ui.js#L1149-L1219)
   makes one table whose header is `Member`, then comparison fields, then
@@ -159,10 +165,11 @@ wide field sets to be read without making members disappear sideways.
   them as prior evidence/baseline, not open dependencies. The issue was amended
   on 2026-09-04 to make PR 2 implementation explicit; its initial version
   incorrectly ended at a design record.
-- Current `main` is exactly the issue #119 merge `3a9ee98`; there is no later
-  production change to rebase around. Re-measure from the implementer's actual
-  base if `main` advances, but retain the container-size rule unless a measured
-  repository change invalidates its `8.5rem + 12rem × N` inputs.
+- Current `main` is `37c054a`; PR #127 is workflow/documentation-only, so its
+  production UI remains the issue #119 merge `3a9ee98` measured by this plan.
+  Re-measure from the implementer's actual base if `main` advances with a
+  relevant UI change, but retain the container-size rule unless that change
+  invalidates its `8.5rem + 12rem × N` inputs.
 - No schema, snapshot, Python rule, server API, HTML-template, or fixture
   change is needed. Both existing group projections already supply the members,
   dispositions, conditional values, and verdict state needed by both layouts.
