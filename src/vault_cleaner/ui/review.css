@@ -225,6 +225,16 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 }
 .armor-stat-summary.spike .sv .role { font-size: .7rem; color: var(--muted); }
 
+/* Zero-stat summary line: same mono/uppercase treatment as the spike's own
+   .lbl stat names, so one stat vocabulary does not render in two casings
+   side by side (#131). The suffix (" · 0 base") rides along uppercased too;
+   the underlying zeroSummary string itself is left lowercase since it is
+   also a data value asserted by tests, not just presentation. */
+.hint.armor-stat-zero {
+  font-family: ui-monospace, monospace; letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
 /* Tuning banners: always visible, always text-labelled. The warn treatment
    uses a left rule and background, never color alone, to read as distinct. */
 .tuneline {

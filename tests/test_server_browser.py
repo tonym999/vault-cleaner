@@ -396,6 +396,56 @@ def test_armor_stat_spike_bars_render_proportional_widths(
 
 
 @pytest.mark.browser
+def test_armor_stat_spike_renders_primary_first_in_document_order(
+    page: Page, live_server: LiveServer
+) -> None:
+    """The 30/25/20 spike must render primary, secondary, tertiary in that
+    left-to-right document order (#131 P2-1), not the alphabetical order the
+    server actually emits (`report_run.py` serializes the snapshot with
+    `sort_keys=True`, so `stats` keys always arrive alphabetical).
+
+    Selecting bars by role class (`.sv.p`, `.sv.s`, `.sv.t`), as
+    ``test_armor_stat_spike_bars_render_proportional_widths`` does, proves
+    each bar has the right width but says nothing about which one a reader
+    encounters first -- that test passed even while the shipped order was
+    exactly reversed (tertiary-first, ascending). Assert both the class of
+    each ``.sv`` node in real DOM/document order and its rendered x-position,
+    so a fix that only reorders the class list without reordering the nodes
+    themselves cannot pass.
+    """
+    authenticate(page, live_server)
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_DUPLICATES_UI_EXPORT)
+
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    group = page.locator("article.armor-group")
+    expect(group).to_have_count(1)
+    spikes = group.locator(".sv")
+    expect(spikes).to_have_count(3)
+
+    classes = spikes.evaluate_all("nodes => nodes.map(n => n.className)")
+    assert classes == ["sv p", "sv s", "sv t"], classes
+
+    values = spikes.evaluate_all(
+        "nodes => nodes.map(n => n.querySelector('.val').textContent)"
+    )
+    assert values == ["30", "25", "20"], values
+
+    roles = spikes.evaluate_all(
+        "nodes => nodes.map(n => n.querySelector('.role').textContent)"
+    )
+    assert roles == ["primary", "secondary", "tertiary"], roles
+
+    xs = spikes.evaluate_all(
+        "nodes => nodes.map(n => n.getBoundingClientRect().x)"
+    )
+    assert xs[0] < xs[1] < xs[2], xs
+
+
+@pytest.mark.browser
 def test_armor_duplicates_surface_has_no_csp_violations(
     page: Page, live_server: LiveServer
 ) -> None:

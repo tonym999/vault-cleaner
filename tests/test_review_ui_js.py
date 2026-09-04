@@ -706,6 +706,92 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
     }
 
 
+def test_armor_stat_spike_orders_rows_by_role_not_payload_key_order(tmp_path):
+    """#131 P2-1: the spike must render primary/secondary/tertiary in that
+    order regardless of ``stats`` key order.
+
+    The fixture above happens to list ``weapons`` (30) before ``health``
+    (25) before ``class`` (20), which is already primary-first, so it does
+    not prove the ordering is role-driven rather than payload-driven. The
+    real server always emits ``stats`` with alphabetical keys
+    (``report_run.py`` serializes the snapshot with ``sort_keys=True``,
+    unchanged by this fix), which for this stat set is
+    class/grenade/health/melee/super/weapons -- exactly the reverse of the
+    intended primary/secondary/tertiary rendering order. Assert both the
+    data (``armorStatDisplay(group).rows``) and the rendered DOM node order
+    from ``armorGroupHeader`` so a regression in either layer is caught.
+    """
+    script = tmp_path / "armor-stat-spike-order.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.removeChild = function (child) { this.children.splice(this.children.indexOf(child), 1); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function collect(node, predicate, out) {
+  out = out || [];
+  if (predicate(node)) out.push(node);
+  node.children.forEach(function (child) { collect(child, predicate, out); });
+  return out;
+}
+function childText(node, cls) {
+  var match = node.children.filter(function (child) { return child.className === cls; })[0];
+  return match ? match.textContent : null;
+}
+// Alphabetical stats keys, exactly as the real server emits them.
+var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [], armor: {
+  exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g", hash: "h",
+    name: "Alphabetical stats", tier: 5,
+    stats: {class: 20, grenade: 0, health: 25, melee: 0, super: 0, weapons: 30},
+    preferred_survivor_id: "only", members: [
+      {id: "only", location: "Vault", disposition: "preferred_survivor"}
+    ]}]
+}}]})[0];
+var view = api.createView({document: new Document(),
+  state: {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)},
+  verdictText: function () { return "Unreviewed"; }});
+var header = view.armorGroupHeader(group);
+var spikes = collect(header, function (node) {
+  return typeof node.className === "string" && /^sv( |$)/.test(node.className);
+});
+process.stdout.write(JSON.stringify({
+  displayOrder: api.armorStatDisplay(group).rows.map(function (row) { return [row.role, row.value]; }),
+  domClassOrder: spikes.map(function (node) { return node.className; }),
+  domValueOrder: spikes.map(function (node) { return childText(node, "val"); }),
+  domRoleOrder: spikes.map(function (node) { return childText(node, "role"); })
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "displayOrder": [["Primary", 30], ["Secondary", 25], ["Tertiary", 20]],
+        "domClassOrder": ["sv p", "sv s", "sv t"],
+        "domValueOrder": ["30", "25", "20"],
+        "domRoleOrder": ["primary", "secondary", "tertiary"],
+    }
+
+
 def test_exact_group_projection_rejects_cross_group_ids_and_bad_proposals(tmp_path):
     script = tmp_path / "exact-group-validation.js"
     script.write_text(
@@ -848,8 +934,13 @@ var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", dec
     ]}]
 }}]})[0];
 var article = view.armorGroup(group);
-var proposal = state.duplicateRows.proposal[0];
-var before = proposal.cell;
+// Two orientations register two occurrences per member id (#131 P3-2):
+// assert over every occurrence, never state.duplicateRows[id][0], so a
+// repaint/disable path that only reaches the visible orientation cannot
+// pass silently.
+var proposalRows = state.duplicateRows.proposal;
+var proposal = proposalRows[0];
+var beforeCells = proposalRows.map(function (row) { return row.cell; });
 proposal.approve.click();
 state.verdicts.proposal = "approved";
 view.paintArmorMember("proposal");
@@ -867,7 +958,7 @@ var laterGroup = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor"
     {id: "proposal", disposition: "proposed_junk", proposal_action: "junk"}
   ]}]}}]})[0];
 var laterArticle = laterView.armorGroup(laterGroup);
-var laterSurvivor = laterState.duplicateRows.survivor[0];
+var laterSurvivorRows = laterState.duplicateRows.survivor;
 laterState.verdicts.survivor = "approved";
 laterView.paintArmorMember("survivor");
 var malformedState = {expanded: Object.create(null), rows: Object.create(null),
@@ -888,7 +979,7 @@ var finalizedView = api.createView({document: new Document(), state: finalizedSt
   verdictDisabled: function () { return true; },
   verdictText: function () { return "Unreviewed"; }});
 finalizedView.armorGroup(group);
-var finalizedProposal = finalizedState.duplicateRows.proposal[0];
+var finalizedProposalRows = finalizedState.duplicateRows.proposal;
 process.stdout.write(JSON.stringify({
   complete: article.textContent.indexOf("</script><img src=x onerror=alert(1)>") !== -1 &&
     article.textContent.indexOf("survivor") !== -1 && article.textContent.indexOf("retained") !== -1 &&
@@ -901,21 +992,33 @@ process.stdout.write(JSON.stringify({
   malformedReadOnly: count(malformedArticle, function (node) {
     return node.tagName === "BUTTON";
   }) === 0,
-  finalizedDisabled: finalizedProposal.approve.disabled && finalizedProposal.veto.disabled &&
-    finalizedProposal.clear.disabled,
-  readOnly: count(state.duplicateRows.survivor[0].cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
-    count(state.duplicateRows.retained[0].cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
-  proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  finalizedDisabled: finalizedProposalRows.every(function (row) {
+    return row.approve.disabled && row.veto.disabled && row.clear.disabled;
+  }),
+  readOnly: state.duplicateRows.survivor.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 0;
+  }) && state.duplicateRows.retained.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 0;
+  }),
+  proposalControls: proposalRows.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 3;
+  }),
   callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"], ["proposal", "vetoed"], ["proposal", ""]]),
-  repaintedInPlace: state.duplicateRows.proposal[0].cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
+  repaintedInPlace: proposalRows.every(function (row, index) {
+    return row.cell === beforeCells[index];
+  }) && proposalRows.every(function (row) {
+    return row.approve.getAttribute("aria-pressed") === "true";
+  }),
   labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1,
   equipped: article.textContent.indexOf("Equipped") !== -1 && article.textContent.indexOf("Yes") !== -1 && article.textContent.indexOf("No") !== -1,
   laterProposalDisclosure: laterArticle.textContent.indexOf("Also proposed junk in Proposals") !== -1 &&
     laterArticle.textContent.indexOf("Current verdict: approved") !== -1 &&
-    count(laterSurvivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
-  laterProposalRemainsMutable: count(laterState.duplicateRows.proposal[0].cell, function (node) {
-    return node.tagName === "BUTTON";
-  }) === 3
+    laterSurvivorRows.every(function (row) {
+      return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 0;
+    }),
+  laterProposalRemainsMutable: laterState.duplicateRows.proposal.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 3;
+  })
 }));
 ''',
         encoding="utf-8",

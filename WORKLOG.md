@@ -308,6 +308,118 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
     tests/test_server_browser.py` — 13 passed, not skipped; `git diff
     --check origin/main...HEAD` clean; `git ls-files data/` empty;
     `git status --porcelain` clean after commit.
+- **Third independent adversarial review round (same session, same branch,
+  `e839e89...c9da9ac` reviewed):** the orchestrator accepted one blocking
+  finding and two advisory ones; fixed all three, tests plus two small
+  presentation-only production hunks, no rule/grouping/ranking/schema change.
+  - **P2-1 (blocking, real defect on real data — the headline visual
+    rendered inverted):** the orchestrator measured the shipped head live in
+    managed Chromium at 1440×1000 against `armor_duplicates_ui.csv` and
+    found the spike's `.sv` document order was tertiary (20), secondary
+    (25), primary (30) left to right — bars ramping *up*, faintest and
+    shortest leading — the exact reverse of the agreed #102 artifact and of
+    plan §6's own `30 → 100%, 25 → 83%, 20 → 67%` spec.
+    **Root cause, recorded here because it is the single most valuable fact
+    in this entry:** `armorStatDisplay` (`review_ui.js`) built its `rows`
+    array by iterating `Object.keys(group.stats)` and keeping whatever
+    order the payload's `stats` object arrived in, instead of deriving
+    order from role. `report_run.py` serializes the entire report snapshot
+    with `sort_keys=True` (unchanged, and out of scope for #131 — do not
+    touch it), so `stats` always arrives over the wire with its keys
+    alphabetical, never in stat-value order. For this stat set that
+    alphabetical order (`class, grenade, health, melee, super, weapons`)
+    happens to list the tertiary stat (`class`, 20) before the secondary
+    (`health`, 25) before the primary (`weapons`, 30) — i.e. exactly
+    ascending, exactly backwards. **Any future presentation code on this
+    surface that relies on `stats` payload key order for anything
+    order-sensitive will silently render wrong in production while looking
+    correct in a hand-authored test fixture** — see the test-gap note below.
+    **Why the existing suite missed it:** the browser assertion
+    (`test_armor_stat_spike_bars_render_proportional_widths`) selected bars
+    by role class (`.sv.p .bar`, `.sv.s .bar`, `.sv.t .bar`), which finds
+    the right element regardless of where it sits in the document, so it
+    passed on the inverted head. The one Node-level assertion of row order
+    (in `test_exact_groups_are_authoritative_and_filter_as_whole_groups`)
+    built its own snapshot literal with `stats: {weapons: 30, health: 25,
+    class: 20, ...}` — already primary-first by how the fixture happened to
+    be authored — so it could not have caught a payload-key-order
+    dependency either.
+    **Fix (presentation only, `review_ui.js`):** `armorStatDisplay`'s tier-5
+    branch now builds `rows` by iterating a fixed `[30, 25, 20]` role order
+    and looking up which stat name carries each value, rather than mapping
+    over `names` (`Object.keys(stats)`) in whatever order they arrived.
+    Deterministic regardless of payload key order. `sort_keys=True` in
+    `report_run.py` was not touched, and nothing outside `src/vault_cleaner/
+    ui/` changed.
+    **New tests, both keyed to a payload with alphabetical `stats` keys —
+    exactly what the real server emits — so neither could pass by
+    coincidence of fixture-authoring order the way the old one did:**
+    `test_armor_stat_spike_orders_rows_by_role_not_payload_key_order`
+    (`tests/test_review_ui_js.py`) asserts both `armorStatDisplay(group)
+    .rows` order and the actual rendered `.sv` DOM node order/class/value/
+    role from `armorGroupHeader`, walking the fake-DOM tree in document
+    order (not selecting by role class); and
+    `test_armor_stat_spike_renders_primary_first_in_document_order`
+    (`tests/test_server_browser.py`) asserts the live Chromium `.sv`
+    elements' `className`/`.val`/`.role` text in real document order via
+    `locator.evaluate_all`, plus strictly increasing `getBoundingClientRect
+    ().x`. **Confirmed load-bearing by mutation:** reverted
+    `armorStatDisplay`'s row-ordering to the old `names.filter(...).map(...)`
+    payload-order logic in a scratch edit — both new tests failed, the Node
+    test reporting `domClassOrder: ["sv t", "sv s", "sv p"]` and the browser
+    test reporting `classes == ['sv t', 'sv s', 'sv p']`, i.e. the exact
+    inverted order the orchestrator measured live — then restored the fix
+    from a backup copy before committing.
+    **Measured `.sv` document order after the fix** (1440×1000,
+    `armor_duplicates_ui.csv`): `x=142.0 sv p 30 primary bar=86.39px`,
+    `x=242.78 sv s 25 secondary bar=71.70px`, `x=343.56 sv t 20 tertiary
+    bar=57.88px` — strictly ascending x, strictly descending value/width,
+    matching the artifact and plan §6 exactly.
+  - **P3-1 (accepted):** the zero-stat summary line rendered its stat names
+    in raw lowercase payload casing (`grenade · melee · super · 0 base`)
+    directly beneath the spike's own stat labels, which CSS uppercases
+    (`.armor-stat-summary.spike .sv .lbl { text-transform: uppercase }`) —
+    one stat vocabulary in two casings side by side. Fixed with a CSS-only
+    change: added a dedicated `armor-stat-zero` class to the zero-summary
+    `<p>` in `review_ui.js` and a `.hint.armor-stat-zero` rule in
+    `review.css` (mono font, `letter-spacing: .07em`,
+    `text-transform: uppercase` — the same treatment as `.sv .lbl`), rather
+    than uppercasing the string in `armorStatDisplay`. Chosen over a
+    display-casing step in JS because `armorStatDisplay`'s `zeroSummary`
+    string is also a data value asserted directly by an existing Node test
+    (`"zeroSummary": "grenade · super · melee · 0 base"`), and this way that
+    assertion, the ` · 0 base` suffix, and the non-tier-5 fallback all stay
+    completely untouched — only the rendered presentation changes.
+  - **P3-2 (accepted, checklist-consistency gap):** `tests/
+    test_review_ui_js.py` still indexed `state.duplicateRows[id][0]`
+    positionally in the `readOnly`, `repaintedInPlace`, `finalizedDisabled`,
+    `proposalControls`, and `laterProposalRemainsMutable` assertions —
+    always the row-table occurrence, contradicting review checklist item 5
+    ("No test asserts `state.duplicateRows[id][0]` positionally"). The
+    reviewer confirmed by mutation that the underlying dual-orientation
+    repaint/disable behaviour is already covered elsewhere, so this was a
+    checklist-consistency gap, not an uncovered behaviour. Converted all
+    five to `.every()` over the full occurrence list (capturing `beforeCells
+    = proposalRows.map(r => r.cell)` up front for the identity check), while
+    keeping a single occurrence as the actual click target for triggering
+    state changes — that part is an action, not an assertion, and stays
+    positional by necessity (a real click always lands on one visible
+    button).
+  - **Trivial hardening (accepted):** `armorTuningBanner`'s exact-group
+    branch concatenated `group.tuningModSlot` directly instead of through
+    the existing `str()` helper. Both current server/adapter projections
+    already normalize it to a string, so this was not reachable today, but
+    a future hand-built group object could render the literal text
+    `undefined`. Wrapped it in `str()`.
+  - **Verification after this round:** `ruff check src tests scripts` — all
+    checks passed; `pytest -q` — 964 passed (962 prior + 2 new tests this
+    round: one Node, one browser); `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest
+    -q -m browser tests/test_server_browser.py` — 14 passed, not skipped;
+    `git diff --check origin/main...HEAD` clean; `git ls-files data/`
+    empty; `git status --porcelain` clean after commit. Diff scope: only
+    `src/vault_cleaner/ui/review_ui.js`, `src/vault_cleaner/ui/review.css`,
+    `tests/test_review_ui_js.py`, `tests/test_server_browser.py`, and this
+    file.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 

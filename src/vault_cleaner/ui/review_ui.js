@@ -673,11 +673,19 @@
     // (`.sv.p .bar`, `.sv.s .bar`, `.sv.t .bar`) — an inline `style` attribute
     // here would be silently dropped by the server's `style-src 'self'` CSP.
     var zeroNames = names.filter(function (name) { return stats[name] === 0; });
+    // Row order is fixed by role (primary, secondary, tertiary), never by
+    // `Object.keys(stats)` order: the server serializes the snapshot with
+    // `sort_keys=True` (report_run.py), so `stats` always arrives with its
+    // keys alphabetical, not in stat-value order. Deriving row order from
+    // payload key order previously rendered the spike ascending
+    // (tertiary-first) instead of the design's descending 30/25/20 (#131).
+    var rows = [30, 25, 20].map(function (value) {
+      var name = names.filter(function (n) { return stats[n] === value; })[0];
+      return { name: name, value: value, role: roles[value] };
+    });
     return {
       tier5: true,
-      rows: names.filter(function (name) { return stats[name] !== 0; }).map(function (name) {
-        return { name: name, value: stats[name], role: roles[stats[name]] };
-      }),
+      rows: rows,
       zeroSummary: zeroNames.join(" · ") + " · 0 base"
     };
   }
@@ -1108,7 +1116,7 @@
           " pieces, and part of why they are one group.";
       return el("p", { class: "tuneline" }, [
         el("span", { class: "k", text: "Tuning Mod Slot" }),
-        el("span", { text: " " + group.tuningModSlot + suffix })
+        el("span", { text: " " + str(group.tuningModSlot) + suffix })
       ]);
     }
 
@@ -1143,7 +1151,8 @@
         ]),
         el("p", { class: "sub", text: subText }),
         spike.node,
-        spike.zeroSummary ? el("p", { class: "hint", text: spike.zeroSummary }) : null,
+        spike.zeroSummary
+          ? el("p", { class: "hint armor-stat-zero", text: spike.zeroSummary }) : null,
         armorTuningBanner(group),
         extras.length ? el("div", { class: "armor-group-extra" }, extras) : null
       ]);
