@@ -172,21 +172,80 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 
 ## Workflow
 
-Every ticket follows a multi-agent two-PR handoff workflow:
+### User authorization gates
+
+The workflow below defines **how** to perform work that the user has authorized.
+It never authorizes the next phase by itself. Completing one phase does not grant
+permission to start, publish, or merge another phase.
+
+- **Create or update an issue:** issue operations only. Do not create a branch,
+  edit repository files, open a PR, merge, or start implementation. Report the
+  issue URL and stop unless the user explicitly authorized another phase.
+- **Plan a ticket:** research and author the planning branch/PR only. Opening the
+  planning PR does not authorize merging it.
+- **Merge a planning PR:** requires explicit user authorization. A request to
+  plan, review, or implement does not imply permission to merge.
+- **Implement a ticket:** create the implementation branch and write the code,
+  tests, and worklog entry on it. Committing and pushing that allocated branch
+  are included in this phase, because the orchestrator reviews the pushed head;
+  no other branch may be pushed. Do not open or merge a PR unless the user
+  explicitly asks for those actions.
+- **User-requested standalone review:** read-only by default. Do not fix
+  findings, push changes, change issue/PR state, or merge unless the user
+  explicitly requests the relevant action. During an explicitly authorized
+  implementation workflow, the orchestrator may route accepted findings back
+  to the implementer for fixes as described below; the independent reviewer
+  remains read-only.
+- **Open or merge an implementation PR:** each action requires explicit user
+  authorization. Permission to open a PR is not permission to merge it.
+
+When one request explicitly names several phases, those named phases may be
+performed in order. Ambiguous phrases such as "finish it", "once done", or
+"review it" do not broaden authority; stop at the last unambiguous phase or ask
+which object/action the user means before making an expansive repository change.
+
+Opening PRs, pushing branches, posting dispatch or coordination comments,
+requesting reviewers, changing issue/PR/project state, and merging are external
+mutations. They are permitted only when explicitly included in an authorized
+phase or separately authorized by the user.
+
+Before every phase transition, re-read the user's request and verify explicit
+user authorization for the next phase and each planned external mutation, the
+exact issue, design/source-of-truth links, current issue state, dependencies,
+and project status. If authorization is absent or unclear, the issue is closed,
+the design source is ambiguous or unavailable, or the requested scope differs
+from the issue, stop and report it. Never reopen or repurpose an issue
+automatically.
+
+Use `Refs #N` in every commit message and in non-final PR bodies. A GitHub
+closing keyword followed by an issue reference (`close`, `closes`, `closed`,
+`fix`, `fixes`, `fixed`, `resolve`, `resolves`, or `resolved`) must not appear
+anywhere in the subject, body, or trailer of a commit message you author.
+Reserve closing-keyword syntax for the final implementation PR body when closing
+that open issue is intended; a merge or squash commit that GitHub generates from
+that PR body is the intended closing path, not a violation of this rule.
+Immediately before opening any PR, verify that its owning issue is open;
+immediately before any merge, verify both the authorization and issue state
+again.
+
+Product implementation tickets follow the multi-agent two-PR handoff workflow
+below. A documentation- or maintenance-only ticket may use one direct PR only
+when the user explicitly authorizes that issue-to-PR route; never infer the
+exception from its label, and never treat it as permission to merge.
 
 1. **Pick a ticket:** Pick an open issue from the [vault-cleaner project board](https://github.com/users/tonym999/projects/3); respect milestone order and dependencies in [PLAN.md](PLAN.md).
 2. **Planning Phase (PR 1):**
    - The **Planner** researches the issue, measures code state, resolves staleness, allocates branch names, and authors a handoff document using [handoffs/templates/planner.md](handoffs/templates/planner.md).
    - Saved as `handoffs/issue-N-implementation-plan.md` on a plan branch (`handoff/issue-N-implementation-plan`).
-   - Appends a dated entry to [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know) and opens PR 1 targeting `main`.
-   - Once merged to `main`, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer tier, allocated implementation branch name, and likely findings.
+   - Appends a dated entry to [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know) and, when that action is authorized, opens PR 1 targeting `main`.
+   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer tier, allocated implementation branch name, and likely findings.
 3. **Implementation Phase (PR 2):**
    - The **Orchestrator** reads the merged plan from `main` using [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
    - Dispatches the **Implementer** to work on the allocated implementation branch (`fix/issue-N-...` or `feat/issue-N-...`) at the plan's specified model tier.
    - The implementer follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know), and reports results without opening a PR.
    - The orchestrator reviews the diff (`git diff base_sha...HEAD`) and command outputs against the plan's review checklist and likely findings. For an `independent adversarial review` path, it also creates a disposable checkout pinned to the reviewed head, dispatches the exact implementation-read-only reviewer prompt from the orchestrator template to a fresh reviewer session, records the actual reviewer provider/model/effort, and remains responsible for routing findings. The reviewer independently reruns applicable verification, may write only ephemeral test artifacts in that checkout, and reports commands it could not run; a skipped required browser suite is not a pass. The orchestrator records a disposition for every P0-P3 finding, escalates unresolved blocking disagreements, and returns accepted defects to the implementer on the same branch for fix and independent complete-diff re-review.
    - If a stop condition triggers or plan boundaries must change, escalation follows `implementer → orchestrator → planner` to re-cut the plan.
-   - Once clean and verified, the orchestrator opens PR 2 targeting `main`.
+   - Once clean and verified, and only when opening it is authorized, the orchestrator opens PR 2 targeting `main`.
 
 Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules.
 
@@ -211,3 +270,8 @@ When creating a repository issue:
 4. Verify both project membership and the `Todo` status after creation before
    treating the issue as complete. Recheck the type/scope label and milestone
    at the same time.
+5. Record one explicit design or requirements source of truth in the issue when
+   the request depends on prior design work. If several plausible sources exist,
+   resolve the ambiguity before creating implementation scope.
+6. Return the verified issue URL and stop at the issue-creation authorization
+   gate unless the user explicitly requested a later phase.

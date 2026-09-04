@@ -2,6 +2,21 @@
 
 This directory contains repository implementation plans ("handoffs") and operational templates for the multi-agent development workflow in `tonym999/vault-cleaner`.
 
+## Authorization boundary
+
+This document describes how an authorized handoff operates; it grants no
+authority to start or advance one. Before every phase and external mutation,
+follow the user-authorization gates in [`AGENTS.md`](../AGENTS.md#user-authorization-gates).
+Opening or merging PRs, pushing branches, requesting reviewers, posting issue or
+PR comments, and changing issue/PR/project state require authorization from the
+encompassing phase or a separate user instruction. If that authority is absent
+or unclear, stop and report it.
+
+Product implementation tickets use the two-PR lifecycle below. A documentation-
+or maintenance-only ticket may use a direct single PR only when the user
+explicitly authorizes that issue-to-PR route; the exception never authorizes a
+merge.
+
 ## Topology
 
 ```text
@@ -15,7 +30,7 @@ planner → orchestrator → implementer → orchestrator-managed review (standa
    - **Tier Selection:** Neither the plan nor this workflow selects the planner or orchestrator tier. The plan selects and justifies only the *implementer's* model tier and native reasoning effort, plus the recommended review path; it does not select the adversarial reviewer's model.
 
 2. **Orchestrator**
-   - **Responsibility:** Operates from `main` using [handoffs/templates/orchestrator.md](templates/orchestrator.md). Reads the merged plan from `main`, dispatches the implementer at the plan's specified tier and effort, determines the final review path after inspecting the real diff, selects and dispatches an independent reviewer when required, routes findings, and carries out the plan's review-outcome steps (opening the implementation PR, adding coordination comments).
+   - **Responsibility:** Operates from `main` using [handoffs/templates/orchestrator.md](templates/orchestrator.md). Reads the merged plan from `main`, dispatches the implementer at the plan's specified tier and effort, determines the final review path after inspecting the real diff, selects and dispatches an independent reviewer when required, routes findings, and, when authorized, carries out the plan's review-outcome steps (opening the implementation PR, adding coordination comments).
    - **Constraint:** Never writes production code or implements tickets directly.
 
 3. **Implementer**
@@ -28,19 +43,20 @@ planner → orchestrator → implementer → orchestrator-managed review (standa
 
 ## Document Lifecycle & Two-PR Process
 
-Every ticket follows a two-PR lifecycle:
+Every product implementation ticket follows this two-PR lifecycle once its
+phases and mutations have been authorized under `AGENTS.md`:
 
 1. **Plan Phase (PR 1):**
    - The planner creates `handoffs/issue-N-implementation-plan.md` on a short-lived plan branch (`handoff/issue-N-implementation-plan`).
    - Appends a dated entry to [WORKLOG.md](../WORKLOG.md) recording the planning session.
-   - Opens PR 1 targeting `main`.
-   - Once merged to `main`, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, the implementer tier & effort, allocated branch name, and likely findings.
+   - Opens PR 1 targeting `main` only when that action is authorized.
+   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, the implementer tier & effort, allocated branch name, and likely findings.
 
 2. **Implementation Phase (PR 2):**
    - The orchestrator reads the merged plan from `main` (`handoffs/issue-N-implementation-plan.md`).
    - Dispatches the implementer to work on the allocated implementation branch.
-   - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes any findings back to the implementer.
-   - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` with a dated [WORKLOG.md](../WORKLOG.md) entry and executes any required issue comments.
+   - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes accepted, in-scope findings back to the implementer.
+   - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` and executes any required issue comments only when those external mutations are authorized; the PR includes a dated [WORKLOG.md](../WORKLOG.md) entry.
 
 ## Naming Convention
 
