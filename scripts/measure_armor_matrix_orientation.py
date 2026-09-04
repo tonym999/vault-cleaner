@@ -199,6 +199,29 @@ def measure_unreachable_cap(page: Page, failures: list[str]) -> dict | None:
     }
 
 
+def check_css_threshold(
+    member_count: int, measured_px: float, failures: list[str]
+) -> tuple[float, bool]:
+    """Validate a measured flip width against the shipped CSS threshold.
+
+    A mismatch is a measurement failure, not a result that can be recorded in
+    the evidence file. Keep this check separate from the markdown formatter so
+    its ``>= 1px`` boundary is directly testable without launching Chromium.
+    """
+    threshold_rem = CSS_THRESHOLDS_REM[member_count]
+    threshold_px = threshold_rem * 16
+    difference_px = abs(measured_px - threshold_px)
+    matches = difference_px < 1.0
+    if difference_px >= 1.0:
+        failures.append(
+            f"{member_count}-member flip threshold mismatch: "
+            f"measured comparison width {measured_px:.1f}px differs from "
+            f"the shipped CSS threshold {threshold_px:.1f}px by "
+            f"{difference_px:.1f}px (must be < 1px)"
+        )
+    return threshold_rem, matches
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="vault-cleaner-measure-") as tmp:
@@ -340,10 +363,10 @@ def main() -> int:
         report_lines.append("|---|---|---|---|---|---|")
         for flip in sorted(flip_points, key=lambda entry: entry["member_count"]):
             n = flip["member_count"]
-            threshold_rem = CSS_THRESHOLDS_REM[n]
-            threshold_px = threshold_rem * 16
             measured_px = flip["comparison_width_at_flip_px"]
-            matches = "yes" if abs(measured_px - threshold_px) < 1.0 else "no"
+            threshold_rem, matches_bool = check_css_threshold(n, measured_px, failures)
+            threshold_px = threshold_rem * 16
+            matches = "yes" if matches_bool else "no"
             report_lines.append(
                 f"| {n} | {flip['viewport_flip_px']}px | "
                 f"{flip['viewport_just_below_px']}px | {measured_px:.1f}px "

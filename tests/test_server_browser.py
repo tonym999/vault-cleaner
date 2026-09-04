@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import tempfile
 import threading
@@ -36,6 +37,7 @@ ARMOR_SAME_STAT_FOUR_UI_EXPORT = FIXTURES / "armor_same_stat_four_ui.csv"
 HOSTILE_NAME = "</script><img src=x onerror=alert(1)>"
 HOSTILE_NOTE = "</script><script>alert(1)</script>"
 BOLD_NOTE = '"quoted" & <b>bold</b>'
+MEASUREMENT_SCRIPT = Path(__file__).parents[1] / "scripts" / "measure_armor_matrix_orientation.py"
 
 
 @dataclass(frozen=True)
@@ -162,6 +164,39 @@ def badge_width_and_heading_budget(badge: Locator) -> tuple[float, float]:
         " return [el.offsetWidth, h ? parseFloat(getComputedStyle(h).minWidth) : NaN]; }"
     )
     return float(width), float(budget)
+
+
+def load_measurement_module():
+    spec = importlib.util.spec_from_file_location(
+        "measure_armor_matrix_orientation", MEASUREMENT_SCRIPT
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_css_threshold_mismatch_at_one_pixel_is_a_failure():
+    module = load_measurement_module()
+    failures: list[str] = []
+
+    threshold_rem, matches = module.check_css_threshold(2, 617.0, failures)
+
+    assert threshold_rem == 38.5
+    assert matches is False
+    assert len(failures) == 1
+    assert "differs" in failures[0]
+
+
+def test_css_threshold_match_preserves_good_run():
+    module = load_measurement_module()
+    failures: list[str] = []
+
+    threshold_rem, matches = module.check_css_threshold(2, 616.4, failures)
+
+    assert threshold_rem == 38.5
+    assert matches is True
+    assert failures == []
 
 
 @pytest.mark.browser
@@ -310,7 +345,7 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     group = page.locator("article.armor-group")
     expect(group).to_have_count(1)
     expect(group.locator("p.armor-group-pieces")).to_have_text("3 pieces")
-    expect(group.locator("p.sub")).to_have_text("Exact")
+    expect(group.locator("p.armor-group-kind")).to_have_text("Exact")
     expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 3 pieces")
     expect(page.locator("#vc-duplicate-scope")).to_have_attribute("role", "status")
     expect(page.locator("#vc-duplicate-scope")).to_have_attribute("aria-live", "polite")
@@ -318,6 +353,16 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(group).to_contain_text("Chest Armor")
     expect(group).to_contain_text("Hunter")
     expect(group).to_contain_text("Gunner")
+    expect(group.locator(".armor-group-title h4")).to_have_text("Archetype Plate")
+    expect(group.locator(".armor-group-title .badge.arch")).to_contain_text("Archetype: Gunner")
+    expect(group.locator(".armor-group-meta")).to_contain_text("Type/slot: Chest Armor")
+    expect(group.locator(".armor-group-meta")).to_contain_text("Class: Hunter")
+    expect(group.locator(".armor-group-meta")).to_contain_text("Tier 5")
+    expect(group.locator(".armor-group-meta")).to_contain_text("Hash 990001")
+    # Identical context belongs to the header, before the matrix, and is not
+    # duplicated in the comparison scroller.
+    expect(group.locator(".armor-group-header .armor-identical-axes")).to_have_count(1)
+    expect(group.locator(".armor-comparison .armor-identical-axes")).to_have_count(0)
     expect(group).to_contain_text("Tuning Mod Slot")
     expect(group).to_contain_text("Weapons")
     # Role labels are lowercase in the stat spike (settled #131 copy, matching
@@ -336,6 +381,26 @@ def test_armor_duplicates_view_uses_authoritative_group_and_verdicts(
     expect(group).to_contain_text("Preferred survivor")
     expect(group).to_contain_text("Retained protected")
     expect(group).to_contain_text("Proposed junk")
+    expect(group.locator(".armor-member-status:visible")).to_have_count(2)
+    expect(group.locator(".armor-member-status:visible .badge.status")).to_have_count(2)
+    expect(group.locator(".armor-member-status:visible .badge.status").nth(0)).to_have_text("Read-only")
+    expect(group.locator(".armor-member-status:visible .status-detail").filter(has_text="Disposition: Preferred survivor")).to_have_count(1)
+    expect(group.locator(".armor-member-status:visible .status-detail").filter(has_text="Disposition: Retained protected")).to_have_count(1)
+    # Exact members without a later proposal retain only their authoritative
+    # read-only disposition; they do not gain a redundant current-verdict
+    # disclosure.
+    expect(group.locator(".armor-member-status:visible .status-detail").filter(has_text="Current verdict:")).to_have_count(0)
+    short_status = group.locator(
+        ".armor-member-heading:visible .badge.status"
+    ).filter(has_text="Proposed junk")
+    expect(short_status).to_have_count(1)
+    short_status_width, member_heading_width = short_status.evaluate(
+        "el => [el.getBoundingClientRect().width, "
+        "el.closest('.armor-member-heading').getBoundingClientRect().width]"
+    )
+    assert short_status_width < member_heading_width * 0.8, (
+        short_status_width, member_heading_width
+    )
     assert group.locator('[data-member-id="exact_duplicate:8201"]:visible button.approve').count() == 0
     assert group.locator('[data-member-id="exact_duplicate:8202"]:visible button.veto').count() == 0
     proposal = group.locator('[data-member-id="exact_duplicate:8203"]:visible')
@@ -492,7 +557,7 @@ def test_armor_same_stat_group_renders_member_tuning_variation(
     group = page.locator("article.armor-group")
     expect(group).to_have_count(1)
     expect(group.locator("p.armor-group-pieces")).to_have_text("2 pieces")
-    expect(group.locator("p.sub")).to_have_text("Same stats · review only")
+    expect(group.locator("p.armor-group-kind")).to_have_text("Same stats · review only")
     expect(page.locator("#vc-duplicate-scope")).to_have_text("1 group · 2 pieces")
     # The same-stat banner is the artifact's always-visible .tuneline.warn
     # treatment, not the generic .hint class (#131).

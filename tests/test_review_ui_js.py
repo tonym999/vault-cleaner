@@ -1471,6 +1471,44 @@ process.stdout.write(JSON.stringify({
     exactArticle.textContent.indexOf("_") === -1,
   sameSubLineUnchanged: sameArticle.textContent.indexOf(
     "Same stats · review only") !== -1,
+  headerHierarchy: (function () {
+    var header = firstByClass(exactArticle, "armor-group-header");
+    var title = header && firstByClass(header, "armor-group-title");
+    var meta = header && firstByClass(header, "armor-group-meta");
+    var context = header && firstByClass(header, "armor-group-context");
+    var titleBadge = title && firstByClass(title, "badge");
+    return !!header && !!title && !!meta && !!context &&
+      !firstByClass(title, "armor-group-pieces") && titleBadge &&
+      hasClass(titleBadge, "arch") &&
+      firstByClass(meta, "mono") !== null &&
+      firstByClass(context, "armor-identical-axes") !== null;
+  }()),
+  memberStatusStack: (function () {
+    var exactStatuses = collect(exactArticle, function (node) {
+      return hasClass(node, "armor-member-status");
+    });
+    var simpleStatuses = collect(singleGroupArticle, function (node) {
+      return hasClass(node, "armor-member-status");
+    });
+    var simpleExact = simpleStatuses.filter(function (status) {
+      return status.textContent.indexOf("Disposition: Preferred survivor") !== -1;
+    })[0];
+    var crossSurfaceExact = exactStatuses.filter(function (status) {
+      return status.textContent.indexOf("Disposition: Preferred survivor") !== -1;
+    })[0];
+    return exactStatuses.length === 2 && simpleStatuses.length === 2 &&
+      !!simpleExact && !!crossSurfaceExact &&
+      simpleStatuses.every(function (status) {
+        return status.children.length === 2 &&
+          status.textContent.indexOf("Current verdict:") === -1;
+      }) &&
+      crossSurfaceExact.children.length >= 4 &&
+      hasClass(crossSurfaceExact.children[0], "badge") &&
+      hasClass(crossSurfaceExact.children[0], "status") &&
+      crossSurfaceExact.textContent.indexOf("Also proposed review in Proposals") !== -1 &&
+      crossSurfaceExact.textContent.indexOf("Current verdict:") !== -1 &&
+      crossSurfaceExact.textContent.indexOf("Proposal reason: armor-similar to") !== -1;
+  }()),
   protectionHeaderPresent: exactHeaders.indexOf("Protection") !== -1 &&
     sameHeaders.indexOf("Protection") !== -1,
   noHardProtectionHeader: exactHeaders.indexOf("Hard protection") === -1 &&
@@ -1538,6 +1576,7 @@ process.stdout.write(JSON.stringify({
         "callback": True,
         "exactSubLine": True, "exactNoEnumToken": True,
         "sameSubLineUnchanged": True,
+        "headerHierarchy": True, "memberStatusStack": True,
         "protectionHeaderPresent": True, "noHardProtectionHeader": True,
         "protectionCellsHonest": True,
         "exactPieces": True,
@@ -1907,9 +1946,9 @@ def test_difference_only_rows_and_identical_axes_line(tmp_path: Path):
 
     A row-table axis label is present iff a same-value axis (differs); an
     axis that is uniform across every member is absent from both matrix
-    orientations and restated, once per group, in the muted
-    ``p.armor-identical-axes`` line -- so the read-only protected/mutable
-    context a suppressed row would have carried is never simply lost.
+    orientations and restated, once per group, in the group header's shared
+    context line -- so the read-only protected/mutable context a suppressed
+    row would have carried is never simply lost.
     """
     script = tmp_path / "difference-only.js"
     script.write_text(
@@ -1968,6 +2007,22 @@ var columnsTableAxisLabels = collect(
   function (n) { return hasClass(n, "armor-matrix-axis-label"); }
 ).map(function (n) { return n.textContent; });
 var identicalLine = collect(article, function (n) { return hasClass(n, "armor-identical-axes"); })[0];
+var header = collect(article, function (n) { return hasClass(n, "armor-group-header"); })[0];
+var comparison = collect(article, function (n) { return hasClass(n, "armor-comparison"); })[0];
+var rowsTable = collect(article, function (n) { return hasClass(n, "armor-matrix-rows"); })[0];
+var columnsTable = collect(article, function (n) { return hasClass(n, "armor-matrix-columns"); })[0];
+var tuningHeader = rowsTable && collect(rowsTable, function (n) {
+  return n.tagName === "TH" && n.textContent === "Tuning Mod Slot";
+})[0];
+var tuningRow = columnsTable && collect(columnsTable, function (n) {
+  return n.tagName === "TR" && hasClass(n, "armor-matrix-tuning-axis");
+})[0];
+var headerIdenticalLines = header ? collect(header, function (n) {
+  return hasClass(n, "armor-identical-axes");
+}) : [];
+var comparisonIdenticalLines = comparison ? collect(comparison, function (n) {
+  return hasClass(n, "armor-identical-axes");
+}) : [];
 process.stdout.write(JSON.stringify({
   rowsHasProtection: rowsTableHeaders.indexOf("Protection") !== -1,
   rowsHasLocked: rowsTableHeaders.indexOf("Locked") !== -1,
@@ -1979,7 +2034,11 @@ process.stdout.write(JSON.stringify({
   columnsHasProtection: columnsTableAxisLabels.indexOf("Protection") !== -1,
   columnsHasLocked: columnsTableAxisLabels.indexOf("Locked") !== -1,
   columnsHasMasterwork: columnsTableAxisLabels.indexOf("Masterwork Tier") !== -1,
-  identicalText: identicalLine ? identicalLine.textContent : null
+  identicalText: identicalLine ? identicalLine.textContent : null,
+  identicalLineInHeader: headerIdenticalLines.length === 1 &&
+    comparisonIdenticalLines.length === 0,
+  tuningAxisHasNeutralEmphasis: !!tuningHeader &&
+    hasClass(tuningHeader, "armor-matrix-tuning-axis") && !!tuningRow
 }));
 ''',
         encoding="utf-8",
@@ -2002,6 +2061,8 @@ process.stdout.write(JSON.stringify({
             "Holofoil none/unknown · In loadout No · Equipped No · "
             "Masterwork Tier 5 · Power 400"
         ),
+        "identicalLineInHeader": True,
+        "tuningAxisHasNeutralEmphasis": True,
     }
 
 

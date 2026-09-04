@@ -2541,7 +2541,7 @@ setTimeout(function () {
         "duringAck": {"sameDisabled": True, "exactReadOnly": True},
         "afterAck": {
             "verdict": "approved", "samePressed": True,
-            "exactText": "Read-only · Preferred survivor · Also proposed review in Proposals · Current verdict: approved — armor-similar to",
+            "exactText": "Read-onlyDisposition: Preferred survivorAlso proposed review in ProposalsCurrent verdict: approvedProposal reason: armor-similar to",
             "exactReadOnly": True,
         },
         "finalized": True,

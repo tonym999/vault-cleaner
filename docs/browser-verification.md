@@ -125,8 +125,8 @@ Issue #131 focused check:
       panel widens again.
 - [ ] Only axes that actually differ across a group's members appear as
       matrix rows; every axis suppressed because it is identical is restated
-      once, correctly labelled, in the muted identical-axes line beneath the
-      matrix.
+      once, correctly labelled, in the muted identical-axes line in the group
+      header's shared context above the matrix.
 - [ ] Every verdict cell for a given member id is registered in both
       orientations: one Approve/Veto/Unset acknowledgement repaints and
       disables all occurrences, and read-only occurrences stay read-only in
@@ -347,7 +347,8 @@ terminal.
   Tier/Power/In loadout/Equipped alongside a differing Protection and Locked
   rendered only the differing axes as rows in both orientations, and restated
   every suppressed axis, correctly labelled, in
-  `p.armor-identical-axes` beneath the matrix.
+  `p.armor-identical-axes` in the group header's shared context above the
+  matrix.
 - Copy/labelling result: pass. Tabs and the group-kind segment showed correct
   singular/plural counts in both visible text and `aria-label`; section
   headings ("Exact duplicates" / "Same stats, different tuning") appeared

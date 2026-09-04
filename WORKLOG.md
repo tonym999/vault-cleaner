@@ -486,6 +486,39 @@ under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
     `src/vault_cleaner/ui/review.css`, `docs/browser-verification.md`, and
     this file — no rule/grouping/ranking/schema change.
 
+- **Review-fix round (same session, same branch):** implemented the remaining
+  presentation findings and the measurement-script failure semantics without
+  changing Python rules, grouping/ranking, snapshot/server contracts, or
+  verdict behavior. The group header now has a title/archetype anchor, a
+  quieter labelled metadata line, and a prominent piece count; the tier-5
+  spike has a bordered, roomier treatment while the non-tier-5 tile fallback
+  remains intact. The comparison model is computed once per group and its
+  identical-axis summary now lives in the header shared context above the
+  matrix, leaving both matrix orientations difference-only.
+- Member IDs are visually quieter, disposition badges are compact text
+  statuses, and read-only verdict disclosures are stacked into labelled lines
+  (disposition, any proposal/action/reason, and current verdict when a later
+  proposal exists) so no authoritative fact is lost. Same-stat `Tuning Mod
+  Slot` rows receive the strongest neutral weight/rule, with no keep/junk color
+  or implied tuning preference. Added Node assertions for the header hierarchy,
+  stacked status DOM, and header-only identical-axis placement.
+- `scripts/measure_armor_matrix_orientation.py` now appends a failure when a
+  measured comparison width differs from its hard-coded CSS threshold by
+  `>= 1px`, before the evidence write; the pure `check_css_threshold` helper
+  has boundary tests for both the one-pixel failure and a good run. The live
+  measurement still confirms 616/816/1016px flip widths and regenerated the
+  committed evidence with the new header geometry.
+- The first escalated browser run caught and corrected one regression in the
+  new badge CSS: `width: max-content` defeated the existing narrow wrapping
+  guard. Removing that constraint restored the fixed 176px heading budget.
+- **Verification after this round:** `ruff check src tests scripts` — all
+  checks passed; focused Node/measurement tests — **132 passed in 5.71s**;
+  full `.venv/bin/pytest -q` — **966 passed in 26.74s**;
+  `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser
+  tests/test_server_browser.py` — **14 passed in 11.31s**, not skipped;
+  `.venv/bin/python scripts/measure_armor_matrix_orientation.py` — passed,
+  threshold matches recorded and evidence written; no data files are tracked.
+
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 
 Planning-only session for #131. No production code, test, fixture, snapshot,

@@ -186,17 +186,38 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 }
 .armor-group-pieces {
   display: inline-block;
-  font: 600 .78rem/1 ui-monospace, monospace;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: .3em .5em;
+  font: 700 1.05rem/1 ui-monospace, monospace;
+  color: var(--ink);
+  border: 2px solid var(--line);
+  border-radius: 5px;
+  padding: .42em .65em;
   margin: 0;
+  white-space: nowrap;
 }
-.armor-group-header h4 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; }
+.armor-group-header {
+  display: flex; flex-direction: column; gap: .65rem; margin-bottom: 1.1rem;
+}
+.armor-group-header h4 {
+  min-width: 0; font-size: 1.15rem; line-height: 1.25; margin: 0;
+  overflow-wrap: anywhere;
+}
 .armor-group-headline {
-  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .3rem;
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: .75rem;
+  justify-content: space-between;
 }
+.armor-group-title {
+  min-width: 0; display: flex; flex: 1 1 18rem; flex-wrap: wrap;
+  align-items: center; gap: .55rem .7rem;
+}
+.armor-group-meta {
+  display: flex; flex-wrap: wrap; gap: .25rem .95rem; min-width: 0;
+  padding-bottom: .55rem; border-bottom: 1px solid var(--line);
+}
+.armor-group-meta .sub { overflow-wrap: anywhere; }
+.armor-group-context {
+  display: flex; flex-direction: column; gap: .55rem; min-width: 0;
+}
+.armor-group-kind { margin: 0; }
 .badge.arch { color: var(--accent); border-color: var(--accent); font-weight: 600; }
 .armor-group-extra { display: flex; flex-wrap: wrap; gap: .55rem; margin: .55rem 0; }
 .armor-group-extra .tile { min-width: 9rem; flex: 1 1 9rem; }
@@ -205,8 +226,14 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
    bar is redundant decoration -- value and role are always plain text. */
 .armor-stat-summary { display: flex; flex-wrap: wrap; gap: .55rem; margin: .55rem 0; }
 .armor-stat-summary .tile { min-width: 8rem; }
-.armor-stat-summary.spike { align-items: flex-end; gap: .9rem; }
-.armor-stat-summary.spike .sv { display: flex; flex-direction: column; gap: .2rem; min-width: 5.4rem; }
+.armor-stat-summary.spike {
+  align-items: flex-end; gap: 1.2rem; margin: .25rem 0 .1rem; padding: .75rem .85rem;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+}
+.armor-stat-summary.spike .sv {
+  display: flex; flex: 1 1 8rem; flex-direction: column; gap: .25rem;
+  min-width: 8rem; max-width: 15rem;
+}
 .armor-stat-summary.spike .sv .bar { height: .3rem; border-radius: 2px; background: var(--accent); }
 /* Widths are set here, not as an inline `style` attribute, because the
    server's `style-src 'self'` CSP has no `unsafe-inline` and Chromium
@@ -231,14 +258,14 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
    the underlying zeroSummary string itself is left lowercase since it is
    also a data value asserted by tests, not just presentation. */
 .hint.armor-stat-zero {
-  font-family: ui-monospace, monospace; letter-spacing: .07em;
+  margin: -.1rem 0 .15rem; font-family: ui-monospace, monospace; letter-spacing: .05em;
   text-transform: uppercase;
 }
 
 /* Tuning banners: always visible, always text-labelled. The warn treatment
    uses a left rule and background, never color alone, to read as distinct. */
 .tuneline {
-  margin: .6rem 0 0; padding: .42rem .65rem; border: 1px solid var(--line);
+  margin: .2rem 0 0; padding: .55rem .75rem; border: 1px solid var(--line);
   border-left: 3px solid var(--accent); border-radius: 4px; background: var(--bg);
   font-size: .87rem;
 }
@@ -259,18 +286,48 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
   padding: .45rem .7rem;
   margin: .5rem 0;
 }
-.armor-comparison { margin-top: .75rem; }
-.armor-identical-axes { margin: .5rem 0 0; }
+.armor-comparison {
+  margin-top: 1.1rem; padding-top: .85rem; border-top: 1px solid var(--line);
+}
+.armor-identical-axes { margin: 0; padding: .35rem .55rem; }
 .armor-group-table { min-width: 46rem; }
 .armor-member-heading { min-width: 11rem; }
 .armor-member-heading > span { display: block; }
 .armor-member-heading .sub { font-weight: normal; white-space: normal; overflow-wrap: anywhere; }
-.armor-member-heading .badge { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.armor-member-heading .badge {
+  max-width: 100%; white-space: normal;
+  overflow-wrap: anywhere; border-radius: 4px; padding: .1rem .35rem;
+}
+.armor-member-heading .badge.status {
+  display: inline-block; width: auto; font-weight: 600;
+}
 .armor-member-number { color: var(--muted); font-size: .78rem; }
+.armor-member-heading > .mono {
+  color: var(--muted); font-size: .78rem; font-weight: 400; overflow-wrap: anywhere;
+}
 .armor-member-cell { min-width: 11rem; }
 .armor-member-cell .row-actions { flex-wrap: wrap; }
+.armor-member-status {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .18rem;
+  min-width: 0; color: var(--muted); font-size: .8rem;
+}
+.armor-member-status .status-detail { overflow-wrap: anywhere; }
+.armor-member-status .badge.status {
+  color: var(--muted); border-color: var(--line); background: var(--bg);
+}
 .armor-group-table tbody tr:last-child th,
 .armor-group-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Same-stat groups are review-only comparisons. Give their defining tuning
+   axis the clearest neutral rule and weight, without using keep/junk colors
+   or suggesting that one tuning choice is preferred. */
+.armor-group-table th.armor-matrix-tuning-axis,
+.armor-group-table td.armor-matrix-tuning-axis {
+  border-bottom: 2px solid var(--muted); font-weight: 700;
+}
+.armor-matrix-columns tr.armor-matrix-tuning-axis > th {
+  border-left: 3px solid var(--muted); font-weight: 700;
+}
 
 /* Difference-only matrix, artifact orientation: axes as rows, members as
    columns. Hidden by default (and for any browser without container query

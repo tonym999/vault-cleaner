@@ -1023,6 +1023,70 @@
       return text;
     }
 
+    // Read-only disclosures can contain several authoritative facts (the
+    // disposition, a later proposal, its reason, and the current verdict).
+    // Keep each fact as a labelled line so long reasons do not become one
+    // hard-to-scan sentence.
+    function armorMemberStatus(member, group, verdict) {
+      var details = [];
+      var proposal = armorMemberCanVerdict(group, member);
+      if (group.groupKind === "same_stat") {
+        details.push(el("span", {
+          class: "badge status readonly",
+          text: proposal ? "Existing proposal" : "Read-only comparison"
+        }));
+        if (proposal) {
+          details.push(el("span", {
+            class: "status-detail",
+            text: "Proposed action: " + (member.currentProposalAction || "unknown")
+          }));
+        }
+        var sameStatVerdict = el("span", {
+          class: "status-detail armor-current-verdict",
+          text: "Current verdict: " + verdictText(member, verdict)
+        });
+        details.push(sameStatVerdict);
+        if (member.currentProposalReason) {
+          details.push(el("span", {
+            class: "status-detail",
+            text: "Proposal reason: " + member.currentProposalReason
+          }));
+        }
+        var sameStatStatus = el("div", { class: "armor-member-status" }, details);
+        sameStatStatus.armorVerdictNode = sameStatVerdict;
+        return sameStatStatus;
+      }
+
+      details.push(el("span", {
+        class: "badge status readonly", text: "Read-only"
+      }));
+      details.push(el("span", {
+        class: "status-detail", text: "Disposition: " + dispositionLabel(member)
+      }));
+      if (member.currentProposalAction) {
+        details.push(el("span", {
+          class: "status-detail",
+          text: "Also proposed " + member.currentProposalAction + " in Proposals"
+        }));
+      }
+      var exactVerdict = null;
+      if (member.currentProposalAction) {
+        exactVerdict = el("span", {
+          class: "status-detail armor-current-verdict",
+          text: "Current verdict: " + verdictText(member, verdict)
+        });
+        details.push(exactVerdict);
+        if (member.currentProposalReason) {
+          details.push(el("span", {
+            class: "status-detail", text: "Proposal reason: " + member.currentProposalReason
+          }));
+        }
+      }
+      var exactStatus = el("div", { class: "armor-member-status" }, details);
+      if (exactVerdict) exactStatus.armorVerdictNode = exactVerdict;
+      return exactStatus;
+    }
+
     function armorMemberLabel(group, member) {
       if (group.groupKind === "same_stat") {
         return member.currentProposalAction
@@ -1120,7 +1184,7 @@
       ]);
     }
 
-    function armorGroupHeader(group) {
+    function armorGroupHeader(group, comparison) {
       var pieceCount = (group.members || []).length;
       var piecesNode = el("p", {
         class: "armor-group-pieces",
@@ -1132,6 +1196,7 @@
       var tierText = group.tier === null || group.tier === undefined
         ? "unknown" : String(group.tier);
       var spike = armorStatSpike(group);
+      comparison = comparison || armorComparisonSpecs(group);
       var extras = [
         group.spiritSignature.length
           ? tile("Spirit signature", group.spiritSignature.join(" · ")) : null,
@@ -1141,20 +1206,27 @@
       ].filter(Boolean);
       return el("header", { class: "armor-group-header" }, [
         el("div", { class: "armor-group-headline" }, [
-          el("h4", { text: group.name || "(unnamed armor)" }),
-          el("span", { class: "badge arch", text: group.itemArchetype || "none/unknown" }),
-          el("span", { class: "sub", text: group.type || "unknown" }),
-          el("span", { class: "sub", text: group.guardianClass || "class-neutral/unknown" }),
-          el("span", { class: "sub", text: "Tier " + tierText }),
-          el("span", { class: "sub mono", text: "Hash " + group.hash }),
+          el("div", { class: "armor-group-title" }, [
+            el("h4", { text: group.name || "(unnamed armor)" }),
+            el("span", { class: "badge arch", text: "Archetype: " + (group.itemArchetype || "none/unknown") })
+          ]),
           piecesNode
         ]),
-        el("p", { class: "sub", text: subText }),
-        spike.node,
-        spike.zeroSummary
-          ? el("p", { class: "hint armor-stat-zero", text: spike.zeroSummary }) : null,
-        armorTuningBanner(group),
-        extras.length ? el("div", { class: "armor-group-extra" }, extras) : null
+        el("div", { class: "armor-group-meta" }, [
+          el("span", { class: "sub", text: "Type/slot: " + (group.type || "unknown") }),
+          el("span", { class: "sub", text: "Class: " + (group.guardianClass || "class-neutral/unknown") }),
+          el("span", { class: "sub", text: "Tier " + tierText }),
+          el("span", { class: "sub mono", text: "Hash " + group.hash })
+        ]),
+        el("div", { class: "armor-group-context" }, [
+          el("p", { class: "sub armor-group-kind", text: subText }),
+          spike.node,
+          spike.zeroSummary
+            ? el("p", { class: "hint armor-stat-zero", text: spike.zeroSummary }) : null,
+          armorTuningBanner(group),
+          armorIdenticalAxesLine(comparison.identicalAxes),
+          extras.length ? el("div", { class: "armor-group-extra" }, extras) : null
+        ])
       ]);
     }
 
@@ -1188,12 +1260,7 @@
           class: "verdict-presentation", text: verdictText(member, verdict)
         });
       } else {
-        var readonlyText = proposal
-          ? verdictText(member, verdict)
-          : group.groupKind === "same_stat"
-            ? "Read-only comparison · Current verdict: " + verdictText(member, verdict)
-            : armorReadonlyText(member, verdict);
-        presentation = el("span", { class: "hint", text: readonlyText });
+        presentation = armorMemberStatus(member, group, verdict);
       }
       var controls = proposal && !readOnly
         ? el("div", { class: "row-actions" }, [approve, veto, clearButton, presentation])
@@ -1303,7 +1370,7 @@
         el("span", { class: "armor-member-number", text: "Member " + (index + 1) }),
         el("span", { class: "mono", text: member.id }),
         el("span", { class: "sub", text: member.location || "location unknown" }),
-        el("span", { class: "badge", text: armorMemberLabel(group, member) })
+        el("span", { class: "badge status", text: armorMemberLabel(group, member) })
       ];
     }
 
@@ -1312,14 +1379,23 @@
     // browser that does not support container queries.
     function armorMatrixRowsTable(group, rows) {
       var headerCells = [el("th", { scope: "col", text: "Member" })].concat(
-        rows.map(function (spec) { return el("th", { scope: "col", text: spec.label }); }),
+        rows.map(function (spec) {
+          return el("th", {
+            scope: "col",
+            class: spec.label === "Tuning Mod Slot" ? "armor-matrix-tuning-axis" : "",
+            text: spec.label
+          });
+        }),
         [el("th", { scope: "col", text: "Verdict" })]
       );
       var bodyRows = (group.members || []).map(function (member, index) {
         var memberHeading = el("th", { scope: "row", class: "armor-member-heading" },
           armorMemberHeadingContent(group, member, index));
         var dataCells = rows.map(function (spec) {
-          return el("td", { text: spec.get(member) });
+          return el("td", {
+            class: spec.label === "Tuning Mod Slot" ? "armor-matrix-tuning-axis" : "",
+            text: spec.get(member)
+          });
         });
         var verdictCell = armorMemberCell(member, group);
         return el("tr", null, [memberHeading].concat(dataCells, [verdictCell]));
@@ -1344,7 +1420,9 @@
           armorMemberHeadingContent(group, member, index));
       }));
       var bodyRows = rows.map(function (spec) {
-        return el("tr", null, [
+        return el("tr", {
+          class: spec.label === "Tuning Mod Slot" ? "armor-matrix-tuning-axis" : ""
+        }, [
           el("th", { scope: "row", class: "armor-matrix-axis-label", text: spec.label })
         ].concat((group.members || []).map(function (member) {
           return el("td", { class: "armor-matrix-col-cell", text: spec.get(member) });
@@ -1370,22 +1448,22 @@
       return el("p", { class: "hint armor-identical-axes", text: text });
     }
 
-    function armorGroupTable(group) {
-      var comparison = armorComparisonSpecs(group);
+    function armorGroupTable(group, comparison) {
+      comparison = comparison || armorComparisonSpecs(group);
       var rowsTable = armorMatrixRowsTable(group, comparison.rows);
       var columnsTable = armorMatrixColumnsTable(group, comparison.rows);
       return el("div", { class: "armor-comparison" }, [
-        el("div", { class: "scroller" }, [rowsTable, columnsTable]),
-        armorIdenticalAxesLine(comparison.identicalAxes)
+        el("div", { class: "scroller" }, [rowsTable, columnsTable])
       ]);
     }
 
     function armorGroup(group) {
       var memberCount = (group.members || []).length;
+      var comparison = armorComparisonSpecs(group);
       return el("article", {
         class: "armor-group", "data-group-id": group.groupKind + ":" + group.groupId,
         "data-group-kind": group.groupKind, "data-member-count": String(memberCount)
-      }, [armorGroupHeader(group), armorGroupTable(group)]);
+      }, [armorGroupHeader(group, comparison), armorGroupTable(group, comparison)]);
     }
 
     function armorGroups(groups) {
@@ -1405,10 +1483,17 @@
           row.veto.disabled = verdictDisabled();
           row.clear.disabled = verdictDisabled();
         }
-        if (row.presentation) row.presentation.textContent = armorMemberCanVerdict(row.group, row.member)
-          ? verdictText(row.member, current) : row.group.groupKind === "same_stat"
-            ? "Read-only comparison · Current verdict: " + verdictText(row.member, current)
-            : armorReadonlyText(row.member, current);
+        if (row.presentation) {
+          if (row.presentation.armorVerdictNode) {
+            row.presentation.armorVerdictNode.textContent =
+              "Current verdict: " + verdictText(row.member, current);
+          } else {
+            row.presentation.textContent = armorMemberCanVerdict(row.group, row.member)
+              ? verdictText(row.member, current) : row.group.groupKind === "same_stat"
+                ? "Read-only comparison · Current verdict: " + verdictText(row.member, current)
+                : armorReadonlyText(row.member, current);
+          }
+        }
       });
       return true;
     }
