@@ -55,9 +55,10 @@ clear that it is a locating/comparison query and must not be bulk-tagged as junk
 - Exact-group junk candidates are deliberately the exact pass's own members
   whose projected `proposalAction` is `"junk"`. This excludes a preferred
   survivor or retained member even when that row separately says it is also
-  proposed junk by a later pass. A same-stat group is review-only and owns no
-  junk disposition, so its junk candidates are members whose separately
-  correlated `currentProposalAction` is `"junk"`. The existing predicate at
+  proposed junk by a later pass. Same-stat members may carry close-pass
+  `proposalAction` metadata, but it is non-authoritative unless correlated to a
+  current proposal decision. Their junk candidates therefore use the separately
+  correlated `currentProposalAction === "junk"`. The existing predicate at
   [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L1091) admits both `junk`
   and `review`, so it is too broad for the junk-candidate query by itself.
 - Verdicts are separate server-held review state, read by `verdictOf` at
@@ -83,7 +84,7 @@ clear that it is a locating/comparison query and must not be bulk-tagged as junk
 - The Node suites already exercise hostile strings, opaque ids, exact/same-stat
   group projections, dual-orientation rendering, and verdict repaint in
   [test_review_ui_js.py](../tests/test_review_ui_js.py#L1111) and
-  [test_server_ui_js.py](../tests/test_server_ui_js.py#L2400). The packaged
+  [test_server_ui_js.py](../tests/test_server_ui_js.py#L144). The packaged
   Chromium suite covers real group rendering and narrow layout at
   [test_server_browser.py](../tests/test_server_browser.py#L853).
 
@@ -160,11 +161,11 @@ manual cross-provider boundary and records any actual fallback.
 - “Junk candidates” is deliberately group-kind-specific. An exact card uses
   only that exact pass's `proposalAction === "junk"` members, structurally
   excluding the preferred survivor and retained/protected members even if a
-  later pass separately proposes junk. A same-stat card owns no junk decisions,
-  so it uses its members' correlated `currentProposalAction === "junk"` from
-  the current report. It does not mean all non-survivors, all editable members,
-  all approved members, or all members with any proposal. Verdict state has no
-  effect.
+  later pass separately proposes junk. A same-stat card uses only its members'
+  correlated `currentProposalAction === "junk"` from the current report because
+  uncorrelated source `proposalAction` is non-authoritative close-pass metadata.
+  It does not mean all non-survivors, all editable members, all approved members,
+  or all members with any proposal. Verdict state has no effect.
 - Ids remain opaque strings. Generation validates the decimal DIM shape for
   query safety, then prefixes and joins the unchanged strings in group order.
   It does not parse, sort, normalize, infer, or reconstruct them.
@@ -267,11 +268,11 @@ Mode-specific text:
 - Whole exact group:
   **`Whole group selected — includes the preferred survivor and every retained or protected piece. Use this to locate or compare the group; do not bulk-tag the result as junk.`**
 - Whole same-stat group:
-  **`Whole group selected — includes every piece in this review-only comparison. This pass selects no survivor.`**
+  **`Whole group selected — includes every piece in this same-stat comparison. This group has no preferred survivor.`**
 - Exact-group junk candidates:
   **`Junk candidates selected — includes only pieces this exact-duplicate pass proposes as junk, regardless of review verdict.`**
 - Same-stat junk candidates:
-  **`Junk candidates selected — this comparison pass proposes no action, so this includes only its pieces already proposed as junk elsewhere in the current report, regardless of review verdict.`**
+  **`Junk candidates selected — includes only pieces with an authoritative current junk proposal in this report, regardless of review verdict.`**
 
 Render each complete chunk as a labelled read-only `<textarea>` so it remains
 keyboard reachable, selectable, wrap/scroll contained, and visible without a
@@ -359,7 +360,7 @@ the permanent renderer boundary without becoming mutations:
 
 #### [MODIFY] [test_server_browser.py](../tests/test_server_browser.py#L853)
 
-Add one focused packaged-Chromium test with committed fake armour data:
+Add focused packaged-Chromium coverage with committed fake armour data:
 
 1. open an exact group and generate the whole-group query;
 2. assert the preferred survivor and every projected member occur once;
@@ -371,7 +372,7 @@ Add one focused packaged-Chromium test with committed fake armour data:
 6. exercise an individual group with no junk candidates and assert the button
    is disabled with **`This group has no junk candidates.`**;
 7. open a same-stat group, generate its whole-group query, and assert its warning
-   says this comparison selects no survivor rather than reusing exact-group copy;
+   says this group has no preferred survivor rather than reusing exact-group copy;
 8. finalise or simulate the supported disconnected frozen state and confirm
    generation remains local; and
 9. at 390px, assert no document horizontal overflow and keyboard focus reaches
@@ -425,7 +426,8 @@ Worked examples:
   exact-group candidacy comes from that pass's disposition, while excluding an
   approved `proposed_review` member and a retained member carrying only a later
   external junk proposal. The same-stat mode may include a correlated current
-  junk proposal because that comparison pass owns no junk disposition.
+  junk proposal because correlation makes that current decision authoritative;
+  uncorrelated close-pass `proposalAction` metadata alone remains excluded.
 - **IN SCOPE:** 77 twenty-digit ids become two read-only complete queries, each
   at most 2048 characters, with all ids present exactly once in order.
 - **OUT OF SCOPE:** approving, vetoing, unsetting, tagging, annotating, deleting,
@@ -465,7 +467,8 @@ Escalation route: `implementer → orchestrator → planner`.
 1. **Candidate semantics accidentally use verdicts:** Filtering to approved or
    unreviewed rows violates the owner's request. A second risk is erasing the
    deliberate kind distinction: exact uses its own `proposalAction`, while the
-   review-only same-stat card uses correlated `currentProposalAction`.
+   same-stat card uses authoritative correlated `currentProposalAction` rather
+   than uncorrelated close-pass metadata.
 2. **Whole group is not actually whole:** A safety-minded implementation may
    silently exclude the survivor or retained/protected members instead of
    including them with the required warning.
@@ -565,6 +568,10 @@ different family from Gemini is preferred when available.
 # Dispatch comment draft
 
 Planned #117 in [handoffs/issue-117-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-117-implementation-plan.md) on `main`.
+
+**Acceptance-criteria note:** Issue criterion 6's approved-empty and browser-
+overflow wording is superseded by the owner clarification; see
+[Acceptance-criteria disposition](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-117-implementation-plan.md#acceptance-criteria-disposition-after-owner-clarification).
 
 - **Implementer tier & effort:** Google `gemini-3.8-flash`, native `thinking_level = high`
 - **Implementation branch:** `feat/issue-117-dim-search-query`

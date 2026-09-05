@@ -49,6 +49,12 @@ surprises the next agent should know about.
   adapter announcement seam. Corrected drifting source/test anchors, removed
   self-referential PR provenance from the durable handoff, and added the settled
   presentation-only feature boundary to `PLAN.md` without assigning a milestone.
+  Re-review then corrected the same-stat rationale: source `proposalAction` is
+  present but non-authoritative without correlation, so user copy and tests now
+  describe authoritative `currentProposalAction` instead of claiming the pass
+  proposes no action. Added #117 traceability in `PLAN.md`, pointed the dispatch
+  draft to the acceptance-criteria supersession, corrected the remaining test
+  anchor, and left browser coverage free to use multiple focused tests.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
 
