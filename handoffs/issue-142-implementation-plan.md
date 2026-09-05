@@ -456,8 +456,11 @@ content, no real export rows, names, hashes or instance ids. Follows the shape o
 
 #### [MODIFY] [WORKLOG.md](../WORKLOG.md)
 
-One dated entry at the top (newest first), following the existing heading style:
+Add one **new** dated entry at the top (newest first) for the implementation PR
+(PR 2), following the existing heading style:
 `## 2026-MM-DD — #142: aggressive weapons-first measurement and policy design (PR 2)`.
+Leave the existing `(PR 1)` planning entry in place — do not rename, reuse or
+duplicate it.
 Record what was measured, what was decided, what could not be measured and why, and
 anything surprising for the next agent — at minimum the weapon-`Loadouts` coverage
 gap and the wishlist attribution/notes loss, if they reproduce.
