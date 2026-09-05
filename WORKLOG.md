@@ -3,6 +3,55 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
+
+- Authored `handoffs/issue-142-implementation-plan.md` against `main` at
+  `66b121aee1247d9823e783646f73d470359bb79d` and allocated
+  `docs/issue-142-clearout-measurement` for implementation by Google
+  `gemini-3.8-flash` with native `thinking_level = high`. Re-verified against the
+  provider's thinking-controls documentation on 5 September 2026 that this model
+  accepts only `low`/`medium`/`high`, so `high` is its maximum effort; the
+  repository matrix (verified 2026-09-03) agrees. The tier is the owner's explicit
+  choice and sits below the matrix's Planning-class recommendation, so the plan
+  compensates with a fixed report skeleton, a pinned command-by-command measurement
+  contract, a documentation-only inclusion test, and mandatory independent review.
+- Verified #142 is open, labelled `question`, deliberately unassigned to a
+  milestone, and `Todo` on project 3. It is item 1 ("Measurement and policy
+  design") of the #140 tracking comment of 2026-09-05. #31 is closed; #34, #114,
+  #117, #136, #137 and #138 are open and stay untouched — the plan only lets the
+  report *recommend* a #34 reconciliation.
+- The spike ships a document, not code: `docs/aggressive-clearout-measurement.md`
+  under a fixed fourteen-section skeleton, `docs/evidence/issue-142/README.md` for
+  verbatim transcripts, and a WORKLOG entry. Precedent is the M6 armor spike (#16 →
+  `docs/armor-archetypes.md`) and the #113 design pass.
+- Measured on the baseline, and the three findings that shaped the plan:
+  **(1)** all four committed weapon fixtures carry a `Loadouts` header with zero
+  non-empty cells (0 of 36 rows), and `Loadouts` is not in
+  `REQUIRED_WEAPON_COLUMNS` — so weapon loadout protection has no coverage today
+  and a DIM export dropping the column would load silently. **(2)** `Owner` has two
+  observed formats (`Titan` in weapons fixtures, `Titan(550)`/`Hunter(506)`
+  elsewhere) and is parsed nowhere beyond `Decision.location`; no export column
+  reports vault capacity, so `F` in the #140 capacity formula is not derivable from
+  any export. **(3)** `apply_vetoes` is subtractive and has two sibling call sites
+  (`cli.py:484`, `server/app.py:790`) — approval-only finalization must change
+  both.
+- Also measured: `keep_counts` in `rules/weapons.py` is now used only for the
+  keep-beats-trash conflict counter and no longer ranks dupe survivors, which
+  confirms #140's claim that #34's survivor-ranking statement is stale.
+  `wishlist.LINE_RE` discards the `#notes:` tail and `Wishlist.merge` folds every
+  source into one map, so entry notes, tier text and source attribution are lost
+  before the rules ever see them — the measured reason #140 child 3 exists.
+- Baseline fixture yield recorded for reproduction: the three-export
+  `--no-wishlists` report gives 1 junk + 5 review (all armor/ghost, zero weapons),
+  and `weapons_dupes.csv` gives 4 junk + 3 review. The plan requires
+  `--no-wishlists` throughout so the ticket never depends on the ~200 MB Bungie
+  manifest download.
+- Review path set to independent adversarial despite a documentation-only diff:
+  this report is the specification for #140 children 2a-8, and the failure mode of
+  a document is unverifiable assertion. The reviewer's remit is explicitly to
+  re-run every quoted command and diff the output; a non-reproducing output or a
+  number with no command is a P1.
+
 ## 2026-09-05 — #117 planning: per-group DIM search queries (PR 1)
 
 - Authored `handoffs/issue-117-implementation-plan.md` against `main` at
