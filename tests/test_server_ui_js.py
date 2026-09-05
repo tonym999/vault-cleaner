@@ -3845,20 +3845,57 @@ setTimeout(function () {
   var server = context.VaultCleanerServerUI;
   var state = server.state;
 
+  function snapshotDuplicateRows() {
+    var keys = Object.keys(state.duplicateRows || {}).sort();
+    return keys.map(function (id) {
+      var list = state.duplicateRows[id] || [];
+      return {
+        id: id,
+        count: list.length,
+        items: list.map(function (h) {
+          return {
+            memberId: h.member ? h.member.id : null,
+            groupId: h.group ? (h.group.groupId || h.group.id) : null,
+            groupKind: h.group ? h.group.groupKind : null,
+            hasCell: !!h.cell,
+            hasApprove: !!h.approve,
+            hasVeto: !!h.veto,
+            hasClear: !!h.clear,
+            hasPresentation: !!h.presentation
+          };
+        })
+      };
+    });
+  }
+
   function captureRequiredState() {
+    var dupKeys = Object.keys(state.duplicateRows || {}).sort();
+    var dupArrays = dupKeys.map(function (id) {
+      return { id: id, arr: state.duplicateRows[id], handles: (state.duplicateRows[id] || []).slice() };
+    });
     return {
+      connected: state.connected,
+      server_state: state.server_state,
       verdicts: JSON.stringify(state.verdicts),
       report_revision: state.report_revision,
       verdict_revision: state.verdict_revision,
       mutationInFlight: state.mutationInFlight,
-      duplicateRowsKeys: Object.keys(state.duplicateRows || {}).sort().join(","),
+      duplicateRowsKeys: dupKeys.join(","),
       duplicateRowsRef: state.duplicateRows,
+      duplicateRowsSnapshot: JSON.stringify(snapshotDuplicateRows()),
+      duplicateRowsArrays: dupArrays,
       fetchCalls: fetchCalls
     };
   }
 
   function assertStateUnchanged(before, label) {
     var after = captureRequiredState();
+    if (before.connected !== after.connected) {
+      throw new Error(label + ": connected changed: " + before.connected + " vs " + after.connected);
+    }
+    if (before.server_state !== after.server_state) {
+      throw new Error(label + ": server_state changed: " + before.server_state + " vs " + after.server_state);
+    }
     if (before.verdicts !== after.verdicts) {
       throw new Error(label + ": verdicts changed: " + before.verdicts + " vs " + after.verdicts);
     }
@@ -3876,6 +3913,24 @@ setTimeout(function () {
     }
     if (before.duplicateRowsRef !== after.duplicateRowsRef) {
       throw new Error(label + ": duplicateRows reference changed");
+    }
+    if (before.duplicateRowsSnapshot !== after.duplicateRowsSnapshot) {
+      throw new Error(label + ": duplicateRows structure changed: " + before.duplicateRowsSnapshot + " vs " + after.duplicateRowsSnapshot);
+    }
+    for (var i = 0; i < before.duplicateRowsArrays.length; i++) {
+      var item = before.duplicateRowsArrays[i];
+      var curArr = state.duplicateRows[item.id];
+      if (curArr !== item.arr) {
+        throw new Error(label + ": duplicateRows[" + item.id + "] array reference changed");
+      }
+      if (curArr.length !== item.handles.length) {
+        throw new Error(label + ": duplicateRows[" + item.id + "] length changed: " + item.handles.length + " vs " + curArr.length);
+      }
+      for (var j = 0; j < item.handles.length; j++) {
+        if (curArr[j] !== item.handles[j]) {
+          throw new Error(label + ": duplicateRows[" + item.id + "][" + j + "] handle reference changed");
+        }
+      }
     }
     if (before.fetchCalls !== after.fetchCalls) {
       throw new Error(label + ": fetchCalls changed: " + before.fetchCalls + " vs " + after.fetchCalls);
@@ -3914,8 +3969,6 @@ setTimeout(function () {
 
   // 2. Disconnected state while reviewing: snapshot and compare state around both controls
   state.connected = false;
-  var disconnectedReviewingConnected = state.connected;
-  var disconnectedReviewingState = state.server_state;
 
   snap = captureRequiredState();
   exactFeroBtns[0].dispatch("click");
@@ -3937,12 +3990,13 @@ setTimeout(function () {
   var sameJunkDisconnected = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
   assertStateUnchanged(snap, "disconnected sameFero junk");
 
+  var disconnectedReviewingConnected = state.connected;
+  var disconnectedReviewingState = state.server_state;
+
   // 3. Finalized state: transition via applySessionEnvelope, snapshot and compare state around both controls
   var finalizedEnvelope = JSON.parse(JSON.stringify(envelope));
   finalizedEnvelope.state = "finalized";
   server.applySessionEnvelope(finalizedEnvelope, state);
-  var finalizedState = state.server_state;
-  var finalizedConnected = state.connected;
 
   snap = captureRequiredState();
   exactFeroBtns[0].dispatch("click");
@@ -3964,10 +4018,11 @@ setTimeout(function () {
   var sameJunkFinalized = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
   assertStateUnchanged(snap, "finalized sameFero junk");
 
+  var finalizedState = state.server_state;
+  var finalizedConnected = state.connected;
+
   // 4. Finalized AND disconnected state: snapshot and compare state around both controls
   state.connected = false;
-  var finalizedDisconnectedState = state.server_state;
-  var finalizedDisconnectedConnected = state.connected;
 
   snap = captureRequiredState();
   exactFeroBtns[0].dispatch("click");
@@ -3978,6 +4033,9 @@ setTimeout(function () {
   exactFeroBtns[1].dispatch("click");
   var exactJunkFinalizedDisconnected = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
   assertStateUnchanged(snap, "finalized disconnected exactFero junk");
+
+  var finalizedDisconnectedState = state.server_state;
+  var finalizedDisconnectedConnected = state.connected;
 
   process.stdout.write(JSON.stringify({
     groupCount: groups.length,

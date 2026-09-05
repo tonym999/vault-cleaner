@@ -51,8 +51,9 @@ surprises the next agent should know about.
     disabled state, hostile field inertness, zero side effects on verdicts.
   - Adapter integration in `tests/test_server_ui_js.py`: card rendering, preferred
     survivor inclusion, junk candidate filtering, zero fetch calls during
-    generation, full state snapshot comparison (verdicts, report/verdict
-    revisions, mutationInFlight, duplicateRows) across reviewing/connected,
+    generation, full state snapshot comparison (connected, server_state,
+    verdicts, report/verdict revisions, mutationInFlight, and structural
+    duplicateRows registry handles) across reviewing/connected,
     reviewing/disconnected, finalized/connected, and finalized/disconnected
     states.
   - Playwright browser test in `tests/test_server_browser.py`: whole-group and junk
