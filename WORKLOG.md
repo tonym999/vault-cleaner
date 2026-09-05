@@ -55,6 +55,10 @@ surprises the next agent should know about.
   proposes no action. Added #117 traceability in `PLAN.md`, pointed the dispatch
   draft to the acceptance-criteria supersession, corrected the remaining test
   anchor, and left browser coverage free to use multiple focused tests.
+  Final consistency review aligned Check 3 with the exact same-stat warning,
+  removed projection jargon from user-facing copy, pointed the `PLAN.md` backlink
+  to the durable GitHub issue, and distinguished the superseded 2048-character
+  browser case from the still-required 390px layout-overflow check.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
 

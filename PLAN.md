@@ -147,7 +147,7 @@ Review presentation keeps current DIM `Owner` as a `location` axis and exposes
 armor `guardian_class` verbatim from `Equippable`; weapons and ghosts remain
 class-neutral and use their kind only as a browser Class fallback.
 As the local, presentation-only interop aid defined by
-[#117](handoffs/issue-117-implementation-plan.md), each individual armor
+[#117](https://github.com/tonym999/vault-cleaner/issues/117), each individual armor
 duplicate group may generate visible DIM `id:` search text for either that whole
 group or that group's existing junk candidates. Generation never aggregates
 neighboring groups, changes review or item state, contacts DIM, or performs a

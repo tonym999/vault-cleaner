@@ -272,7 +272,7 @@ Mode-specific text:
 - Exact-group junk candidates:
   **`Junk candidates selected — includes only pieces this exact-duplicate pass proposes as junk, regardless of review verdict.`**
 - Same-stat junk candidates:
-  **`Junk candidates selected — includes only pieces with an authoritative current junk proposal in this report, regardless of review verdict.`**
+  **`Junk candidates selected — includes only pieces this report currently proposes as junk, regardless of review verdict.`**
 
 Render each complete chunk as a labelled read-only `<textarea>` so it remains
 keyboard reachable, selectable, wrap/scroll contained, and visible without a
@@ -538,7 +538,8 @@ different family from Gemini is preferred when available.
   selection dependency.
 - [ ] Check 3: Whole exact-group output carries the verbatim preferred-survivor
   warning and is never described as a junk query or bulk-tag instruction. The
-  same-stat whole-group warning separately says that pass selects no survivor.
+  same-stat whole-group warning separately says
+  **`This group has no preferred survivor.`**
 - [ ] Check 4: Ids stay unchanged strings, pass `^[0-9]{1,20}$` before
   interpolation, and never reach `Number`, `parseInt`, numeric sorting, DOM-text
   parsing, or partial output.
@@ -569,8 +570,11 @@ different family from Gemini is preferred when available.
 
 Planned #117 in [handoffs/issue-117-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-117-implementation-plan.md) on `main`.
 
-**Acceptance-criteria note:** Issue criterion 6's approved-empty and browser-
-overflow wording is superseded by the owner clarification; see
+**Acceptance-criteria note:** In Issue criterion 6, approved-empty coverage is
+replaced by empty-junk-candidate coverage, and a packaged-browser query above
+the 2048-character saveability boundary is superseded. The 2048/2049 boundary
+proof remains in deterministic Node tests, while the 390px horizontal-overflow
+browser check remains required. See
 [Acceptance-criteria disposition](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-117-implementation-plan.md#acceptance-criteria-disposition-after-owner-clarification).
 
 - **Implementer tier & effort:** Google `gemini-3.8-flash`, native `thinking_level = high`
