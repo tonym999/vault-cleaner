@@ -7,7 +7,7 @@ surprises the next agent should know about.
 
 - Authored `handoffs/issue-142-implementation-plan.md` against `main` at
   `66b121aee1247d9823e783646f73d470359bb79d` and allocated
-  `docs/issue-142-clearout-measurement` for implementation by Google
+  `feat/issue-142-clearout-measurement` for implementation by Google
   `gemini-3.8-flash` with native `thinking_level = high`. Re-verified against the
   provider's thinking-controls documentation on 5 September 2026 that this model
   accepts only `low`/`medium`/`high`, so `high` is its maximum effort; the
@@ -51,6 +51,41 @@ surprises the next agent should know about.
   a document is unverifiable assertion. The reviewer's remit is explicitly to
   re-run every quoted command and diff the output; a non-reproducing output or a
   number with no command is a P1.
+- Review disposition before merge, all accepted. The two `report` outputs quoted in
+  C3 were hand-summarized rather than captured — id lists were appended to group
+  headings and the per-item detail lines dropped — while the plan itself demands
+  those runs verbatim and calls a non-reproducing quotation a P1. Both blocks are
+  now literal captures. The blanket "`Id`/`Hash` remain strings throughout" claim
+  was false and would have forced the implementer to assert it: `Hash` is a string
+  in the DataFrame, in dupe grouping and on `Decision.hash`, but becomes `int` at
+  the wishlist-matching boundary (`weapons.py:72`, int-keyed `Wishlist` maps at
+  `wishlist.py:79`); only `Id` is opaque end to end. `AGENTS.md`'s opaque-strings
+  rule is scoped to untrusted input, so the plan now says so explicitly to stop an
+  implementer "fixing" `weapons.py:72`.
+- `Loadouts` now has three separately specified states — column missing (unknown,
+  must not read as "not in a loadout"), cell empty (the measured normal case: not
+  in a loadout, per `ghosts.py:36` and `armor_dupes.py:99-100`), and column present
+  but empty on every row (ambiguous). Collapsing the first two would hard-protect
+  nearly every weapon and defeat the clear-out entirely.
+- The absolute "every number carries a command" rule was unenforceable — section
+  numbers, dates and the 100-space goal have no local command — and would have
+  manufactured false P1s in the adversarial review it mandates. It now covers
+  empirical claims only, with three accepted citation forms (command, `file:line`,
+  or URL plus retrieval date); requirements figures cite #140/#142. Check 3 and the
+  reviewer remit moved with it.
+- Branch allocation corrected to `feat/issue-142-clearout-measurement`:
+  `AGENTS.md` and `handoffs/README.md` enumerate `fix/` or `feat/`, and the
+  `docs/issue-124-workflow-pilot-record` precedent is not authority over the
+  written convention.
+- A full sweep of every `file:line` anchor found more drift than review named: the
+  `parse.py` required-column ranges were all shifted (base is 32-34 not 36-38;
+  weapons 42-44 not 45-49, which landed in the *ghost* comment; armor 71-76), plus
+  `wishlist.py` 22/29/51-57/160-184, `weapons.py` 59-111 and 102-107, `dupes.py`
+  42-52, `report_run.py` 241-257, `review.py` 496-543 and `armor_dupes.py` 99-100.
+  Root cause for both this and the fake-verbatim blocks: transcribing from memory
+  of earlier tool output instead of re-deriving from the file. Also took
+  CodeRabbit's inclusion-test wording fix — "exactly one of" read as a one-path
+  limit against a three-path deliverable.
 
 ## 2026-09-05 — #117 planning: per-group DIM search queries (PR 1)
 

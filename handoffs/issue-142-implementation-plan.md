@@ -14,7 +14,7 @@
 
 **Plan baseline:** `main` at `66b121aee1247d9823e783646f73d470359bb79d` (5 September 2026)
 
-**Allocated implementation branch:** `docs/issue-142-clearout-measurement`
+**Allocated implementation branch:** `feat/issue-142-clearout-measurement`
 
 The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
 
@@ -58,14 +58,14 @@ This ticket follows the same shape.
 
 ### C2 — Export schema reality (measured by header name)
 
-`REQUIRED_*_COLUMNS` in [parse.py](../src/vault_cleaner/parse.py#L36-L75):
+`REQUIRED_*_COLUMNS` in [parse.py](../src/vault_cleaner/parse.py#L32-L76):
 
 | Kind | Required set | `Loadouts` required? |
 |---|---|---|
-| base (all kinds) | `Name, Hash, Id, Tag, Rarity, Locked, Equipped, Notes` ([parse.py:36-38](../src/vault_cleaner/parse.py#L36-L38)) | — |
-| weapons | base + `Type, Ammo, Crafted, Crafted Level, Perks 0` ([parse.py:45-49](../src/vault_cleaner/parse.py#L45-L49)) | **no** |
+| base (all kinds) | `Name, Hash, Id, Tag, Rarity, Locked, Equipped, Notes` ([parse.py:32-34](../src/vault_cleaner/parse.py#L32-L34)) | — |
+| weapons | base + `Type, Ammo, Crafted, Crafted Level, Perks 0` ([parse.py:42-44](../src/vault_cleaner/parse.py#L42-L44)) | **no** |
 | ghosts | base + `Loadouts` ([parse.py:47](../src/vault_cleaner/parse.py#L47)) | yes |
-| armor | base + `Type, Equippable, Loadouts, Tuning Stat, Seasonal Mod, Holofoil, Masterwork Tier, Power, Tier, Perks 0, Archetype` + the six `ARMOR_STATS` columns ([parse.py:70-76](../src/vault_cleaner/parse.py#L70-L76)) | yes |
+| armor | base + `Type, Equippable, Loadouts, Tuning Stat, Seasonal Mod, Holofoil, Masterwork Tier, Power, Tier, Perks 0, Archetype` + the six `ARMOR_STATS` columns ([parse.py:71-76](../src/vault_cleaner/parse.py#L71-L76)) | yes |
 
 Measured fixture headers (`head -1 tests/fixtures/<file>.csv | tr ',' '\n' | nl`):
 
@@ -115,22 +115,22 @@ empty level → HARD `crafted-lvunknown`; crafted level ≥ `crafted_level_prote
 (config `rails.crafted_level_protect = 10`) → HARD; `Rarity == "Exotic"` → SOFT;
 `Locked` true → SOFT; otherwise unprotected. **There is no loadout rail.** Only
 [ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36) and
-[armor_dupes.py:100](../src/vault_cleaner/rules/armor_dupes.py#L100) read `Loadouts`;
+[armor_dupes.py:99-100](../src/vault_cleaner/rules/armor_dupes.py#L99-L100) read `Loadouts`;
 `report_run.py:317` records `in_loadout` for presentation only.
 
-Weapons pass ([weapons.py:58-111](../src/vault_cleaner/rules/weapons.py#L58-L111)):
+Weapons pass ([weapons.py:59-111](../src/vault_cleaner/rules/weapons.py#L59-L111)):
 rails → wishlist trash → exact-roll dupes. A keep match suppresses a trash decision
 and increments `keep_trash_conflicts`
 ([weapons.py:79-80](../src/vault_cleaner/rules/weapons.py#L79-L80)). `keep_counts`
 is computed for every row but is now **only** used for that conflict test — it no
 longer ranks dupe survivors, confirming that #34's "wishlist counts influence
 survivor ranking" statement is stale. Trash-junked ids are removed from the dupe
-pool ([weapons.py:100-104](../src/vault_cleaner/rules/weapons.py#L100-L104)).
+pool ([weapons.py:102-107](../src/vault_cleaner/rules/weapons.py#L102-L107)).
 
 Exact-dupe identity and ranking live in
 [dupes.py](../src/vault_cleaner/rules/dupes.py) — `RANK_COLUMNS = ["Tier",
 "Masterwork Tier", "Crafted Level"]` then stat total then opaque id
-([dupes.py:44-52](../src/vault_cleaner/rules/dupes.py#L44-L52)). These are #31's
+([dupes.py:42-51](../src/vault_cleaner/rules/dupes.py#L42-L51)). These are #31's
 landed guarantees and are **out of scope to change**.
 
 Measured baseline yield on committed fake data:
@@ -139,12 +139,26 @@ Measured baseline yield on committed fake data:
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists
 ```
 
+Captured verbatim on the baseline (stdout and stderr, unedited):
+
 ```text
 would junk 1 item(s) and flag 5 for review
+
 JUNK ghost-unprotected-surplus (ghosts) — 1 item(s)
+  Fake Shell (id 2000000000000000001, class ghosts; location Vault)
+
 REVIEW armor-similar to (armor) — 3 item(s)
+  Guard Plate A (id 4051, class Titan; location Vault) — review: armor-similar to; compare [id 4052; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break; Candidate Tuning Mod Slot: none/unknown; Partner Tuning Mod Slot: none/unknown
+  Guard Plate B (id 4052, class Titan; location Vault) — review: armor-similar to; compare [id 4051; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break; Candidate Tuning Mod Slot: none/unknown; Partner Tuning Mod Slot: none/unknown
+  Guard Plate C (id 4053, class Titan; location Vault) — review: armor-similar to; compare [id 4051; location Vault]; max stat delta 1, total 2; partner deterministic id tie-break; Candidate Tuning Mod Slot: none/unknown; Partner Tuning Mod Slot: none/unknown
+
 REVIEW armor-last-archetype (armor) — 1 item(s)
+  Bad Plate (id 4005, class Titan; location Vault)
+
 REVIEW armor-score (armor) — 1 item(s)
+  Bad Locked Plate (id 4006, class Titan; location Vault)
+
+dry run — pass --write to write the combined import CSV
 ```
 
 The weapons section contributes **zero** decisions there. The weapon volume lives in
@@ -154,16 +168,35 @@ the dupe fixture:
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists
 ```
 
+Captured verbatim on the baseline (stdout and stderr, unedited — the two
+`skipping` lines are stderr and are part of the expected output):
+
 ```text
+skipping armor: data/in/destiny-armor.csv not found; expected destiny-armor.csv or a browser-numbered copy such as destiny-armor (1).csv
+skipping ghosts: data/in/destiny-ghost.csv not found; expected destiny-ghost.csv or a browser-numbered copy such as destiny-ghost (1).csv
 would junk 4 item(s) and flag 3 for review
-JUNK dupe-lower (weapons) — 3 item(s)      ids 3002, 3022, 3032
-JUNK dupe-tie (weapons) — 1 item(s)        id 3042
-REVIEW dupe-lower (weapons) — 2 item(s)    ids 3003 (locked), 3012 (exotic)
-REVIEW dupe-tie (weapons) — 1 item(s)      id 3052 (exotic)
+
+JUNK dupe-lower (weapons) — 3 item(s)
+  Dupe Rifle (id 3002, class weapons; location Vault) — junk: dupe-lower; keep [id 3001; location Vault; Tier 5; MW10; roll Mag B / Trait A]; winner higher Masterwork Tier
+  Crafted Pulse (id 3022, class weapons; location Vault) — junk: dupe-lower; keep [id 3020; location Vault; Tier 5; MW10; roll Mag B / Trait A]; winner higher Masterwork Tier
+  Tiered Sidearm (id 3032, class weapons; location Vault) — junk: dupe-lower; keep [id 3031; location Vault; Tier 5; MW0; roll Mag B / Trait A]; winner higher Tier
+
+JUNK dupe-tie (weapons) — 1 item(s)
+  Twin SMG (id 3042, class weapons; location Vault) — junk: dupe-tie; keep [id 3041; location Vault; Tier 5; MW0; roll Mag B / Trait A]; winner deterministic id tie-break
+
+REVIEW dupe-lower (weapons) — 2 item(s)
+  Dupe Rifle (id 3003, class weapons; location Vault) — review: dupe-lower (locked); keep [id 3001; location Vault; Tier 5; MW10; roll Mag B / Trait A]; winner higher Masterwork Tier
+  Fake Exotic HC (id 3012, class weapons; location Vault) — review: dupe-lower (exotic); keep [id 3011; location Vault; Tier 5; MW8; roll Mag Exotic B / Trait Exotic]; winner higher Masterwork Tier
+
+REVIEW dupe-tie (weapons) — 1 item(s)
+  Tied Exotic GL (id 3052, class weapons; location Vault) — review: dupe-tie (exotic); keep [id 3051; location Vault; Tier 5; MW0; roll Mag Exotic B / Trait Exotic]; winner deterministic id tie-break
+
+dry run — pass --write to write the combined import CSV
 ```
 
-(That invocation also prints two `skipping armor/ghosts: … not found` warnings; they
-are expected and belong in the recorded output.)
+Both blocks are literal captures, including blank lines, two-space indentation
+and U+2014 em dashes. Re-running must reproduce them byte for byte; if it does
+not, the divergence is itself the finding.
 
 ### C4 — Wishlist reality
 
@@ -190,16 +223,16 @@ actual fetch/check dates.
 Parser facts the report must carry
 ([wishlist.py](../src/vault_cleaner/wishlist.py)):
 
-- `LINE_RE` ([wishlist.py:27](../src/vault_cleaner/wishlist.py#L27)) discards the
+- `LINE_RE` ([wishlist.py:29](../src/vault_cleaner/wishlist.py#L29)) discards the
   `#notes:` tail entirely. **Entry notes, tier text and source attribution are lost
   at parse time**, before any merge.
-- `Wishlist.merge` ([wishlist.py:56-63](../src/vault_cleaner/wishlist.py#L56-L63))
+- `Wishlist.merge` ([wishlist.py:51-57](../src/vault_cleaner/wishlist.py#L51-L57))
   folds every source into one `keep`/`trash` map keyed by item hash. After
-  `load_all_with_sources` ([wishlist.py:160-189](../src/vault_cleaner/wishlist.py#L160-L189))
+  `load_all_with_sources` ([wishlist.py:160-184](../src/vault_cleaner/wishlist.py#L160-L184))
   the merged `Wishlist` cannot say which source contributed a roll — only the exact
   bytes per source survive, as `WishlistSourceData`.
 - Wildcard item `69420` entries are counted and skipped
-  ([wishlist.py:20](../src/vault_cleaner/wishlist.py#L20)); malformed
+  ([wishlist.py:22](../src/vault_cleaner/wishlist.py#L22)); malformed
   `dimwishlist:` lines increment `skipped`.
 - A trash entry with an empty perk set means whole-item trash
   ([weapons.py:51-56](../src/vault_cleaner/rules/weapons.py#L51-L56)).
@@ -223,7 +256,7 @@ call sites, and they must be treated as siblings:
 so today an unreviewed proposal is included. #140 child 2b inverts that to
 approval-only. The report must name both call sites, not just the server one.
 
-`classify` ([review.py:496-545](../src/vault_cleaner/review.py#L496-L545)) sorts
+`classify` ([review.py:496-543](../src/vault_cleaner/review.py#L496-L543)) sorts
 persisted vetoes into active / stale / orphaned / unchecked, and a veto goes stale
 when `(action, reason)` no longer matches the current proposal. That is the exact
 mechanism by which a new aggressive profile would resurface previously vetoed items
@@ -232,7 +265,7 @@ owns that).
 
 `RULESET_VERSION = 4` ([report_run.py:44](../src/vault_cleaner/report_run.py#L44))
 is baked into `compute_fingerprint`
-([report_run.py:241-258](../src/vault_cleaner/report_run.py#L241-L258)); any new
+([report_run.py:241-257](../src/vault_cleaner/report_run.py#L241-L257)); any new
 rule-consumed config key must also be projected in `_decision_config`
 ([report_run.py:173-224](../src/vault_cleaner/report_run.py#L173-L224)), which today
 projects only `rails.crafted_level_protect` and the `armor.*` keys.
@@ -341,9 +374,16 @@ SHA the implementer branched from, the Python and pandas versions
 and the statement that this document changes no production behaviour. Opens with the
 **evidence rule**, verbatim:
 
-> Every number in this document is followed by the exact command that produced it.
-> A claim without a command, or with a command that was not run in this session, is
-> recorded in section 14 as `NOT MEASURED`.
+> Every **empirical claim** in this document — any statement about the state of this
+> repository, its fixtures, or a DIM export — carries one of three citations: the
+> exact command run in this session that produced it, a `file:line` reference to the
+> source that defines it, or, for an upstream fact, the URL and the date it was
+> retrieved. An empirical claim that carries none of those is recorded in section 14
+> as `NOT MEASURED`.
+>
+> This rule does not apply to non-empirical figures: section and issue numbers,
+> dates, the 100-space product goal, and other requirements taken from #140 or #142
+> cite the issue instead.
 
 **2. Export schema and completeness by header name.** The three `REQUIRED_*_COLUMNS`
 sets with `parse.py` line citations; the measured fixture header lists; the
@@ -351,11 +391,32 @@ fixture-content table from C2 (re-derived). Must state, as findings:
 (a) `Loadouts` is present in weapon exports but **not** weapon-schema-required and
 carries **no** non-empty cell in any committed weapon fixture; (b) `Owner` has two
 observed formats (`Titan` vs `Titan(550)`) and is parsed nowhere; (c) no export
-column reports vault capacity or free space; (d) the required fail-safe behaviour
-when `Loadouts` is absent or empty — a *missing* protection input must not silently
-read as "not in a loadout". Distinguish, one row each: equipped state, character
+column reports vault capacity or free space; (d) the three `Loadouts` states below,
+specified separately. Distinguish, one row each: equipped state, character
 location, saved-loadout membership, DIM protective tags, crafted protection, locked,
-exotic, durable veto. State that opaque `Id`/`Hash` remain strings throughout.
+exotic, durable veto.
+
+`Loadouts` has **three** distinct states and the report must specify behaviour for
+each one separately. Collapsing them is a correctness defect, not a wording choice:
+
+| State | Meaning | Required treatment |
+|---|---|---|
+| **column missing** | incomplete schema — the protection input does not exist | unknown; must not read as "not in a loadout". The report decides and justifies whether child 2a makes `Loadouts` weapon-schema-required (failing loudly, as `parse.py` does elsewhere) or degrades explicitly. |
+| **cell empty on a row** | the measured normal case: that item is in no loadout ([ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36), [armor_dupes.py:99-100](../src/vault_cleaner/rules/armor_dupes.py#L99-L100)) | **not** protected. Treating an empty cell as unknown would hard-protect nearly every weapon and defeat the whole clear-out. |
+| **column present but empty on every row** | ambiguous — either the owner genuinely saves no loadouts, or DIM changed what it exports | the report must call this out as a distinct case and say how it is detected and surfaced; measured today on all four weapon fixtures (C2). |
+
+On identifier types, state the **measured** boundary rather than a blanket claim:
+`Id` is an opaque string end to end — `id_order.instance_id_order` orders it without
+converting or normalizing it. `Hash` is a string in the DataFrame, in dupe grouping
+([dupes.py:100](../src/vault_cleaner/rules/dupes.py#L100),
+[dupes.py:216](../src/vault_cleaner/rules/dupes.py#L216)) and on `Decision.hash`,
+but is converted to `int` at the wishlist-matching boundary
+([weapons.py:72](../src/vault_cleaner/rules/weapons.py#L72)), where `Wishlist.keep`
+and `Wishlist.trash` are int-keyed
+([wishlist.py:79](../src/vault_cleaner/wishlist.py#L79)). `AGENTS.md`'s "keep
+`Id`/`Hash` opaque strings" rule is scoped to untrusted input — review manifests and
+`data/overrides.json` — and is **not** a claim about the whole pipeline. Do not
+"fix" `weapons.py:72` to match a misread of that rule.
 
 **3. Current weapon rules, rails and review behaviour.** The rail precedence table
 from C3 with line citations; the weapons pass order; the keep-beats-trash conflict
@@ -548,12 +609,14 @@ condition S1.
 
 A proposed change is **in scope** if and only if all of the following hold:
 
-- it adds or edits lines in exactly one of: `docs/aggressive-clearout-measurement.md`,
-  `docs/evidence/issue-142/**`, `WORKLOG.md`; and
+- every path it changes is one of: `docs/aggressive-clearout-measurement.md`,
+  `docs/evidence/issue-142/**`, `WORKLOG.md` — the change set is expected to touch
+  all three; and
 - it records a measurement, a policy definition, a recommendation, a child-ticket
   boundary, or an explicit limitation for #142; and
-- every number it states is accompanied by a command that was actually run in this
-  session; and
+- every empirical claim it states carries one of the three citations required by
+  the evidence rule — a command run in this session, a `file:line`, or a URL with a
+  retrieval date; and
 - it contains no real vault row, item name, `Hash`, instance `Id`, or third-party
   wishlist entry line.
 
@@ -621,8 +684,11 @@ Escalation route: `implementer → orchestrator → planner`.
 1. **Unsourced or carried-over numbers.** The highest-probability defect by far: the
    report quotes a fixture count, a wishlist total or a coverage percentage that was
    copied from this handoff, invented, or produced by a command that was never run.
-   Every number in the report must be re-derivable by re-running the quoted command;
-   the reviewer should re-run all of them and diff.
+   Every measured number in the report must be re-derivable by re-running the
+   quoted command; the reviewer should re-run all of them and diff. This handoff
+   shipped exactly that defect in review round 2 — two `report` outputs were quoted
+   as captures but were hand-summarized — so treat the risk as demonstrated, not
+   hypothetical.
 2. **Scope leak into production files.** A "helpful" one-line fix — adding
    `Loadouts` to `REQUIRED_WEAPON_COLUMNS`, a loadout branch in `rails.protection`,
    a fixture row with a populated `Loadouts` cell, or a `scripts/` measurement
@@ -657,7 +723,7 @@ This ticket produces **documentation only**. It changes no Python, no config, no
 fixture, no test, and no issue or project state.
 
 Rules:
-- work on `docs/issue-142-clearout-measurement`; branch from latest `main` and record
+- work on `feat/issue-142-clearout-measurement`; branch from latest `main` and record
   the base SHA;
 - change only `docs/aggressive-clearout-measurement.md`,
   `docs/evidence/issue-142/**`, and `WORKLOG.md`; apply the plan's mechanical
@@ -704,8 +770,10 @@ lowering it.
 The reviewer's remit is unusual for this repository and should be stated at dispatch:
 **re-run every command quoted in the report and in `docs/evidence/issue-142/`, and
 compare the recorded output to the actual output.** A quoted output that does not
-reproduce is a P1 finding. A number with no command is a P1 finding. The reviewer
-must also read the report for hollow sections, not only for false ones.
+reproduce is a P1 finding, and so is an empirical claim carrying none of the three
+citations the evidence rule allows. Requirements figures cited to #140 or #142, and
+section or issue numbers, are not findings. The reviewer must also read the report
+for hollow sections, not only for false ones.
 
 The orchestrator confirms the path against the real diff and, when adversarial review
 is required, selects and records the reviewer's exact provider, model ID, and native
@@ -721,10 +789,13 @@ effort at dispatch time.
 - [ ] **Check 2 — reproduction.** Every command quoted in the report and evidence
       file was re-run independently and its output matches what the report records.
       Divergences are either explained in the report or raised as findings.
-- [ ] **Check 3 — no unsourced numbers (likely finding 1).** Every numeric claim has
-      an adjacent command. Spot-check that the fixture counts, the two `report` run
-      summaries and the wishlist statistics are the implementer's own measurements
-      and not the handoff's values carried over verbatim without a re-run.
+- [ ] **Check 3 — no unsourced empirical claims (likely finding 1).** Every claim
+      about repository, fixture or export state carries a command, a `file:line`, or
+      a URL with a retrieval date. Section numbers, issue references, dates and
+      requirements figures from #140/#142 are exempt and must not be raised as
+      findings. Spot-check that the fixture counts, the two `report` captures and the
+      wishlist statistics are the implementer's own measurements and not this
+      handoff's values carried over without a re-run.
 - [ ] **Check 4 — skeleton.** All fourteen `##` sections are present, in order, with
       the specified names. None is a restatement of the issue body without measured
       input, seam citation or a decision (likely finding 5). Section 14 exists and is
@@ -769,7 +840,7 @@ Planned #142 in [handoffs/issue-142-implementation-plan.md](https://github.com/t
 - **Implementer tier & effort:** `gemini-3.8-flash`, native `thinking_level = high`
   (owner-selected; `high` is the maximum effort this model supports, re-verified
   2026-09-05)
-- **Implementation branch:** `docs/issue-142-clearout-measurement`
+- **Implementation branch:** `feat/issue-142-clearout-measurement`
 - **Deliverable:** documentation only — `docs/aggressive-clearout-measurement.md`
   (fixed fourteen-section skeleton), `docs/evidence/issue-142/README.md`, and a
   `WORKLOG.md` entry. No rule, parser, schema, config, fixture, server, UI or
