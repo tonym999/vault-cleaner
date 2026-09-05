@@ -3619,3 +3619,289 @@ runCase(true, function (exactOnly) {
             }],
         },
     }
+
+
+def test_dim_query_adapter_integration_and_isolation(tmp_path: Path):
+    harness = tmp_path / "server-ui-dim-query-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase();
+  this.ownerDocument = document;
+  this.children = [];
+  this.parentNode = null;
+  this.attributes = Object.create(null);
+  this.listeners = Object.create(null);
+  this._text = "";
+  this.disabled = false;
+  this.hidden = false;
+  this.value = "";
+  this.selectionStart = 0;
+  this.selectionEnd = 0;
+  this.files = [];
+}
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this;
+  this.children.push(child);
+  return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null;
+  return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || {target: this, preventDefault: function () {}};
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null, wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName.toLowerCase() === wanted) found = child;
+      else visit(child);
+    });
+  }
+  visit(this);
+  return found;
+};
+
+function Document() {
+  this.nodes = Object.create(null);
+  this.listeners = Object.create(null);
+  this.activeElement = null;
+  this.body = new Node("body", this);
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+  this.nodes["vc-view-selector"].className = "panel view-selector tabs";
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var node = new Node("#text", this);
+  node.textContent = text;
+  return node;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function response(payload) {
+  return {ok: true, status: 200, json: function () { return Promise.resolve(payload); }};
+}
+
+var envelope = {
+  schema_version: 1,
+  state: "reviewing",
+  report_revision: 1,
+  verdict_revision: 0,
+  fingerprint: "fp-dim-query",
+  snapshot: {
+    sections: [
+      {
+        kind: "armor",
+        decisions: [
+          {id: "1002", hash: "h-exact", action: "junk"},
+          {id: "2001", hash: "h-same", action: "junk"}
+        ],
+        armor: {
+          exact_duplicate_groups: [
+            {
+              group_kind: "exact_duplicate",
+              group_id: "exact-fero",
+              hash: "h-exact",
+              name: "Feropotent Bond",
+              type: "Warlock Bond",
+              guardian_class: "Warlock",
+              item_archetype: "Tuning A",
+              tier: 5,
+              stats: {weapons: 30, health: 25, class: 20},
+              tuning_mod_slot: "Weapons",
+              seasonal_mod: "",
+              holofoil: "",
+              spirit_signature: [],
+              preferred_survivor_id: "1001",
+              members: [
+                {id: "1001", location: "Vault", disposition: "preferred_survivor"},
+                {id: "1002", location: "Vault", disposition: "proposed_junk", proposal_action: "junk"}
+              ]
+            },
+            {
+              group_kind: "exact_duplicate",
+              group_id: "exact-empty",
+              hash: "h-empty",
+              name: "Empty Junk Group",
+              type: "Chest Armor",
+              guardian_class: "Titan",
+              item_archetype: "Gunner",
+              tier: 5,
+              stats: {weapons: 30, health: 25, class: 20},
+              tuning_mod_slot: "Weapons",
+              seasonal_mod: "",
+              holofoil: "",
+              spirit_signature: [],
+              preferred_survivor_id: "3001",
+              members: [
+                {id: "3001", location: "Vault", disposition: "preferred_survivor"},
+                {id: "3002", location: "Vault", disposition: "retained_protected", protection_level: "hard"}
+              ]
+            }
+          ],
+          same_stat_groups: [
+            {
+              group_kind: "same_stat",
+              group_id: "same-fero",
+              hash: "h-same",
+              name: "Feropotent Bond",
+              type: "Warlock Bond",
+              guardian_class: "Warlock",
+              item_archetype: "Tuning B",
+              tier: 5,
+              stats: {weapons: 30, health: 25, class: 20},
+              spirit_signature: [],
+              preferred_survivor_id: null,
+              members: [
+                {id: "2001", location: "Vault", tuning_stat: "Weapons", tuning_mod_slot: "Weapons"},
+                {id: "2002", location: "Vault", tuning_stat: "Health", tuning_mod_slot: "Health"}
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  verdicts: [],
+  override_status: []
+};
+
+var fetchCalls = 0;
+var document = new Document();
+var context = {
+  document: document,
+  VaultCleanerReviewUI: shared,
+  Promise: Promise,
+  Set: Set,
+  fetch: function () {
+    fetchCalls++;
+    return Promise.resolve(response(envelope));
+  }
+};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+
+setTimeout(function () {
+  var duplicatesButton = document.nodes["vc-view-duplicates"];
+  duplicatesButton.dispatch("click");
+
+  var groups = collect(document.nodes["vc-duplicate-list"], function (n) {
+    return hasClass(n, "armor-group");
+  });
+  var exactFero = groups[0];
+  var exactEmpty = groups[1];
+  var sameFero = groups[2];
+
+  var exactFeroBtns = collect(exactFero, function (n) { return hasClass(n, "dim-query-btn"); });
+  var sameFeroBtns = collect(sameFero, function (n) { return hasClass(n, "dim-query-btn"); });
+  var exactEmptyBtns = collect(exactEmpty, function (n) { return hasClass(n, "dim-query-btn"); });
+
+  sameFeroBtns[0].dispatch("click");
+  var sameFeroTextareaWhole = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  sameFeroBtns[1].dispatch("click");
+  var sameFeroTextareaJunk = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+
+  exactFeroBtns[0].dispatch("click");
+  var exactFeroTextareaWhole = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  exactFeroBtns[1].dispatch("click");
+  var exactFeroTextareaJunk = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+
+  var emptyHint = collect(exactEmpty, function (n) { return hasClass(n, "dim-query-empty-hint"); })[0].textContent;
+  var emptyJunkDisabled = exactEmptyBtns[1].disabled;
+
+  var initialFetchCalls = fetchCalls;
+  exactFeroBtns[0].dispatch("click");
+  var exactFeroTextareaWholeFrozen = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  var finalFetchCalls = fetchCalls;
+
+  process.stdout.write(JSON.stringify({
+    groupCount: groups.length,
+    exactFeroBtnCount: exactFeroBtns.length,
+    sameFeroBtnCount: sameFeroBtns.length,
+    exactEmptyBtnCount: exactEmptyBtns.length,
+    sameFeroTextareaWhole: sameFeroTextareaWhole,
+    sameFeroTextareaJunk: sameFeroTextareaJunk,
+    exactFeroTextareaWhole: exactFeroTextareaWhole,
+    exactFeroTextareaJunk: exactFeroTextareaJunk,
+    emptyHint: emptyHint,
+    emptyJunkDisabled: emptyJunkDisabled,
+    fetchCallsDuringGeneration: finalFetchCalls - initialFetchCalls,
+    frozenWholeTextMatches: exactFeroTextareaWholeFrozen === exactFeroTextareaWhole
+  }));
+}, 10);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result == {
+        "groupCount": 3,
+        "exactFeroBtnCount": 2,
+        "sameFeroBtnCount": 2,
+        "exactEmptyBtnCount": 2,
+        "sameFeroTextareaWhole": "id:2001 or id:2002",
+        "sameFeroTextareaJunk": "id:2001",
+        "exactFeroTextareaWhole": "id:1001 or id:1002",
+        "exactFeroTextareaJunk": "id:1002",
+        "emptyHint": "This group has no junk candidates.",
+        "emptyJunkDisabled": True,
+        "fetchCallsDuringGeneration": 0,
+        "frozenWholeTextMatches": True,
+    }

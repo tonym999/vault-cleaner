@@ -585,6 +585,91 @@
     return groups;
   }
 
+  var DIM_QUERY_SAVEABLE_MAX = 2048;
+  var DIM_ID_PATTERN = /^[0-9]{1,20}$/;
+  var dimQuerySeq = 0;
+
+  function armorGroupIdsForDimQuery(group, mode) {
+    if (mode !== "whole_group" && mode !== "junk_candidates") {
+      throw new Error("invalid DIM query mode: " + mode);
+    }
+    if (!isObject(group) || (group.groupKind !== "exact_duplicate" && group.groupKind !== "same_stat")) {
+      throw new Error("unsupported group kind for DIM query: " + (group && group.groupKind));
+    }
+    if (!Array.isArray(group.members)) {
+      throw new Error("group.members must be an array");
+    }
+    var selected = [];
+    if (mode === "whole_group") {
+      selected = group.members;
+    } else if (mode === "junk_candidates") {
+      if (group.groupKind === "exact_duplicate") {
+        selected = group.members.filter(function (member) {
+          return member && member.proposalAction === "junk";
+        });
+      } else if (group.groupKind === "same_stat") {
+        selected = group.members.filter(function (member) {
+          return member && member.currentProposalAction === "junk";
+        });
+      }
+    }
+    var ids = [];
+    for (var i = 0; i < selected.length; i++) {
+      var member = selected[i];
+      var id = member && member.id;
+      if (typeof id !== "string" || !DIM_ID_PATTERN.test(id)) {
+        throw new Error("invalid DIM instance id");
+      }
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  function dimIdQueryChunks(ids, maxLength) {
+    var limit = maxLength === undefined ? DIM_QUERY_SAVEABLE_MAX : maxLength;
+    var isSafeInt = typeof limit === "number" &&
+      (Number.isSafeInteger ? Number.isSafeInteger(limit) : (isFinite(limit) && Math.floor(limit) === limit && limit <= 9007199254740991));
+    if (!isSafeInt || limit < 4) {
+      throw new Error("invalid maxLength for DIM query chunking: " + limit);
+    }
+    if (!Array.isArray(ids)) {
+      throw new Error("ids must be an array");
+    }
+    for (var v = 0; v < ids.length; v++) {
+      var idVal = ids[v];
+      if (typeof idVal !== "string" || !DIM_ID_PATTERN.test(idVal)) {
+        throw new Error("invalid DIM instance id");
+      }
+      var termLen = 3 + idVal.length;
+      if (termLen > limit) {
+        throw new Error("DIM query term exceeds maxLength: id:" + idVal);
+      }
+    }
+    if (!ids.length) {
+      return [];
+    }
+    var chunks = [];
+    var currentChunk = "";
+    for (var i = 0; i < ids.length; i++) {
+      var term = "id:" + ids[i];
+      if (!currentChunk) {
+        currentChunk = term;
+      } else {
+        var candidate = currentChunk + " or " + term;
+        if (candidate.length <= limit) {
+          currentChunk = candidate;
+        } else {
+          chunks.push(currentChunk);
+          currentChunk = term;
+        }
+      }
+    }
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+    return chunks;
+  }
+
   function armorGroupsFromSnapshot(snapshot) {
     return exactDuplicateGroupsFromSnapshot(snapshot).concat(
       sameStatGroupsFromSnapshot(snapshot)
@@ -767,6 +852,7 @@
     }
     function byId(id) { return document.getElementById(id); }
     function clear(node) {
+      node.textContent = "";
       while (node.firstChild) node.removeChild(node.firstChild);
     }
     function tile(kind, value, note) {
@@ -1449,13 +1535,140 @@
       ]);
     }
 
+    function armorGroupDimQuery(group) {
+      var members = (group && Array.isArray(group.members)) ? group.members : [];
+      var hasJunk = false;
+      if (group.groupKind === "exact_duplicate") {
+        hasJunk = members.some(function (m) { return m && m.proposalAction === "junk"; });
+      } else if (group.groupKind === "same_stat") {
+        hasJunk = members.some(function (m) { return m && m.currentProposalAction === "junk"; });
+      }
+
+      var outputArea = el("div", { class: "dim-query-output" });
+
+      function generate(mode) {
+        clear(outputArea);
+        try {
+          var ids = armorGroupIdsForDimQuery(group, mode);
+          var chunks = dimIdQueryChunks(ids, DIM_QUERY_SAVEABLE_MAX);
+          if (!chunks.length) return;
+
+          var labelText = "DIM query for " + group.name + " \u00b7 " + group.type + " \u00b7 " + group.guardianClass;
+          var labelEl = el("p", { class: "dim-query-label", text: labelText });
+
+          var warningText = "";
+          if (mode === "whole_group") {
+            if (group.groupKind === "exact_duplicate") {
+              warningText = "Whole group selected \u2014 includes the preferred survivor and every retained or protected piece. Use this to locate or compare the group; do not bulk-tag the result as junk.";
+            } else if (group.groupKind === "same_stat") {
+              warningText = "Whole group selected \u2014 includes every piece in this same-stat comparison. This group has no preferred survivor.";
+            }
+          } else if (mode === "junk_candidates") {
+            if (group.groupKind === "exact_duplicate") {
+              warningText = "Junk candidates selected \u2014 includes only pieces this exact-duplicate pass proposes as junk, regardless of review verdict.";
+            } else if (group.groupKind === "same_stat") {
+              warningText = "Junk candidates selected \u2014 includes only pieces this report currently proposes as junk, regardless of review verdict.";
+            }
+          }
+          var warningEl = el("p", { class: "dim-query-warning", text: warningText });
+
+          var nodes = [labelEl, warningEl];
+
+          if (chunks.length > 1) {
+            var splitText = "Split into " + chunks.length + " complete queries at DIM's current 2048-character saveability boundary. Use every query to cover this selection.";
+            nodes.push(el("p", { class: "dim-query-split-notice", text: splitText }));
+          }
+
+          for (var c = 0; c < chunks.length; c++) {
+            var chunkIndex = c + 1;
+            var chunkTotal = chunks.length;
+            var chunkLabelText = "DIM query " + chunkIndex + " of " + chunkTotal;
+            dimQuerySeq += 1;
+            var textareaId = "vc-dim-query-" + dimQuerySeq;
+            var chunkTextarea = el("textarea", {
+              id: textareaId,
+              class: "dim-query-textarea",
+              readonly: true,
+              rows: 3,
+              spellcheck: false,
+              text: chunks[c]
+            });
+            chunkTextarea.readOnly = true;
+            var chunkLabel = el("label", {
+              class: "dim-query-chunk-label",
+              "for": textareaId,
+              text: chunkLabelText
+            });
+            var chunkWrap = el("div", { class: "dim-query-chunk" }, [chunkLabel, chunkTextarea]);
+            nodes.push(chunkWrap);
+          }
+
+          nodes.forEach(function (node) { outputArea.appendChild(node); });
+        } catch (err) {
+          clear(outputArea);
+          outputArea.appendChild(el("p", {
+            class: "dim-query-error",
+            role: "status",
+            text: "Could not generate a safe DIM query for this group."
+          }));
+        }
+      }
+
+      var wholeBtn = el("button", {
+        type: "button",
+        class: "dim-query-btn",
+        text: "Generate whole-group query",
+        on: {
+          click: function () { generate("whole_group"); }
+        }
+      });
+
+      var junkBtnAttrs = {
+        type: "button",
+        class: "dim-query-btn",
+        text: "Generate junk-candidates query"
+      };
+      if (!hasJunk) {
+        junkBtnAttrs.disabled = true;
+      } else {
+        junkBtnAttrs.on = {
+          click: function () { generate("junk_candidates"); }
+        };
+      }
+      var junkBtn = el("button", junkBtnAttrs);
+
+      var actionsList = [wholeBtn, junkBtn];
+      if (!hasJunk) {
+        actionsList.push(el("span", {
+          class: "dim-query-empty-hint",
+          text: "This group has no junk candidates."
+        }));
+      }
+
+      var actions = el("div", { class: "dim-query-actions" }, actionsList);
+      var explanation = el("p", {
+        class: "dim-query-explanation",
+        text: "These queries only find items in DIM. Generating or selecting the text changes no vault-cleaner verdict, tag, note, or item."
+      });
+
+      return el("div", { class: "dim-query-panel" }, [
+        explanation,
+        actions,
+        outputArea
+      ]);
+    }
+
     function armorGroup(group) {
       var memberCount = (group.members || []).length;
       var comparison = armorComparisonSpecs(group);
       return el("article", {
         class: "armor-group", "data-group-id": group.groupKind + ":" + group.groupId,
         "data-group-kind": group.groupKind, "data-member-count": String(memberCount)
-      }, [armorGroupHeader(group, comparison), armorGroupTable(group, comparison)]);
+      }, [
+        armorGroupHeader(group, comparison),
+        armorGroupDimQuery(group),
+        armorGroupTable(group, comparison)
+      ]);
     }
 
     function armorGroups(groups) {
@@ -1495,7 +1708,8 @@
       tile: tile, select: select, addSelect: addSelect, optionsFor: optionsFor,
       paintRow: paintRow, paintArmorMember: paintArmorMember,
       armorGroup: armorGroup, armorGroups: armorGroups, armorGroupHeader: armorGroupHeader,
-      armorGroupTable: armorGroupTable, setVerdictControlsDisabled: setVerdictControlsDisabled
+      armorGroupTable: armorGroupTable, armorGroupDimQuery: armorGroupDimQuery,
+      setVerdictControlsDisabled: setVerdictControlsDisabled
     };
   }
 
@@ -1504,6 +1718,7 @@
       ["classFacet", "Class"], ["location", "Location"],
       ["action", "Action"], ["reason", "Reason"],
       ["tuningModSlot", "Tuning Mod Slot"]],
+    DIM_QUERY_SAVEABLE_MAX: DIM_QUERY_SAVEABLE_MAX,
     actionCounts: actionCounts, compareIds: compareIds, compareText: compareText,
     countBy: countBy, filterItems: filterItems, groupItems: groupItems, groupLabel: groupLabel,
     isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, keptItems: keptItems,
@@ -1515,6 +1730,8 @@
     armorGroupsFromSnapshot: armorGroupsFromSnapshot,
     matchesArmorGroup: matchesArmorGroup, filterArmorGroups: filterArmorGroups,
     countArmorGroups: countArmorGroups, armorStatDisplay: armorStatDisplay,
-    normalizeCategoricalValue: normalizeCategoricalValue
+    normalizeCategoricalValue: normalizeCategoricalValue,
+    armorGroupIdsForDimQuery: armorGroupIdsForDimQuery,
+    dimIdQueryChunks: dimIdQueryChunks
   };
 });

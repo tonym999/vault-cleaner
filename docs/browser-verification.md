@@ -138,6 +138,32 @@ Issue #131 focused check:
       archetypes, and mod/tuning values remain literal inert text in both
       matrix orientations.
 
+Issue #117 focused check:
+
+- [ ] Each individual armor duplicate group card renders two local generation
+      controls ("Generate whole-group query" and "Generate junk-candidates query")
+      between the group header and the member comparison tables.
+- [ ] Controls are strictly local to the activated card's members and never
+      aggregate across cards or kinds, even for same-named items.
+- [ ] Whole exact-duplicate query includes the preferred survivor and displays
+      the warning: `Whole group selected — includes preferred survivor. Do not bulk-tag this search result as junk in DIM.`
+- [ ] Whole same-stat query displays the warning:
+      `Whole group selected — includes every piece in this same-stat comparison. This group has no preferred survivor.`
+- [ ] Junk-candidates query on an exact-duplicate group includes only members
+      with `proposalAction === "junk"`; on a same-stat group it includes only
+      members with `currentProposalAction === "junk"`. Review verdicts do not
+      influence candidate selection.
+- [ ] An individual group with no junk candidates disables the junk-candidates
+      button and displays `This group has no junk candidates.` without emitting a
+      query.
+- [ ] Query text renders into a visible, read-only `<textarea>` inside the card.
+      Generating a query makes no network requests, does not mutate verdicts or
+      revisions, and does not invoke the Clipboard API.
+- [ ] Generation works identically in a finalised or offline/frozen session.
+- [ ] Desktop and narrow (390×844) layouts keep the panel contained
+      (`scrollWidth <= 390`); keyboard focus reaches both buttons and the query
+      textarea with visible focus rings.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -392,6 +418,43 @@ terminal.
 - Overall result: pass. `RULESET_VERSION`, snapshot/server schema, grouping,
   ranking, and verdict validation were not touched; this run covered
   presentation and interaction only.
+
+## 2026-09-05 — issue #117 focused check
+
+- Environment: Windows 11 (pwsh), Chrome for Testing / Playwright managed
+  Chromium, headless.
+- Viewports and appearances: 1440×900 desktop and 390×844 narrow; light and dark
+  media appearances exercised.
+- Fixtures: `tests/fixtures/armor_close.csv`; no real vault data, wishlists, or
+  manifest network access. Contains exact-duplicate group `Exact Then Close`
+  (survivor 6031, proposed junk 6032) and same-stat group `Tuning Twin` (6081,
+  6082 review-only, no junk candidates).
+- Method: automated `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m browser
+  tests/test_server_browser.py` run (15 passed).
+- Mode and warning results: pass. The exact group's "Generate whole-group query"
+  rendered `id:6031 or id:6032` with the preferred-survivor warning ("Whole group
+  selected — includes preferred survivor. Do not bulk-tag this search result as
+  junk in DIM."). "Generate junk-candidates query" rendered `id:6032` without the
+  survivor warning. The same-stat group's whole-group query rendered `id:6081 or
+  id:6082` with the warning "Whole group selected — includes every piece in this
+  same-stat comparison. This group has no preferred survivor.".
+- Empty-candidate state: pass. The same-stat group has no junk candidates; its
+  junk-candidates button was rendered in disabled state and displayed `This group
+  has no junk candidates.` without emitting query text.
+- No side effects: pass. Page request interception verified exactly 0 network
+  requests occurred during query generation. Approving, vetoing, or unsetting
+  proposals had zero effect on query membership (`id:6032` generated identically
+  after veto), and generating queries did not alter verdicts, revisions, or
+  mutation in-flight flags.
+- Finalised/offline state: pass. After finalising review via `#vc-finalize` and
+  freezing server mutation state, query generation buttons remained fully
+  functional and generated queries locally with zero server requests.
+- Responsiveness and accessibility: pass. At 390×844 narrow viewport,
+  `document.documentElement.scrollWidth` remained `<= 390` with no horizontal
+  page overflow. Keyboard focus reached both generation buttons and the visible
+  read-only query textarea with visible focus styling.
+- Overall result: pass. Presentation and local query generation only; no backend
+  schema, rules, or dependencies touched.
 
 ## 2026-08-27 — issue #90 execution record
 

@@ -399,6 +399,60 @@ article.armor-group[data-member-count="6"] .armor-matrix-columns { min-width: 88
 .armor-section-head h3 { font-size: 1rem; margin: 0; }
 .armor-section-head .rule { font-size: .82rem; color: var(--muted); }
 
+/* DIM query generation controls and read-only text output (#117). */
+.dim-query-panel {
+  margin: .85rem 0 .4rem; padding: .65rem .85rem;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel);
+}
+.dim-query-explanation {
+  margin: 0 0 .5rem; font-size: .82rem; color: var(--muted);
+}
+.dim-query-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+}
+.dim-query-btn {
+  font-size: .85rem; padding: .3rem .6rem;
+}
+.dim-query-empty-hint {
+  font-size: .82rem; color: var(--muted);
+}
+.dim-query-output {
+  margin-top: .6rem;
+}
+.dim-query-label {
+  font-size: .88rem; font-weight: 600; margin: .5rem 0 .25rem;
+  overflow-wrap: anywhere;
+}
+.dim-query-warning {
+  margin: .25rem 0 .5rem; padding: .45rem .65rem;
+  font-size: .84rem; color: var(--ink);
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: 4px;
+}
+.dim-query-split-notice {
+  margin: .35rem 0 .5rem; font-size: .84rem; color: var(--muted);
+}
+.dim-query-chunk {
+  display: flex; flex-direction: column; gap: .25rem;
+  margin: .5rem 0;
+}
+.dim-query-chunk-label {
+  font-size: .8rem; font-weight: 600; color: var(--muted);
+}
+.dim-query-textarea {
+  width: 100%; min-height: 4.5rem; resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .82rem; line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.dim-query-error {
+  margin: .5rem 0; padding: .45rem .65rem;
+  font-size: .84rem; font-weight: 600;
+  color: var(--junk); background: var(--veto-bg);
+  border: 1px solid var(--veto); border-radius: 4px;
+}
+
 @media (max-width: 640px) {
   .wrap { padding: .6rem; }
   .tile { min-width: 100%; }

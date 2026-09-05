@@ -1056,3 +1056,117 @@ def test_armor_verdict_acknowledgement_reflected_after_orientation_flip(
     expect(rows_table).to_be_visible()
     expect(columns_table).to_be_hidden()
     expect(approve_row).to_have_attribute("aria-pressed", "true")
+
+
+@pytest.mark.browser
+def test_dim_query_generation_and_contained_presentation(
+    page: Page, live_server: LiveServer
+) -> None:
+    """Per-group DIM search query generation is local, honest, and contained (#117)."""
+    authenticate(page, live_server)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_CLOSE_EXPORT)
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    # 1. Exact duplicate group (Exact Then Close: survivor 6031, proposed junk 6032)
+    exact_group = page.locator('article.armor-group[data-group-id="exact_duplicate:6031"]')
+    expect(exact_group).to_be_visible()
+
+    whole_btn = exact_group.get_by_role("button", name="Generate whole-group query")
+    junk_btn = exact_group.get_by_role("button", name="Generate junk-candidates query")
+    expect(whole_btn).to_be_enabled()
+    expect(junk_btn).to_be_enabled()
+
+    # Generate whole-group query: includes preferred survivor and junk member
+    whole_btn.click()
+    textarea = exact_group.locator(".dim-query-textarea")
+    expect(textarea).to_be_visible()
+    expect(textarea).to_have_value("id:6031 or id:6032")
+    warning = exact_group.locator(".dim-query-warning")
+    expect(warning).to_have_text(
+        "Whole group selected — includes the preferred survivor and every retained or protected piece. "
+        "Use this to locate or compare the group; do not bulk-tag the result as junk."
+    )
+
+    # Generate junk-candidates query: excludes survivor 6031, only junk member 6032
+    junk_btn.click()
+    expect(textarea).to_have_value("id:6032")
+    expect(warning).to_have_text(
+        "Junk candidates selected — includes only pieces this exact-duplicate pass proposes as junk, "
+        "regardless of review verdict."
+    )
+
+    # 4 & 5. Prove verdicts do not affect query membership and generation emits no requests or mutations
+    proposal_row = exact_group.locator('[data-member-id="exact_duplicate:6032"]:visible')
+    veto_btn = proposal_row.locator("button.veto")
+    veto_btn.click()
+    expect(veto_btn).to_have_attribute("aria-pressed", "true")
+
+    requests: list[str] = []
+    page.on("request", lambda req: requests.append(req.url))
+
+    junk_btn.click()
+    expect(textarea).to_have_value("id:6032")
+    whole_btn.click()
+    expect(textarea).to_have_value("id:6031 or id:6032")
+    assert len(requests) == 0, f"unexpected network requests during query generation: {requests}"
+
+    # 6 & 7. Same-stat group (Tuning Twin: 6081 and 6082, neither is junk)
+    same_group = page.locator('article.armor-group[data-group-id="same_stat:6081"]')
+    expect(same_group).to_be_visible()
+
+    same_whole_btn = same_group.get_by_role("button", name="Generate whole-group query")
+    same_junk_btn = same_group.get_by_role("button", name="Generate junk-candidates query")
+    expect(same_whole_btn).to_be_enabled()
+    expect(same_junk_btn).to_be_disabled()
+    expect(same_group.locator(".dim-query-empty-hint")).to_have_text(
+        "This group has no junk candidates."
+    )
+
+    same_whole_btn.click()
+    same_textarea = same_group.locator(".dim-query-textarea")
+    expect(same_textarea).to_be_visible()
+    expect(same_textarea).to_have_value("id:6081 or id:6082")
+    expect(same_group.locator(".dim-query-warning")).to_have_text(
+        "Whole group selected — includes every piece in this same-stat comparison. This group has no preferred survivor."
+    )
+
+    # 8. Finalise and confirm generation remains local in frozen state
+    page.once("dialog", lambda dialog: dialog.accept())
+    with page.expect_download():
+        page.locator("#vc-finalize").click()
+    expect(page.locator("#vc-download-again")).to_be_visible()
+
+    # Re-open duplicates view while finalised/frozen
+    page.locator("#vc-view-duplicates").click()
+    exact_group = page.locator('article.armor-group[data-group-id="exact_duplicate:6031"]')
+    expect(exact_group).to_be_visible()
+    whole_btn = exact_group.get_by_role("button", name="Generate whole-group query")
+    junk_btn = exact_group.get_by_role("button", name="Generate junk-candidates query")
+    whole_btn.click()
+    textarea = exact_group.locator(".dim-query-textarea")
+    expect(textarea).to_be_visible()
+    expect(textarea).to_have_value("id:6031 or id:6032")
+
+    same_group = page.locator('article.armor-group[data-group-id="same_stat:6081"]')
+    expect(same_group).to_be_visible()
+    same_whole_btn = same_group.get_by_role("button", name="Generate whole-group query")
+    same_whole_btn.click()
+    same_textarea = same_group.locator(".dim-query-textarea")
+    expect(same_textarea).to_have_value("id:6081 or id:6082")
+
+    # 9. At 390px, assert no document horizontal overflow and keyboard reachability
+    page.set_viewport_size({"width": 390, "height": 844})
+    scroll_width = page.evaluate("document.documentElement.scrollWidth")
+    assert scroll_width <= 390, f"horizontal overflow at 390px: scrollWidth={scroll_width}"
+
+    # Verify focus reaches whole_btn, junk_btn, and textarea
+    whole_btn.focus()
+    assert whole_btn.evaluate("el => document.activeElement === el") is True
+
+    junk_btn.focus()
+    assert junk_btn.evaluate("el => document.activeElement === el") is True
+
+    textarea.focus()
+    assert textarea.evaluate("el => document.activeElement === el") is True

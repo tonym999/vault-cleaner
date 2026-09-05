@@ -993,7 +993,7 @@ process.stdout.write(JSON.stringify({
     return node.tagName === "IMG" || node.tagName === "SCRIPT" || node.tagName === "B";
   }) === 0,
   malformedReadOnly: count(malformedArticle, function (node) {
-    return node.tagName === "BUTTON";
+    return node.tagName === "BUTTON" && node.className !== "dim-query-btn";
   }) === 0 && malformedState.duplicateRows.bad.every(function (row) {
     return row.presentation.children.length === 2;
   }),
@@ -1462,9 +1462,10 @@ process.stdout.write(JSON.stringify({
     sameArticle.textContent.indexOf("group-seasonal") === -1 &&
     sameArticle.textContent.indexOf("group-holofoil") === -1,
   // Two orientations double every proposal-capable member's controls (one
-  // set per table), so the button count doubles too (#131).
-  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 6 &&
-    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 6,
+  // set per table), so the button count doubles too (#131). The card-level
+  // DIM query generator adds two buttons per group (#117).
+  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 8 &&
+    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 8,
   filterAny: api.filterArmorGroups(projected, {tuningModSlot: "Health"}).length === 1,
   countsOnce: (function () {
     var counts = api.countArmorGroups(projected, "tuningModSlot");
@@ -2180,4 +2181,474 @@ process.stdout.write(JSON.stringify({
             "Identical across all pieces: Protection — · In loadout No · "
             "Equipped No · Locked No · Masterwork Tier unknown · Power unknown"
         ),
+    }
+
+
+def test_dim_query_pure_helpers_and_chunking(tmp_path: Path):
+    script = tmp_path / "dim-query-pure.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+
+function member(id, propAction, curPropAction, disp) {
+  return {
+    id: id,
+    proposalAction: propAction || "",
+    currentProposalAction: curPropAction || "",
+    disposition: disp || ""
+  };
+}
+
+// 1. Exact duplicate group
+var exactGroup = {
+  groupKind: "exact_duplicate",
+  groupId: "exact-1",
+  name: "Exact Plate",
+  preferredSurvivorId: "1001",
+  members: [
+    member("1001", "", "", "preferred_survivor"),
+    member("1002", "junk", "", "proposed_junk"),
+    member("1003", "", "junk", "retained_protected"),
+    member("1004", "review", "review", "proposed_review")
+  ]
+};
+
+// 2. Same stat group
+var sameGroup = {
+  groupKind: "same_stat",
+  groupId: "same-1",
+  name: "Same Plate",
+  preferredSurvivorId: null,
+  members: [
+    member("2001", "junk", "", "none"),
+    member("2002", "", "junk", "none"),
+    member("2003", "", "review", "none"),
+    member("2004", "", "", "none")
+  ]
+};
+
+var exactWhole = api.armorGroupIdsForDimQuery(exactGroup, "whole_group");
+var exactJunk = api.armorGroupIdsForDimQuery(exactGroup, "junk_candidates");
+var sameWhole = api.armorGroupIdsForDimQuery(sameGroup, "whole_group");
+var sameJunk = api.armorGroupIdsForDimQuery(sameGroup, "junk_candidates");
+
+// Verify strings remain unchanged and are not reordered numerically
+var strIdsGroup = {
+  groupKind: "exact_duplicate",
+  groupId: "str-1",
+  members: [
+    member("00099"),
+    member("10"),
+    member("18446744073709551615"),
+    member("18446744073709551614")
+  ]
+};
+var strIds = api.armorGroupIdsForDimQuery(strIdsGroup, "whole_group");
+
+function rejectsIds(group, mode) {
+  try {
+    api.armorGroupIdsForDimQuery(group, mode);
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
+var invalidModes = ["", "all", "whole", "junk", "approved", null, 123, undefined].every(function (m) {
+  return rejectsIds(exactGroup, m);
+});
+
+var invalidGroupKinds = ["weapons", "ghosts", "other", "", null, undefined].every(function (k) {
+  return rejectsIds({groupKind: k, members: [member("1001")]}, "whole_group");
+});
+
+var nonObjectGroup = rejectsIds(null, "whole_group") && rejectsIds(123, "whole_group");
+var nonArrayMembers = rejectsIds({groupKind: "exact_duplicate", members: null}, "whole_group");
+
+var badIds = [
+  "", " ", "1001 ", " 1001", "10 01", "1001\n",
+  "1001 or id:1002", "1001,1002", "1001.0", "-1001",
+  "123456789012345678901",
+  "__proto__", "constructor", "toString", "NaN", "null"
+];
+var allBadIdsReject = badIds.every(function (bad) {
+  return rejectsIds({
+    groupKind: "exact_duplicate",
+    members: [member("1001"), member(bad)]
+  }, "whole_group");
+});
+
+function make20DigitId(n) {
+  var s = String(n);
+  while (s.length < 20) s = "0" + s;
+  return s;
+}
+
+var ids76 = [];
+for (var i = 1; i <= 76; i++) ids76.push(make20DigitId(i));
+var chunks76 = api.dimIdQueryChunks(ids76);
+
+var ids77 = [];
+for (var j = 1; j <= 77; j++) ids77.push(make20DigitId(j));
+var chunks77 = api.dimIdQueryChunks(ids77);
+
+var extracted77 = [];
+chunks77.forEach(function (chunk) {
+  var terms = chunk.split(" or ");
+  terms.forEach(function (term) {
+    if (term.indexOf("id:") === 0) {
+      extracted77.push(term.slice(3));
+    }
+  });
+});
+var all77Match = JSON.stringify(extracted77) === JSON.stringify(ids77);
+
+function rejectsChunks(ids, maxLen) {
+  try {
+    api.dimIdQueryChunks(ids, maxLen);
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
+var termExceeds = rejectsChunks(["12345"], 7);
+
+var badLimits = [
+  0, -1, -100, NaN, Infinity, -Infinity, 4.5, 9007199254740992,
+  1, 2, 3, "2048", null
+];
+var allBadLimitsReject = badLimits.every(function (lim) {
+  return rejectsChunks(["1001"], lim);
+});
+
+var defensiveIdReject = rejectsChunks(["not-a-dim-id"], 2048) &&
+  rejectsChunks([""], 2048) &&
+  rejectsChunks([12345], 2048);
+
+var emptyChunks = api.dimIdQueryChunks([], 2048);
+
+process.stdout.write(JSON.stringify({
+  exactWhole: exactWhole,
+  exactJunk: exactJunk,
+  sameWhole: sameWhole,
+  sameJunk: sameJunk,
+  strIds: strIds,
+  invalidModes: invalidModes,
+  invalidGroupKinds: invalidGroupKinds,
+  nonObjectGroup: nonObjectGroup,
+  nonArrayMembers: nonArrayMembers,
+  allBadIdsReject: allBadIdsReject,
+  chunks76Count: chunks76.length,
+  chunk76Len: chunks76[0].length,
+  chunks77Count: chunks77.length,
+  chunk77FirstLen: chunks77[0].length,
+  chunk77SecondLen: chunks77[1].length,
+  all77Match: all77Match,
+  termExceeds: termExceeds,
+  allBadLimitsReject: allBadLimitsReject,
+  defensiveIdReject: defensiveIdReject,
+  emptyChunks: emptyChunks
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result == {
+        "exactWhole": ["1001", "1002", "1003", "1004"],
+        "exactJunk": ["1002"],
+        "sameWhole": ["2001", "2002", "2003", "2004"],
+        "sameJunk": ["2002"],
+        "strIds": ["00099", "10", "18446744073709551615", "18446744073709551614"],
+        "invalidModes": True,
+        "invalidGroupKinds": True,
+        "nonObjectGroup": True,
+        "nonArrayMembers": True,
+        "allBadIdsReject": True,
+        "chunks76Count": 1,
+        "chunk76Len": 2048,
+        "chunks77Count": 2,
+        "chunk77FirstLen": 2048,
+        "chunk77SecondLen": 23,
+        "all77Match": True,
+        "termExceeds": True,
+        "allBadLimitsReject": True,
+        "defensiveIdReject": True,
+        "emptyChunks": [],
+    }
+
+
+def test_dim_query_dom_controls_isolation_and_containment(tmp_path: Path):
+    script = tmp_path / "dim-query-dom.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase();
+  this.ownerDocument = document;
+  this.children = [];
+  this.parentNode = null;
+  this.attributes = Object.create(null);
+  this.listeners = Object.create(null);
+  this._text = "";
+  this.disabled = false;
+  this.value = "";
+}
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this;
+  this.children.push(child);
+  return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  if (index >= 0) this.children.splice(index, 1);
+  return child;
+};
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+Node.prototype.click = function () { if (!this.disabled && this.listeners.click) this.listeners.click({target: this}); };
+
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+
+var state = {
+  expanded: Object.create(null),
+  rows: Object.create(null),
+  duplicateRows: Object.create(null),
+  verdicts: Object.create(null)
+};
+var toggles = [];
+var view = api.createView({
+  document: new Document(),
+  state: state,
+  toggleVerdict: function (id, verdict) { toggles.push([id, verdict]); },
+  verdictText: function (m, v) { return v || "Unreviewed"; }
+});
+
+var card1 = view.armorGroup({
+  groupKind: "same_stat",
+  groupId: "fero-1",
+  name: "Feropotent Bond",
+  type: "Warlock Bond",
+  guardianClass: "Warlock",
+  itemArchetype: "Tuning A",
+  tier: 5,
+  stats: {},
+  tuningModSlot: "Weapons",
+  seasonalMod: "",
+  holofoil: "",
+  spiritSignature: [],
+  preferredSurvivorId: null,
+  members: [
+    {id: "1001", location: "Vault", currentProposalAction: "junk"},
+    {id: "1002", location: "Vault", currentProposalAction: ""}
+  ]
+});
+
+var card2 = view.armorGroup({
+  groupKind: "same_stat",
+  groupId: "fero-2",
+  name: "Feropotent Bond",
+  type: "Warlock Bond",
+  guardianClass: "Warlock",
+  itemArchetype: "Tuning B",
+  tier: 5,
+  stats: {},
+  tuningModSlot: "Health",
+  seasonalMod: "",
+  holofoil: "",
+  spiritSignature: [],
+  preferredSurvivorId: null,
+  members: [
+    {id: "2001", location: "Vault", currentProposalAction: "junk"},
+    {id: "2002", location: "Vault", currentProposalAction: ""}
+  ]
+});
+
+var card1GenBtns = collect(card1, function (n) { return hasClass(n, "dim-query-btn"); });
+var card1Panels = collect(card1, function (n) { return hasClass(n, "dim-query-panel"); });
+var card1Outputs = collect(card1, function (n) { return hasClass(n, "dim-query-output"); });
+
+card1GenBtns[0].click();
+var card1TextareasAfterWhole = collect(card1Outputs[0], function (n) { return n.tagName === "TEXTAREA"; });
+var card1WholeText = card1TextareasAfterWhole[0].textContent;
+var card1WarningAfterWhole = collect(card1Outputs[0], function (n) { return hasClass(n, "dim-query-warning"); })[0].textContent;
+
+card1GenBtns[1].click();
+var card1TextareasAfterJunk = collect(card1Outputs[0], function (n) { return n.tagName === "TEXTAREA"; });
+var card1JunkText = card1TextareasAfterJunk[0].textContent;
+var card1WarningAfterJunk = collect(card1Outputs[0], function (n) { return hasClass(n, "dim-query-warning"); })[0].textContent;
+
+var card2TextareasBefore = collect(card2, function (n) { return n.tagName === "TEXTAREA"; });
+
+var card2GenBtns = collect(card2, function (n) { return hasClass(n, "dim-query-btn"); });
+card2GenBtns[0].click();
+var card2Outputs = collect(card2, function (n) { return hasClass(n, "dim-query-output"); });
+var card2TextareasAfter = collect(card2Outputs[0], function (n) { return n.tagName === "TEXTAREA"; });
+var card2WholeText = card2TextareasAfter[0].textContent;
+
+var emptyJunkCard = view.armorGroup({
+  groupKind: "exact_duplicate",
+  groupId: "empty-junk",
+  name: "Empty Junk Plate",
+  type: "Chest Armor",
+  guardianClass: "Hunter",
+  itemArchetype: "Gunner",
+  tier: 5,
+  stats: {},
+  tuningModSlot: "Weapons",
+  seasonalMod: "",
+  holofoil: "",
+  spiritSignature: [],
+  preferredSurvivorId: "3001",
+  members: [
+    {id: "3001", location: "Vault", disposition: "preferred_survivor", proposalAction: ""},
+    {id: "3002", location: "Vault", disposition: "retained_protected", proposalAction: ""}
+  ]
+});
+var emptyJunkBtns = collect(emptyJunkCard, function (n) { return hasClass(n, "dim-query-btn"); });
+var emptyJunkHint = collect(emptyJunkCard, function (n) { return hasClass(n, "dim-query-empty-hint"); });
+var emptyJunkOutput = collect(emptyJunkCard, function (n) { return hasClass(n, "dim-query-output"); })[0];
+emptyJunkBtns[1].click();
+var emptyJunkTextareas = collect(emptyJunkOutput, function (n) { return n.tagName === "TEXTAREA"; });
+
+var hostileCard = view.armorGroup({
+  groupKind: "exact_duplicate",
+  groupId: "hostile-1",
+  name: "</script><img src=x onerror=alert(1)>",
+  type: "<b>Chest</b>",
+  guardianClass: "<script>alert(2)</script>",
+  itemArchetype: "Gunner",
+  tier: 5,
+  stats: {},
+  tuningModSlot: "Weapons",
+  seasonalMod: "",
+  holofoil: "",
+  spiritSignature: [],
+  preferredSurvivorId: "4001",
+  members: [
+    {id: "4001", location: "Vault", disposition: "preferred_survivor", proposalAction: ""},
+    {id: "4002", location: "Vault", disposition: "proposed_junk", proposalAction: "junk"}
+  ]
+});
+var hostileBtns = collect(hostileCard, function (n) { return hasClass(n, "dim-query-btn"); });
+hostileBtns[0].click();
+var hostileOutput = collect(hostileCard, function (n) { return hasClass(n, "dim-query-output"); })[0];
+var hostileLabel = collect(hostileOutput, function (n) { return hasClass(n, "dim-query-label"); })[0];
+var hostileTextarea = collect(hostileOutput, function (n) { return n.tagName === "TEXTAREA"; })[0];
+var hostileWarning = collect(hostileOutput, function (n) { return hasClass(n, "dim-query-warning"); })[0];
+
+var invalidIdCard = view.armorGroup({
+  groupKind: "exact_duplicate",
+  groupId: "invalid-id-grp",
+  name: "Invalid ID Group",
+  type: "Chest Armor",
+  guardianClass: "Titan",
+  itemArchetype: "Gunner",
+  tier: 5,
+  stats: {},
+  tuningModSlot: "Weapons",
+  seasonalMod: "",
+  holofoil: "",
+  spiritSignature: [],
+  preferredSurvivorId: "5001",
+  members: [
+    {id: "5001", location: "Vault", disposition: "preferred_survivor", proposalAction: ""},
+    {id: "bad-id!", location: "Vault", disposition: "proposed_junk", proposalAction: "junk"}
+  ]
+});
+var invalidIdBtns = collect(invalidIdCard, function (n) { return hasClass(n, "dim-query-btn"); });
+invalidIdBtns[0].click();
+var invalidIdOutput = collect(invalidIdCard, function (n) { return hasClass(n, "dim-query-output"); })[0];
+var invalidIdError = collect(invalidIdOutput, function (n) { return hasClass(n, "dim-query-error"); })[0];
+var invalidIdTextareas = collect(invalidIdOutput, function (n) { return n.tagName === "TEXTAREA"; });
+
+process.stdout.write(JSON.stringify({
+  card1GenBtnCount: card1GenBtns.length,
+  card1PanelCount: card1Panels.length,
+  card1OutputCount: card1Outputs.length,
+  card1WholeText: card1WholeText,
+  card1WarningAfterWhole: card1WarningAfterWhole,
+  card1JunkText: card1JunkText,
+  card1WarningAfterJunk: card1WarningAfterJunk,
+  card2TextareasBeforeCount: card2TextareasBefore.length,
+  card2WholeText: card2WholeText,
+  emptyJunkDisabled: emptyJunkBtns[1].disabled,
+  emptyJunkHintText: emptyJunkHint.length ? emptyJunkHint[0].textContent : null,
+  emptyJunkTextareaCount: emptyJunkTextareas.length,
+  hostileLabelText: hostileLabel ? hostileLabel.textContent : null,
+  hostileTagCount: collect(hostileCard, function (n) { return n.tagName === "IMG" || n.tagName === "SCRIPT"; }).length,
+  hostileTextareaContent: hostileTextarea ? hostileTextarea.textContent : null,
+  hostileExactWarning: hostileWarning ? hostileWarning.textContent : null,
+  invalidIdErrorText: invalidIdError ? invalidIdError.textContent : null,
+  invalidIdErrorRole: invalidIdError ? invalidIdError.getAttribute("role") : null,
+  invalidIdNoEcho: invalidIdError ? (invalidIdError.textContent.indexOf("bad-id!") === -1) : false,
+  invalidIdTextareaCount: invalidIdTextareas.length,
+  noSideEffectTogglesCount: toggles.length,
+  noSideEffectVerdictsCount: Object.keys(state.verdicts).length
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result == {
+        "card1GenBtnCount": 2,
+        "card1PanelCount": 1,
+        "card1OutputCount": 1,
+        "card1WholeText": "id:1001 or id:1002",
+        "card1WarningAfterWhole": "Whole group selected — includes every piece in this same-stat comparison. This group has no preferred survivor.",
+        "card1JunkText": "id:1001",
+        "card1WarningAfterJunk": "Junk candidates selected — includes only pieces this report currently proposes as junk, regardless of review verdict.",
+        "card2TextareasBeforeCount": 0,
+        "card2WholeText": "id:2001 or id:2002",
+        "emptyJunkDisabled": True,
+        "emptyJunkHintText": "This group has no junk candidates.",
+        "emptyJunkTextareaCount": 0,
+        "hostileLabelText": "DIM query for </script><img src=x onerror=alert(1)> · <b>Chest</b> · <script>alert(2)</script>",
+        "hostileTagCount": 0,
+        "hostileTextareaContent": "id:4001 or id:4002",
+        "hostileExactWarning": "Whole group selected — includes the preferred survivor and every retained or protected piece. Use this to locate or compare the group; do not bulk-tag the result as junk.",
+        "invalidIdErrorText": "Could not generate a safe DIM query for this group.",
+        "invalidIdErrorRole": "status",
+        "invalidIdNoEcho": True,
+        "invalidIdTextareaCount": 0,
+        "noSideEffectTogglesCount": 0,
+        "noSideEffectVerdictsCount": 0,
     }

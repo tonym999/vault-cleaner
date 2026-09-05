@@ -3,6 +3,63 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-05 — #117 implementation: per-group DIM search queries (PR 2)
+
+- Implemented Issue #117 on branch `feat/issue-117-dim-search-query` branched from
+  `origin/main` at `66b121aee1247d9823e783646f73d470359bb79d` (newer than the
+  planning baseline `3cc6fa32530a0b1cd6366c4ccc109af20b2cf511`) following
+  `handoffs/issue-117-implementation-plan.md` exactly.
+- Added two group-level generation-only controls to each rendered armor duplicate
+  card (`article.armor-group`): "Generate whole-group query" and "Generate
+  junk-candidates query", positioned between the group header and member
+  comparison matrices.
+- Scoped candidate selection strictly to the activated card's `group.members`:
+  neighboring cards, other groups of the same kind, and other items sharing the
+  same name cannot contribute ids.
+- Implemented pure candidate extraction `armorGroupIdsForDimQuery(group, mode)`:
+  - `whole_group`: returns every member id in group order. For exact groups,
+    displays warning: `Whole group selected — includes preferred survivor. Do not
+    bulk-tag this search result as junk in DIM.`. For same-stat groups (which
+    have no preferred survivor), displays warning: `Whole group selected —
+    includes every piece in this same-stat comparison. This group has no
+    preferred survivor.`.
+  - `junk_candidates`: returns only members whose candidate proposal action is
+    `junk`. Exact duplicate groups use `member.proposalAction === "junk"` (excluding
+    survivor and retained pieces even if flagged by later passes); same-stat
+    groups use correlated authoritative `member.currentProposalAction === "junk"`
+    (excluding review-only pieces and uncorrelated close-pass metadata). If no
+    members qualify, the button is disabled with `This group has no junk
+    candidates.` without emitting a query.
+  - Review verdicts (`approved`/`vetoed`/`unset`) have zero effect on query
+    membership.
+- Implemented pure bounded chunking `dimIdQueryChunks(ids, maxLength)`:
+  - Validates every id against safe DIM decimal pattern `/^[0-9]{1,20}$/`.
+    Rejects malformed ids or invalid parameters atomically.
+  - Generates standard DIM query syntax `id:<id> or id:<id>`.
+  - Enforces DIM's canonical saveability boundary `DIM_QUERY_SAVEABLE_MAX = 2048`.
+    76 max-length (20-digit) ids fit within 2048 characters; 77 ids split into
+    two bounded chunks without losing, reordering, or truncating ids.
+- Preserved strict local generation semantics:
+  - Output is rendered into a read-only `<textarea>` inside `.dim-query-output`.
+  - Generation performs 0 network/fetch requests, triggers no mutations, leaves
+    `state.verdicts`, revisions, and `mutationInFlight` unchanged, does not
+    touch the Clipboard API, and does not navigate.
+  - Generation functions identically in offline or finalised/frozen sessions.
+- Tested:
+  - Node unit tests in `tests/test_review_ui_js.py`: pure helper validation, 76/77
+    boundary proof, invalid ID/mode rejection, DOM card isolation, empty candidate
+    disabled state, hostile field inertness, zero side effects on verdicts.
+  - Adapter integration in `tests/test_server_ui_js.py`: card rendering, preferred
+    survivor inclusion, junk candidate filtering, zero fetch calls, offline/frozen
+    generation.
+  - Playwright browser test in `tests/test_server_browser.py`: whole-group and junk
+    query generation, preferred survivor warning, same-stat warning, empty junk
+    state, zero network requests, finalised session generation, 390px horizontal
+    containment (`scrollWidth <= 390`), keyboard tab accessibility across buttons
+    and textarea. All 15 browser tests passed.
+- Maintained clean boundaries: no backend schema, snapshot, rule ordering,
+  `RULESET_VERSION`, or dependency changes.
+
 ## 2026-09-05 — #117 planning: per-group DIM search queries (PR 1)
 
 - Authored `handoffs/issue-117-implementation-plan.md` against `main` at
