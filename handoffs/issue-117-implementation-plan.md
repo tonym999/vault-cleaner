@@ -191,7 +191,8 @@ claiming those original words are met:
   the real group control renders and contains its generated textarea at 390px.
   This is an explicit test-layer substitution for the issue's browser wording,
   authorized by the owner's request for a simpler first pass; it is not a claim
-  that browser overflow coverage exists.
+  that packaged-browser coverage of the 2048-character query-length boundary
+  exists.
 
 The product scope itself is now recorded in [PLAN.md](../PLAN.md#L149). The
 issue may remain unmilestoned; no project metadata change is needed merely

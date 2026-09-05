@@ -59,6 +59,9 @@ surprises the next agent should know about.
   removed projection jargon from user-facing copy, pointed the `PLAN.md` backlink
   to the durable GitHub issue, and distinguished the superseded 2048-character
   browser case from the still-required 390px layout-overflow check.
+  The final residual wording now likewise names packaged-browser coverage of the
+  2048-character query-length boundary, avoiding any contradiction with the
+  required 390px horizontal-overflow test.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
 
