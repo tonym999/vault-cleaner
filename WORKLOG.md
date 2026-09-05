@@ -3,6 +3,34 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-05 — #117 planning: approved-junk DIM search queries (PR 1)
+
+- Authored `handoffs/issue-117-implementation-plan.md` against `main` at
+  `3cc6fa32530a0b1cd6366c4ccc109af20b2cf511` and allocated
+  `feat/issue-117-dim-search-query` for implementation by Google
+  `gemini-3.8-flash` with native `thinking_level = high`.
+- Verified #117 is open, labeled `enhancement`, and `Todo` on project 3. It
+  remains intentionally unassigned to a milestone. Its beneficial dependency
+  is no longer pending: #113 is closed and the #119/#131 duplicate hierarchy is
+  merged on the planning baseline.
+- Settled the product decision as **ship, approved junk only**. One quiet
+  per-group Prepare action reveals a query without touching the clipboard; a
+  separate explicit Copy action copies it. Preferred survivors, retained or
+  read-only members, approved review recommendations, vetoes, and unreviewed
+  proposals are always excluded. The prototype's whole-group action does not
+  return.
+- Inspected upstream DIM at commit `964adf6ce554fdaac57381b2f1b35abc25ec0a97`:
+  `id` is a supported filter and DIM itself joins multi-item searches with
+  ` or `. No current DIM source/doc contract establishes 2048 as a maximum, so
+  the handoff records it honestly as vault-cleaner's conservative enforced
+  per-query budget. Oversized sets split at complete terms; 76 maximum-width
+  decimal uint64 ids fit exactly in 2048 characters and the 77th begins another
+  query.
+- Selected independent adversarial review because selection mistakes are
+  destructive-adjacent even though the diff is browser-only. The plan forbids
+  report/snapshot/server schema, cleanup rule, ranking, lifecycle, dependency,
+  CSP, or `RULESET_VERSION` changes and requires the real Chromium gate.
+
 ## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
 
 Implementation-only session for #131 on `feat/issue-131-armor-duplicates-design-fidelity`
