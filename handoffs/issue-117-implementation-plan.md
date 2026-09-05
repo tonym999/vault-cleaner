@@ -40,9 +40,6 @@ persist state, or perform an action in DIM. The whole-group option deliberately
 includes the preferred survivor when the group has one, so its warning must make
 clear that it is a locating/comparison query and must not be bulk-tagged as junk.
 
-This is the vault owner's 2026-09-05 simplification of the first plan in PR
-#139. It supersedes that plan's approved-only selection and clipboard workflow.
-
 ## Context & Measurement
 
 ### Current vault-cleaner authority and UI seams
@@ -55,16 +52,19 @@ This is the vault owner's 2026-09-05 simplification of the first plan in PR
 - Same-stat groups intentionally have no preferred survivor. Each member may
   carry a separately correlated `currentProposalAction` from the existing
   Proposals surface at [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L434).
-- Exact-group junk candidates are members whose projected `proposalAction` is
-  `"junk"`; same-stat junk candidates are members whose correlated
-  `currentProposalAction` is `"junk"`. The existing proposal predicate at
+- Exact-group junk candidates are deliberately the exact pass's own members
+  whose projected `proposalAction` is `"junk"`. This excludes a preferred
+  survivor or retained member even when that row separately says it is also
+  proposed junk by a later pass. A same-stat group is review-only and owns no
+  junk disposition, so its junk candidates are members whose separately
+  correlated `currentProposalAction` is `"junk"`. The existing predicate at
   [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L1091) admits both `junk`
   and `review`, so it is too broad for the junk-candidate query by itself.
 - Verdicts are separate server-held review state, read by `verdictOf` at
   [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L129). They are
-  deliberately irrelevant to this first pass: “junk candidate” means the
-  current report already proposes `junk`, whether that proposal is approved,
-  vetoed, or unreviewed.
+  deliberately irrelevant to this first pass: “junk candidate” is selected
+  from the applicable group-kind proposal field described above, whether that
+  proposal is approved, vetoed, or unreviewed.
 - Each group is one `article.armor-group` at
   [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L1452). Both responsive
   comparison orientations exist in the DOM and call the same member-cell
@@ -72,7 +72,7 @@ This is the vault owner's 2026-09-05 simplification of the first plan in PR
   level, outside both matrices, or they will be doubled and hidden controls may
   enter the tab order.
 - All production DOM is created with `el`, which writes strings through
-  `textContent` or text nodes at [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L716).
+  `textContent` or text nodes at [review_ui.js](../src/vault_cleaner/ui/review_ui.js#L743).
   Group labels and generated query text must retain that inert rendering path.
 - The current browser adapter owns server transport and every mutation path;
   `mutateVerdicts` starts at
@@ -97,11 +97,17 @@ The planner inspected upstream `DestinyItemManager/DIM` at commit
   [`advanced.ts`](https://github.com/DestinyItemManager/DIM/blob/964adf6ce554fdaac57381b2f1b35abc25ec0a97/src/app/search/items/search-filters/advanced.ts#L5-L14).
 - DIM itself emits multi-item searches as ``id:${i.id}`` joined by ` or ` at
   [`ItemTriage.tsx`](https://github.com/DestinyItemManager/DIM/blob/964adf6ce554fdaac57381b2f1b35abc25ec0a97/src/app/item-triage/ItemTriage.tsx#L343-L357).
-- DIM recognizes an all-`id` OR expression specially and marks canonical
-  searches saveable only when their length is at most 2048 characters at
+- DIM's all-`id` OR special case disables automatic history saving. Separately,
+  DIM canonicalizes every valid query and marks it saveable only when that
+  canonical string is non-empty and at most 2048 characters at
   [`search-filter.ts`](https://github.com/DestinyItemManager/DIM/blob/964adf6ce554fdaac57381b2f1b35abc25ec0a97/src/app/search/search-filter.ts#L245-L274).
   The 2048 figure is therefore a current **saveability boundary**, not a claim
-  that longer query text is syntactically invalid.
+  that longer query text is syntactically invalid. For the plan's flat,
+  top-level OR of bare decimal `id:` filters, DIM's canonical form equals the
+  emitted string: no parentheses or quoting are added. That equality is a
+  load-bearing constraint. Query comments or embedded display labels are
+  forbidden because DIM prepends canonicalized comments and their characters
+  would also consume the saveability budget.
 
 Vault-cleaner already defines a DIM instance-id shape as 1–20 decimal digits,
 kept as a string and never parsed, at [review.py](../src/vault_cleaner/review.py#L52).
@@ -114,8 +120,10 @@ opaque strings and are never numerically parsed or ordered.
 
 For a 20-digit id, the first `id:` term is 23 characters and each later
 ` or id:` term adds 27. Exactly 76 maximum-width ids consume 2048 characters;
-the 77th must begin a second complete query. The builder measures JavaScript
-string `.length`, appends only whole terms, and never truncates.
+the 77th must begin a second complete query. Because emitted and canonical
+forms are equal under the constraints above, the builder can enforce the same
+boundary with JavaScript string `.length`; it appends only whole terms and
+never truncates.
 
 ### Model verification and selection
 
@@ -149,15 +157,44 @@ manual cross-provider boundary and records any actual fallback.
   means every comparison member; that pass has no survivor. In both cases the
   boundary is that one group object's `members` list—never `state.armorGroups`,
   the selected kind, the visible/filtered groups, or another card.
-- “Junk candidates” means only current report proposals whose action is exactly
-  `junk`. It does not mean all non-survivors, all editable members, all approved
-  members, or all members with any proposal. Verdict state has no effect.
+- “Junk candidates” is deliberately group-kind-specific. An exact card uses
+  only that exact pass's `proposalAction === "junk"` members, structurally
+  excluding the preferred survivor and retained/protected members even if a
+  later pass separately proposes junk. A same-stat card owns no junk decisions,
+  so it uses its members' correlated `currentProposalAction === "junk"` from
+  the current report. It does not mean all non-survivors, all editable members,
+  all approved members, or all members with any proposal. Verdict state has no
+  effect.
 - Ids remain opaque strings. Generation validates the decimal DIM shape for
   query safety, then prefixes and joins the unchanged strings in group order.
   It does not parse, sort, normalize, infer, or reconstruct them.
 - Output is visible read-only text only. There is no Clipboard API, DIM deep
   link, automatic copy, or hidden side effect in this first pass. The user may
   select and copy the displayed text manually.
+
+### Acceptance-criteria disposition after owner clarification
+
+The issue body predates the 2026-09-05 owner clarification and says browser
+coverage must include an empty **approved** set and a query exceeding the length
+budget. This plan records two deliberate replacements rather than silently
+claiming those original words are met:
+
+- Approval is no longer an input. The empty-approved-set criterion is
+  superseded by direct DOM, adapter, and packaged-browser coverage of an
+  individual group with **no junk candidates**, including the disabled button
+  and exact empty-state copy.
+- The 2048/2049 construction and completeness proof remain deterministic Node
+  coverage. Producing 77 identical 20-digit-id armor rows through a live CSV is
+  not representative browser behavior and would test backend fixture synthesis
+  rather than the UI boundary. The packaged-browser test instead proves that
+  the real group control renders and contains its generated textarea at 390px.
+  This is an explicit test-layer substitution for the issue's browser wording,
+  authorized by the owner's request for a simpler first pass; it is not a claim
+  that browser overflow coverage exists.
+
+The product scope itself is now recorded in [PLAN.md](../PLAN.md#L149). The
+issue may remain unmilestoned; no project metadata change is needed merely
+because the product boundary is now explicit.
 
 ## Proposed Plan & Scope
 
@@ -169,12 +206,15 @@ Add two exported pure helpers:
 
 1. `armorGroupIdsForDimQuery(group, mode)`:
    - accepts only `"whole_group"` or `"junk_candidates"`;
+   - accepts only `group.groupKind === "exact_duplicate"` or `"same_stat"` and
+     rejects any other group kind atomically;
    - validates every selected member id against `^[0-9]{1,20}$` without numeric
      conversion;
    - returns ids in the group's existing member order;
    - for `whole_group`, includes every member;
-   - for `junk_candidates`, includes exact members only when
-     `member.proposalAction === "junk"` and same-stat members only when
+   - for `junk_candidates`, branches explicitly on `group.groupKind`: an
+     `exact_duplicate` group includes only `member.proposalAction === "junk"`,
+     while a `same_stat` group includes only
      `member.currentProposalAction === "junk"`;
    - never reads verdicts, DOM text, labels, or CSS state; and
    - never accepts or traverses a report-level group collection; its only
@@ -184,6 +224,10 @@ Add two exported pure helpers:
 
 2. `dimIdQueryChunks(ids, maxLength)`:
    - defaults to named constant `DIM_QUERY_SAVEABLE_MAX = 2048`;
+   - requires `maxLength` to be a finite positive safe integer at least 4 (the
+     length of the shortest complete `id:0` term), rejecting zero, negative,
+     `NaN`, infinities, fractions, unsafe integers, and smaller values before
+     producing output;
    - emits `id:<opaque-id> or id:<opaque-id>` chunks in input order;
    - validates ids defensively even when called directly;
    - never emits an empty chunk, partial term, label, comment, or URL encoding;
@@ -224,8 +268,10 @@ Mode-specific text:
   **`Whole group selected — includes the preferred survivor and every retained or protected piece. Use this to locate or compare the group; do not bulk-tag the result as junk.`**
 - Whole same-stat group:
   **`Whole group selected — includes every piece in this review-only comparison. This pass selects no survivor.`**
-- Junk candidates:
-  **`Junk candidates selected — includes only pieces the current report proposes as junk, regardless of review verdict.`**
+- Exact-group junk candidates:
+  **`Junk candidates selected — includes only pieces this exact-duplicate pass proposes as junk, regardless of review verdict.`**
+- Same-stat junk candidates:
+  **`Junk candidates selected — this comparison pass proposes no action, so this includes only its pieces already proposed as junk elsewhere in the current report, regardless of review verdict.`**
 
 Render each complete chunk as a labelled read-only `<textarea>` so it remains
 keyboard reachable, selectable, wrap/scroll contained, and visible without a
@@ -240,10 +286,10 @@ is naturally destroyed when its group is re-rendered; it is not restored or
 persisted. Finalised or disconnected frozen reports may still generate text
 because generation depends only on already-rendered local group data.
 
-An invalid id is fail-closed: render no query and use the existing page-level
-announcement callback if available, or a group-local `role="status"` error, with
-exact copy **`Could not generate a safe DIM query for this group.`** Do not echo
-the rejected id into the error.
+An invalid id is fail-closed: render no query and render a group-local
+`role="status"` error with exact copy
+**`Could not generate a safe DIM query for this group.`** Do not expose an
+adapter callback and do not echo the rejected id into the error.
 
 ### Contained presentation
 
@@ -268,24 +314,32 @@ Add direct pure-helper and DOM tests proving:
 - whole exact-group mode includes every id in backend order, including the
   preferred survivor and retained/protected members;
 - whole same-stat mode includes every comparison member and invents no survivor;
-- junk mode includes only exact `proposalAction === "junk"` or same-stat
-  `currentProposalAction === "junk"`; proposed review and read-only members are
-  excluded, and approved/vetoed/unreviewed state cannot influence selection;
+- junk mode branches on both supported `groupKind` values: exact uses only
+  `proposalAction === "junk"`, while same-stat uses only
+  `currentProposalAction === "junk"`; a retained exact member with an external
+  later junk proposal is excluded from the exact card, the same-stat card may
+  include a correlated current junk proposal, and approved/vetoed/unreviewed
+  state cannot influence either selection;
+- an unknown group kind or query mode rejects atomically;
 - ids are unchanged strings, never parsed or numerically ordered;
 - whitespace, operators, punctuation, empty ids, over-20-digit ids, and
   prototype-shaped non-DIM ids cause atomic rejection with no partial query;
 - 76 maximum-width ids produce exactly one 2048-character chunk and the 77th
   starts a second; all source ids occur once, in order, with no truncation;
 - one complete term larger than an injected tiny boundary rejects atomically;
+- zero, negative, `NaN`, positive/negative infinity, fractional, unsafe-integer,
+  and 1–3-character `maxLength` values all reject before output;
 - hostile group name/type/class values render inert and do not enter query text;
 - two neighboring cards with overlapping names and different group ids remain
   isolated: activating either card emits only that card's member ids;
 - exactly two generation buttons and one output block exist per group despite
   the two comparison orientations; and
+- a group with no junk candidates has a disabled junk button and renders
+  **`This group has no junk candidates.`** without producing an empty query; and
 - clicking either button changes no verdict, calls no toggle/clear callback,
   emits no fetch/clipboard effect, and replaces only that group's prior output.
 
-#### [MODIFY] [test_server_ui_js.py](../tests/test_server_ui_js.py#L3320)
+#### [MODIFY] [test_server_ui_js.py](../tests/test_server_ui_js.py#L3269)
 
 Extend the adapter fake-DOM integration only enough to prove the controls survive
 the permanent renderer boundary without becoming mutations:
@@ -296,6 +350,8 @@ the permanent renderer boundary without becoming mutations:
   a neighboring same-stat or exact card, even when their names match;
 - whole-group output contains the exact preferred survivor id while
   junk-candidate output excludes it and review candidates;
+- an empty-candidate exact group renders the disabled button and exact empty
+  copy without changing adapter state;
 - generating text leaves `state.verdicts`, revisions, `mutationInFlight`, fetch
   call count, and `state.duplicateRows` unchanged; and
 - finalised and disconnected frozen reports can still generate the same text
@@ -312,13 +368,19 @@ Add one focused packaged-Chromium test with committed fake armour data:
    remain, regardless of current verdict;
 5. prove no verdict button state, report/verdict revision, network request count,
    or server state changes from either generation action;
-6. finalise or simulate the supported disconnected frozen state and confirm
+6. exercise an individual group with no junk candidates and assert the button
+   is disabled with **`This group has no junk candidates.`**;
+7. open a same-stat group, generate its whole-group query, and assert its warning
+   says this comparison selects no survivor rather than reusing exact-group copy;
+8. finalise or simulate the supported disconnected frozen state and confirm
    generation remains local; and
-7. at 390px, assert no document horizontal overflow and keyboard focus reaches
+9. at 390px, assert no document horizontal overflow and keyboard focus reaches
    both buttons and the visible read-only textarea.
 
-The 77-id boundary remains a deterministic Node test; do not manufacture an
-impossible backend group in browser fixtures solely to reach it.
+The 77-id boundary remains a deterministic Node test; do not manufacture a
+77-row backend group in browser fixtures solely to reach it. This deliberate
+substitution for the original issue wording is recorded under acceptance-
+criteria disposition above.
 
 #### [MODIFY] [browser-verification.md](../docs/browser-verification.md#L105)
 
@@ -360,8 +422,10 @@ Worked examples:
 - **IN SCOPE:** whole-group mode for `[survivor, proposed junk, retained]`
   visibly emits all three ids and the survivor warning.
 - **IN SCOPE:** junk-candidate mode emits a vetoed `proposed_junk` member because
-  candidacy comes from the report, while excluding an approved `proposed_review`
-  member because its action is not junk.
+  exact-group candidacy comes from that pass's disposition, while excluding an
+  approved `proposed_review` member and a retained member carrying only a later
+  external junk proposal. The same-stat mode may include a correlated current
+  junk proposal because that comparison pass owns no junk disposition.
 - **IN SCOPE:** 77 twenty-digit ids become two read-only complete queries, each
   at most 2048 characters, with all ids present exactly once in order.
 - **OUT OF SCOPE:** approving, vetoing, unsetting, tagging, annotating, deleting,
@@ -399,8 +463,9 @@ Escalation route: `implementer → orchestrator → planner`.
 ## Likely findings
 
 1. **Candidate semantics accidentally use verdicts:** Filtering to approved or
-   unreviewed rows violates the owner's request; junk candidacy is solely the
-   projected action `junk`.
+   unreviewed rows violates the owner's request. A second risk is erasing the
+   deliberate kind distinction: exact uses its own `proposalAction`, while the
+   review-only same-stat card uses correlated `currentProposalAction`.
 2. **Whole group is not actually whole:** A safety-minded implementation may
    silently exclude the survivor or retained/protected members instead of
    including them with the required warning.
@@ -427,6 +492,7 @@ Rules:
 - work on `feat/issue-117-dim-search-query`; branch from latest `main` and record the base SHA;
 - use Google `gemini-3.8-flash` with native `thinking_level = high`; if the runtime cannot instantiate it, stop for the repository's manual cross-provider launch rather than silently substituting;
 - implement the two generation-only modes exactly: whole group and existing junk candidates; do not use review verdicts to select candidates and do not add Clipboard or mutation behavior;
+- preserve the deliberate candidate distinction: exact groups use their own `proposalAction === "junk"`; same-stat groups use correlated `currentProposalAction === "junk"`;
 - apply the plan's mechanical inclusion test to every production hunk;
 - update `WORKLOG.md` with a dated entry;
 - run `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`, and `git diff --check origin/main...HEAD`;
@@ -459,7 +525,8 @@ different family from Gemini is preferred when available.
 
 - [ ] Check 1: There are exactly two explicit group-level modes. Whole group
   includes every projected member, including survivor and retained/protected;
-  junk candidates include only current `junk` proposal actions.
+  exact junk candidates use only `proposalAction === "junk"`, while same-stat
+  junk candidates use only correlated `currentProposalAction === "junk"`.
 - [ ] Check 1a: Each control is scoped to its own card's `group.members` only.
   Same-named neighboring exact/same-stat groups and the current filtered group
   collection cannot contribute ids.
@@ -467,13 +534,16 @@ different family from Gemini is preferred when available.
   for `verdictOf`, `state.verdicts`, approve/veto/unset coupling, and reject any
   selection dependency.
 - [ ] Check 3: Whole exact-group output carries the verbatim preferred-survivor
-  warning and is never described as a junk query or bulk-tag instruction.
+  warning and is never described as a junk query or bulk-tag instruction. The
+  same-stat whole-group warning separately says that pass selects no survivor.
 - [ ] Check 4: Ids stay unchanged strings, pass `^[0-9]{1,20}$` before
   interpolation, and never reach `Number`, `parseInt`, numeric sorting, DOM-text
   parsing, or partial output.
 - [ ] Check 5: Syntax matches current upstream DIM; 2048 is described as the
-  current saveability boundary. The 76/77 test proves complete once-only ordered
-  coverage in addition to chunk length.
+  current canonical saveability boundary; raw length equals canonical length
+  only under the enforced no-comment/no-label/bare-decimal contract. The 76/77
+  test proves complete once-only ordered coverage in addition to chunk length,
+  and invalid injected boundaries fail atomically.
 - [ ] Check 6: Controls/output render once per group outside both matrices;
   hidden orientations add no duplicate/focusable generation controls.
 - [ ] Check 7: Both buttons only replace visible local read-only text. No fetch,
@@ -484,9 +554,11 @@ different family from Gemini is preferred when available.
 - [ ] Check 9: Finalised/disconnected frozen reports still generate identical
   text without a server request; output is not persisted across rerender.
 - [ ] Check 10: At 390px text stays contained and both buttons plus the read-only
-  textarea are keyboard reachable with visible focus.
+  textarea are keyboard reachable with visible focus. Packaged Chromium also
+  covers the empty-junk state and both exact/same-stat whole-group warnings.
 - [ ] Check 11: No `review_server.js`, server/API/schema/snapshot/rules/version,
-  parse-wide validation, dependency, CSP, or tracked `data/` change.
+  parse-wide validation, dependency, CSP, or tracked `data/` change. `PLAN.md`
+  contains the presentation-only product boundary added by the planning PR.
 - [ ] Check 12: Ruff, full pytest, required Chromium, and diff-check gates pass;
   README, browser verification, and WORKLOG accurately describe both modes.
 
@@ -497,6 +569,6 @@ Planned #117 in [handoffs/issue-117-implementation-plan.md](https://github.com/t
 - **Implementer tier & effort:** Google `gemini-3.8-flash`, native `thinking_level = high`
 - **Implementation branch:** `feat/issue-117-dim-search-query`
 - **Recommended review path:** `independent adversarial review` — the orchestrator confirms against the real diff and selects the reviewer's exact model and effort at dispatch time.
-- **Likely findings:** verdict state accidentally filters junk candidates; “whole group” silently excludes survivor/protected pieces; same-named neighboring groups leak into one query; local generation touches adapter mutation state; chunk boundaries lose or duplicate an id.
+- **Likely findings:** verdict state accidentally filters junk candidates; exact/same-stat candidate fields are conflated; “whole group” silently excludes survivor/protected pieces; same-named neighboring groups leak into one query; local generation touches adapter mutation state; chunk boundaries lose or duplicate an id.
 
 **Owner clarification applied:** this first pass has two generation-only choices on each individual group card—whole group or that group's existing junk candidates. “Whole group” means only the activated card (for example, one Feropotent Bond same-stat group), never all exact groups, all same-stat groups, or all filtered groups. Both reveal read-only query text and change no underlying record. Whole exact-group output intentionally includes the survivor and carries an explicit do-not-bulk-tag-as-junk warning. Clipboard integration and approved-only filtering are out of scope.

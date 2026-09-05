@@ -37,6 +37,18 @@ surprises the next agent should know about.
   destructive-adjacent even though the diff is browser-only. The plan forbids
   report/snapshot/server schema, cleanup rule, ranking, lifecycle, dependency,
   CSP, or `RULESET_VERSION` changes and requires the real Chromium gate.
+- Review disposition before merge: made the group-kind candidate semantics
+  deliberate (exact-group `proposalAction`; review-only same-stat
+  `currentProposalAction`), added empty-candidate and same-stat-warning browser
+  requirements, and recorded that the obsolete approved-empty criterion is
+  replaced while the 77-id overflow proof deliberately stays at the deterministic
+  Node layer. Corrected DIM evidence to distinguish the all-id history rule from
+  canonical saveability and made the no-comment/no-label equality load-bearing.
+  The helper now rejects unknown group kinds, unsafe ids, and invalid injected
+  boundaries atomically; generation errors are group-local with no nonexistent
+  adapter announcement seam. Corrected drifting source/test anchors, removed
+  self-referential PR provenance from the durable handoff, and added the settled
+  presentation-only feature boundary to `PLAN.md` without assigning a milestone.
 
 ## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
 
