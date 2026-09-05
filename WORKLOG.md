@@ -3,6 +3,66 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-05 — #117 planning: per-group DIM search queries (PR 1)
+
+- Authored `handoffs/issue-117-implementation-plan.md` against `main` at
+  `3cc6fa32530a0b1cd6366c4ccc109af20b2cf511` and allocated
+  `feat/issue-117-dim-search-query` for implementation by Google
+  `gemini-3.8-flash` with native `thinking_level = high`.
+- Verified #117 is open, labeled `enhancement`, and `Todo` on project 3. It
+  remains intentionally unassigned to a milestone. Its beneficial dependency
+  is no longer pending: #113 is closed and the #119/#131 duplicate hierarchy is
+  merged on the planning baseline.
+- The vault owner simplified the first pass after PR #139 opened. Each
+  **individual group card** gets two generation-only buttons: one reveals every
+  member of that one group (including the preferred survivor and protected
+  pieces, with a do-not-bulk-tag-as-junk warning); the other reveals only that
+  group's members whose current projected proposal action is exactly `junk`,
+  regardless of approval/veto state. A Feropotent Bond same-stat card therefore
+  produces only that card's Feropotent Bond ids—not all same-stat groups, all
+  exact groups, all filtered groups, or same-named neighboring cards. Both modes
+  produce visible read-only text and change no verdict, record, tag, note,
+  revision, or server state. Clipboard integration, automatic copy, navigation
+  to DIM, report-wide aggregation, and approved-only filtering are out.
+- Inspected upstream DIM at commit `964adf6ce554fdaac57381b2f1b35abc25ec0a97`:
+  `id` is a supported filter and DIM itself joins multi-item searches with
+  ` or `. Its parser marks canonical searches saveable only through 2048
+  characters, so the handoff records 2048 precisely as DIM's current
+  **saveability boundary**, not a syntax-validity maximum. Oversized selections
+  split at complete terms; 76 maximum-width decimal uint64 ids fit exactly in
+  2048 characters and the 77th begins another query. Because CSV ids are
+  untrusted, the generation boundary independently requires 1–20 decimal digits
+  without parsing or numerically ordering the opaque string.
+- Selected independent adversarial review because selection mistakes are
+  destructive-adjacent even though the diff is browser-only. The plan forbids
+  report/snapshot/server schema, cleanup rule, ranking, lifecycle, dependency,
+  CSP, or `RULESET_VERSION` changes and requires the real Chromium gate.
+- Review disposition before merge: made the group-kind candidate semantics
+  deliberate (exact-group `proposalAction`; review-only same-stat
+  `currentProposalAction`), added empty-candidate and same-stat-warning browser
+  requirements, and recorded that the obsolete approved-empty criterion is
+  replaced while the 77-id overflow proof deliberately stays at the deterministic
+  Node layer. Corrected DIM evidence to distinguish the all-id history rule from
+  canonical saveability and made the no-comment/no-label equality load-bearing.
+  The helper now rejects unknown group kinds, unsafe ids, and invalid injected
+  boundaries atomically; generation errors are group-local with no nonexistent
+  adapter announcement seam. Corrected drifting source/test anchors, removed
+  self-referential PR provenance from the durable handoff, and added the settled
+  presentation-only feature boundary to `PLAN.md` without assigning a milestone.
+  Re-review then corrected the same-stat rationale: source `proposalAction` is
+  present but non-authoritative without correlation, so user copy and tests now
+  describe authoritative `currentProposalAction` instead of claiming the pass
+  proposes no action. Added #117 traceability in `PLAN.md`, pointed the dispatch
+  draft to the acceptance-criteria supersession, corrected the remaining test
+  anchor, and left browser coverage free to use multiple focused tests.
+  Final consistency review aligned Check 3 with the exact same-stat warning,
+  removed projection jargon from user-facing copy, pointed the `PLAN.md` backlink
+  to the durable GitHub issue, and distinguished the superseded 2048-character
+  browser case from the still-required 390px layout-overflow check.
+  The final residual wording now likewise names packaged-browser coverage of the
+  2048-character query-length boundary, avoiding any contradiction with the
+  required 390px horizontal-overflow test.
+
 ## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
 
 Implementation-only session for #131 on `feat/issue-131-armor-duplicates-design-fidelity`
