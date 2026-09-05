@@ -146,7 +146,7 @@ Issue #117 focused check:
 - [ ] Controls are strictly local to the activated card's members and never
       aggregate across cards or kinds, even for same-named items.
 - [ ] Whole exact-duplicate query includes the preferred survivor and displays
-      the warning: `Whole group selected — includes preferred survivor. Do not bulk-tag this search result as junk in DIM.`
+      the warning: `Whole group selected — includes the preferred survivor and every retained or protected piece. Use this to locate or compare the group; do not bulk-tag the result as junk.`
 - [ ] Whole same-stat query displays the warning:
       `Whole group selected — includes every piece in this same-stat comparison. This group has no preferred survivor.`
 - [ ] Junk-candidates query on an exact-duplicate group includes only members
@@ -433,8 +433,9 @@ terminal.
   tests/test_server_browser.py` run (15 passed).
 - Mode and warning results: pass. The exact group's "Generate whole-group query"
   rendered `id:6031 or id:6032` with the preferred-survivor warning ("Whole group
-  selected — includes preferred survivor. Do not bulk-tag this search result as
-  junk in DIM."). "Generate junk-candidates query" rendered `id:6032` without the
+  selected — includes the preferred survivor and every retained or protected
+  piece. Use this to locate or compare the group; do not bulk-tag the result as
+  junk."). "Generate junk-candidates query" rendered `id:6032` without the
   survivor warning. The same-stat group's whole-group query rendered `id:6081 or
   id:6082` with the warning "Whole group selected — includes every piece in this
   same-stat comparison. This group has no preferred survivor.".

@@ -3842,27 +3842,142 @@ setTimeout(function () {
   var exactEmpty = groups[1];
   var sameFero = groups[2];
 
+  var server = context.VaultCleanerServerUI;
+  var state = server.state;
+
+  function captureRequiredState() {
+    return {
+      verdicts: JSON.stringify(state.verdicts),
+      report_revision: state.report_revision,
+      verdict_revision: state.verdict_revision,
+      mutationInFlight: state.mutationInFlight,
+      duplicateRowsKeys: Object.keys(state.duplicateRows || {}).sort().join(","),
+      duplicateRowsRef: state.duplicateRows,
+      fetchCalls: fetchCalls
+    };
+  }
+
+  function assertStateUnchanged(before, label) {
+    var after = captureRequiredState();
+    if (before.verdicts !== after.verdicts) {
+      throw new Error(label + ": verdicts changed: " + before.verdicts + " vs " + after.verdicts);
+    }
+    if (before.report_revision !== after.report_revision) {
+      throw new Error(label + ": report_revision changed: " + before.report_revision + " vs " + after.report_revision);
+    }
+    if (before.verdict_revision !== after.verdict_revision) {
+      throw new Error(label + ": verdict_revision changed: " + before.verdict_revision + " vs " + after.verdict_revision);
+    }
+    if (before.mutationInFlight !== after.mutationInFlight) {
+      throw new Error(label + ": mutationInFlight changed: " + before.mutationInFlight + " vs " + after.mutationInFlight);
+    }
+    if (before.duplicateRowsKeys !== after.duplicateRowsKeys) {
+      throw new Error(label + ": duplicateRowsKeys changed: " + before.duplicateRowsKeys + " vs " + after.duplicateRowsKeys);
+    }
+    if (before.duplicateRowsRef !== after.duplicateRowsRef) {
+      throw new Error(label + ": duplicateRows reference changed");
+    }
+    if (before.fetchCalls !== after.fetchCalls) {
+      throw new Error(label + ": fetchCalls changed: " + before.fetchCalls + " vs " + after.fetchCalls);
+    }
+  }
+
   var exactFeroBtns = collect(exactFero, function (n) { return hasClass(n, "dim-query-btn"); });
   var sameFeroBtns = collect(sameFero, function (n) { return hasClass(n, "dim-query-btn"); });
   var exactEmptyBtns = collect(exactEmpty, function (n) { return hasClass(n, "dim-query-btn"); });
 
+  var initialFetchCalls = fetchCalls;
+
+  // 1. Reviewing & connected state: snapshot and compare state around both controls on each group
+  var snap = captureRequiredState();
   sameFeroBtns[0].dispatch("click");
   var sameFeroTextareaWhole = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "reviewing sameFero whole");
+
+  snap = captureRequiredState();
   sameFeroBtns[1].dispatch("click");
   var sameFeroTextareaJunk = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "reviewing sameFero junk");
 
+  snap = captureRequiredState();
   exactFeroBtns[0].dispatch("click");
   var exactFeroTextareaWhole = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "reviewing exactFero whole");
+
+  snap = captureRequiredState();
   exactFeroBtns[1].dispatch("click");
   var exactFeroTextareaJunk = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "reviewing exactFero junk");
 
   var emptyHint = collect(exactEmpty, function (n) { return hasClass(n, "dim-query-empty-hint"); })[0].textContent;
   var emptyJunkDisabled = exactEmptyBtns[1].disabled;
 
-  var initialFetchCalls = fetchCalls;
+  // 2. Disconnected state while reviewing: snapshot and compare state around both controls
+  state.connected = false;
+  var disconnectedReviewingConnected = state.connected;
+  var disconnectedReviewingState = state.server_state;
+
+  snap = captureRequiredState();
   exactFeroBtns[0].dispatch("click");
-  var exactFeroTextareaWholeFrozen = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
-  var finalFetchCalls = fetchCalls;
+  var exactWholeDisconnected = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "disconnected exactFero whole");
+
+  snap = captureRequiredState();
+  exactFeroBtns[1].dispatch("click");
+  var exactJunkDisconnected = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "disconnected exactFero junk");
+
+  snap = captureRequiredState();
+  sameFeroBtns[0].dispatch("click");
+  var sameWholeDisconnected = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "disconnected sameFero whole");
+
+  snap = captureRequiredState();
+  sameFeroBtns[1].dispatch("click");
+  var sameJunkDisconnected = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "disconnected sameFero junk");
+
+  // 3. Finalized state: transition via applySessionEnvelope, snapshot and compare state around both controls
+  var finalizedEnvelope = JSON.parse(JSON.stringify(envelope));
+  finalizedEnvelope.state = "finalized";
+  server.applySessionEnvelope(finalizedEnvelope, state);
+  var finalizedState = state.server_state;
+  var finalizedConnected = state.connected;
+
+  snap = captureRequiredState();
+  exactFeroBtns[0].dispatch("click");
+  var exactWholeFinalized = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "finalized exactFero whole");
+
+  snap = captureRequiredState();
+  exactFeroBtns[1].dispatch("click");
+  var exactJunkFinalized = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "finalized exactFero junk");
+
+  snap = captureRequiredState();
+  sameFeroBtns[0].dispatch("click");
+  var sameWholeFinalized = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "finalized sameFero whole");
+
+  snap = captureRequiredState();
+  sameFeroBtns[1].dispatch("click");
+  var sameJunkFinalized = collect(sameFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "finalized sameFero junk");
+
+  // 4. Finalized AND disconnected state: snapshot and compare state around both controls
+  state.connected = false;
+  var finalizedDisconnectedState = state.server_state;
+  var finalizedDisconnectedConnected = state.connected;
+
+  snap = captureRequiredState();
+  exactFeroBtns[0].dispatch("click");
+  var exactWholeFinalizedDisconnected = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "finalized disconnected exactFero whole");
+
+  snap = captureRequiredState();
+  exactFeroBtns[1].dispatch("click");
+  var exactJunkFinalizedDisconnected = collect(exactFero, function (n) { return n.tagName === "TEXTAREA"; })[0].textContent;
+  assertStateUnchanged(snap, "finalized disconnected exactFero junk");
 
   process.stdout.write(JSON.stringify({
     groupCount: groups.length,
@@ -3875,8 +3990,24 @@ setTimeout(function () {
     exactFeroTextareaJunk: exactFeroTextareaJunk,
     emptyHint: emptyHint,
     emptyJunkDisabled: emptyJunkDisabled,
-    fetchCallsDuringGeneration: finalFetchCalls - initialFetchCalls,
-    frozenWholeTextMatches: exactFeroTextareaWholeFrozen === exactFeroTextareaWhole
+    initialFetchCalls: initialFetchCalls,
+    fetchCallsDuringGeneration: fetchCalls - initialFetchCalls,
+    disconnectedReviewingState: disconnectedReviewingState,
+    disconnectedReviewingConnected: disconnectedReviewingConnected,
+    exactWholeDisconnected: exactWholeDisconnected,
+    exactJunkDisconnected: exactJunkDisconnected,
+    sameWholeDisconnected: sameWholeDisconnected,
+    sameJunkDisconnected: sameJunkDisconnected,
+    finalizedState: finalizedState,
+    finalizedConnected: finalizedConnected,
+    exactWholeFinalized: exactWholeFinalized,
+    exactJunkFinalized: exactJunkFinalized,
+    sameWholeFinalized: sameWholeFinalized,
+    sameJunkFinalized: sameJunkFinalized,
+    finalizedDisconnectedState: finalizedDisconnectedState,
+    finalizedDisconnectedConnected: finalizedDisconnectedConnected,
+    exactWholeFinalizedDisconnected: exactWholeFinalizedDisconnected,
+    exactJunkFinalizedDisconnected: exactJunkFinalizedDisconnected
   }));
 }, 10);
 ''',
@@ -3902,6 +4033,22 @@ setTimeout(function () {
         "exactFeroTextareaJunk": "id:1002",
         "emptyHint": "This group has no junk candidates.",
         "emptyJunkDisabled": True,
+        "initialFetchCalls": 1,
         "fetchCallsDuringGeneration": 0,
-        "frozenWholeTextMatches": True,
+        "disconnectedReviewingState": "reviewing",
+        "disconnectedReviewingConnected": False,
+        "exactWholeDisconnected": "id:1001 or id:1002",
+        "exactJunkDisconnected": "id:1002",
+        "sameWholeDisconnected": "id:2001 or id:2002",
+        "sameJunkDisconnected": "id:2001",
+        "finalizedState": "finalized",
+        "finalizedConnected": True,
+        "exactWholeFinalized": "id:1001 or id:1002",
+        "exactJunkFinalized": "id:1002",
+        "sameWholeFinalized": "id:2001 or id:2002",
+        "sameJunkFinalized": "id:2001",
+        "finalizedDisconnectedState": "finalized",
+        "finalizedDisconnectedConnected": False,
+        "exactWholeFinalizedDisconnected": "id:1001 or id:1002",
+        "exactJunkFinalizedDisconnected": "id:1002",
     }

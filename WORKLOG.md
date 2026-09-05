@@ -18,11 +18,11 @@ surprises the next agent should know about.
   same name cannot contribute ids.
 - Implemented pure candidate extraction `armorGroupIdsForDimQuery(group, mode)`:
   - `whole_group`: returns every member id in group order. For exact groups,
-    displays warning: `Whole group selected — includes preferred survivor. Do not
-    bulk-tag this search result as junk in DIM.`. For same-stat groups (which
-    have no preferred survivor), displays warning: `Whole group selected —
-    includes every piece in this same-stat comparison. This group has no
-    preferred survivor.`.
+    displays warning: `Whole group selected — includes the preferred survivor and
+    every retained or protected piece. Use this to locate or compare the group;
+    do not bulk-tag the result as junk.`. For same-stat groups (which have no
+    preferred survivor), displays warning: `Whole group selected — includes every
+    piece in this same-stat comparison. This group has no preferred survivor.`.
   - `junk_candidates`: returns only members whose candidate proposal action is
     `junk`. Exact duplicate groups use `member.proposalAction === "junk"` (excluding
     survivor and retained pieces even if flagged by later passes); same-stat
@@ -50,8 +50,11 @@ surprises the next agent should know about.
     boundary proof, invalid ID/mode rejection, DOM card isolation, empty candidate
     disabled state, hostile field inertness, zero side effects on verdicts.
   - Adapter integration in `tests/test_server_ui_js.py`: card rendering, preferred
-    survivor inclusion, junk candidate filtering, zero fetch calls, offline/frozen
-    generation.
+    survivor inclusion, junk candidate filtering, zero fetch calls during
+    generation, full state snapshot comparison (verdicts, report/verdict
+    revisions, mutationInFlight, duplicateRows) across reviewing/connected,
+    reviewing/disconnected, finalized/connected, and finalized/disconnected
+    states.
   - Playwright browser test in `tests/test_server_browser.py`: whole-group and junk
     query generation, preferred survivor warning, same-stat warning, empty junk
     state, zero network requests, finalised session generation, 390px horizontal
