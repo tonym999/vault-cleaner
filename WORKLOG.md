@@ -3,6 +3,561 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-04 — #131: Armor duplicates design-fidelity implementation (PR 2)
+
+Implementation-only session for #131 on `feat/issue-131-armor-duplicates-design-fidelity`
+(branched from `main` at `e839e89081cd96c6c9c07788bc538413a05d974a`), following
+`handoffs/issue-131-implementation-plan.md`. No Python rule, grouping key,
+ranking, snapshot/server schema, or `RULESET_VERSION` change; every hunk is
+under `src/vault_cleaner/ui/**`, `tests/test_review_ui_js.py`,
+`tests/test_server_ui_js.py`, `tests/test_server_browser.py`,
+`scripts/measure_armor_matrix_orientation.py`, `docs/evidence/issue-131/**`,
+`docs/browser-verification.md`, and this file.
+
+- **What changed:**
+  - `review_ui.js`: `armorGroupHeader` is now a single wrapping headline
+    (name, text-labelled `badge.arch` archetype, type/slot, guardian class,
+    tier, hash, piece count) instead of a tile row; `armorStatDisplay`'s
+    `zeroSummary` now names the zero stats (`grenade · super · melee · 0
+    base`) instead of a fixed sentence; a new `armorStatSpike` renders the
+    30/25/20 stats as labelled bars with lowercase `primary`/`secondary`/
+    `tertiary` role text; `armorTuningBanner` promotes both banners to
+    always-visible `.tuneline`/`.tuneline.warn` treatments. The comparison
+    (`armorGroupTable`) is rebuilt around `armorComparisonSpecs`, which
+    classifies each candidate axis as always-shown, differs (shown), or
+    uniform (suppressed and restated in a new `p.armor-identical-axes`
+    line) — then renders that same field list as two tables from the same
+    `armorMemberCell` factory: `table.armor-matrix-rows` (today's shape,
+    the accessible default) and `table.armor-matrix-columns` (the artifact
+    orientation, axes as rows/members as columns). `armorGroup` now stamps
+    `data-member-count` for the CSS switch.
+  - `review.css`: `article.armor-group` is a `container-type: inline-size`
+    query container; `.armor-matrix-columns` is `display: none` by default
+    and swapped in per member count (2–6) via `@container (min-inline-size:
+    …)` rules once its own measured budget (`13.5 + 12.5×N` rem — a 10.5rem
+    axis-label column, 12.5rem per member column, 3rem guard) fits; the row
+    table keeps its existing 46rem minimum, uninherited. Added `.tabs`
+    (with `.tabs button`), `.segbtns` (with `.segbtns button`),
+    `.tuneline`/`.tuneline.warn`, `.badge.arch`, the spike bar rules, and
+    the section-heading rule.
+  - `review_server.js`: the surface selector restyles as `.tabs` with a
+    monospace count chip and a count-carrying `aria-label` on each button
+    (counts are visible text *and* accessible name, never a live-region
+    announcement); the group-kind control restyles as `.segbtns` the same
+    way; `renderList`'s armor-duplicates branch now renders filtered groups
+    under "Exact duplicates" / "Same stats, different tuning" `h3` sections
+    (exact first, a heading only when that kind has a group in the current
+    result); a static (non-live) hint sentence was added to the duplicate
+    filter panel. `#vc-duplicate-scope`'s id/parent/`role`/`aria-live`/
+    in-place update were not touched.
+  - New `scripts/measure_armor_matrix_orientation.py` and
+    `docs/evidence/issue-131/orientation-measurements.md`: boots the real
+    packaged server, uploads the three committed armor-duplicate fixtures,
+    and measures the comparison content box and active orientation at
+    1440×1000/1024×900/390×844, asserting exactly-one-orientation-visible
+    and no document overflow before writing a number.
+- **Thresholds actually measured (not asserted):** at 1440×1000 the
+  comparison content box is 1156px and member columns are active for 2, 3,
+  and 4 members; at 1024×900 it is 932px and member columns are active for
+  2–3 but the 4-member group falls back to rows; at 390×844 it is 315.6px
+  and every member count uses rows. This matches the plan's stated
+  consequences exactly. A follow-up measurement at 680px/760px (588px/668px
+  content box) confirmed the two-member 616px (38.5rem) budget flips
+  correctly and reversibly — used as the "zoom/reflow" browser test.
+- **Decisions made / settled copy:**
+  - Stat-spike role labels render lowercase (`primary`/`secondary`/
+    `tertiary`) at display time — matching the artifact's own text exactly —
+    while `armorStatDisplay`'s underlying `role` field stays capitalized
+    (`"Primary"`, etc.) since an existing Node test asserts that API value
+    directly; only the render path lowercases it.
+  - The same-stat tuning banner moved from `p.hint` to `.tuneline.warn`; the
+    settled two-part sentence itself (`Base stats match but tuning differs,
+    so this pass selects no survivor.` / `Pieces below that already carry a
+    proposal keep their verdict controls.`) is unchanged.
+  - The zero-stat sentence changed from a fixed "The other three base stats
+    are 0…" to naming the zero stats in stats-object order plus a fixed
+    `· 0 base` tail — required by the plan, not optional polish.
+  - Identical axes are restated only when genuinely uniform. `Tuning Stat`
+    keeps its own stricter "does this carry information beyond the slot"
+    gate unchanged, and is *not* restated as identical when it is merely
+    hidden by that gate but not actually uniform — restating it there would
+    misrepresent the data.
+- **Surprises the next agent should know about:**
+  - The server's real `/api/report` JSON pipeline does not preserve the
+    Python-side stats-dict insertion order (`weapons, health, class,
+    grenade, super, melee`) end to end — a live upload of
+    `armor_duplicates_ui.csv` renders the zero-stat summary as `grenade ·
+    melee · super · 0 base`, not `grenade · super · melee`. The Node-level
+    tests (which build their own literal JSON snapshots) keep the literal
+    order they author; only the browser tests, which go through the real
+    server, were written against the measured real order. Nobody chased
+    down *where* the reordering happens (not in scope for #131) — it is a
+    factual observation for whoever next touches the stats payload.
+  - Doubling the DOM occurrences (row + column orientation) doubles
+    everything keyed by member id: button counts, `th[scope=col]` matches
+    across the whole article, and `state.duplicateRows[id]` occurrence
+    arrays. Every existing test asserting an exact count or indexing `[0]`
+    on these needed updating to either assert over the whole occurrence
+    list (Node tests) or scope Playwright locators to `:visible` (browser
+    tests) — this was the single largest source of test churn, exactly as
+    the plan's "likely findings" predicted. `paintArmorMember` itself needed
+    no change: its existing "iterate every registered occurrence" design
+    already handled two orientations correctly.
+  - `armorMemberCell`'s existing `state.duplicateRows[id]` push-per-call
+    design is what makes dual-orientation repaint work for free — worth
+    keeping in mind as a reusable pattern if a third orientation is ever
+    added.
+  - Default `pytest-playwright` viewport (1280×720) already exceeds the
+    2/3/4-member column budgets, so almost every existing armor-duplicates
+    browser test was implicitly exercising the *new* column orientation
+    even before any viewport resize in the test body — not just the
+    four-member test the plan called out by name.
+- **Orchestrator review follow-up (same session, same branch):** the pushed
+  head rendered the stat-spike bar width as an inline `style="width:...%"`
+  attribute on the bar `span`. `src/vault_cleaner/server/app.py`'s
+  `SERVER_CSP` sends `style-src 'self'` with no `unsafe-inline`, so Chromium
+  silently drops every inline `style` attribute and logs a CSP violation —
+  measured on the pre-fix head at 1440×1000 as all three bars rendering at
+  an identical 86.39px regardless of their 30/25/20 values, three CSP
+  violation console messages per group render. Fixed by moving the bar
+  widths into `review.css` as three role-selector rules
+  (`.sv.p .bar { width: 100% }`, `.sv.s .bar { width: 83% }`,
+  `.sv.t .bar { width: 67% }`, alongside the existing per-role opacity
+  rules) and dropping the `style` attribute and the now-unused `barWidth`
+  field from `armorStatDisplay` in `review_ui.js`. Measured after the fix
+  (same viewport, same fixture): 86.39px / 71.70px / 57.88px — strictly
+  ordered and matching 100%/83%/67% of the column's own width. Lesson for
+  future UI work on this surface: never emit an inline `style` attribute
+  here — the CSP has no escape hatch for it, so any dynamic sizing/coloring
+  belongs in the stylesheet as selector-driven variants, not inline styles.
+  Also removed a leftover empty `.armor-matrix { }` rule in `review.css`.
+  Added two new browser tests to `tests/test_server_browser.py`
+  (`test_armor_stat_spike_bars_render_proportional_widths`,
+  `test_armor_duplicates_surface_has_no_csp_violations`); both were
+  confirmed failing against the pre-fix code before the fix landed.
+- **Independent adversarial review round (same session, same branch,
+  `e839e89...930912b` reviewed):** the orchestrator accepted six findings;
+  fixed all of them, tests only plus two doc/worklog corrections and one
+  dead-class removal, no rule/grouping/ranking/schema change.
+  - **P2-1 (blocking, real defect class):** three plan-mandated behaviours
+    had zero test coverage, most seriously that deleting the guard
+    `if (!section.groups.length) return;` in `review_server.js`'s
+    duplicate-list render made an exact-only or same-stat-only report
+    render a stray *empty* second section heading — nothing caught it.
+    Added `test_single_kind_report_renders_exactly_one_section_heading`
+    (`tests/test_server_ui_js.py`), which renders each kind alone and
+    asserts exactly one `.armor-section-head` with both rule lines
+    (`Same archetype, same stats, same tuning — one copy survives` /
+    `Review only — the tool never picks your tuning for you`) verbatim;
+    confirmed it fails both when the guard is deleted (heading count goes
+    to 2) and when either rule string is mutated. Also added the exact-group
+    tuning-banner N=1/N>1 suffix assertions to the existing mega-test in
+    `tests/test_review_ui_js.py` (`— identical across all 2 pieces, and
+    part of why they are one group.` / `— the only piece in this group.`),
+    each confirmed to fail under a one-character mutation of its string.
+  - **P2-2 (blocking):** the evidence file
+    (`docs/evidence/issue-131/orientation-measurements.md`) recorded
+    geometry at three fixed viewports but never the flip point itself,
+    even though `review.css` cites it as the source of truth for the
+    38.5/51/63.5/76/88.5rem thresholds. Extended
+    `scripts/measure_armor_matrix_orientation.py` to binary-search the real
+    browser viewport width at which each reachable member count's
+    orientation flips (bracketing the search and re-confirming both sides
+    of the boundary before trusting it — fail rather than guess), and to
+    measure the conditional same-stat axis row-count delta by reading
+    `tbody th.armor-matrix-axis-label` text for the two same-stat fixtures.
+    Regenerated the evidence file; the measured flip points are **616.0px
+    (38.5rem, N=2), 816.0px (51rem, N=3), 1016.0px (63.5rem, N=4)** —
+    exact matches to the shipped CSS thresholds — and the axis-row delta
+    between the two committed same-stat fixtures is **+3 rows** (4 vs 7),
+    driven entirely by which conditional axes actually differ in each
+    fixture's real data, not by member count. Also measured, at a
+    2560×1200 viewport far past any reachable need, that the comparison
+    content box plateaus at 1156.0px — below the N=5 threshold (1216px)
+    and well below N=6 (1416px) — confirming in the evidence file that
+    those two thresholds are deliberate defensive rules for a member count
+    the producer cannot emit today, not measured ones.
+  - **P3-4 (accepted, elevated):** no browser test flipped the panel width
+    *between* an acknowledgement and its assertion, despite the plan's own
+    likely-finding #1 calling this out as the highest-risk gap in the
+    dual-orientation registry. Added
+    `test_armor_verdict_acknowledgement_reflected_after_orientation_flip`
+    to `tests/test_server_browser.py`: approves a same-stat proposal member
+    at 680×900 (row fallback active), resizes to 760×900 (member-column
+    orientation active) *after* the click, and asserts the pressed/enabled
+    state in the newly visible occurrence and directly on the now-hidden
+    row occurrence's own attribute — proving the repaint is registry-wide,
+    not scoped to whatever was on screen at click time.
+  - **P3-2 (accepted):** the section heading (`h3`) and the group name
+    (also `h3`) were heading-level siblings under the same `h2`, which the
+    plan did not intend. Demoted the group name to `h4` in
+    `review_ui.js`'s `armorGroupHeader` and `.armor-group-header h3` to
+    `.armor-group-header h4` in `review.css`; updated
+    `tests/test_server_browser.py:703`'s `group.locator("h3")` to `"h4"`.
+    Re-grepped the whole tree for other `h3`/heading-level assertions —
+    none remained (the `.armor-section-head h3` selector and rule are
+    correctly untouched, and `review_ui.js`'s unrelated "Armor scoring"
+    `h3` is a different section entirely).
+  - **P3-1, P3-6, P3-3 (trivial truthfulness/cleanup):** corrected
+    `docs/browser-verification.md`'s recorded browser-suite run from a
+    stale `10 passed in 7.30s` to the real re-measured `13 passed in
+    9.42s` (12 from the prior round plus the new cross-orientation test);
+    corrected this file's own prior entry, which claimed CSS classes
+    `.tab` and `.segb` that were never added — only `.tabs button` and
+    `.segbtns button` exist; and dropped the dead `armor-matrix` class from
+    `review_ui.js`'s `armorGroupTable` scroller div (`930912b` had already
+    removed the only CSS rule that used it, and nothing else referenced it
+    — confirmed by grepping `tests/` before removing it).
+  - **Rejected, left as-is (P3-5):** the identical-axes line's restatement
+    of `Seasonal Mod none/unknown` / `Holofoil false` on same-stat groups is
+    exactly what plan §8a mandates; `Tuning Stat` alone carries
+    `skipIdentical` because its show-condition is genuinely stricter than
+    plain "differs". No change made.
+  - **Surprise for the next agent:** the flip-point binary search converges
+    on viewport pixel widths one apart from the CSS threshold in *content*
+    pixels (e.g. flip at 708px viewport / 616.0px measured content box for
+    N=2) because of the fixed chrome between the viewport and the
+    container's own inline size — the script reports both the viewport
+    width searched and the resulting content-box width, and only the
+    latter is comparable to the rem thresholds in `review.css`.
+- **Second independent adversarial review round (same session, same branch,
+  `e839e89...98342f7` reviewed):** the orchestrator accepted one blocking
+  finding and four advisory ones; fixed all five, tests plus two small
+  production hunks (a static-class move and a dead-CSS-class removal), no
+  rule/grouping/ranking/schema change.
+  - **P2-1 (blocking, real coverage gap):** `armorComparisonSpecs`'s
+    same-stat `Tuning Mod Slot` spec carries `always: true` so the
+    difference-only suppression rule never drops the group's defining axis
+    — but every same-stat fixture in the whole suite already varies
+    `Tuning Mod Slot` itself, so the axis always showed as a row from the
+    plain "differs" check anyway and the `always: true` rail was never
+    actually exercised. The reviewer proved this by deleting `always: true`
+    and finding the full 128-Node/13-browser suite still green. The rail is
+    reachable, not defensive: `armor_close.py`'s same-stat grouping key
+    forms a group whenever *any* of `Tuning Stat`, `Seasonal Mod` or
+    `Holofoil` differs, so a group can exist whose members share one
+    identical `Tuning Mod Slot` and differ only in `Seasonal Mod` or
+    `Holofoil` — and in that exact shape the `Tuning Stat` fallback is also
+    dropped, because `rawTuningValues.length > tuningSlots.length`
+    evaluates `1 > 1` (both are uninformative-uniform), so nothing else
+    would have kept the axis visible. Added
+    `test_same_stat_tuning_mod_slot_defining_axis_never_suppressed`
+    (`tests/test_review_ui_js.py`) with exactly that shape (one shared
+    `tuningModSlot`, `tuningStat` left unset on every member, `seasonalMod`
+    and `holofoil` varying) and asserted `Tuning Mod Slot` is a row in both
+    `table.armor-matrix-rows` and `table.armor-matrix-columns` and absent
+    from `p.armor-identical-axes`. Confirmed load-bearing in a scratch
+    edit: deleting `always: true` flips the result to
+    `rowsHasTuningModSlot: False` / `columnsHasTuningModSlot: False` and
+    `Tuning Mod Slot Weapons` appearing in the identical-axes text — the
+    test goes red exactly as expected, then the source was restored from a
+    backup copy before committing.
+  - **P3-4 (accepted):** `review_server.js`'s `renderViewSelector` did
+    `selectorPanel.className = "panel view-selector tabs"` on every render,
+    unconditionally overwriting whatever `review_server.html` set on
+    `#vc-view-selector` — `review_server.html` was never touched despite
+    plan §1 listing it `[MODIFY]`, so the strip was unstyled between first
+    paint and the first render. Moved `tabs` into the static class list on
+    `#vc-view-selector` in `review_server.html` and dropped the JS
+    assignment; the existing static `aria-label="Review surface"` was left
+    exactly as-is. Updated the two `tests/test_server_ui_js.py` fake-DOM
+    `Document()` constructors that back the tests reading `selector`'s
+    `className` / rendering it, so the fake `#vc-view-selector` node starts
+    with `"panel view-selector tabs"` the way the real static markup now
+    does — mirroring, in the test harness, what the real HTML/JS split
+    looks like post-fix.
+  - **P3-1 (accepted):** dropped the dead `seg` class from
+    `review_server.js`'s `#vc-dup-kind-selector` (`class: "view-selector
+    seg"` → `class: "view-selector"`); `.seg` had zero rules in
+    `review.css` (only `.segbtns` exists). Grepped tests first — nothing
+    asserted `seg`.
+  - **P3-3 (accepted):** `review_ui.js`'s `valuesForField` and
+    `memberValues` were two near-identical distinct-value collectors in the
+    same closure, both already using `Object.create(null)` (via
+    `emptyMap()`) for `__proto__`-shaped-value safety. Collapsed to one:
+    `memberValues` now delegates to `valuesForField` with a getter closure
+    instead of re-implementing the collection loop; `valuesForField`'s own
+    `emptyMap()`-based body is unchanged and is now the sole collector. No
+    call site or test needed to change — the full suite stayed green
+    unmodified, as the finding required.
+  - **P3-2 (accepted):** `tests/test_server_browser.py`'s
+    `theme_snapshot()` (inside
+    `test_armor_same_stat_four_member_badge_wrapping_and_transposition`)
+    covered only `.scope-summary` and `.armor-group-pieces`, leaving the
+    new #131 elements — which the reviewer confirmed use only
+    `--accent`/`--muted`/`--line`/`--review`/`--warn-bg` with no hardcoded
+    colors — without a light/dark computed-value assertion. Extended it
+    with the archetype badge's `color` (`--accent`), the `.tuneline.warn`
+    banner's `backgroundColor`/`borderLeftColor` (`--warn-bg`/`--review`),
+    the stat spike's primary bar `backgroundColor` (`--accent`), and the
+    section heading's inherited `color` (`--ink`); all four flow through
+    the existing generic "changed between light and dark, and never
+    transparent" loops with no new assertion code needed. This fixture
+    (`armor_same_stat_four_ui.csv`) only produces same-stat groups, so only
+    the `.tuneline.warn` variant is exercised here — the plain `.tuneline`
+    banner shares the same `--accent`/`--line` tokens already covered by
+    the archetype badge and scope-summary assertions, so a second upload
+    just to reach it was judged not worth the added test complexity.
+  - **Not changed (P3-5, explicitly out of scope for this round):** the
+    `N=5`/`N=6` container-query rules remain unreachable-but-documented
+    defensive rules, per the orchestrator's instruction to leave them.
+  - **Verification after this round:** `ruff check src tests scripts` —
+    all checks passed; `pytest -q` — 962 passed (953 baseline + this
+    round's one new Node test + prior-round additions already on the
+    branch); `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m browser
+    tests/test_server_browser.py` — 13 passed, not skipped; `git diff
+    --check origin/main...HEAD` clean; `git ls-files data/` empty;
+    `git status --porcelain` clean after commit.
+- **Third independent adversarial review round (same session, same branch,
+  `e839e89...c9da9ac` reviewed):** the orchestrator accepted one blocking
+  finding and two advisory ones; fixed all three, tests plus two small
+  presentation-only production hunks, no rule/grouping/ranking/schema change.
+  - **P2-1 (blocking, real defect on real data — the headline visual
+    rendered inverted):** the orchestrator measured the shipped head live in
+    managed Chromium at 1440×1000 against `armor_duplicates_ui.csv` and
+    found the spike's `.sv` document order was tertiary (20), secondary
+    (25), primary (30) left to right — bars ramping *up*, faintest and
+    shortest leading — the exact reverse of the agreed #102 artifact and of
+    plan §6's own `30 → 100%, 25 → 83%, 20 → 67%` spec.
+    **Root cause, recorded here because it is the single most valuable fact
+    in this entry:** `armorStatDisplay` (`review_ui.js`) built its `rows`
+    array by iterating `Object.keys(group.stats)` and keeping whatever
+    order the payload's `stats` object arrived in, instead of deriving
+    order from role. `report_run.py` serializes the entire report snapshot
+    with `sort_keys=True` (unchanged, and out of scope for #131 — do not
+    touch it), so `stats` always arrives over the wire with its keys
+    alphabetical, never in stat-value order. For this stat set that
+    alphabetical order (`class, grenade, health, melee, super, weapons`)
+    happens to list the tertiary stat (`class`, 20) before the secondary
+    (`health`, 25) before the primary (`weapons`, 30) — i.e. exactly
+    ascending, exactly backwards. **Any future presentation code on this
+    surface that relies on `stats` payload key order for anything
+    order-sensitive will silently render wrong in production while looking
+    correct in a hand-authored test fixture** — see the test-gap note below.
+    **Why the existing suite missed it:** the browser assertion
+    (`test_armor_stat_spike_bars_render_proportional_widths`) selected bars
+    by role class (`.sv.p .bar`, `.sv.s .bar`, `.sv.t .bar`), which finds
+    the right element regardless of where it sits in the document, so it
+    passed on the inverted head. The one Node-level assertion of row order
+    (in `test_exact_groups_are_authoritative_and_filter_as_whole_groups`)
+    built its own snapshot literal with `stats: {weapons: 30, health: 25,
+    class: 20, ...}` — already primary-first by how the fixture happened to
+    be authored — so it could not have caught a payload-key-order
+    dependency either.
+    **Fix (presentation only, `review_ui.js`):** `armorStatDisplay`'s tier-5
+    branch now builds `rows` by iterating a fixed `[30, 25, 20]` role order
+    and looking up which stat name carries each value, rather than mapping
+    over `names` (`Object.keys(stats)`) in whatever order they arrived.
+    Deterministic regardless of payload key order. `sort_keys=True` in
+    `report_run.py` was not touched, and nothing outside `src/vault_cleaner/
+    ui/` changed.
+    **New tests, both keyed to a payload with alphabetical `stats` keys —
+    exactly what the real server emits — so neither could pass by
+    coincidence of fixture-authoring order the way the old one did:**
+    `test_armor_stat_spike_orders_rows_by_role_not_payload_key_order`
+    (`tests/test_review_ui_js.py`) asserts both `armorStatDisplay(group)
+    .rows` order and the actual rendered `.sv` DOM node order/class/value/
+    role from `armorGroupHeader`, walking the fake-DOM tree in document
+    order (not selecting by role class); and
+    `test_armor_stat_spike_renders_primary_first_in_document_order`
+    (`tests/test_server_browser.py`) asserts the live Chromium `.sv`
+    elements' `className`/`.val`/`.role` text in real document order via
+    `locator.evaluate_all`, plus strictly increasing `getBoundingClientRect
+    ().x`. **Confirmed load-bearing by mutation:** reverted
+    `armorStatDisplay`'s row-ordering to the old `names.filter(...).map(...)`
+    payload-order logic in a scratch edit — both new tests failed, the Node
+    test reporting `domClassOrder: ["sv t", "sv s", "sv p"]` and the browser
+    test reporting `classes == ['sv t', 'sv s', 'sv p']`, i.e. the exact
+    inverted order the orchestrator measured live — then restored the fix
+    from a backup copy before committing.
+    **Measured `.sv` document order after the fix** (1440×1000,
+    `armor_duplicates_ui.csv`): `x=142.0 sv p 30 primary bar=86.39px`,
+    `x=242.78 sv s 25 secondary bar=71.70px`, `x=343.56 sv t 20 tertiary
+    bar=57.88px` — strictly ascending x, strictly descending value/width,
+    matching the artifact and plan §6 exactly.
+  - **P3-1 (accepted):** the zero-stat summary line rendered its stat names
+    in raw lowercase payload casing (`grenade · melee · super · 0 base`)
+    directly beneath the spike's own stat labels, which CSS uppercases
+    (`.armor-stat-summary.spike .sv .lbl { text-transform: uppercase }`) —
+    one stat vocabulary in two casings side by side. Fixed with a CSS-only
+    change: added a dedicated `armor-stat-zero` class to the zero-summary
+    `<p>` in `review_ui.js` and a `.hint.armor-stat-zero` rule in
+    `review.css` (mono font, `letter-spacing: .07em`,
+    `text-transform: uppercase` — the same treatment as `.sv .lbl`), rather
+    than uppercasing the string in `armorStatDisplay`. Chosen over a
+    display-casing step in JS because `armorStatDisplay`'s `zeroSummary`
+    string is also a data value asserted directly by an existing Node test
+    (`"zeroSummary": "grenade · super · melee · 0 base"`), and this way that
+    assertion, the ` · 0 base` suffix, and the non-tier-5 fallback all stay
+    completely untouched — only the rendered presentation changes.
+  - **P3-2 (accepted, checklist-consistency gap):** `tests/
+    test_review_ui_js.py` still indexed `state.duplicateRows[id][0]`
+    positionally in the `readOnly`, `repaintedInPlace`, `finalizedDisabled`,
+    `proposalControls`, and `laterProposalRemainsMutable` assertions —
+    always the row-table occurrence, contradicting review checklist item 5
+    ("No test asserts `state.duplicateRows[id][0]` positionally"). The
+    reviewer confirmed by mutation that the underlying dual-orientation
+    repaint/disable behaviour is already covered elsewhere, so this was a
+    checklist-consistency gap, not an uncovered behaviour. Converted all
+    five to `.every()` over the full occurrence list (capturing `beforeCells
+    = proposalRows.map(r => r.cell)` up front for the identity check), while
+    keeping a single occurrence as the actual click target for triggering
+    state changes — that part is an action, not an assertion, and stays
+    positional by necessity (a real click always lands on one visible
+    button).
+  - **Trivial hardening (accepted):** `armorTuningBanner`'s exact-group
+    branch concatenated `group.tuningModSlot` directly instead of through
+    the existing `str()` helper. Both current server/adapter projections
+    already normalize it to a string, so this was not reachable today, but
+    a future hand-built group object could render the literal text
+    `undefined`. Wrapped it in `str()`.
+  - **Verification after this round:** `ruff check src tests scripts` — all
+    checks passed; `pytest -q` — 964 passed (962 prior + 2 new tests this
+    round: one Node, one browser); `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest
+    -q -m browser tests/test_server_browser.py` — 14 passed, not skipped;
+    `git diff --check origin/main...HEAD` clean; `git ls-files data/`
+    empty; `git status --porcelain` clean after commit. Diff scope: only
+    `src/vault_cleaner/ui/review_ui.js`, `src/vault_cleaner/ui/review.css`,
+    `tests/test_review_ui_js.py`, `tests/test_server_browser.py`, and this
+    file.
+- **Fourth independent adversarial review round (same session, same branch,
+  `e839e89...608e968` reviewed):** no P0/P1/P2 findings; four advisory P3s,
+  three accepted and fixed (CSS-only plus a stale-figure correction), one
+  recorded here as an accepted decision rather than a code change.
+  - **P3 (accepted, real regression this ticket introduced):** the
+    `@media (max-width: 640px)` block in `review.css` used to force both
+    `.armor-group-meta .tile` and `.armor-stat-summary .tile` to
+    `min-width: 100%` on narrow panels. The #131 rewrite of that block kept
+    only `.armor-group-extra .tile`, silently dropping the
+    `.armor-stat-summary .tile` override — so the non-tier-5 stat fallback
+    (the only place `.armor-stat-summary .tile`'s own `min-width: 8rem` rule
+    still applies; the tier-5 spike uses `.armor-stat-summary.spike .sv`
+    instead) stopped collapsing to full width at ≤640px, a small regression
+    against pre-#131 behaviour that plan §6 requires to stay unchanged.
+    Restored `.armor-stat-summary .tile` alongside `.armor-group-extra .tile`
+    in the same selector list; CSS only, one line.
+  - **P3 (accepted, stale record):** `docs/browser-verification.md`'s #131
+    dated run still read `13 passed in 9.42s`, even though round three's own
+    worklog entry above already correctly reported 14 passed (the new
+    `test_armor_stat_spike_renders_primary_first_in_document_order`) — the
+    doc describing the actual browser-verification run was never updated to
+    match once that test landed, the same kind of drift already corrected
+    once in round one (P3-1/6/3). Re-ran
+    `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m browser
+    tests/test_server_browser.py` for real this round: **14 passed in
+    9.80s**. Updated the doc's headline figure and added a line describing
+    the inverted-stat-spike fix and its new browser test.
+  - **P3 (accepted decision — plan §3 filter-card restyle was consciously
+    reduced, not implemented in full):** plan §3 asked for a restyled
+    `.filters`/`.fgrid` card around the duplicate-surface filter controls.
+    No such card was added; only the static whole-group filtering hint
+    (`.armor-duplicate-filter-hint`) landed, with the reasoning previously
+    recorded only in a CSS comment above that rule. Recording it here per
+    AGENTS.md: the existing `#vc-controls` panel already renders the
+    controls in the artifact's own order (Search, Class, Slot/type,
+    Archetype, Tuning Mod Slot), so the substantive request in §3 — correct
+    control grouping and order — was already satisfied before this ticket
+    touched anything; a further visual card restyle was judged not to add
+    anything the artifact comparison required, and was intentionally left
+    out rather than done partially.
+  - **P3 (accepted decision — zero-stat summary order is payload order,
+    not a design-fixed order):** round three pinned the tier-5 spike rows to
+    a fixed `[30, 25, 20]` role order (see above), but `armorStatDisplay`'s
+    `zeroNames` for the zero-stat summary line still filters in
+    `Object.keys(stats)` order and was deliberately left that way. The three
+    zero stats are all `0` and carry no role information to pin an order to,
+    and plan §6 names no ordering requirement for them — unlike the spike
+    rows, where role order is real information. **Warning for future work on
+    this surface:** `report_run.py` serializes the report snapshot with
+    `sort_keys=True` (unchanged, out of scope here), so the real server
+    always emits `stats` keys alphabetically; any presentation code that
+    derives display order from `stats` payload key order — as `zeroNames`
+    does today — is alphabetical by construction, not incidentally. This is
+    exactly the failure mode round three's P2-1 hit for the spike rows,
+    accepted here for the zero-stat line only because there is no role order
+    to lose. Not changed: the ordering code in `armorStatDisplay`, or the
+    existing Node assertion on the literal zero-stat string.
+  - **Verification after this round:** `ruff check src tests scripts` — all
+    checks passed; `pytest -q` — 964 passed (unchanged from round three, no
+    new tests this round); `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m
+    browser tests/test_server_browser.py` — 14 passed in 9.86s, not skipped;
+    `git diff --check origin/main...HEAD` clean; `git ls-files data/` empty;
+    `git status --porcelain` clean after commit. Diff scope: only
+    `src/vault_cleaner/ui/review.css`, `docs/browser-verification.md`, and
+    this file — no rule/grouping/ranking/schema change.
+
+- **Review-fix round (same session, same branch):** implemented the remaining
+  presentation findings and the measurement-script failure semantics without
+  changing Python rules, grouping/ranking, snapshot/server contracts, or
+  verdict behavior. The group header now has a title/archetype anchor, a
+  quieter labelled metadata line, and a prominent piece count; the tier-5
+  spike has a bordered, roomier treatment while the non-tier-5 tile fallback
+  remains intact. The comparison model is computed once per group and its
+  identical-axis summary now lives in the header shared context above the
+  matrix, leaving both matrix orientations difference-only.
+- Member IDs are visually quieter, disposition badges are compact text
+  statuses, and read-only verdict disclosures are stacked into labelled lines
+  (disposition, any proposal/action/reason, and current verdict when a later
+  proposal exists) so no authoritative fact is lost. Same-stat `Tuning Mod
+  Slot` rows receive the strongest neutral weight/rule, with no keep/junk color
+  or implied tuning preference. Added Node assertions for the header hierarchy,
+  stacked status DOM, and header-only identical-axis placement.
+- `scripts/measure_armor_matrix_orientation.py` now appends a failure when a
+  measured comparison width differs from its hard-coded CSS threshold by
+  `>= 1px`, before the evidence write; the pure `check_css_threshold` helper
+  has boundary tests for both the one-pixel failure and a good run. The live
+  measurement still confirms 616/816/1016px flip widths and regenerated the
+  committed evidence with the new header geometry.
+- The first escalated browser run caught and corrected one regression in the
+  new badge CSS: `width: max-content` defeated the existing narrow wrapping
+  guard. Removing that constraint restored the fixed 176px heading budget.
+- **Verification after this round:** `ruff check src tests scripts` — all
+  checks passed; focused Node/measurement tests — **132 passed in 5.71s**;
+  full `.venv/bin/pytest -q` — **966 passed in 26.74s**;
+  `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser
+  tests/test_server_browser.py` — **14 passed in 11.31s**, not skipped;
+  `.venv/bin/python scripts/measure_armor_matrix_orientation.py` — passed,
+  threshold matches recorded and evidence written; no data files are tracked.
+- **Post-review correctness follow-up (same branch):** accepted the owner's
+  high-severity finding that the in-place verdict repaint assigned
+  `textContent` to exact-group `.armor-member-status` containers without a
+  dynamic verdict child, destroying their badge/detail DOM after the first
+  acknowledgement. Every structured armor status is now marked explicitly;
+  repaint updates its dedicated dynamic verdict child when present and leaves
+  an intentionally static structured status untouched otherwise. This differs
+  deliberately from the literal suggestion to always add a verdict node:
+  simple preferred-survivor/retained-protected exact statuses intentionally
+  omit the redundant current-verdict line. Extended both the Node DOM test and
+  the live exact-group browser flow to repaint every occurrence and assert the
+  read-only badge/disposition children survive; the Node case also covers a
+  read-only exact proposal with an empty current action.
+- Accepted the non-blocking measurement hardening note with a stronger
+  fail-safe: every fixture probe now receives its expected member count and
+  requires exactly one matching `article.armor-group`; zero or multiple
+  matches fail the measurement instead of silently selecting the first group.
+  The unrelated wide-cap probe likewise requires one unique current group.
+  Added a unit seam asserting the count is passed and uniqueness guard remains
+  in the probe. The real measurement rerun still produced exact 616/816/1016px
+  threshold matches and no evidence diff.
+- **Verification after the post-review follow-up:** `ruff check src tests
+  scripts` — all checks passed; focused unit coverage — **4 passed**; focused
+  live Chromium regression — **1 passed**; full `.venv/bin/pytest -q` — **967
+  passed in 29.50s**; required browser suite — **14 passed, 3 deselected in
+  10.04s**; real measurement script — passed; `git diff --check` — clean.
+- **Final re-review cleanup:** accepted the owner's non-blocking observation
+  that the structured-status guard made `armorReadonlyText` and the
+  non-proposal arms of `paintArmorMember`'s fallback unreachable. Removed the
+  dead helper and reduced the fallback to its only possible case: repainting
+  an editable proposal's flat verdict span. Declined CodeRabbit's JSDoc nit:
+  `paintArmorMember` is an internal `createView` helper like the adjacent
+  undocumented `paintRow`, not a standalone public API; a two-line invariant
+  comment beside the structured/flat branch documents the non-obvious part
+  without introducing a one-off documentation convention.
+- **Verification after final cleanup:** `ruff check src tests scripts` — all
+  checks passed; focused Node regression — **1 passed**; full
+  `.venv/bin/pytest -q` — **967 passed in 27.49s**; required browser suite —
+  **14 passed, 3 deselected in 9.94s**; `git diff --check` — clean.
+
 ## 2026-09-04 — #131: Armor duplicates design-fidelity planning session (plan PR 1)
 
 Planning-only session for #131. No production code, test, fixture, snapshot,

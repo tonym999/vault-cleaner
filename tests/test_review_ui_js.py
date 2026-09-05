@@ -667,7 +667,7 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
     '  categories: {class: api.countArmorGroups(groups, "guardianClass"), type: api.countArmorGroups(groups, "type"), archetype: api.countArmorGroups(groups, "itemArchetype"), tuning: api.countArmorGroups(groups, "tuningModSlot")},\n'
         '  membersIntact: api.filterArmorGroups(groups, {text: "loser"})[0].members.length === 3,\n'
         '  roles: stats.rows.map(function (row) { return [row.role, row.name, row.value]; }),\n'
-        '  zerosCollapsed: stats.zeroSummary.indexOf("three base stats") !== -1,\n'
+        '  zeroSummary: stats.zeroSummary,\n'
         '  fallback: fallback.tier5 === false && fallback.rows.length === 2,\n'
         '  prototypeClean: Object.prototype.polluted === undefined\n'
         '}));\n',
@@ -698,9 +698,97 @@ def test_exact_groups_are_authoritative_and_filter_as_whole_groups(tmp_path):
         "membersIntact": True,
         "roles": [["Primary", "weapons", 30], ["Secondary", "health", 25],
                   ["Tertiary", "class", 20]],
-        "zerosCollapsed": True,
+        # Named zero stats, not a generic sentence (#131): every zero-value
+        # base stat, in stats-object order, then the fixed " · 0 base" tail.
+        "zeroSummary": "grenade · super · melee · 0 base",
         "fallback": True,
         "prototypeClean": True,
+    }
+
+
+def test_armor_stat_spike_orders_rows_by_role_not_payload_key_order(tmp_path):
+    """#131 P2-1: the spike must render primary/secondary/tertiary in that
+    order regardless of ``stats`` key order.
+
+    The fixture above happens to list ``weapons`` (30) before ``health``
+    (25) before ``class`` (20), which is already primary-first, so it does
+    not prove the ordering is role-driven rather than payload-driven. The
+    real server always emits ``stats`` with alphabetical keys
+    (``report_run.py`` serializes the snapshot with ``sort_keys=True``,
+    unchanged by this fix), which for this stat set is
+    class/grenade/health/melee/super/weapons -- exactly the reverse of the
+    intended primary/secondary/tertiary rendering order. Assert both the
+    data (``armorStatDisplay(group).rows``) and the rendered DOM node order
+    from ``armorGroupHeader`` so a regression in either layer is caught.
+    """
+    script = tmp_path / "armor-stat-spike-order.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.removeChild = function (child) { this.children.splice(this.children.indexOf(child), 1); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function collect(node, predicate, out) {
+  out = out || [];
+  if (predicate(node)) out.push(node);
+  node.children.forEach(function (child) { collect(child, predicate, out); });
+  return out;
+}
+function childText(node, cls) {
+  var match = node.children.filter(function (child) { return child.className === cls; })[0];
+  return match ? match.textContent : null;
+}
+// Alphabetical stats keys, exactly as the real server emits them.
+var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", decisions: [], armor: {
+  exact_duplicate_groups: [{group_kind: "exact_duplicate", group_id: "g", hash: "h",
+    name: "Alphabetical stats", tier: 5,
+    stats: {class: 20, grenade: 0, health: 25, melee: 0, super: 0, weapons: 30},
+    preferred_survivor_id: "only", members: [
+      {id: "only", location: "Vault", disposition: "preferred_survivor"}
+    ]}]
+}}]})[0];
+var view = api.createView({document: new Document(),
+  state: {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)},
+  verdictText: function () { return "Unreviewed"; }});
+var header = view.armorGroupHeader(group);
+var spikes = collect(header, function (node) {
+  return typeof node.className === "string" && /^sv( |$)/.test(node.className);
+});
+process.stdout.write(JSON.stringify({
+  displayOrder: api.armorStatDisplay(group).rows.map(function (row) { return [row.role, row.value]; }),
+  domClassOrder: spikes.map(function (node) { return node.className; }),
+  domValueOrder: spikes.map(function (node) { return childText(node, "val"); }),
+  domRoleOrder: spikes.map(function (node) { return childText(node, "role"); })
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "displayOrder": [["Primary", 30], ["Secondary", 25], ["Tertiary", 20]],
+        "domClassOrder": ["sv p", "sv s", "sv t"],
+        "domValueOrder": ["30", "25", "20"],
+        "domRoleOrder": ["primary", "secondary", "tertiary"],
     }
 
 
@@ -846,11 +934,18 @@ var group = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor", dec
     ]}]
 }}]})[0];
 var article = view.armorGroup(group);
-var proposal = state.duplicateRows.proposal[0];
-var before = proposal.cell;
+// Two orientations register two occurrences per member id (#131 P3-2):
+// assert over every occurrence, never state.duplicateRows[id][0], so a
+// repaint/disable path that only reaches the visible orientation cannot
+// pass silently.
+var proposalRows = state.duplicateRows.proposal;
+var proposal = proposalRows[0];
+var beforeCells = proposalRows.map(function (row) { return row.cell; });
 proposal.approve.click();
 state.verdicts.proposal = "approved";
 view.paintArmorMember("proposal");
+view.paintArmorMember("survivor");
+view.paintArmorMember("retained");
 proposal.veto.click();
 proposal.clear.click();
 var laterState = {expanded: Object.create(null), rows: Object.create(null), duplicateRows: Object.create(null), verdicts: Object.create(null)};
@@ -865,7 +960,7 @@ var laterGroup = api.exactDuplicateGroupsFromSnapshot({sections: [{kind: "armor"
     {id: "proposal", disposition: "proposed_junk", proposal_action: "junk"}
   ]}]}}]})[0];
 var laterArticle = laterView.armorGroup(laterGroup);
-var laterSurvivor = laterState.duplicateRows.survivor[0];
+var laterSurvivorRows = laterState.duplicateRows.survivor;
 laterState.verdicts.survivor = "approved";
 laterView.paintArmorMember("survivor");
 var malformedState = {expanded: Object.create(null), rows: Object.create(null),
@@ -880,13 +975,14 @@ var malformedArticle = malformedView.armorGroup({
     {id: "bad", location: "Vault", disposition: "proposed_junk", proposalAction: ""}
   ]
 });
+malformedView.paintArmorMember("bad");
 var finalizedState = {expanded: Object.create(null), rows: Object.create(null),
   duplicateRows: Object.create(null), verdicts: Object.create(null)};
 var finalizedView = api.createView({document: new Document(), state: finalizedState,
   verdictDisabled: function () { return true; },
   verdictText: function () { return "Unreviewed"; }});
 finalizedView.armorGroup(group);
-var finalizedProposal = finalizedState.duplicateRows.proposal[0];
+var finalizedProposalRows = finalizedState.duplicateRows.proposal;
 process.stdout.write(JSON.stringify({
   complete: article.textContent.indexOf("</script><img src=x onerror=alert(1)>") !== -1 &&
     article.textContent.indexOf("survivor") !== -1 && article.textContent.indexOf("retained") !== -1 &&
@@ -898,22 +994,43 @@ process.stdout.write(JSON.stringify({
   }) === 0,
   malformedReadOnly: count(malformedArticle, function (node) {
     return node.tagName === "BUTTON";
-  }) === 0,
-  finalizedDisabled: finalizedProposal.approve.disabled && finalizedProposal.veto.disabled &&
-    finalizedProposal.clear.disabled,
-  readOnly: count(state.duplicateRows.survivor[0].cell, function (node) { return node.tagName === "BUTTON"; }) === 0 &&
-    count(state.duplicateRows.retained[0].cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
-  proposalControls: count(proposal.cell, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  }) === 0 && malformedState.duplicateRows.bad.every(function (row) {
+    return row.presentation.children.length === 2;
+  }),
+  finalizedDisabled: finalizedProposalRows.every(function (row) {
+    return row.approve.disabled && row.veto.disabled && row.clear.disabled;
+  }),
+  readOnly: state.duplicateRows.survivor.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 0;
+  }) && state.duplicateRows.retained.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 0;
+  }),
+  proposalControls: proposalRows.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 3;
+  }),
   callback: JSON.stringify(toggles) === JSON.stringify([["proposal", "approved"], ["proposal", "vetoed"], ["proposal", ""]]),
-  repaintedInPlace: state.duplicateRows.proposal[0].cell === before && proposal.approve.getAttribute("aria-pressed") === "true",
+  repaintedInPlace: proposalRows.every(function (row, index) {
+    return row.cell === beforeCells[index];
+  }) && proposalRows.every(function (row) {
+    return row.approve.getAttribute("aria-pressed") === "true";
+  }),
+  structuredReadOnlySurvivesRepaint: ["survivor", "retained"].every(function (id) {
+    return state.duplicateRows[id].every(function (row) {
+      return row.presentation.children.length === 2 &&
+        row.presentation.children[0].className.indexOf("badge status") !== -1 &&
+        row.presentation.children[1].className === "status-detail";
+    });
+  }),
   labels: article.textContent.indexOf("Preferred survivor") !== -1 && article.textContent.indexOf("Retained protected") !== -1 && article.textContent.indexOf("Proposed junk") !== -1,
   equipped: article.textContent.indexOf("Equipped") !== -1 && article.textContent.indexOf("Yes") !== -1 && article.textContent.indexOf("No") !== -1,
   laterProposalDisclosure: laterArticle.textContent.indexOf("Also proposed junk in Proposals") !== -1 &&
     laterArticle.textContent.indexOf("Current verdict: approved") !== -1 &&
-    count(laterSurvivor.cell, function (node) { return node.tagName === "BUTTON"; }) === 0,
-  laterProposalRemainsMutable: count(laterState.duplicateRows.proposal[0].cell, function (node) {
-    return node.tagName === "BUTTON";
-  }) === 3
+    laterSurvivorRows.every(function (row) {
+      return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 0;
+    }),
+  laterProposalRemainsMutable: laterState.duplicateRows.proposal.every(function (row) {
+    return count(row.cell, function (node) { return node.tagName === "BUTTON"; }) === 3;
+  })
 }));
 ''',
         encoding="utf-8",
@@ -935,6 +1052,7 @@ process.stdout.write(JSON.stringify({
         "proposalControls": True,
         "callback": True,
         "repaintedInPlace": True,
+        "structuredReadOnlySurvivesRepaint": True,
         "labels": True,
         "equipped": True,
         "laterProposalDisclosure": True,
@@ -1217,11 +1335,29 @@ var view = api.createView({document: new Document(), state: state,
   verdictText: function (member, verdict) { return verdict || "Unreviewed"; }});
 var articles = view.armorGroups(projected);
 var exactArticle = articles[0], sameArticle = articles[1];
+// Two orientations register every member id twice per group it appears in,
+// so sharedId (read-only in the exact group, proposal-capable in the
+// same-stat group) now has four occurrences, not two. Assertions below walk
+// the whole occurrence list rather than indexing a fixed position (#131).
 var overlap = state.duplicateRows[sharedId];
-overlap[1].approve.click();
+var exactOccurrences = overlap.filter(function (o) { return o.group.groupKind === "exact_duplicate"; });
+var sameOccurrences = overlap.filter(function (o) { return o.group.groupKind === "same_stat"; });
+sameOccurrences[0].approve.click();
 state.verdicts[sharedId] = "approved";
 view.paintArmorMember(sharedId);
 view.setVerdictControlsDisabled(true);
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+function firstByClass(article, name) {
+  var found = null;
+  (function walk(n) {
+    if (found) return;
+    if (hasClass(n, name)) { found = n; return; }
+    (n.children || []).forEach(walk);
+  })(article);
+  return found;
+}
 function rejects(value) {
   try { api.sameStatGroupsFromSnapshot(value); return false; }
   catch (error) { return true; }
@@ -1307,9 +1443,13 @@ process.stdout.write(JSON.stringify({
   memberOrder: projected[1].members.map(function (member) { return member.id; }),
   strings: typeof projected[1].groupId === "string" && projected[1].groupId === "__proto__" &&
     typeof projected[1].hash === "string" && typeof projected[1].members[1].selectedPartnerId === "string",
-  overlapArray: Array.isArray(overlap) && overlap.length === 2,
-  exactReadOnly: overlap[0].approve === null && overlap[0].presentation.textContent.indexOf("Read-only") !== -1,
-  sameRepainted: overlap[1].approve.getAttribute("aria-pressed") === "true" && overlap[1].approve.disabled,
+  overlapArray: Array.isArray(overlap) && overlap.length === 4,
+  exactReadOnly: exactOccurrences.length === 2 && exactOccurrences.every(function (o) {
+    return o.approve === null && o.presentation.textContent.indexOf("Read-only") !== -1;
+  }),
+  sameRepainted: sameOccurrences.length === 2 && sameOccurrences.every(function (o) {
+    return o.approve.getAttribute("aria-pressed") === "true" && o.approve.disabled;
+  }),
   labels: sameArticle.textContent.indexOf("Same stats · review only") !== -1 &&
     sameArticle.textContent.indexOf("Tuning Mod Slot") !== -1 &&
     sameArticle.textContent.indexOf("<img src=tuning-slot>") !== -1,
@@ -1321,8 +1461,10 @@ process.stdout.write(JSON.stringify({
   noBogusGroupAxes: projected[1].seasonalMod === "" && projected[1].holofoil === "" &&
     sameArticle.textContent.indexOf("group-seasonal") === -1 &&
     sameArticle.textContent.indexOf("group-holofoil") === -1,
-  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 3 &&
-    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 3,
+  // Two orientations double every proposal-capable member's controls (one
+  // set per table), so the button count doubles too (#131).
+  controls: count(exactArticle, function (node) { return node.tagName === "BUTTON"; }) === 6 &&
+    count(sameArticle, function (node) { return node.tagName === "BUTTON"; }) === 6,
   filterAny: api.filterArmorGroups(projected, {tuningModSlot: "Health"}).length === 1,
   countsOnce: (function () {
     var counts = api.countArmorGroups(projected, "tuningModSlot");
@@ -1342,6 +1484,44 @@ process.stdout.write(JSON.stringify({
     exactArticle.textContent.indexOf("_") === -1,
   sameSubLineUnchanged: sameArticle.textContent.indexOf(
     "Same stats · review only") !== -1,
+  headerHierarchy: (function () {
+    var header = firstByClass(exactArticle, "armor-group-header");
+    var title = header && firstByClass(header, "armor-group-title");
+    var meta = header && firstByClass(header, "armor-group-meta");
+    var context = header && firstByClass(header, "armor-group-context");
+    var titleBadge = title && firstByClass(title, "badge");
+    return !!header && !!title && !!meta && !!context &&
+      !firstByClass(title, "armor-group-pieces") && titleBadge &&
+      hasClass(titleBadge, "arch") &&
+      firstByClass(meta, "mono") !== null &&
+      firstByClass(context, "armor-identical-axes") !== null;
+  }()),
+  memberStatusStack: (function () {
+    var exactStatuses = collect(exactArticle, function (node) {
+      return hasClass(node, "armor-member-status");
+    });
+    var simpleStatuses = collect(singleGroupArticle, function (node) {
+      return hasClass(node, "armor-member-status");
+    });
+    var simpleExact = simpleStatuses.filter(function (status) {
+      return status.textContent.indexOf("Disposition: Preferred survivor") !== -1;
+    })[0];
+    var crossSurfaceExact = exactStatuses.filter(function (status) {
+      return status.textContent.indexOf("Disposition: Preferred survivor") !== -1;
+    })[0];
+    return exactStatuses.length === 2 && simpleStatuses.length === 2 &&
+      !!simpleExact && !!crossSurfaceExact &&
+      simpleStatuses.every(function (status) {
+        return status.children.length === 2 &&
+          status.textContent.indexOf("Current verdict:") === -1;
+      }) &&
+      crossSurfaceExact.children.length >= 4 &&
+      hasClass(crossSurfaceExact.children[0], "badge") &&
+      hasClass(crossSurfaceExact.children[0], "status") &&
+      crossSurfaceExact.textContent.indexOf("Also proposed review in Proposals") !== -1 &&
+      crossSurfaceExact.textContent.indexOf("Current verdict:") !== -1 &&
+      crossSurfaceExact.textContent.indexOf("Proposal reason: armor-similar to") !== -1;
+  }()),
   protectionHeaderPresent: exactHeaders.indexOf("Protection") !== -1 &&
     sameHeaders.indexOf("Protection") !== -1,
   noHardProtectionHeader: exactHeaders.indexOf("Hard protection") === -1 &&
@@ -1352,9 +1532,11 @@ process.stdout.write(JSON.stringify({
     sameProtectionCells.length === 2 &&
     sameProtectionCells[0] === "—" &&
     sameProtectionCells[1] === "soft — locked",
-  exactPieces: exactArticle.children[0].children[0].textContent === "2 pieces",
-  samePieces: sameArticle.children[0].children[0].textContent === "2 pieces",
-  singularPiece: singleGroupArticle.children[0].children[0].textContent === "1 piece",
+  // Class-scoped, not positional: a header restructure must not silently
+  // stop covering the piece count (#131 -- see review checklist item 11).
+  exactPieces: firstByClass(exactArticle, "armor-group-pieces").textContent === "2 pieces",
+  samePieces: firstByClass(sameArticle, "armor-group-pieces").textContent === "2 pieces",
+  singularPiece: firstByClass(singleGroupArticle, "armor-group-pieces").textContent === "1 piece",
   sameBannerBothSentences: sameArticle.textContent.indexOf(
     "Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls."
   ) !== -1,
@@ -1373,7 +1555,16 @@ process.stdout.write(JSON.stringify({
     "Base stats match but tuning differs, so this pass selects no survivor. Pieces below that already carry a proposal keep their verdict controls."
   ) !== -1 && count(readOnlySameArticle, function (node) {
     return node.tagName === "BUTTON" && node.className === "approve";
-  }) === 0
+  }) === 0,
+  // Exact-group tuning banner suffix, both branches (#131 P2-1): N > 1 names
+  // the count and the grouping reason; N === 1 (the untitled single-member
+  // article built above) uses the singular sentence instead.
+  tuningSuffixMultiplePieces: exactArticle.textContent.indexOf(
+    "— identical across all 2 pieces, and part of why they are one group."
+  ) !== -1,
+  tuningSuffixSinglePiece: singleGroupArticle.textContent.indexOf(
+    "— the only piece in this group."
+  ) !== -1
 }));
 ''',
         encoding="utf-8",
@@ -1398,6 +1589,7 @@ process.stdout.write(JSON.stringify({
         "callback": True,
         "exactSubLine": True, "exactNoEnumToken": True,
         "sameSubLineUnchanged": True,
+        "headerHierarchy": True, "memberStatusStack": True,
         "protectionHeaderPresent": True, "noHardProtectionHeader": True,
         "protectionCellsHonest": True,
         "exactPieces": True,
@@ -1409,6 +1601,8 @@ process.stdout.write(JSON.stringify({
         "conditionalColumnsAbsentWhenEqual": True,
         "facetUnits": True,
         "sameBannerPresentWhenReadOnly": True,
+        "tuningSuffixMultiplePieces": True,
+        "tuningSuffixSinglePiece": True,
     }
 
 
@@ -1577,7 +1771,8 @@ process.stdout.write(JSON.stringify({
         )
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
-        "rawRows": 1, "emptyVisible": True, "futureRawVisible": True,
+        # Two orientations each render their own "Tuning Stat" header (#131).
+        "rawRows": 2, "emptyVisible": True, "futureRawVisible": True,
         "recognizedVisible": True,
     }
 
@@ -1697,18 +1892,33 @@ var state = {expanded: Object.create(null), rows: Object.create(null),
   duplicateRows: Object.create(null), verdicts: Object.create(null)};
 var view = api.createView({document: new Document(), state: state});
 view.armorGroups(groups);
+// "shared" is a member of both groups, and each group renders two
+// orientations, so it now has four registered occurrences: two per group,
+// identical to each other and distinct from the other group's (#131).
 var overlap = state.duplicateRows.shared;
-var identities = overlap.map(function (row) { return row.cell.getAttribute("data-member-id"); });
-var labels = overlap.map(function (row) {
+var byIdentity = {};
+overlap.forEach(function (row) {
+  var identity = row.cell.getAttribute("data-member-id");
+  (byIdentity[identity] || (byIdentity[identity] = [])).push(row);
+});
+var identityKeys = Object.keys(byIdentity).sort();
+var labelsFor = function (row) {
   return [row.approve.getAttribute("aria-label"), row.veto.getAttribute("aria-label"),
     row.clear.getAttribute("aria-label")];
-});
+};
 process.stdout.write(JSON.stringify({
   sourceId: overlap[0].member.id,
-  identities: identities,
-  labels: labels,
-  uniqueIdentity: identities[0] !== identities[1],
-  distinctLabels: labels[0].every(function (label, index) { return label !== labels[1][index]; }),
+  occurrenceCount: overlap.length,
+  identityKeys: identityKeys,
+  countPerIdentity: identityKeys.map(function (key) { return byIdentity[key].length; }),
+  labelsConsistentWithinIdentity: identityKeys.every(function (key) {
+    var rows = byIdentity[key];
+    var first = JSON.stringify(labelsFor(rows[0]));
+    return rows.every(function (row) { return JSON.stringify(labelsFor(row)) === first; });
+  }),
+  distinctLabelsAcrossIdentity: JSON.stringify(labelsFor(byIdentity[identityKeys[0]][0])) !==
+    JSON.stringify(labelsFor(byIdentity[identityKeys[1]][0])),
+  labels: [labelsFor(byIdentity[identityKeys[0]][0]), labelsFor(byIdentity[identityKeys[1]][0])],
   rawRegistryKey: Object.prototype.hasOwnProperty.call(state.duplicateRows, "shared")
 }));
 ''',
@@ -1723,7 +1933,11 @@ process.stdout.write(JSON.stringify({
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
         "sourceId": "shared",
-        "identities": ["exact_duplicate:shared", "same_stat:shared"],
+        "occurrenceCount": 4,
+        "identityKeys": ["exact_duplicate:shared", "same_stat:shared"],
+        "countPerIdentity": [2, 2],
+        "labelsConsistentWithinIdentity": True,
+        "distinctLabelsAcrossIdentity": True,
         "labels": [
             [
                 "approve exact-duplicate armor member id shared",
@@ -1736,5 +1950,234 @@ process.stdout.write(JSON.stringify({
                 "unset verdict for same-stat armor member id shared",
             ],
         ],
-        "uniqueIdentity": True, "distinctLabels": True, "rawRegistryKey": True,
+        "rawRegistryKey": True,
+    }
+
+
+def test_difference_only_rows_and_identical_axes_line(tmp_path: Path):
+    """An axis identical across members is a row nowhere and named once (#131).
+
+    A row-table axis label is present iff a same-value axis (differs); an
+    axis that is uniform across every member is absent from both matrix
+    orientations and restated, once per group, in the group header's shared
+    context line -- so the read-only protected/mutable context a suppressed
+    row would have carried is never simply lost.
+    """
+    script = tmp_path / "difference-only.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+var group = {
+  groupKind: "same_stat", groupId: "diff-only", hash: "h", name: "Diff Only Plate",
+  type: "Chest Armor", guardianClass: "Titan", itemArchetype: "Reaver", tier: 5,
+  stats: {}, spiritSignature: [], members: [
+    {id: "m1", location: "Vault", protectionLevel: "hard", protectionReason: "equipped",
+     locked: true, masterworkTier: 5, power: 400, inLoadout: false, equipped: false,
+     tuningModSlot: "Weapons"},
+    {id: "m2", location: "Vault", protectionLevel: "", locked: false, masterworkTier: 5,
+     power: 400, inLoadout: false, equipped: false, tuningModSlot: "Health"},
+    {id: "m3", location: "Vault", protectionLevel: "", locked: false, masterworkTier: 5,
+     power: 400, inLoadout: false, equipped: false, tuningModSlot: "Weapons"}
+  ]
+};
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var view = api.createView({document: new Document(), state: state});
+var article = view.armorGroup(group);
+var rowsTableHeaders = collect(
+  collect(article, function (n) { return hasClass(n, "armor-matrix-rows"); })[0],
+  function (n) { return n.tagName === "TH" && n.getAttribute("scope") === "col"; }
+).map(function (n) { return n.textContent; });
+var columnsTableAxisLabels = collect(
+  collect(article, function (n) { return hasClass(n, "armor-matrix-columns"); })[0],
+  function (n) { return hasClass(n, "armor-matrix-axis-label"); }
+).map(function (n) { return n.textContent; });
+var identicalLine = collect(article, function (n) { return hasClass(n, "armor-identical-axes"); })[0];
+var header = collect(article, function (n) { return hasClass(n, "armor-group-header"); })[0];
+var comparison = collect(article, function (n) { return hasClass(n, "armor-comparison"); })[0];
+var rowsTable = collect(article, function (n) { return hasClass(n, "armor-matrix-rows"); })[0];
+var columnsTable = collect(article, function (n) { return hasClass(n, "armor-matrix-columns"); })[0];
+var tuningHeader = rowsTable && collect(rowsTable, function (n) {
+  return n.tagName === "TH" && n.textContent === "Tuning Mod Slot";
+})[0];
+var tuningRow = columnsTable && collect(columnsTable, function (n) {
+  return n.tagName === "TR" && hasClass(n, "armor-matrix-tuning-axis");
+})[0];
+var headerIdenticalLines = header ? collect(header, function (n) {
+  return hasClass(n, "armor-identical-axes");
+}) : [];
+var comparisonIdenticalLines = comparison ? collect(comparison, function (n) {
+  return hasClass(n, "armor-identical-axes");
+}) : [];
+process.stdout.write(JSON.stringify({
+  rowsHasProtection: rowsTableHeaders.indexOf("Protection") !== -1,
+  rowsHasLocked: rowsTableHeaders.indexOf("Locked") !== -1,
+  rowsHasTuning: rowsTableHeaders.indexOf("Tuning Mod Slot") !== -1,
+  rowsHasInLoadout: rowsTableHeaders.indexOf("In loadout") !== -1,
+  rowsHasEquipped: rowsTableHeaders.indexOf("Equipped") !== -1,
+  rowsHasMasterwork: rowsTableHeaders.indexOf("Masterwork Tier") !== -1,
+  rowsHasPower: rowsTableHeaders.indexOf("Power") !== -1,
+  columnsHasProtection: columnsTableAxisLabels.indexOf("Protection") !== -1,
+  columnsHasLocked: columnsTableAxisLabels.indexOf("Locked") !== -1,
+  columnsHasMasterwork: columnsTableAxisLabels.indexOf("Masterwork Tier") !== -1,
+  identicalText: identicalLine ? identicalLine.textContent : null,
+  identicalLineInHeader: headerIdenticalLines.length === 1 &&
+    comparisonIdenticalLines.length === 0,
+  tuningAxisHasNeutralEmphasis: !!tuningHeader &&
+    hasClass(tuningHeader, "armor-matrix-tuning-axis") && !!tuningRow
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "rowsHasProtection": True, "rowsHasLocked": True, "rowsHasTuning": True,
+        "rowsHasInLoadout": False, "rowsHasEquipped": False,
+        "rowsHasMasterwork": False, "rowsHasPower": False,
+        "columnsHasProtection": True, "columnsHasLocked": True,
+        "columnsHasMasterwork": False,
+        "identicalText": (
+            "Identical across all pieces: Seasonal Mod none/unknown · "
+            "Holofoil none/unknown · In loadout No · Equipped No · "
+            "Masterwork Tier 5 · Power 400"
+        ),
+        "identicalLineInHeader": True,
+        "tuningAxisHasNeutralEmphasis": True,
+    }
+
+
+def test_same_stat_tuning_mod_slot_defining_axis_never_suppressed(tmp_path: Path):
+    """A same-stat group's defining axis is a row even when it is uniform (#131).
+
+    ``armorComparisonSpecs`` forms a same-stat group whenever ``Tuning Stat``,
+    ``Seasonal Mod`` or ``Holofoil`` differs -- so a group can be formed purely
+    by a Seasonal Mod / Holofoil difference while every member shares one
+    identical ``Tuning Mod Slot``. In that shape, the difference-only
+    suppression rule would drop ``Tuning Mod Slot`` as an "identical" axis if
+    it were not pinned ``always: true``, and the ``Tuning Stat`` fallback is
+    also dropped here because it is uninformative (one raw value, one slot).
+    This is the only shape that actually exercises the ``always: true`` rail:
+    every other same-stat fixture in this suite varies ``Tuning Mod Slot``
+    itself, so the axis would show as a row anyway from the plain differs
+    check, and the rail would go untested by mutation (it did, in the #131
+    independent review -- removing ``always: true`` left the whole suite
+    green).
+    """
+    script = tmp_path / "tuning-mod-slot-never-suppressed.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+function Node(tag, document) {
+  this.tagName = tag.toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._text = ""; this.disabled = false;
+}
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+// Every member shares one Tuning Mod Slot; only Seasonal Mod and Holofoil
+// differ. Tuning Stat is left unset on every member, so it normalises to
+// the same "none/unknown" value on all three and is uninformative relative
+// to the (also uniform) Tuning Mod Slot -- it must not stand in for the
+// defining axis.
+var group = {
+  groupKind: "same_stat", groupId: "same-slot", hash: "h", name: "Same Slot Plate",
+  type: "Chest Armor", guardianClass: "Titan", itemArchetype: "Reaver", tier: 5,
+  stats: {}, spiritSignature: [], members: [
+    {id: "m1", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Solar", holofoil: "true"},
+    {id: "m2", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Arc", holofoil: "true"},
+    {id: "m3", location: "Vault", tuningModSlot: "Weapons", seasonalMod: "Solar", holofoil: "false"}
+  ]
+};
+var state = {expanded: Object.create(null), rows: Object.create(null),
+  duplicateRows: Object.create(null), verdicts: Object.create(null)};
+var view = api.createView({document: new Document(), state: state});
+var article = view.armorGroup(group);
+var rowsTableHeaders = collect(
+  collect(article, function (n) { return hasClass(n, "armor-matrix-rows"); })[0],
+  function (n) { return n.tagName === "TH" && n.getAttribute("scope") === "col"; }
+).map(function (n) { return n.textContent; });
+var columnsTableAxisLabels = collect(
+  collect(article, function (n) { return hasClass(n, "armor-matrix-columns"); })[0],
+  function (n) { return hasClass(n, "armor-matrix-axis-label"); }
+).map(function (n) { return n.textContent; });
+var identicalLine = collect(article, function (n) { return hasClass(n, "armor-identical-axes"); })[0];
+process.stdout.write(JSON.stringify({
+  rowsHasTuningModSlot: rowsTableHeaders.indexOf("Tuning Mod Slot") !== -1,
+  columnsHasTuningModSlot: columnsTableAxisLabels.indexOf("Tuning Mod Slot") !== -1,
+  rowsHasSeasonalMod: rowsTableHeaders.indexOf("Seasonal Mod") !== -1,
+  rowsHasHolofoil: rowsTableHeaders.indexOf("Holofoil") !== -1,
+  identicalText: identicalLine ? identicalLine.textContent : null
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "rowsHasTuningModSlot": True,
+        "columnsHasTuningModSlot": True,
+        "rowsHasSeasonalMod": True,
+        "rowsHasHolofoil": True,
+        "identicalText": (
+            "Identical across all pieces: Protection — · In loadout No · "
+            "Equipped No · Locked No · Masterwork Tier unknown · Power unknown"
+        ),
     }

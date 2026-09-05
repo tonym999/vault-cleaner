@@ -641,20 +641,29 @@
       var focusedId = document.activeElement && document.activeElement.id;
       view.clear(selectorPanel);
       var hasGroups = state.armorGroups.length > 0;
+      var proposalCount = state.items.length;
+      var groupCount = state.armorGroups.length;
       selectorPanel.hidden = state.server_state === "idle";
-      selectorPanel.appendChild(view.el("span", { class: "view-selector-label", text: "Review surface" }));
       var proposalButton = view.el("button", {
-        id: "vc-view-proposals", type: "button", text: "Proposals",
+        id: "vc-view-proposals", type: "button",
         "aria-pressed": state.surface === "proposals" ? "true" : "false",
+        "aria-label": "Proposals (" + proposalCount +
+          (proposalCount === 1 ? " proposal)" : " proposals)"),
         on: { click: function () { setSurface("proposals"); } }
-      });
+      }, [
+        "Proposals", view.el("span", { class: "count", text: String(proposalCount) })
+      ]);
       var duplicateButton = view.el("button", {
-        id: "vc-view-duplicates", type: "button", text: "Armor duplicates",
+        id: "vc-view-duplicates", type: "button",
         "aria-pressed": state.surface === "armor-duplicates" ? "true" : "false",
         disabled: !hasGroups,
-        "aria-label": hasGroups ? "Armor duplicates" : "Armor duplicates (no duplicate groups)",
+        "aria-label": hasGroups
+          ? "Armor duplicates (" + groupCount + (groupCount === 1 ? " group)" : " groups)")
+          : "Armor duplicates (no duplicate groups)",
         on: { click: function () { setSurface("armor-duplicates"); } }
-      });
+      }, hasGroups
+        ? ["Armor duplicates", view.el("span", { class: "count", text: String(groupCount) })]
+        : ["Armor duplicates"]);
       selectorPanel.appendChild(proposalButton);
       selectorPanel.appendChild(duplicateButton);
       if (focusedId && (focusedId === "vc-view-proposals" || focusedId === "vc-view-duplicates")) {
@@ -903,12 +912,17 @@
             id: "vc-dup-kind-selector", class: "view-selector", role: "group",
             "aria-label": "Armor duplicate group kind"
           }, [view.el("span", { class: "view-selector-label", text: "Show" })]);
+          var segButtons = view.el("span", { class: "segbtns" });
           [
-            ["all", "All"], ["exact", "Exact"], ["same_stat", "Same stats"]
+            ["all", "All", state.armorGroups.length],
+            ["exact", "Exact", armorGroupsForKind(state.armorGroups, "exact").length],
+            ["same_stat", "Same stats", armorGroupsForKind(state.armorGroups, "same_stat").length]
           ].forEach(function (kind) {
-            kindSelector.appendChild(view.el("button", {
-              id: "vc-dup-kind-" + kind[0], type: "button", text: kind[1],
+            var noun = kind[2] === 1 ? " group)" : " groups)";
+            segButtons.appendChild(view.el("button", {
+              id: "vc-dup-kind-" + kind[0], type: "button",
               "aria-pressed": state.armorGroupKind === kind[0] ? "true" : "false",
+              "aria-label": kind[1] + " (" + kind[2] + noun,
               on: { click: function () {
                 if (state.armorGroupKind === kind[0]) return;
                 state.armorGroupKind = kind[0];
@@ -925,8 +939,13 @@
                 renderControls(); renderList(); renderSummary();
                 renderReconciliation();
               } }
-            }));
+            }, [kind[1], view.el("span", { class: "count", text: String(kind[2]) })]));
           });
+          kindSelector.appendChild(segButtons);
+          kindSelector.appendChild(view.el("span", {
+            class: "hint",
+            text: "Picks which kinds are shown. The filters below pick which groups."
+          }));
           host.appendChild(kindSelector);
         }
         var selectedArmorGroups = armorGroupsForKind(state.armorGroups, state.armorGroupKind);
@@ -969,6 +988,12 @@
           Object.keys(state.armorQuery).forEach(function (key) { state.armorQuery[key] = ""; });
           renderControls(); renderList(); renderSummary();
         } } }));
+        // Static hint only -- the one live-region announcement for this
+        // surface stays #vc-duplicate-scope (#131).
+        host.appendChild(view.el("p", {
+          class: "hint armor-duplicate-filter-hint",
+          text: "Filters select whole groups — a group shows in full or not at all."
+        }));
         if (focusedId) {
           var focusTarget = byId(focusedId);
           if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
@@ -1050,7 +1075,31 @@
           return;
         }
         if (typeof view.armorGroups === "function") {
-          view.armorGroups(filteredGroups).forEach(function (group) { host.appendChild(group); });
+          // Exact duplicates and Same stats, different tuning render under
+          // their own text-labelled section, exact first, each heading
+          // appearing only when that kind has a group in the current
+          // filtered result. Backend order within each kind is preserved.
+          var exactFiltered = armorGroupsForKind(filteredGroups, "exact");
+          var sameStatFiltered = armorGroupsForKind(filteredGroups, "same_stat");
+          [
+            {
+              groups: exactFiltered, heading: "Exact duplicates",
+              rule: "Same archetype, same stats, same tuning — one copy survives"
+            },
+            {
+              groups: sameStatFiltered, heading: "Same stats, different tuning",
+              rule: "Review only — the tool never picks your tuning for you"
+            }
+          ].forEach(function (section) {
+            if (!section.groups.length) return;
+            host.appendChild(view.el("div", { class: "armor-section-head" }, [
+              view.el("h3", { text: section.heading }),
+              view.el("span", { class: "rule", text: section.rule })
+            ]));
+            view.armorGroups(section.groups).forEach(function (group) {
+              host.appendChild(group);
+            });
+          });
         }
         return;
       }

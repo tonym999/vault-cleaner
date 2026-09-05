@@ -102,6 +102,42 @@ Issue #110 focused check:
 - [ ] Hostile same-stat strings remain inert text, and opaque ids/hashes are
       preserved as strings.
 
+Issue #131 focused check:
+
+- [ ] Surface tabs and the group-kind segment show unfiltered counts in both
+      visible text and `aria-label` (singular/plural correct); the counts are
+      not announced by any live region.
+- [ ] Exact duplicates and Same stats, different tuning render under their
+      own text-labelled section heading, exact first, only for kinds present
+      in the current filtered result.
+- [ ] The group header line shows name, a text-labelled archetype badge,
+      type/slot, guardian class, tier, hash, and a prominent piece count; the
+      30/25/20 stat spike shows values and roles as text with the named
+      zero-stat summary line.
+- [ ] The Tuning Mod Slot banner is always visible and text-labelled in both
+      group kinds (identical-copy phrasing for exact, review-only warning
+      phrasing for same-stat), never relying on color alone.
+- [ ] At a fitting desktop panel width, the member-column matrix orientation
+      is active and the row fallback is absent from the accessibility tree
+      and the keyboard tab order (a hidden control does not accept focus).
+- [ ] At 390×844 and at a deliberately constrained/zoomed panel width, the
+      row fallback is active instead, and the orientation flips back when the
+      panel widens again.
+- [ ] Only axes that actually differ across a group's members appear as
+      matrix rows; every axis suppressed because it is identical is restated
+      once, correctly labelled, in the muted identical-axes line in the group
+      header's shared context above the matrix.
+- [ ] Every verdict cell for a given member id is registered in both
+      orientations: one Approve/Veto/Unset acknowledgement repaints and
+      disables all occurrences, and read-only occurrences stay read-only in
+      both.
+- [ ] No `▸ decided` marker, no deciding-rank inference, and no Health
+      low-value-for-PvE colouring or legend appear anywhere on the surface.
+- [ ] Desktop light/dark and 390×844 layouts remain readable with no document
+      horizontal overflow at any tested width; hostile names, ids, locations,
+      archetypes, and mod/tuning values remain literal inert text in both
+      matrix orientations.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -264,6 +300,98 @@ terminal.
 - Overall result: pass. No part of #119 (the paired `Exact`/`Same stats ·
   review only` kind labels, the `armorGroupTable` transposition, or any
   count/hierarchy treatment) was implemented or tested.
+
+## 2026-09-04 — issue #131 focused check
+
+- Environment: Linux 7.0.0-30-generic x86_64, Chrome for Testing
+  151.0.7922.34 (managed Playwright Chromium), headless.
+- Method: the automated `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q
+  -m browser tests/test_server_browser.py` run (14 passed, 3 deselected in
+  10.04s) plus a
+  direct run of `scripts/measure_armor_matrix_orientation.py`, which itself
+  asserts its own preconditions (exactly one orientation visible, no document
+  horizontal overflow) before writing
+  `docs/evidence/issue-131/orientation-measurements.md` — a real dated run,
+  not a restatement of the checklist above.
+- Viewports and appearances: 1440×1000 and 1024×900 desktop, 390×844 narrow,
+  plus 680×900/760×900 (a deliberately constrained "zoom/reflow" pair
+  straddling the two-member 616px column budget) and light/dark media
+  appearances on the four-member fixture.
+- Fixtures: `tests/fixtures/armor_duplicates_ui.csv` (exact, 3 pieces),
+  `tests/fixtures/armor_same_stat_ui.csv` (same-stat, 2 pieces),
+  `tests/fixtures/armor_same_stat_four_ui.csv` (same-stat, 4 pieces), and
+  `tests/fixtures/weapons_hostile.csv` (hostile-string inertness). No real
+  vault data, wishlists, or manifest network access.
+- Orientation result: pass. Exactly one of `table.armor-matrix-columns` /
+  `table.armor-matrix-rows` is visible at every measured width; member
+  columns are active for 2, 3, and 4 members at 1440×1000 and for 2–3 members
+  at 1024×900, and the row fallback is active for the 4-member group at
+  1024×900 and for every member count at 390×844 — matching the plan's
+  measured budget exactly (see the evidence file). The 680/760px pair proved
+  the flip is genuinely width-driven and reversible, not a fixed
+  desktop/mobile breakpoint.
+- Keyboard result: pass. A button inside the `display: none` orientation
+  never accepted `.focus()` (`document.activeElement` stayed elsewhere); the
+  same button in the active orientation focused normally.
+- Cross-orientation verdict result: pass (added in the independent
+  adversarial review round, `test_armor_verdict_acknowledgement_reflected_
+  after_orientation_flip`). Approving a same-stat proposal member while the
+  row fallback was active (680×900), then resizing to the member-column
+  orientation (760×900) *after* the click, showed the acknowledged
+  `aria-pressed="true"` / enabled state correctly in the newly active
+  occurrence, and directly on the now-hidden row occurrence's own attribute
+  (not just the one visible at click time) — the highest-value guard the
+  plan's own likely-finding #1 called out as missing, since flipping the
+  width between acknowledgement and assertion is exactly what a stale
+  `[0]`-indexed repaint would fail.
+- Structured read-only repaint result: pass. After acknowledging an exact-group
+  proposal, both the preferred-survivor and retained-protected occurrences
+  kept their `.armor-member-status` badge and labelled disposition children;
+  the all-row repaint no longer flattens either status into one text node.
+- Difference-only result: pass. A group with a uniform Masterwork
+  Tier/Power/In loadout/Equipped alongside a differing Protection and Locked
+  rendered only the differing axes as rows in both orientations, and restated
+  every suppressed axis, correctly labelled, in
+  `p.armor-identical-axes` in the group header's shared context above the
+  matrix.
+- Copy/labelling result: pass. Tabs and the group-kind segment showed correct
+  singular/plural counts in both visible text and `aria-label`; section
+  headings ("Exact duplicates" / "Same stats, different tuning") appeared
+  only for kinds present; the stat spike showed lowercase `primary` /
+  `secondary` / `tertiary` role text with the named zero-stat line; the
+  same-stat banner used `.tuneline.warn`, not the generic `.hint` class.
+  A same-review-round Node regression test
+  (`test_single_kind_report_renders_exactly_one_section_heading`) now proves
+  the section-heading guard directly: a single-kind filtered result renders
+  exactly one `.armor-section-head`, with both rule lines asserted verbatim,
+  closing a gap where deleting the `if (!section.groups.length) return;`
+  guard would have rendered a stray empty second heading undetected. The
+  group name heading was also demoted from `h3` to `h4` in this round so it
+  no longer sits at the same heading level as its own section heading;
+  `test_duplicates_surface_does_not_scroll_horizontally`'s overflow-wrap
+  assertion was updated to locate it at its new level.
+- Overflow/theme result: pass (existing four-member test, extended rather
+  than replaced): `document.documentElement.scrollWidth` matched the
+  viewport width at 1440, 1000, and 390 in both appearances; badge widths
+  stayed within their *active* heading's fixed budget in both light and dark
+  (scoped to `:visible`, since a hidden heading has no usable geometry).
+- Hostile-string result: pass. No part of this ticket introduced `innerHTML`
+  or template-string DOM construction; existing hostile-export coverage
+  (`test_hostile_export_remains_inert_in_live_dom`) and the archetype-badge/
+  header/banner/stat-spike text paths all go through the same `el()`
+  `textContent` helper as before.
+- Stat-spike order result: pass (added in the third review round, after the
+  primary/secondary/tertiary bars were found rendering in reverse width
+  order). `test_armor_stat_spike_renders_primary_first_in_document_order`
+  asserts the primary stat's `.sv` element precedes secondary and tertiary
+  in document order, closing the gap where the visual bar widths (100%/
+  83%/67%) could regress independently of which stat they labelled. This is
+  the 14th `@pytest.mark.browser` test counted in this run's headline
+  figure above.
+- Shutdown result: pass (implicit in the automated suite's server teardown).
+- Overall result: pass. `RULESET_VERSION`, snapshot/server schema, grouping,
+  ranking, and verdict validation were not touched; this run covered
+  presentation and interaction only.
 
 ## 2026-08-27 — issue #90 execution record
 
