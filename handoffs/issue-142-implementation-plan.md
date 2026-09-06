@@ -118,10 +118,13 @@ Three consequences the report must state explicitly:
    behavioural coverage today, and `Loadouts` is not weapon-schema-required, so a
    DIM export that dropped the column would load silently. That is the measured
    basis for #140 child 2a and for a fail-safe requirement.
-2. `Owner` is not a stable identifier. Weapons use bare `Titan`; armor and ghosts use
-   `Titan(550)` / `Hunter(506)`. Nothing in `src/` parses `Owner` beyond copying it
-   into `Decision.location`. Character-vs-vault accounting therefore has **no**
-   current implementation and no measured format contract.
+2. `Owner` is not a stable identifier. It carries three measured shapes: the literal
+   `Vault` sentinel, a bare class name (`Titan`, in the weapons fixtures), and a
+   class with a parenthesized number (`Titan(550)`, `Hunter(506)`, `Titan(415)`).
+   Nothing in `src/` parses it semantically — it reaches twelve call sites, is
+   copied into `Decision.location`, and on two of them passes through
+   `safe_fragment` for display bounding only. Character-vs-vault accounting
+   therefore has **no** current implementation and no measured format contract.
 3. No export column reports vault capacity or free spaces. `F` in the #140 capacity
    formula is not derivable from any export.
 
@@ -444,12 +447,15 @@ and the statement that this document changes no production behaviour. Opens with
 > dates, the 100-space product goal, and other requirements taken from #140 or #142
 > cite the issue instead.
 
-**2. Export schema and completeness by header name.** The three `REQUIRED_*_COLUMNS`
-sets with `parse.py` line citations; the measured fixture header lists; the
-fixture-content table from C2 (re-derived). Must state, as findings:
+**2. Export schema and completeness by header name.** All **four** named
+`REQUIRED_*_COLUMNS` sets — base, weapon, ghost and armor — with `parse.py` line
+citations; the measured fixture header lists; the fixture-content table from C2
+(re-derived). Covering only the three kind-specific sets and omitting
+`REQUIRED_BASE_COLUMNS` is an incomplete deliverable: base is the set carrying
+`Equipped`, `Locked` and `Notes`. Must state, as findings:
 (a) `Loadouts` is present in weapon exports but **not** weapon-schema-required and
-carries **no** non-empty cell in any committed weapon fixture; (b) `Owner` has two
-observed formats (`Titan` vs `Titan(550)`) and is parsed nowhere; (c) no export
+carries **no** non-empty cell in any committed weapon fixture; (b) the `Owner`
+contract below; (c) no export
 column reports vault capacity or free space; (d) the three `Loadouts` states below,
 specified separately. Distinguish, one row each: equipped state, character
 location, saved-loadout membership, DIM protective tags, crafted protection, locked,
@@ -463,6 +469,25 @@ each one separately. Collapsing them is a correctness defect, not a wording choi
 | **column missing** | incomplete schema — the protection input does not exist | unknown; must not read as "not in a loadout". The report decides and justifies whether child 2a makes `Loadouts` weapon-schema-required (failing loudly, as `parse.py` does elsewhere) or degrades explicitly. |
 | **cell empty on a row** | the measured normal case: that item is in no loadout ([ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36), [armor_dupes.py:99-100](../src/vault_cleaner/rules/armor_dupes.py#L99-L100)) | **not** protected. Treating an empty cell as unknown would hard-protect nearly every weapon and defeat the whole clear-out. |
 | **column present but empty on every row** | ambiguous — either the owner genuinely saves no loadouts, or DIM changed what it exports | the report must call this out as a distinct case and say how it is detected and surfaced; measured today on all four weapon fixtures (C2). |
+
+`Owner` carries **three** measured shapes, and the report must specify each — the
+sentinel is the one capacity accounting depends on, so it is never folded into the
+character cases:
+
+| Shape | Measured values | Meaning |
+|---|---|---|
+| **`Vault` sentinel** | `Vault` | the item is in the vault, not on a character. Distinguishing this is the whole basis of `C` and `Dc` in the #140 capacity formula. |
+| **bare class name** | `Titan` | a character, with no power annotation (weapons fixtures). |
+| **class with parenthesized number** | `Titan(550)`, `Hunter(506)`, `Titan(415)` | a character, annotated (armor and ghost fixtures). |
+
+Say precisely that `Owner` is **not semantically parsed or normalized** anywhere.
+It is read at twelve call sites and copied into `Decision.location`; on two of them
+([duplicate_reference.py:184](../src/vault_cleaner/duplicate_reference.py#L184),
+[duplicate_reference.py:212](../src/vault_cleaner/duplicate_reference.py#L212)) it
+passes through `safe_fragment`, which bounds it and neutralizes structural
+punctuation for **display** without changing the raw value. Neither path derives
+vault-versus-character residency, a class, or a power level, so a capacity model
+needs a defined, measured derivation before child 6 can rely on one.
 
 On identifier types, state the **measured** boundary rather than a blanket claim:
 `Id` is an opaque string end to end — `id_order.instance_id_order` orders it without

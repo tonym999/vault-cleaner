@@ -57,6 +57,18 @@ introduced the next defect until the verification method itself changed.
   working session and the clock had rolled, so post-midnight rounds were sitting
   under the previous day's heading. The #117 precedent for folding dispositions into
   a single planning entry still holds within a day; it does not license a wrong date.
+- Completed the `Owner` contract and corrected the schema-set count. `Owner` carries
+  three measured shapes, not two: the `Vault` sentinel plus bare class (`Titan`) and
+  class-with-number (`Titan(550)`, `Hunter(506)`, `Titan(415)`). The sentinel was the
+  one omitted, and it is the one that matters — distinguishing vault from character
+  residency is the entire basis of `C` and `Dc` in the capacity formula. Also made
+  the "parsed nowhere" claim precise: `Owner` reaches twelve call sites, is copied
+  into `Decision.location`, and on two of them passes through `safe_fragment`, which
+  bounds it and neutralizes structural punctuation for display without changing the
+  raw value. Nothing derives residency, class or power from it, so child 6 needs a
+  defined derivation first. Separately, `parse.py` declares four named
+  `REQUIRED_*_COLUMNS` sets, not three — requiring "three" invited omitting the base
+  set, which is the one carrying `Equipped`, `Locked` and `Notes`.
 
 ## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
 
