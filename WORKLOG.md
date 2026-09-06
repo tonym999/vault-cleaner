@@ -82,6 +82,14 @@ surprises the next agent should know about.
   appears in every command fence, the report and evidence file must quote a single
   combined file, and Check 2 says a stream-splitting mismatch is a re-capture
   rather than a finding.
+- Second follow-up, again self-inflicted: naming the capture files `runA.txt` etc.
+  with no path would have written them into the repository root, contradicting the
+  plan's own no-scratch-in-tree rule and breaking the `git status --porcelain`
+  verification step. The capture rule also claimed to cover every quoted output
+  while only the `report` fences carried a redirection. Every contract command now
+  captures into a `mktemp -d` `$OUT` directory — `wishlists` needs it too, since it
+  writes stale-cache warnings to stderr — and all four commands were re-run to
+  confirm they work and leave the tree clean.
 - Branch allocation corrected to `feat/issue-142-clearout-measurement`:
   `AGENTS.md` and `handoffs/README.md` enumerate `fix/` or `feat/`, and the
   `docs/issue-124-workflow-pilot-record` precedent is not authority over the

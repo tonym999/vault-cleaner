@@ -136,10 +136,11 @@ landed guarantees and are **out of scope to change**.
 Measured baseline yield on committed fake data:
 
 ```bash
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > runA.txt 2>&1
+OUT="$(mktemp -d)"
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > "$OUT/runA.txt" 2>&1
 ```
 
-`runA.txt`, unedited:
+`$OUT/runA.txt`, unedited:
 
 ```text
 would junk 1 item(s) and flag 5 for review
@@ -165,10 +166,10 @@ The weapons section contributes **zero** decisions there. The weapon volume live
 the dupe fixture:
 
 ```bash
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > runB.txt 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.txt" 2>&1
 ```
 
-`runB.txt`, unedited — the two `skipping` lines are stderr and are part of the
+`$OUT/runB.txt`, unedited — the two `skipping` lines are stderr and are part of the
 expected capture:
 
 ```text
@@ -195,7 +196,8 @@ dry run — pass --write to write the combined import CSV
 ```
 
 **Capture method, and the only comparison that is meaningful.** Both blocks are
-literal captures of a *single combined file* produced by `> file 2>&1`, including
+literal captures of a *single combined file* produced by `> "$OUT/file" 2>&1` into a
+`mktemp -d` scratch directory outside the working tree, including
 blank lines, two-space indentation and U+2014 em dashes. Reproduce and compare that
 one file — never two separate streams, and never text copied from a terminal.
 
@@ -542,14 +544,24 @@ gap and the wishlist attribution/notes loss, if they reproduce.
 These commands are the measurement. Run them from the repository root on the
 implementation branch, and paste **actual** output — never edited, never predicted.
 
+**Capture every one of them the same way**, into a scratch directory outside the
+working tree, so that a quoted block is always one combined stdout+stderr file and
+never leaves an untracked artifact behind (the verification step below requires
+`git status --porcelain` to be empty):
+
 ```bash
-.venv/bin/python -c "import sys, pandas; print(sys.version); print(pandas.__version__)"
+OUT="$(mktemp -d)"; echo "$OUT"
 ```
 
 ```bash
-head -1 tests/fixtures/weapons.csv | tr ',' '\n' | nl
-head -1 tests/fixtures/armor.csv | tr ',' '\n' | nl
-head -1 tests/fixtures/ghosts.csv | tr ',' '\n' | nl
+.venv/bin/python -c "import sys, pandas; print(sys.version); print(pandas.__version__)" > "$OUT/versions.txt" 2>&1
+```
+
+```bash
+{ head -1 tests/fixtures/weapons.csv | tr ',' '\n' | nl
+  head -1 tests/fixtures/armor.csv   | tr ',' '\n' | nl
+  head -1 tests/fixtures/ghosts.csv  | tr ',' '\n' | nl
+} > "$OUT/headers.txt" 2>&1
 ```
 
 ```bash
@@ -567,21 +579,25 @@ for p in sorted(glob.glob("tests/fixtures/*.csv")):
 PY
 ```
 
+(redirect that heredoc as `... <<'PY' > "$OUT/fixtures.txt" 2>&1` like the rest.)
+
 ```bash
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > runA.txt 2>&1
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > runB.txt 2>&1
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_hostile.csv --no-wishlists > runC.txt 2>&1
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_slammer_like.csv --no-wishlists > runD.txt 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > "$OUT/runA.txt" 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.txt" 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_hostile.csv --no-wishlists > "$OUT/runC.txt" 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_slammer_like.csv --no-wishlists > "$OUT/runD.txt" 2>&1
+```
+
+```bash
+.venv/bin/vault-cleaner wishlists > "$OUT/wishlists.txt" 2>&1
 ```
 
 Every quoted capture in the report and evidence file is one such combined
-`> file 2>&1` result. Quote the file, state the command **including** its
-redirection, and keep the scratch files out of the repository — they are working
-artifacts, not tracked evidence.
-
-```bash
-.venv/bin/vault-cleaner wishlists
-```
+`> file 2>&1` result — this applies to **every** command above, not only the
+`report` runs, because several of them (`report`, `wishlists`) write to both
+streams. Quote the file, and state the command **including** its redirection. The
+`$OUT` files are working artifacts under `mktemp -d`: never commit them, and never
+write them into the working tree.
 
 Rules for this contract:
 
