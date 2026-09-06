@@ -3,6 +3,65 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-06 — #142: aggressive weapons-first measurement and policy design (PR 2)
+
+Delivered the measurement spike and policy design document for #142 (first child of
+umbrella #140). Added `docs/aggressive-clearout-measurement.md` under the fixed
+fourteen-section skeleton and `docs/evidence/issue-142/README.md` containing verbatim
+reproduction transcripts. No production code, schema, config, server, UI, or fixture
+changes were made (satisfying the mechanical inclusion test).
+
+What was measured:
+- Export schemas and completeness: All four named `REQUIRED_*_COLUMNS` sets verified in
+  `parse.py`. Confirmed the weapon `Loadouts` gap: `Loadouts` is present in weapon
+  exports but not in `REQUIRED_WEAPONS_COLUMNS`, and carries zero non-empty cells across
+  all 36 weapon rows in committed fixtures.
+- `Owner` contract: Confirmed three observed shapes (`Vault`, bare class `Titan`, and
+  class with power `Titan(550)`). Grepped 13 reads across `src/vault_cleaner`, confirming
+  that `Owner` is never semantically parsed or normalized today.
+- Vault capacity: Verified that no DIM export column reports vault capacity or free
+  spaces `F`.
+- Baseline yield on fake data: Re-derived runs A (1 junk, 5 review), B (4 junk, 3 review),
+  C (5 junk, 0 review), and D (1 junk, 0 review). Proved 5-run byte stability (1 distinct
+  md5sum digest with pairwise `cmp` assertions).
+- Wishlist parser facts: Verified that `LINE_RE` discards `#notes:` tails (deleting tier
+  and attribution) and `Wishlist.merge` folds all sources into one map, losing source
+  provenance before rules run.
+- Upstream wishlist evaluation: Evaluated Choosy Voltron, Ciceron, MrCharles, and
+  Nitaraku. Confirmed that Ciceron, MrCharles, and Nitaraku all derive from Aegis's
+  spreadsheet and constitute one curation family, not independent consensus votes.
+- Authorized real-export aggregates (664 weapons): 555 in vault, 100 unequipped on
+  characters (`C`), 9 equipped. Hard-protected with loadouts rail: 169 (136 in loadouts).
+  Soft-protected: 223 (82 exotic, 141 locked legendary). Completely unprotected: 272.
+  Current baseline yield on real export produced only 0 junk / 2 review without
+  wishlists, and 5 junk / 6 review with wishlists (21 trash matches suppressed by keep
+  matches). Validated capacity: with `F ≈ 10`, reaching `projected_free >= 100` requires
+  `Dv + Dc >= 190` unique removals.
+
+Decisions made:
+- Formulated the 4 proposal-strength classes (automatic junk candidate, review-only
+  comparison, protected/retained, unknown/uncovered).
+- Recommended single Aegis-derived strategy (Ciceron for D-tier trash, Nitaraku/Ciceron
+  traits-only for endgame keeps, Choosy Voltron as broad baseline), with tier and
+  source attribution preserved in Child 3.
+- Reconciled #34: identified stale survivor-ranking claim, confirmed authoritative
+  pairwise dominance criteria, and recommended updating #34 as Child 4 specification.
+- Defined approval-only finalization contract for Child 2b at both sibling call sites
+  (`cli.py:484`, `server/app.py:790`).
+- Established capacity model and accounting contracts with four distinct states.
+- Structured dependency-ordered child map (#140 Children 2a–8), identifying 2a
+  (loadouts rail) and 2b (approval-only finalization) as early deliverable gates.
+
+Surprises & environmental notes:
+- Windows codepage encoding trap: Running `.venv/bin/vault-cleaner report` on
+  `weapons_hostile.csv` failed under Windows default codepage `cp1252` when redirecting
+  output, due to the `💀` emoji. Setting `export PYTHONUTF8=1` in the shell forces
+  UTF-8 mode on Python 3.7+ and resolves this deterministically.
+- Praxic Blade dupe anomaly: On the real export, the only exact-dupe matches found were
+  two copies of the exotic sword Praxic Blade, both flagged for review due to exotic
+  soft rail. All other multi-copy weapons carried distinct perk rolls, proving that
+  exact duplicate cleanup alone cannot solve vault congestion.
+
 ## 2026-09-06 — #142 plan review rounds (PR 1 continued)
 
 Continues the 2026-09-05 #142 planning entry below; same PR 1, same branch, work
