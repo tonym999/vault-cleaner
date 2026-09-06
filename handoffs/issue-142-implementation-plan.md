@@ -77,20 +77,38 @@ Measured fixture headers (`head -1 tests/fixtures/<file>.csv | tr ',' '\n' | nl`
 
 Measured cell content across every fixture:
 
+```bash
+OUT="$(mktemp -d)"
+.venv/bin/python - <<'PY' > "$OUT/fixtures.txt" 2>&1
+import pandas as pd, glob, os
+for path in sorted(glob.glob("tests/fixtures/*.csv")):
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    cols = set(df.columns)
+    nz = lambda c: int(df[c].str.strip().ne("").sum()) if c in cols else None
+    print(os.path.basename(path), "rows=", len(df),
+          "| Loadouts nonempty=", nz("Loadouts"),
+          "| Equipped=", sorted(set(df["Equipped"])) if "Equipped" in cols else None,
+          "| Owner=", sorted(set(df["Owner"])) if "Owner" in cols else None,
+          "| Tag=", sorted(set(df["Tag"])) if "Tag" in cols else None)
+PY
+```
+
+`$OUT/fixtures.txt`, unedited:
+
 ```text
-armor.csv                  rows=15 | Loadouts nonempty=0 | Equipped=['false']          | Owner=['Vault']
-armor_classes.csv          rows= 4 | Loadouts nonempty=0 | Equipped=['false']          | Owner=['Hunter(550)','Titan(550)','Vault']
-armor_close.csv            rows=34 | Loadouts nonempty=0 | Equipped=['false','true']   | Owner=['Vault']
-armor_dupes.csv            rows=32 | Loadouts nonempty=2 | Equipped=['false','true']   | Owner=['Vault']
-armor_duplicates_ui.csv    rows= 3 | Loadouts nonempty=0 | Equipped=['false','true']   | Owner=['Hunter(550)','Vault']
-armor_same_stat_four_ui.csv rows=4 | Loadouts nonempty=1 | Equipped=['false']          | Owner=['Titan(415)','Vault']
-armor_same_stat_ui.csv     rows= 2 | Loadouts nonempty=0 | Equipped=['false']          | Owner=['Vault']
-ghosts.csv                 rows= 2 | Loadouts nonempty=0 | Equipped=['false','true']   | Owner=['Hunter(506)','Vault']
-ghosts_cleanup.csv         rows= 7 | Loadouts nonempty=1 | Equipped=['false','true']   | Owner=['Titan(550)','Vault']
-weapons.csv                rows= 3 | Loadouts nonempty=0 | Equipped=['false','true']   | Owner=['Titan','Vault']
-weapons_dupes.csv          rows=18 | Loadouts nonempty=0 | Equipped=['false','true']   | Owner=['Vault']
-weapons_hostile.csv        rows=10 | Loadouts nonempty=0 | Equipped=['false']          | Owner=['Vault']
-weapons_slammer_like.csv   rows= 5 | Loadouts nonempty=0 | Equipped=['false']          | Owner=['Vault']
+armor.csv rows= 15 | Loadouts nonempty= 0 | Equipped= ['false'] | Owner= ['Vault'] | Tag= ['', 'keep']
+armor_classes.csv rows= 4 | Loadouts nonempty= 0 | Equipped= ['false'] | Owner= ['Hunter(550)', 'Titan(550)', 'Vault'] | Tag= ['']
+armor_close.csv rows= 34 | Loadouts nonempty= 0 | Equipped= ['false', 'true'] | Owner= ['Vault'] | Tag= ['']
+armor_dupes.csv rows= 32 | Loadouts nonempty= 2 | Equipped= ['false', 'true'] | Owner= ['Vault'] | Tag= ['', 'keep']
+armor_duplicates_ui.csv rows= 3 | Loadouts nonempty= 0 | Equipped= ['false', 'true'] | Owner= ['Hunter(550)', 'Vault'] | Tag= ['', 'keep']
+armor_same_stat_four_ui.csv rows= 4 | Loadouts nonempty= 1 | Equipped= ['false'] | Owner= ['Titan(415)', 'Vault'] | Tag= ['']
+armor_same_stat_ui.csv rows= 2 | Loadouts nonempty= 0 | Equipped= ['false'] | Owner= ['Vault'] | Tag= ['']
+ghosts.csv rows= 2 | Loadouts nonempty= 0 | Equipped= ['false', 'true'] | Owner= ['Hunter(506)', 'Vault'] | Tag= ['', 'favorite']
+ghosts_cleanup.csv rows= 7 | Loadouts nonempty= 1 | Equipped= ['false', 'true'] | Owner= ['Titan(550)', 'Vault'] | Tag= ['', 'favorite', 'keep']
+weapons.csv rows= 3 | Loadouts nonempty= 0 | Equipped= ['false', 'true'] | Owner= ['Titan', 'Vault'] | Tag= ['', 'favorite', 'keep']
+weapons_dupes.csv rows= 18 | Loadouts nonempty= 0 | Equipped= ['false', 'true'] | Owner= ['Vault'] | Tag= ['', 'keep']
+weapons_hostile.csv rows= 10 | Loadouts nonempty= 0 | Equipped= ['false'] | Owner= ['Vault'] | Tag= ['']
+weapons_slammer_like.csv rows= 5 | Loadouts nonempty= 0 | Equipped= ['false'] | Owner= ['Vault'] | Tag= ['']
 ```
 
 Three consequences the report must state explicitly:
@@ -166,6 +184,7 @@ The weapons section contributes **zero** decisions there. The weapon volume live
 the dupe fixture:
 
 ```bash
+OUT="$(mktemp -d)"
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.txt" 2>&1
 ```
 
@@ -203,9 +222,30 @@ one file — never two separate streams, and never text copied from a terminal.
 
 The redirection is load-bearing, not decoration. The `skipping` lines go to stderr
 and the summary to stdout, so `2>/dev/null` (or any stdout-only capture) drops the
-first two lines and will *not* match. Measured on the baseline: the combined capture
-is byte-stable across five consecutive runs (one distinct `md5sum`), while a
-stdout-only run begins at `would junk 4 item(s) and flag 3 for review`.
+first two lines and will *not* match.
+
+Each fenced block must define its own `OUT`. Shell variables do **not** survive
+between separately executed command blocks, so a later block referencing an `OUT`
+set in an earlier one resolves `"$OUT/runB.txt"` to `/runB.txt` and fails with
+`permission denied`.
+
+The byte-stability of a combined capture is measured, not assumed:
+
+```bash
+OUT="$(mktemp -d)"
+for i in 1 2 3 4 5; do
+  .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.$i.txt" 2>&1
+done
+md5sum "$OUT"/runB.*.txt | awk '{print $1}' | sort -u | wc -l
+```
+
+```text
+1
+```
+
+One distinct digest across five runs. A stdout-only run, by contrast, begins at
+`would junk 4 item(s) and flag 3 for review` — the two stderr lines are simply
+absent.
 
 A combined capture that does not reproduce byte for byte is a finding. A mismatch
 caused by capturing the streams differently is **not** — re-capture with `2>&1`
@@ -544,60 +584,54 @@ gap and the wishlist attribution/notes loss, if they reproduce.
 These commands are the measurement. Run them from the repository root on the
 implementation branch, and paste **actual** output — never edited, never predicted.
 
-**Capture every one of them the same way**, into a scratch directory outside the
-working tree, so that a quoted block is always one combined stdout+stderr file and
-never leaves an untracked artifact behind (the verification step below requires
-`git status --porcelain` to be empty):
+**Run the whole sequence as one shell block.** Shell variables do not survive
+between separately executed command blocks — a later block referencing an `OUT` set
+in an earlier one resolves `"$OUT/versions.txt"` to `/versions.txt` and fails with
+`permission denied`. Every command therefore lives in the single block below, which
+captures each one as a combined stdout+stderr file in a `mktemp -d` scratch
+directory outside the working tree, leaving no untracked artifact behind (the
+verification step below requires `git status --porcelain` to be empty):
 
 ```bash
-OUT="$(mktemp -d)"; echo "$OUT"
-```
+OUT="$(mktemp -d)"; echo "scratch: $OUT"
 
-```bash
 .venv/bin/python -c "import sys, pandas; print(sys.version); print(pandas.__version__)" > "$OUT/versions.txt" 2>&1
-```
 
-```bash
 { head -1 tests/fixtures/weapons.csv | tr ',' '\n' | nl
   head -1 tests/fixtures/armor.csv   | tr ',' '\n' | nl
   head -1 tests/fixtures/ghosts.csv  | tr ',' '\n' | nl
 } > "$OUT/headers.txt" 2>&1
-```
 
-```bash
-.venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY' > "$OUT/fixtures.txt" 2>&1
 import pandas as pd, glob, os
-for p in sorted(glob.glob("tests/fixtures/*.csv")):
-    df = pd.read_csv(p, dtype=str, keep_default_na=False)
+for path in sorted(glob.glob("tests/fixtures/*.csv")):
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
     cols = set(df.columns)
     nz = lambda c: int(df[c].str.strip().ne("").sum()) if c in cols else None
-    print(os.path.basename(p), "rows=", len(df),
+    print(os.path.basename(path), "rows=", len(df),
           "| Loadouts nonempty=", nz("Loadouts"),
           "| Equipped=", sorted(set(df["Equipped"])) if "Equipped" in cols else None,
           "| Owner=", sorted(set(df["Owner"])) if "Owner" in cols else None,
           "| Tag=", sorted(set(df["Tag"])) if "Tag" in cols else None)
 PY
-```
 
-(redirect that heredoc as `... <<'PY' > "$OUT/fixtures.txt" 2>&1` like the rest.)
-
-```bash
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > "$OUT/runA.txt" 2>&1
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.txt" 2>&1
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_hostile.csv --no-wishlists > "$OUT/runC.txt" 2>&1
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_slammer_like.csv --no-wishlists > "$OUT/runD.txt" 2>&1
-```
 
-```bash
 .venv/bin/vault-cleaner wishlists > "$OUT/wishlists.txt" 2>&1
+
+ls -1 "$OUT"
 ```
 
-Every quoted capture in the report and evidence file is one such combined
-`> file 2>&1` result — this applies to **every** command above, not only the
+Every quoted capture in the report and evidence file is one of these combined
+`> "$OUT/file" 2>&1` results — this applies to **every** command above, not only the
 `report` runs, because several of them (`report`, `wishlists`) write to both
-streams. Quote the file, and state the command **including** its redirection. The
-`$OUT` files are working artifacts under `mktemp -d`: never commit them, and never
-write them into the working tree.
+streams. Quote the file, and state the command **including** its redirection. If a
+command is run on its own rather than as part of the block, repeat the
+`OUT="$(mktemp -d)"` line with it. The `$OUT` files are working artifacts: never
+commit them, and never write them into the working tree.
 
 Rules for this contract:
 

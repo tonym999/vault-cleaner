@@ -90,6 +90,23 @@ surprises the next agent should know about.
   captures into a `mktemp -d` `$OUT` directory — `wishlists` needs it too, since it
   writes stale-cache warnings to stderr — and all four commands were re-run to
   confirm they work and leave the tree clean.
+- Third follow-up round, and the one that changed how this gets verified. `OUT` was
+  defined in one fenced block and used from later ones; shell state does not survive
+  between separately executed blocks, so `"$OUT/versions.txt"` resolved to
+  `/versions.txt` and failed with `permission denied` (reproduced directly). The
+  contract is now a single atomic block, each standalone evidence fence defines its
+  own `OUT`, and the heredoc carries its redirection on the invocation line instead
+  of a prose pseudo-command. The five-run byte-stability claim now ships the loop and
+  `md5sum` command with its `1` output, rather than asserting a measurement with no
+  way to reproduce it.
+- Changed the verification method rather than spot-checking again: every `bash` fence
+  is now extracted from the document and executed in a fresh shell with `OUT`
+  explicitly unset, and every quoted capture is diffed against a fresh run. That
+  immediately found a fifth instance of the original defect that three review rounds
+  had missed — the C2 fixture table was hand-aligned (`rows=15` for the real
+  `rows= 15`, `Tag` column dropped) and did not reproduce. It is now a literal
+  capture with its command. Four consecutive rounds of fixes introducing the next
+  defect all had one cause: writing shell into a document without executing it.
 - Branch allocation corrected to `feat/issue-142-clearout-measurement`:
   `AGENTS.md` and `handoffs/README.md` enumerate `fix/` or `feat/`, and the
   `docs/issue-124-workflow-pilot-record` precedent is not authority over the
