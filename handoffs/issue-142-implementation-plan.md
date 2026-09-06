@@ -266,9 +266,10 @@ contrast, begins at
 `would junk 4 item(s) and flag 3 for review` — the two stderr lines are simply
 absent.
 
-A combined capture that does not reproduce byte for byte is a finding. A mismatch
-caused by capturing the streams differently is **not** — re-capture with `2>&1`
-first.
+A deterministic combined capture that does not reproduce byte for byte is a finding.
+A mismatch caused by capturing the streams differently is **not** — re-capture with
+`2>&1` first. The C4 `wishlists` capture is the one environment-dependent exception
+and is governed by the rule stated there.
 
 ### C4 — Wishlist reality
 
@@ -297,16 +298,21 @@ gitignored, [.gitignore:5](../.gitignore#L5)) and are a shape reference, not a
 freshness claim. The implementer must re-derive them and record the actual
 fetch/check dates.
 
-**This is the one capture that is expected not to reproduce, and Check 2 must not
-treat that as a finding.** `wishlist.fetch` re-downloads whenever the cache is older
-than `wishlists.max_age_days` (7) and, on a failed download, prints a
-`warning: … using stale cache` line to **stderr** before falling back — so the
-combined capture legitimately varies with cache age and network reachability. The
-counts themselves also move when an upstream list is refreshed. Measured on the
-baseline with same-day caches it is stable (three consecutive runs, identical
-`md5sum`), but a divergent `wishlists` capture is evidence about the environment,
-not a defect. Record the cache mtimes and whether a download occurred alongside the
-numbers.
+**This is the one capture that is environment-dependent, and the review rules below
+treat it differently from every other.** `fetch`
+([wishlist.py:111-157](../src/vault_cleaner/wishlist.py#L111-L157)) returns the
+cache only while `_is_fresh_cache` holds, re-downloads once it is older than
+`wishlists.max_age_days` — configured as 7 at
+[config.toml:62](../config.toml#L62) — and, when a download fails but a readable
+cache exists, prints `warning: <name>: download failed (…); using stale cache <path>`
+to **stderr** before falling back. The combined capture therefore varies with cache
+age and network reachability, and the counts themselves move when an upstream list
+is refreshed.
+
+So this capture is **not** held to byte-for-byte reproduction. It must still
+**execute successfully**, and the report must record the cache mtimes and whether
+each source was downloaded or served from cache, so that any content difference is
+explained by that recorded state rather than waved through.
 
 Parser facts the report must carry
 ([wishlist.py](../src/vault_cleaner/wishlist.py)):
@@ -939,9 +945,13 @@ lowering it.
 
 The reviewer's remit is unusual for this repository and should be stated at dispatch:
 **re-run every command quoted in the report and in `docs/evidence/issue-142/`, and
-compare the recorded output to the actual output.** A quoted output that does not
-reproduce is a P1 finding, and so is an empirical claim carrying none of the three
-citations the evidence rule allows. Requirements figures cited to #140 or #142, and
+compare the recorded output to the actual output.** A deterministic quoted output
+that does not reproduce byte for byte is a P1 finding, and so is an empirical claim
+carrying none of the three citations the evidence rule allows. The single exception
+is the C4 `wishlists` capture, which is environment-dependent: there, require
+successful execution and recorded cache mtimes and download-or-fallback state, and
+raise a finding only when a content difference is *not* explained by that recorded
+state. Requirements figures cited to #140 or #142, and
 section or issue numbers, are not findings. The reviewer must also read the report
 for hollow sections, not only for false ones.
 
@@ -960,8 +970,12 @@ effort at dispatch time.
       file was re-run independently and its output matches what the report records.
       Command captures are compared as a single combined `> file 2>&1` result, the
       way the report states them; a mismatch caused by capturing stdout and stderr
-      separately is a re-capture, not a finding. Genuine divergences are either
-      explained in the report or raised as findings.
+      separately is a re-capture, not a finding. The five deterministic captures are
+      diffed byte for byte. The C4 `wishlists` capture is environment-dependent and
+      is instead checked for successful execution plus recorded cache mtimes and
+      download-or-fallback state; a content difference that recorded state does not
+      explain is still a finding. Genuine divergences are either explained in the
+      report or raised as findings.
 - [ ] **Check 3 — no unsourced empirical claims (likely finding 1).** Every claim
       about repository, fixture or export state carries a command, a `file:line`, or
       a URL with a retrieval date. Section numbers, issue references, dates and

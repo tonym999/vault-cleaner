@@ -118,10 +118,35 @@ introduced the next defect until the verification method itself changed.
   output-quoting fences, all reproducing, one exempt.
 - Recorded that the `wishlists` capture is the one output legitimately expected not
   to reproduce, so Check 2 does not manufacture a false P1 on it. `wishlist.fetch`
-  re-downloads past `max_age_days` (7) and prints a stale-cache warning to stderr on
-  a failed download, so the combined capture varies with cache age and network; the
-  counts also move when an upstream list refreshes. Stable across three runs on
-  same-day caches, but that is a property of this environment, not of the command.
+  re-downloads past `max_age_days` (7, `config.toml:62`) and prints a stale-cache
+  warning to stderr on a failed download (`wishlist.py:111-157`), so the combined
+  capture varies with cache age and network; the counts also move when an upstream
+  list refreshes. It is held to successful execution plus recorded cache mtimes and
+  download-or-fallback state rather than byte-for-byte reproduction.
+- Deleted the incidental wishlist stability claim rather than sourcing it. "Three
+  consecutive runs, identical `md5sum`" was another unsourced empirical assertion,
+  and the right correction was removal, not a fifth measurement mechanism: the claim
+  gated nothing, and what a reader needs is why the capture varies. C4 now cites the
+  behaviour itself — `wishlist.py:111-157` for the freshness test, stale-cache
+  fallback and stderr warning, and `config.toml:62` for the seven-day age.
+- Reconciled the C4 exception across every review instruction, a contradiction
+  introduced in the previous round by adding the exception in one place only. The
+  reviewer remit demanded a P1 for any non-reproducing quoted output while C4 said
+  its capture was expected to differ, so a reviewer following either one violated the
+  other. The remit, Check 2 and the byte-for-byte sentence now all state the same
+  rule: five deterministic captures are diffed byte for byte; the C4 capture is held
+  to successful execution plus recorded cache mtimes and download-or-fallback state,
+  and an unexplained content difference is still a finding. That keeps the exception
+  falsifiable instead of making it a hole.
+- Completion sweep run as specified: no `three consecutive` / `identical md5sum` /
+  `same-day caches` text remains in either file; all eight fences enumerated (six
+  output-quoting, all fail-closed with their own `OUT` and ending on the `cat` of
+  their named capture, two correctly exempt); five deterministic captures diff
+  byte-identical and C4 executes successfully; anchors, ruff, pytest, `git diff
+  --check` and the `data/`/`wishlists/` hygiene checks all clean. One checker
+  artifact worth noting for the next agent: pairing a fence with "the next ```text
+  block" mis-associates the verification list with a block 6479 characters later, so
+  the audit requires adjacency.
 
 ## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
 
