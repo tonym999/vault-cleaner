@@ -6,7 +6,7 @@
 - **Base SHA:** `9a74192d136242a9820830d4547dd2209db37ca5`
 - **Environment:** Python `3.13.14`, pandas `3.0.5`
 - **Scope:** This document is an investigative measurement and policy design spike for Issue #142 (part of umbrella Issue #140). It changes no production behaviour: no rule, parser, schema, config, server, UI, `RULESET_VERSION`, or fixture change is introduced by this investigation.
-- **Authorized plan deviation (owner directive):** On 2026-09-06, the repository owner explicitly provided a fresh DIM weapon export (`destiny-weapon (12).csv`) and authorized aggregate-only measurement of it within this spike. This supersedes the plan's "specified, not executed" restriction (plan lines 417-419 and 637) and satisfies stop condition S4 while preserving the hard privacy rule (aggregate-only data, zero account data or rows committed). Future agents must not reverse this decision.
+- **Authorized plan deviation (owner directive):** On 2026-09-06, the repository owner explicitly provided a fresh DIM weapon export (`destiny-weapon (12).csv`) and authorized measurement of it within this spike. This supersedes the plan's "specified, not executed" restriction (plan lines 417-419 and 637) and satisfies stop condition S4. What was actually committed from that export is: aggregate counts, and — under a second, explicit owner authorization dated 2026-09-06 — the real item names appearing in two `report` captures in evidence §8. Instance `Id`s, `Hash` values, and raw rows were never authorized for commit and are redacted (see §14 for the full record). Future agents must not reverse either authorization or restore the redacted IDs.
 
 ### Evidence rule
 
@@ -129,11 +129,11 @@ Cell population across all committed fixtures:
 | **Equipped state** | `Equipped == 'true'` | HARD rail (`equipped`) | Retained; hard rail preserved |
 | **Character location** | `Owner != 'Vault'` | Unprotected (location recorded only) | Does not imply protection; items on characters may be proposed for removal |
 | **Saved-loadout membership** | `Loadouts.str.strip() != ''` | Unprotected for weapons; read only for ghosts/armor dupes | **HARD rail** in aggressive policy (settled decision; Child 2a) |
-| **DIM protective tags** | `Tag in {'favorite', 'keep', 'archive'}` | HARD rail (`tag-protected`) | Retained; hard rail preserved |
-| **Crafted protection** | `Crafted == 'crafted'` | HARD if empty level (`crafted-lvunknown`) or level ≥ 10 (`crafted-level`) | Retained; hard rail preserved |
+| **DIM protective tags** | `Tag in {'favorite', 'keep', 'archive'}` | HARD rail (`dim-tag:{tag}`, [rails.py:45](../src/vault_cleaner/rules/rails.py#L45)) | Retained; hard rail preserved |
+| **Crafted protection** | `Crafted == 'crafted'` | HARD if empty level (`crafted-lvunknown`) or level ≥ 10 (`crafted-lv{level}`, [rails.py:51](../src/vault_cleaner/rules/rails.py#L51)) | Retained; hard rail preserved |
 | **Locked state** | `Locked == 'true'` | SOFT rail (`locked` -> review-only) | Retained as soft rail; flagged for review, never auto-junked |
 | **Exotic state** | `Rarity == 'Exotic'` | SOFT rail (`exotic` -> review-only) | Retained as soft rail; flagged for review, never auto-junked |
-| **Durable veto** | `Id in ReviewManifest.vetoes` | Excluded from CSV in `apply_vetoes` | Retained; vetoes suppress export unless stale or re-reviewed |
+| **Durable veto** | `Id in OverrideStore.vetoes` (`data/overrides.json`) | Excluded from CSV in `apply_vetoes` | Retained; vetoes suppress export unless stale or re-reviewed |
 
 ### Identifier handling and types
 
@@ -173,8 +173,8 @@ In `src/vault_cleaner/rules/weapons.py:59-111`:
    - Rows junked by wishlist trash are recorded and their IDs are removed from the exact-dupe candidate pool ([weapons.py:102-107](../src/vault_cleaner/rules/weapons.py#L102-L107)).
 2. **Exact-duplicate pass:**
    - Remaining candidates are grouped by `Hash` + normalized perks prefix ([dupes.py:100-177](../src/vault_cleaner/rules/dupes.py#L100-L177)).
-   - Exact duplicates are sorted deterministically using #31's landed guarantees: `Tier` desc, `Masterwork Tier` desc, `Crafted Level` desc, stat total desc, opaque instance `Id` desc ([dupes.py:42-51](../src/vault_cleaner/rules/dupes.py#L42-L51)).
-   - Winner is retained; lower copies are evaluated against `rails.protection` separately in `dupes.resolve`: lower copies marked junk (or review if soft rail applies). Ties use deterministic opaque ID tie-breaks.
+   - Exact duplicates are ranked by #31's landed guarantees: `Tier` desc, `Masterwork Tier` desc, `Crafted Level` desc, then stat total desc, using `RANK_COLUMNS` plus `STAT_COLUMNS` ([dupes.py:42-51](../src/vault_cleaner/rules/dupes.py#L42-L51)). Among rows sharing the best rank, the survivor is chosen by `min(..., key=instance_id_order)` — the **lowest** opaque instance `Id` wins the tie, not the highest ([dupes.py:225-228](../src/vault_cleaner/rules/dupes.py#L225-L228)).
+   - Winner is retained; lower copies are evaluated against `rails.protection` separately in `dupes.resolve`: lower copies marked junk (or review if soft rail applies). Ties use the same lowest-`Id`-wins deterministic tie-break.
    - Any row lacking a measured tracker boundary or complete prefix fails safe as ungroupable ([dupes.py:126-177](../src/vault_cleaner/rules/dupes.py#L126-L177)).
 
 ### Verified baseline captures on committed fake fixtures
@@ -255,19 +255,160 @@ Evaluation conducted on 2026-09-06 (see upstream repository metadata and API que
 
 | Candidate | Upstream Curation Family | Activity Scope | Roll / Hash Coverage | Tier & Quality Metadata | Notes & Attribution | Freshness / Check Date | Base/Enhanced Normalization |
 |---|---|---|---|---|---|---|---|
-| **Choosy Voltron** | Multi-curator community (PandaPaxxy, Mercules, etc.) | Broad PvE & PvP across all Destiny history | 255,373 keep rolls across 1,234 items; 53 trash entries across 53 items | None (binary keep/trash) | Rich `#notes:` descriptions with curator names in raw file; discarded at `LINE_RE` | [`2026-08-03T22:53:37Z`](https://github.com/48klocs/dim-wish-list-sources) upstream (retrieved 2026-09-06; cached `2026-09-03`) | Hash-based; enhanced perk hashes listed explicitly |
-| **Ciceron Aegis Lists** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame (GM, Master Raids, Dungeons) | Full: A+S tiers; Exclusive: S tier; Trashlist: 286 whole-item entries (D-tier and below) | Implicit in filename / tier subfolders (S, A, D-tier trash) | File-level curation; roll notes present in raw text; discarded at `LINE_RE` | [`2026-08-27T20:25:09Z`](https://github.com/Ciceron14/dim-extra-wishlists) upstream (retrieved 2026-09-06; cached `2026-09-03`) | Separate "major-perks" files filter out barrels/mags to focus on traits |
-| **MrCharles Configurable Aegis** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 28 split files based on Rank (`MRS`..`MRF`) and perks per column (`PPC0`..`PPC3`); 443KB to 36.7MB | Explicit rank metadata (`S`, `A`, `B`, `C`, `D`, `E`, `F`) in `//notes:` | Detailed notes with Tier, Rank, origin trait, and Aegis quote; discarded at `LINE_RE` | [`2026-08-15T00:45:01Z`](https://github.com/charlesxcaliber/DIMAegisWeaponWishlist) upstream (retrieved 2026-09-06) | Uses Bungie hash combinations; combinations expand with lower PPC |
-| **Nitaraku Aegis List** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 5,022 keep rolls across 968 items; 0 trash entries | Explicit Tier/Rank in `//notes:[Tier: S, Rank: 1]` | Concise notes with Tier, Rank, and reason; discarded at `LINE_RE` | [`2026-07-04T08:37:05Z`](https://github.com/Nitaraku/dim-wishlists) upstream (retrieved 2026-09-06; cached `2026-09-03`) | Focuses strictly on trait columns (traits 1 & 2 only) |
+| **Choosy Voltron** (configured, `choosy_voltron`) | Multi-curator community — curator names measured present in the cached file (see below) | Broad PvE & PvP across all Destiny history | 255,373 keep rolls across 1,234 items; 53 trash entries across 53 items ([evidence §7](evidence/issue-142/README.md#7-wishlists-command-output-and-local-cache-state), re-verified 2026-09-06) | None (binary keep/trash) | Mixed loss: ~1% of `dimwishlist:` lines carry an inline `#notes:` tail discarded at `LINE_RE` (`wishlist.py:29`); the remainder of its notes are standalone `//notes:` lines discarded at `wishlist.py:73-74`, same as the two Aegis sources — see the measured seam table above | [`2026-08-03T22:53:37Z`](https://github.com/48klocs/dim-wish-list-sources) upstream (retrieved 2026-09-06); local cache `2026-09-06` (evidence §7) | Hash-based; enhanced perk hashes listed explicitly |
+| **Ciceron Aegis Lists** (configured, `aegis_trash`; repo also hosts unconfigured sibling files evaluated below) | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame (GM, Master Raids, Dungeons) | Configured `aegis_trash` source: 0 keep rolls; 286 trash entries across 286 items (evidence §7). Sibling repo files (not configured): `dim_aegis_endgame.txt` ("Full", A+S tier) and `dim_aegis_endgame-exclusive.txt` ("Exclusive", S tier only) per the repo README's own quick-start descriptions (measured 2026-09-06, below) | "Full" = A & S tier; "Exclusive" = S tier only, per upstream README wording (not a vault-cleaner-parsed field) | 0 of 286 `dimwishlist:` lines in the configured file carry a `#notes:` tail; 156 are standalone `//notes:` lines discarded at `wishlist.py:73-74`, **not** `LINE_RE` | [`2026-08-27T20:25:09Z`](https://github.com/Ciceron14/dim-extra-wishlists) upstream (retrieved 2026-09-06); local cache `2026-09-06` (evidence §7) | `_major-perks` sibling files filter out Barrels and Mags per the README's "Barrels and Mags" section (measured 2026-09-06, below) |
+| **MrCharles Configurable Aegis** (evaluated only; **not** a configured source) | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | Not loaded by `vault-cleaner` — no `[wishlists.sources]` entry. Repository structure measured via `gh api .../git/trees` (below): 28 files = 7 rank codes (`MRA`, `MRB`, `MRC`, `MRD`, `MRE`, `MRF`, `MRS`) × 4 perk-count codes (`PPC0`..`PPC3`); sizes 443,282 to 36,724,539 bytes | Rank encoded in filename only (`MRx`); per-entry tier/rank text inside the files is **NOT MEASURED** — files were never fetched (§14 item 2) | **NOT MEASURED** — content was never fetched in any session, so no discard-seam claim can be made for this unconfigured source | [`2026-08-15T00:45:01Z`](https://github.com/charlesxcaliber/DIMAegisWeaponWishlist) upstream (retrieved 2026-09-06) | **NOT MEASURED** — no file content inspected |
+| **Nitaraku Aegis List** (configured, `aegis`) | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 5,022 keep rolls across 968 items; 0 trash entries (evidence §7, re-verified 2026-09-06) | Explicit Tier/Rank in standalone `//notes:[Tier: S, Rank: 1]`-style lines | 0 of 5,022 `dimwishlist:` lines carry a `#notes:` tail; 740 are standalone `//notes:` lines discarded at `wishlist.py:73-74`, **not** `LINE_RE` | [`2026-07-04T08:37:05Z`](https://github.com/Nitaraku/dim-wishlists) upstream (retrieved 2026-09-06); local cache `2026-09-06` (evidence §7) | The cached file's own header states "Uses only Trait 1 and Trait 2 columns" (measured directly from the file, below) |
+
+### Measured source detail (2026-09-06)
+
+**Curator names and rail cache freshness** — `wishlists/` is the gitignored local cache; this session's `ls -l wishlists/` (evidence §7) shows all three configured sources with mtime `2026-09-06`, unchanged before and after this session's `vault-cleaner wishlists` invocation, and no `warning: ... download failed` line appeared in that capture — so all three were **served from cache**, not freshly downloaded, in this session.
+
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
+{
+  echo "=== curator name mentions in choosy_voltron.txt (case-insensitive) ==="
+  grep -o -i "pandapaxxy" wishlists/choosy_voltron.txt | wc -l
+  grep -o -i "mercules" wishlists/choosy_voltron.txt | wc -l
+} > "$OUT/p2-8_curator_counts.txt" 2>&1
+cat "$OUT/p2-8_curator_counts.txt"
+```
+
+`$OUT/p2-8_curator_counts.txt`:
+
+```text
+=== curator name mentions in choosy_voltron.txt (case-insensitive) ===
+3883
+253
+```
+
+**Nitaraku's own file header** confirms the "traits 1 & 2 only" scope directly, rather than by inference:
+
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
+head -2 wishlists/aegis.txt > "$OUT/p2-8_nitaraku_header.txt" 2>&1
+cat "$OUT/p2-8_nitaraku_header.txt"
+```
+
+`$OUT/p2-8_nitaraku_header.txt`:
+
+```text
+title:Aegis PvE Endgame Wishlist: All Tiers | Only Traits v26.7.4.1
+description:Automatically generated DIM wishlist based on the Aegis PvE Tierlist for all Tiers. Uses only Trait 1 and Trait 2 columns.
+```
+
+**MrCharles repository structure** (evaluated only; this source is not configured):
+
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
+gh api "repos/charlesxcaliber/DIMAegisWeaponWishlist/git/trees/main?recursive=1" --jq '.tree[] | select(.type=="blob") | "\(.path) \(.size)"' > "$OUT/mrcharles_tree.txt" 2>&1
+cat "$OUT/mrcharles_tree.txt"
+```
+
+`$OUT/mrcharles_tree.txt` (28 wishlist files; sizes in bytes; `README.md` excluded from the 28 count):
+
+```text
+MrCharlesWishlist_MRA_PPC0.txt 23392051
+MrCharlesWishlist_MRA_PPC1.txt 17216708
+MrCharlesWishlist_MRA_PPC2.txt 5853045
+MrCharlesWishlist_MRA_PPC3.txt 1129700
+MrCharlesWishlist_MRB_PPC0.txt 31746899
+MrCharlesWishlist_MRB_PPC1.txt 23240534
+MrCharlesWishlist_MRB_PPC2.txt 7832479
+MrCharlesWishlist_MRB_PPC3.txt 1604394
+MrCharlesWishlist_MRC_PPC0.txt 34887457
+MrCharlesWishlist_MRC_PPC1.txt 25176633
+MrCharlesWishlist_MRC_PPC2.txt 8481476
+MrCharlesWishlist_MRC_PPC3.txt 1933831
+MrCharlesWishlist_MRD_PPC0.txt 36358170
+MrCharlesWishlist_MRD_PPC1.txt 26006846
+MrCharlesWishlist_MRD_PPC2.txt 8762065
+MrCharlesWishlist_MRD_PPC3.txt 2131892
+MrCharlesWishlist_MRE_PPC0.txt 36703022
+MrCharlesWishlist_MRE_PPC1.txt 26203770
+MrCharlesWishlist_MRE_PPC2.txt 8846983
+MrCharlesWishlist_MRE_PPC3.txt 2182960
+MrCharlesWishlist_MRF_PPC0.txt 36724539
+MrCharlesWishlist_MRF_PPC1.txt 26214742
+MrCharlesWishlist_MRF_PPC2.txt 8851303
+MrCharlesWishlist_MRF_PPC3.txt 2187280
+MrCharlesWishlist_MRS_PPC0.txt 11292682
+MrCharlesWishlist_MRS_PPC1.txt 8573418
+MrCharlesWishlist_MRS_PPC2.txt 2916327
+MrCharlesWishlist_MRS_PPC3.txt 443282
+README.md 1799
+```
+
+Smallest file `MrCharlesWishlist_MRS_PPC3.txt` is 443,282 bytes (≈443KB decimal); largest `MrCharlesWishlist_MRF_PPC0.txt` is 36,724,539 bytes (≈36.7MB decimal) — 28 files total, confirming the file-count and size-range claim with this session's own query rather than round 1's uncited figure.
+
+**Ciceron's repository README** confirms the Full/Exclusive tier structure and the major-perks Barrels-and-Mags filter directly from upstream documentation:
+
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
+gh api "repos/Ciceron14/dim-extra-wishlists/readme" --jq '.content' > "$OUT/raw_b64.txt" 2>&1
+base64 -d "$OUT/raw_b64.txt" > "$OUT/ciceron_readme.txt" 2>&1
+grep -n -A1 "^### Everything Good\|^### Only The Greats\|^## Barrels and Mags" "$OUT/ciceron_readme.txt" > "$OUT/ciceron_readme_excerpt.txt" 2>&1
+cat "$OUT/ciceron_readme_excerpt.txt"
+```
+
+`$OUT/ciceron_readme_excerpt.txt`:
+
+```text
+20:### Everything Good
+21-_A & S Tier Endgame Weapons + Endgame Shopping List_
+--
+30:### Only The Greats
+31-_S Tier Endgame Weapons + Endgame Shopping List_
+--
+75:## Barrels and Mags
+76-If you are looking for less grindy wishlists, you can replace any of them with their "Major Perks" version. You can find them in the folders next to the standard ones.
+```
+
+"Everything Good" bundles `dim_aegis_endgame.txt` (the "Full" list) and is described as A & S tier; "Only The Greats" bundles `dim_aegis_endgame-exclusive.txt` (the "Exclusive" list) and is described as S tier only — confirming the round 1 claim, now cited to this README fetch instead of left uncited.
 
 ### Parser facts and data loss in current code
 
-In `src/vault_cleaner/wishlist.py`:
+**Two distinct discard seams exist, and the two Aegis sources actually configured in `config.toml` never reach the one round 1 originally named.**
 
-- **Note loss at `LINE_RE`:** `LINE_RE = re.compile(r"^dimwishlist:item=(-?\d{1,10})(?:&perks=([\d,]*))?(?:#.*)?$")` ([wishlist.py:29](../src/vault_cleaner/wishlist.py#L29)). The `(?:#.*)?` non-capturing group discards the comment tail. All entry notes, tier ratings (`Tier: S`), and curator attribution are deleted at parse time.
+- **Standalone `//notes:` block lines are discarded before `LINE_RE` is ever reached.** `parse_wishlist` ([wishlist.py:69-74](../src/vault_cleaner/wishlist.py#L69-L74)) skips any line that does not start with `dimwishlist:` — `if not line.startswith("dimwishlist:"): continue  # titles, comments, prose — not ours to police`. Both configured Aegis sources (`aegis` = Nitaraku, `aegis_trash` = Ciceron) carry their tier/attribution text as **standalone `//notes:` comment lines preceding a block of `dimwishlist:` lines**, not as a `#notes:` tail on the `dimwishlist:` line itself. For those two sources, the loss happens at `wishlist.py:73-74`, and `LINE_RE`'s `(?:#.*)?` tail group is never reached.
+- **`LINE_RE`'s `(?:#.*)?` tail group discards a `#notes:` suffix when a `dimwishlist:` line carries one.** `LINE_RE = re.compile(r"^dimwishlist:item=(-?\d{1,10})(?:&perks=([\d,]*))?(?:#.*)?$")` ([wishlist.py:29](../src/vault_cleaner/wishlist.py#L29)). This seam is real, but measured against the local cache it applies **only to Choosy Voltron** among the three configured sources — see the measured table below.
 - **Source loss at `merge`:** `Wishlist.merge` ([wishlist.py:51-57](../src/vault_cleaner/wishlist.py#L51-L57)) merges all rolls into unified `keep` and `trash` dictionaries. Once merged, the engine cannot determine whether a roll came from Choosy Voltron or Aegis.
 
-This parser reality is the measured justification for #140 Child 3.
+**Measured seam usage per configured source** (cached copies in `wishlists/`, measured 2026-09-06):
+
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
+{
+  for f in aegis.txt aegis_trash.txt choosy_voltron.txt; do
+    total=$(grep -c "^dimwishlist:" "wishlists/$f" || true)
+    hash_notes=$(grep "^dimwishlist:" "wishlists/$f" | grep -c "#notes:" || true)
+    slash_notes=$(grep -c "^//notes:" "wishlists/$f" || true)
+    echo "$f: dimwishlist_lines=$total hash_notes_tail=$hash_notes standalone_slash_notes=$slash_notes"
+  done
+} > "$OUT/p1-1_seam_counts.txt" 2>&1
+cat "$OUT/p1-1_seam_counts.txt"
+```
+
+`$OUT/p1-1_seam_counts.txt`:
+
+```text
+aegis.txt: dimwishlist_lines=5022 hash_notes_tail=0 standalone_slash_notes=740
+aegis_trash.txt: dimwishlist_lines=286 hash_notes_tail=0 standalone_slash_notes=156
+choosy_voltron.txt: dimwishlist_lines=255426 hash_notes_tail=2726 standalone_slash_notes=8628
+```
+
+| Source | `dimwishlist:` lines | `#notes:` tail (`LINE_RE`, `wishlist.py:29`) | standalone `//notes:` lines (`wishlist.py:73-74`) |
+|---|---|---|---|
+| `aegis.txt` (Nitaraku) | 5,022 | **0** | 740 |
+| `aegis_trash.txt` (Ciceron) | 286 | **0** | 156 |
+| `choosy_voltron.txt` | 255,426 | 2,726 (~1%) | 8,628 |
+
+Both Aegis sources carry **zero** `#notes:` tails on their `dimwishlist:` lines; their tier/attribution text is entirely in standalone `//notes:` block lines, discarded at `wishlist.py:73-74` before `LINE_RE` ever runs. Only Choosy Voltron's minority `#notes:` tail (~1% of its lines) reaches `LINE_RE`'s discard group. A Child 3 implementer who targets only `LINE_RE` would recover zero notes from either Aegis source. This is the measured justification for #140 Child 3, and Child 3 must address both discard seams, not only `LINE_RE`.
 
 ---
 
@@ -275,7 +416,7 @@ This parser reality is the measured justification for #140 Child 3.
 
 ### One curation family
 
-Ciceron, MrCharles, and Nitaraku are **not independent curators**. All three are mechanical scripts converting a single source of truth: Aegis's PvE Endgame spreadsheet ([https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY](https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY)). Counting agreement between them as "consensus" is a statistical error. They must be treated as **one curation family** (Aegis PvE Endgame), evaluated against Choosy Voltron as the broad community baseline.
+Ciceron, MrCharles, and Nitaraku are **not independent curators**. All three are mechanical scripts converting a single source of truth: Aegis's PvE Endgame spreadsheet ([https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY](https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY); retrieved/confirmed 2026-09-06, cited from the `// Tierlist source:` comment header in the cached `wishlists/aegis.txt` and independently from the Ciceron repository README's "Endgame Analysis Spreadsheet" link, both re-fetched this session). Counting agreement between them as "consensus" is a statistical error. They must be treated as **one curation family** (Aegis PvE Endgame), evaluated against Choosy Voltron as the broad community baseline.
 
 ### Strategy recommendation
 
@@ -326,13 +467,19 @@ Issue #34 ("Rank weapons by unique useful-combination coverage", milestone `M6 �
    - `Crafted == 'crafted'` with empty level -> HARD (`crafted-lvunknown`)
    - **`Loadouts != ''` -> HARD** (`loadout-protected`; settled owner decision; Child 2a)
    - Durable vetoes in `overrides.json` -> HARD exclusion
-5. **Aegis tier discrimination:**
+5. **Aegis tier discrimination and PvP uncertainty:**
    - D-tier whole-item trash with no keep match -> Automatic junk candidate.
    - D-tier whole-item trash with Voltron keep match -> Review-only comparison (`#vc-review: aegis-trash-voltron-keep`).
    - Unrated / no Aegis coverage -> `unknown or uncovered`; retained.
-6. **Retained alternatives requirement:** Any outclassed-weapon proposal must name an owned, retained weapon instance covering the same role and element. If the alternative is proposed for removal, the recommendation is invalid.
-7. **Ruleset and fingerprint effects:** Adding `policy` settings requires projecting the new configuration in `report_run._decision_config` ([report_run.py:173-224](../src/vault_cleaner/report_run.py#L173-L224)) and bumping `RULESET_VERSION` ([report_run.py:44](../src/vault_cleaner/report_run.py#L44)) from `4` to `5`.
-8. **No manufactured proposals:** The 100-space goal is a target, not a quota. If justified proposals fall short of 100, the shortfall is reported honestly; rules must never manufacture junk decisions.
+   - **PvP uncertainty, stated at this policy seam** (§5/§6 measure the underlying gap): every configured Aegis-derived source rates PvE endgame performance only ([config.toml:64-71](../config.toml#L64-L71); §5). Absence of Aegis coverage, or a D-tier PvE rating, is never evidence that a weapon is safe to remove for a PvP-oriented loadout — a PvP-relevant roll with no PvE endgame rating stays `unknown or uncovered`, not `automatic junk candidate`.
+6. **Personal-use exceptions:** This policy proposes at the Python pipeline/output seam only (§8's boundary statement above); it has no input signal for a player's personal, non-meta attachment to a build that scores low on curated tier lists. The review UI's per-item veto is the only mechanism that can record such an exception, and no rule is permitted to infer one — an aggressive proposal is never suppressed by anything other than a rail, a keep match, or an explicit veto.
+7. **Distinct useful coverage:** A roll that offers a perk combination available on no other owned copy of the same `Hash` (per §4's taxonomy and #34's authoritative criteria in §7) is never `automatic junk candidate` on that basis alone; it remains `review-only comparison` at best, pending #34/Child 4's dominance evidence. The aggressive policy does not weaken this — a 100-space shortfall is never grounds to treat unique coverage as junk.
+8. **Retained alternatives requirement:** Any outclassed-weapon proposal must name an owned, retained weapon instance covering the same role and element. If the alternative is proposed for removal, the recommendation is invalid.
+9. **Stop conditions for unsupported inference:**
+   - **Role inference:** the aggressive policy must not infer a weapon's PvE/PvP role, activity fit, or build synergy from any field vault-cleaner currently parses (`Type`, `Ammo`, `Element`, `Archetype` are descriptive, not role metadata; see §2). A rule that would need role inference to justify a proposal is out of scope until a child ticket defines and measures a role-metadata source.
+   - **Cross-`Hash` comparison:** comparing two different `Hash` values (as opposed to exact-roll or same-`Hash` dominance) requires explicit role and activity metadata this pipeline does not have today. **Cross-`Hash` recommendations are deferred unless explicit role and activity metadata supports them** — see Child 7 in §12, which is gated on this stop condition, not merely deprioritized.
+10. **Ruleset and fingerprint effects:** Adding `policy` settings requires projecting the new configuration in `report_run._decision_config` ([report_run.py:173-224](../src/vault_cleaner/report_run.py#L173-L224)) and bumping `RULESET_VERSION` ([report_run.py:44](../src/vault_cleaner/report_run.py#L44)) from `4` to `5`.
+11. **No manufactured proposals:** The 100-space goal is a target, not a quota. If justified proposals fall short of 100, the shortfall is reported honestly; rules must never manufacture junk decisions. The 100-space goal never justifies manufacturing proposals, inferring an unsupported role, or performing a deferred cross-`Hash` comparison.
 
 ---
 
@@ -341,8 +488,8 @@ Issue #34 ("Rank weapons by unique useful-combination coverage", milestone `M6 �
 ### Authoritative seam and call sites
 
 The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](../src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). Both sibling call sites must be updated together:
-1. Server: `../src/vault_cleaner/server/app.py:790-792`
-2. CLI: `../src/vault_cleaner/cli.py:484`
+1. Server: [src/vault_cleaner/server/app.py:790-792](../src/vault_cleaner/server/app.py#L790-L792)
+2. CLI: [src/vault_cleaner/cli.py:484](../src/vault_cleaner/cli.py#L484)
 
 ### Approval-only rule
 
@@ -359,14 +506,17 @@ return [
 ```
 
 In approval-only finalization (Child 2b):
-- An item is included in the output CSV **only if explicitly approved** (`verdict == "approve"`).
-- Vetoed proposals (`verdict == "veto"`) are excluded.
+- An item is included in the output CSV **only if explicitly approved** (`verdict == "approved"`).
+- Vetoed proposals (`verdict == "vetoed"`) are excluded.
 - Unreviewed proposals (`verdict` unset / unchecked) are **excluded**.
+- The canonical verdict token set is `VERDICTS = frozenset({"approved", "vetoed"})` ([review_session.py:41](../src/vault_cleaner/review_session.py#L41)), enforced identically at both untrusted-input boundaries: [review.py:301](../src/vault_cleaner/review.py#L301) (the review-manifest validator) and [server/app.py:225](../src/vault_cleaner/server/app.py#L225) (the server's verdict-request validator). There is no `"approve"` / `"veto"` token anywhere in the codebase.
 
 ### Durable veto interaction and semantics
 
-- `ReviewManifest.vetoes` and `data/overrides.json` store durable vetoes.
-- `review.classify` ([review.py:496-543](../src/vault_cleaner/review.py#L496-L543)) classifies stored vetoes against current proposals. A veto becomes `stale` when `(action, reason)` no longer matches the current proposal. This allows new rules to surface previously vetoed items for fresh review without resetting durable state.
+Two unrelated "manifest"-adjacent types must stay distinct here, per `AGENTS.md`:
+- **`OverrideStore`** ([review_session.py:64-66](../src/vault_cleaner/review_session.py#L64-L66)) is the **durable** record, persisted to and loaded from `data/overrides.json`. Its `vetoes: tuple[Veto, ...]` field is the only place a veto survives across sessions.
+- **`ReviewManifest`** ([review.py:83-97](../src/vault_cleaner/review.py#L83-L97)) is the **transient, untrusted** manifest the UI hands back for one session's fresh verdicts. It has `decisions`, and the derived properties `vetoed` and `approved` (each filtering `decisions` by `verdict`) — it has **no** `vetoes` attribute, and it is never itself the durable store.
+- `review.classify` ([review.py:496-543](../src/vault_cleaner/review.py#L496-L543)) sorts the durable `OverrideStore.vetoes` into active / stale / orphaned / unchecked against the current `ReportRun`'s proposals. A veto becomes `stale` when `(action, reason)` no longer matches the current proposal. This is how a fresh session's fresh verdicts and durable state interact without resetting the durable store: a new rule (or a new aggressive profile) that changes what is proposed for an item does not erase its persisted veto — it makes that veto stale so the item resurfaces for re-review, and #114 (not repurposed here) owns any reset behaviour.
 - **Definition:** "Removed" means excluded from the CSV. Vault Cleaner never deletes items or issues automated dismantle commands.
 
 ---
@@ -399,7 +549,7 @@ The capacity model must report four distinct states honestly:
 
 ### Input and counting contracts
 
-- **Opaque ID single-counting:** Every removal is counted exactly once by its 64-bit opaque instance `Id`. An item cannot be counted twice across different duplicate or review groups.
+- **Opaque ID single-counting:** Every removal is counted exactly once by its opaque string instance `Id`. An item cannot be counted twice across different duplicate or review groups. `Id` is handled as an opaque string end to end; `rules/id_order.py`'s module docstring states plainly that ids "are normally decimal uint64 values, but callers must not rely on that being true" ([id_order.py:1-7](../src/vault_cleaner/rules/id_order.py#L1-L7)) — a capacity contract that counts by `Id` must not assume a fixed bit width.
 - **Negative projections as shortfalls:** If $F - (C - D_c) < 0$, the display must report a shortfall (e.g. "Over capacity by 90 items; 90 removals required before clearing characters"), never an impossible negative capacity.
 - **Dismantle vs. transfer proof:** An approval, tag, Notes edit, or CSV download is not proof that in-game dismantling or transfers occurred.
 
@@ -420,8 +570,8 @@ From committed fixtures without wishlists ([docs/evidence/issue-142/README.md](e
 When analyzing a real user export:
 1. **Zero committed account data:** Never copy the export into `data/in/` or any tracked folder. Do not run `--write`.
 2. **Aggregate-only extraction:** Run measurement scripts outside the working tree (or via temporary scripts) that output only sums, value counts, and aggregate metrics.
-3. **No identifiers:** Never log, print, or commit item names, hashes, instance IDs, or raw CSV rows.
-4. **Sanitize evidence:** Transcripts committed under `docs/evidence/` must contain aggregate counts only.
+3. **No durable identifiers:** Never log, print, or commit `Hash` values, instance `Id`s, or raw CSV rows. **Item names may be published only when the repository owner explicitly authorizes that specific measurement for the ticket** — as happened here on 2026-09-06 (see §1, §14). Absent that authorization, item names are withheld along with `Hash`/`Id`/rows.
+4. **Sanitize evidence:** Transcripts committed under `docs/evidence/` must contain aggregate counts (and, only under an owner-authorized item-name exception, item names) — never `Hash`, instance `Id`, or raw rows.
 
 ### Aggregate findings on authorized real export (2026-09-06)
 
@@ -436,7 +586,7 @@ Measured on the owner's supplied export of 664 weapons (see self-contained repro
   - Total on characters: 109
 - **Equipped weapons:** 9 (3 characters × 3 equipped slots)
 - **Unequipped character weapons ($C$):** 100 ($109 - 9$)
-- **Unique hashes:** 440; **Multi-copy hashes:** 115 hashes account for 339 items.
+- **Unique hashes:** 440 (`df['Hash'].nunique()`, quoted in evidence §8's `real_export_summary.txt`).
 - **Protection breakdown across rule worlds:**
   - **Current-rules world (no loadouts rail):**
     - Hard-protected: 56 (8 tag-protected, 9 equipped, 41 crafted level >= 10 or unknown)
@@ -448,7 +598,7 @@ Measured on the owner's supplied export of 664 weapons (see self-contained repro
     - Completely unprotected: 272 (231 in vault, 41 unequipped on characters)
 - **Baseline pipeline yield:**
   - With `--no-wishlists`: 0 junk, 2 review (both exotic Praxic Blade duplicates).
-  - With wishlists (using local Bungie manifest cache, version `244213.26.06.29.2000-1-bnet.65864`; note this run is environment-dependent): 5 junk (all Ciceron whole-item trash), 6 review (4 locked trash + 2 Praxic Blade). 21 weapons had trash suppressed by keep matches.
+  - With wishlists (using the original session's local Bungie manifest cache, version `244213.26.06.29.2000-1-bnet.65864`; this run is environment-dependent, see §14 item 1 for this session's inability to reproduce that exact cache state): 5 junk (`wishlist-trash whole-item`), 6 review (4 `wishlist-trash whole-item` + 2 `dupe-lower`). 21 weapons had trash suppressed by keep matches. **Not stated:** which configured source (Choosy Voltron vs. the Aegis family) contributed each trash match, or which soft rail (`exotic` vs. `locked`) applies to each of the 4 `wishlist-trash whole-item` review items — neither is observable in the quoted capture (evidence §8's `real_wishlists.txt`), and `Wishlist.merge` (§5) destroys per-source attribution before rules run, so the source cannot be recovered after the fact. The round 1 attribution of these to "all Ciceron whole-item trash" and "4 locked trash" was unsourced and is retracted here; see §14.
 - **Required removals for 100-space goal:**
   Given estimated $F \approx 10$ and $C = 100$:
   ```text
@@ -464,7 +614,7 @@ Measured on the owner's supplied export of 664 weapons (see self-contained repro
 |---|---|---|---|---|---|---|
 | **2a** | Hard loadout protection rail for weapons; schema enforcement | #142 | `parse.py:42-44`, `rules/rails.py:30-56`, `tests/fixtures/weapons*.csv` | Independent adversarial review | Touches weapon schema and rails; requires adding loadout fixture test cases | **Yes** (independent safety gate) |
 | **2b** | Approval-only finalization seam | #142 | `review.py:546`, `server/app.py:790`, `cli.py:484` | Independent adversarial review | Inverts CSV finalization logic; affects both server and CLI | **Yes** (independent output gate) |
-| **3** | Wishlist provenance, attribution, and `#notes:` parsing | #142 | `src/vault_cleaner/wishlist.py:29-100` | Standard review | Parses tier tokens and preserves source attribution; does not change rule logic | Yes |
+| **3** | Wishlist provenance, attribution, and tier/notes parsing — **both** discard seams: `LINE_RE`'s `#notes:` tail (Choosy Voltron) and the standalone `//notes:` block-line skip (both configured Aegis sources) | #142 | `src/vault_cleaner/wishlist.py:29` (`LINE_RE`), `wishlist.py:69-100` (`parse_wishlist`, including the standalone-comment skip at `wishlist.py:73-74`) | Standard review | Parses both tier-token forms and preserves source attribution through `merge`; a fix that only touches `LINE_RE` recovers zero notes from either configured Aegis source (measured, §5) and is an incomplete Child 3; does not change rule logic | Yes |
 | **4** | Same-Hash useful-combination coverage (#34) | 2a, 3, #31 | `src/vault_cleaner/rules/` (new module `combinations.py`) | Independent adversarial review | Implements pairwise coverage dominance; review-only initially | No (needs 2a, 3) |
 | **5** | Aggressive clear-out policy and weapons-first proposal scope | 2a, 2b, 3, 4 | `src/vault_cleaner/report_run.py`, `config.toml` | Independent adversarial review | Suppresses armor proposals; projects config in `_decision_config`; bumps `RULESET_VERSION` | No (needs 2a, 2b, 4) |
 | **6** | Capacity model and progress accounting UI | 2b, 5, #140 | `src/vault_cleaner/ui/`, `duplicate_reference.py` | Standard review | Adds semantic `Owner` parsing for $C$; displays four capacity states | No (needs 2b, 5) |
@@ -492,8 +642,41 @@ Measured on the owner's supplied export of 664 weapons (see self-contained repro
 
 ## 14. Limitations and NOT MEASURED register
 
-1. **Live Bungie Manifest download:** The ~200MB Bungie manifest download was not executed in this session; measurements utilized the valid local cache at `data/cache/perk-name-map.json` (mtime verified, manifest version `244213.26.06.29.2000-1-bnet.65864`).
-2. **MrCharles full matrix run:** The complete 28-file MrCharles wishlist matrix (totaling >200MB) was evaluated via upstream repository inspection, Git tree analysis, and file head samples, but was not imported into `vault-cleaner wishlists` due to memory/cache constraints.
+1. **Live Bungie Manifest download, and the original wishlist-enabled real-export run's exact cache state:** The ~200MB Bungie manifest download was not executed in the original implementer's session; that session used its local cache and recorded manifest version `244213.26.06.29.2000-1-bnet.65864` in a shell comment (not command output) in evidence §8. **This correction round runs on a different machine than that original session and cannot reproduce or independently verify that specific cache state or version string** — the real export itself is also unavailable on this machine. What this session *can* and does state as its own measurement, from a genuine command against this machine's own local cache, is:
+   ```bash
+   set -euo pipefail
+   OUT="$(mktemp -d)"
+   .venv/bin/python -c "
+   import json
+   d = json.load(open('data/cache/perk-name-map.json'))
+   print('version:', d['version'])
+   print('names_count:', len(d['names']))
+   " > "$OUT/manifest_cache_version.txt" 2>&1
+   cat "$OUT/manifest_cache_version.txt"
+   ```
+   `$OUT/manifest_cache_version.txt`:
+   ```text
+   version: 244213.26.06.29.2000-1-bnet.65583
+   names_count: 10627
+   ```
+   and, for the cache directory's mtime:
+   ```bash
+   set -euo pipefail
+   OUT="$(mktemp -d)"
+   ls -l data/cache/ > "$OUT/data_cache_ls.txt" 2>&1
+   cat "$OUT/data_cache_ls.txt"
+   ```
+   `$OUT/data_cache_ls.txt`:
+   ```text
+   total 404
+   -rw-rw-r-- 1 raver raver 410472 Aug 30 10:29 perk-name-map.json
+   ```
+   This machine's cache (version `...65583`, mtime 2026-08-30) is a **different** cache from the one the original session used (version `...65864`) — the two are not the same measurement and must not be conflated. The original session's specific version/mtime claim is **NOT MEASURED** in this correction round for that reason; it is left in §11 as the original implementer's own recorded claim, not independently re-verified here.
+2. **MrCharles full matrix run:** Newly measured this round: the repository structure (28 files, 7 rank codes × 4 `PPC` codes, byte sizes from 443,282 to 36,724,539) via a `gh api .../git/trees` query (§5, cited with retrieval date 2026-09-06). **Still NOT MEASURED:** actual parsed content of those 28 files (keep-roll counts, skipped/malformed counts, per-rank tier semantics beyond the file-name convention) — MrCharles is not a configured `[wishlists.sources]` entry, and importing >200MB of additional wishlist text into `vault-cleaner wishlists` for a source this report does not recommend adopting wholesale is out of this ticket's scope.
 3. **Non-weapon vault inventory:** The supplied real export contained weapons only (`destiny-weapon (12).csv`, SHA-256 `35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571`, 664 true data rows, 323,610 bytes, measured 2026-09-06). Armor, ghost shells, and consumable vault holdings were not measured; total free space $F \approx 10$ is based on owner estimate.
-4. **Third-party dates and commits:** External repository commit timestamps (`pushed_at`) and raw file contents are cited to GitHub API queries executed on 2026-09-06.
-5. **Authorized plan deviation (real export analysis):** The repository owner explicitly provided `destiny-weapon (12).csv` on 2026-09-06 and authorized aggregate-only measurement of it within this spike, superseding the plan's "specified, not executed" restriction (plan lines 417-419 and 637). Stop condition S4 was satisfied under strict aggregate-only privacy rules (zero rows, names, hashes, or instance IDs committed). Future agents must not reverse this decision.
+4. **Third-party dates and commits:** External repository commit timestamps (`pushed_at`) and raw file contents are cited to GitHub API queries executed on 2026-09-06 (re-run and re-verified in this correction round; see evidence §9).
+5. **Real-export multi-copy hash breakdown (retracted):** Round 1's "115 hashes account for 339 items" claim (§11) was never produced by any recorded command — the real-export script (evidence §8) prints only `Unique weapon Hashes: 440`. No script computing a multi-copy breakdown was run in the original session, and none is re-derivable here (the export is unavailable on this machine). Retracted from §11; **NOT MEASURED**.
+6. **Real-export wishlist-trash source and rail-reason attribution (retracted):** Round 1's "(all Ciceron whole-item trash)" and "(4 locked trash + 2 Praxic Blade)" attributions in §11 are not supported by the quoted capture (evidence §8's `real_wishlists.txt` prints item name/id/location for `wishlist-trash whole-item` decisions with no source or rail-reason suffix) and contradict §5's finding that `Wishlist.merge` destroys per-source attribution before rules run. Which configured source contributed each of those 5 junk / 4 review decisions, and which soft rail (if any) applies to each of the 4 review decisions, is **NOT MEASURED** and not recoverable from the existing capture.
+7. **Authorized plan deviation and owner privacy decision (real export analysis):** The repository owner explicitly provided `destiny-weapon (12).csv` on 2026-09-06 and authorized measurement of it within this spike, superseding the plan's "specified, not executed" restriction (plan lines 417-419 and 637). Stop condition S4 was satisfied. Two privacy rules apply, and they are distinct:
+   - **Aggregate counts** (location breakdown, protection breakdown, capacity arithmetic) were authorized and committed from the start; zero raw rows, `Hash` values, or instance `Id`s were ever authorized for commit.
+   - **Item names** in the two `report` captures quoted in evidence §8 were additionally authorized for publication by the repository owner, explicitly, on 2026-09-06. That authorization does **not** extend to instance `Id`s: the eleven 19-digit instance `Id`s that originally appeared alongside those names in evidence §8 have been redacted post-capture to `id <redacted>` (see the note above each capture in evidence §8). This is the owner's 2026-09-06 decision recorded in `WORKLOG.md`; future agents must not reverse it, and must not restore the redacted IDs without a fresh, explicit owner authorization.

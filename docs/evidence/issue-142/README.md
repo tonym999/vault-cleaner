@@ -1,12 +1,20 @@
 # Issue #142 baseline measurement evidence
 
 Verbatim command transcripts and raw outputs backing the measurements in
-[docs/aggressive-clearout-measurement.md](../../aggressive-clearout-measurement.md).
+[docs/aggressive-clearout-measurement.md](../../aggressive-clearout-measurement.md),
+with two exceptions noted individually below: the two real-export `report` captures
+in §8 have had instance `Id`s redacted post-capture under an explicit owner privacy
+decision, so they are not byte-verbatim against the original command's actual
+output (see the note directly above each one, and §14 item 7 in the measurement
+document).
 
-All commands were run on Windows within Git Bash (`bash 5.2.26`) on Python 3.13.14
+Sections 1–8 were run on Windows within Git Bash (`bash 5.2.26`) on Python 3.13.14
 with pandas 3.0.5, using `export PYTHONUTF8=1` to enforce UTF-8 streams and avoid
 codepage encoding errors on Unicode fixture symbols (such as the emoji in
-`tests/fixtures/weapons_hostile.csv`).
+`tests/fixtures/weapons_hostile.csv`). This correction round's re-verification of
+§9 (and the new measurements added to §5's "Measured source detail" in the
+measurement document) ran on Linux, in this session, on 2026-09-06; the reproduced
+values are identical, so no divergence is recorded.
 
 Every file capture below was produced using a single combined stdout+stderr
 redirection (`> "$OUT/file.txt" 2>&1`) into a disposable `mktemp -d` scratch
@@ -414,6 +422,16 @@ Output:
 
 ## 7. Wishlists command output and local cache state
 
+Re-run in this correction round (2026-09-06, this session's Linux environment —
+a different machine and cache than round 1's Windows capture). This is the one
+capture the plan holds to a different standard than byte-for-byte reproduction
+(measurement document, §1 "Reproduction commands" and C4): it must execute
+successfully and record cache mtimes and download-or-fallback state, and a content
+difference is only a finding if that recorded state does not explain it. Here the
+parsed keep/trash counts are byte-identical to round 1's capture; only the cache
+file sizes and mtimes differ (different machine, different fetch), which the
+recorded mtimes below fully explain.
+
 ```bash
 set -euo pipefail
 OUT="$(mktemp -d)"
@@ -435,34 +453,61 @@ total: 260395 keep rolls, 339 trash entries
 Output (`wishlists_ls.txt`):
 
 ```text
-total 26764
--rw-r--r-- 1 raver 197609   354210 Sep  3 21:27 aegis.txt
--rw-r--r-- 1 raver 197609    30195 Sep  3 21:27 aegis_trash.txt
--rw-r--r-- 1 raver 197609 27014559 Sep  3 21:27 choosy_voltron.txt
+total 26472
+-rw-rw-r-- 1 raver raver   346965 Sep  6 14:23 aegis.txt
+-rw-rw-r-- 1 raver raver    29281 Sep  6 14:23 aegis_trash.txt
+-rw-rw-r-- 1 raver raver 26723730 Sep  6 14:23 choosy_voltron.txt
 ```
+
+No `warning: ... download failed` line appears in `wishlists.txt`, and the three
+files' mtime (`Sep 6 14:23`) was already current at the start of this session,
+before this command ran — confirmed by comparing this `ls -l` capture (run after
+the `vault-cleaner wishlists` call above) against an identical `ls -la wishlists/`
+run at the very start of this session, which showed the same three mtimes. The
+command therefore **served all three sources from cache**, not by downloading, in
+this session.
 
 ---
 
 ## 8. Aggregate-only real-export analysis (authorized session data)
 
 An actual DIM weapon export (`destiny-weapon (12).csv`) was supplied and authorized
-for aggregate measurement by the repository owner on 2026-09-06.
+for measurement by the repository owner on 2026-09-06.
 
-In strict accordance with the repository privacy rules, **no item names, hashes,
-instance IDs, or individual rows** are stored, quoted, or committed.
+**Privacy record (corrected):** No `Hash` values, instance `Id`s, or individual raw
+CSV rows are stored, quoted, or committed anywhere in this document. **Item names**
+are the one exception: the two `report` captures below were additionally, explicitly
+authorized for publication by the repository owner on 2026-09-06 (see
+[docs/aggressive-clearout-measurement.md](../../aggressive-clearout-measurement.md)
+§1 and §14, and `WORKLOG.md`). Every instance `Id` that originally appeared in those
+two captures has been **redacted to `id <redacted>` after capture** — see the note
+directly above each one. Because of that redaction, those two blocks are **not**
+byte-verbatim command output, unlike every other capture in this file.
 
 ### Derivation script and output
+
+This fence takes the export path as `$EXPORT`, defaulting to the original
+implementer's own path if unset — **that default resolves on no other machine**.
+A reader reproducing this capture must supply their own copy of the identical file
+(verified against the recorded SHA-256 below) as `EXPORT=/path/to/export.csv`. See
+§14 in the measurement document: this file is not obtainable by any reader other
+than its owner, so this fence is auditable only by the owner against the recorded
+hash — that is a defect independent of privacy, and this parameterization is the
+fix (round 1 hardcoded `C:/Users/raver/Downloads/destiny-weapon (12).csv` directly
+into the script, which nobody else could ever run).
 
 ```bash
 set -euo pipefail
 OUT="$(mktemp -d)"
+EXPORT="${EXPORT:-C:/Users/raver/Downloads/destiny-weapon (12).csv}"
 
-.venv/bin/python - <<'PY' > "$OUT/real_export_summary.txt" 2>&1
+.venv/bin/python - "$EXPORT" <<'PY' > "$OUT/real_export_summary.txt" 2>&1
 import hashlib
 import pandas as pd
 import csv
+import sys
 
-path = "C:/Users/raver/Downloads/destiny-weapon (12).csv"
+path = sys.argv[1]
 with open(path, "rb") as f:
     content = f.read()
     sha256 = hashlib.sha256(content).hexdigest()
@@ -603,19 +648,30 @@ Required total unique removals (Dv + Dc >= target_free - F + C): 190
 
 ### Dry-run pipeline yield on real export
 
+Same `$EXPORT` parameterization as above; this default is likewise only reachable on
+the original implementer's machine.
+
 ```bash
 set -euo pipefail
 export PYTHONUTF8=1
 OUT="$(mktemp -d)"
+EXPORT="${EXPORT:-C:/Users/raver/Downloads/destiny-weapon (12).csv}"
 
-.venv/bin/vault-cleaner report --weapons "C:/Users/raver/Downloads/destiny-weapon (12).csv" --no-wishlists > "$OUT/real_nowishlists.txt" 2>&1
+.venv/bin/vault-cleaner report --weapons "$EXPORT" --no-wishlists > "$OUT/real_nowishlists.txt" 2>&1
 cat "$OUT/real_nowishlists.txt"
 
 # Supplementary wishlist-enabled run using local Bungie manifest cache
 # Note: Manifest version 244213.26.06.29.2000-1-bnet.65864; environment-dependent.
-.venv/bin/vault-cleaner report --weapons "C:/Users/raver/Downloads/destiny-weapon (12).csv" > "$OUT/real_wishlists.txt" 2>&1
+# This session could not re-verify that version string as command output — see
+# docs/aggressive-clearout-measurement.md §14 item 1 for the genuine command output
+# this session recorded instead, from this machine's own (different) cache.
+.venv/bin/vault-cleaner report --weapons "$EXPORT" > "$OUT/real_wishlists.txt" 2>&1
 cat "$OUT/real_wishlists.txt"
 ```
+
+**Instance IDs redacted post-capture** (owner authorization covers item names only,
+not `Id`s — see the privacy record above). This block is therefore not byte-verbatim
+against the live command's actual output.
 
 Output (`real_nowishlists.txt`):
 
@@ -625,11 +681,13 @@ skipping ghosts: data\in\destiny-ghost.csv not found; expected destiny-ghost.csv
 would junk 0 item(s) and flag 2 for review
 
 REVIEW dupe-lower (weapons) — 2 item(s)
-  Praxic Blade (id 6917530158539892712, class weapons; location Warlock(550)) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
-  Praxic Blade (id 6917530161179940241, class weapons; location Vault) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+  Praxic Blade (id <redacted>, class weapons; location Warlock(550)) — review: dupe-lower (exotic); keep [id <redacted>; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+  Praxic Blade (id <redacted>, class weapons; location Vault) — review: dupe-lower (exotic); keep [id <redacted>; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
 
 dry run — pass --write to write the combined import CSV
 ```
+
+**Instance IDs redacted post-capture**, same basis as above; not byte-verbatim.
 
 Output (`real_wishlists.txt`):
 
@@ -639,21 +697,21 @@ skipping ghosts: data\in\destiny-ghost.csv not found; expected destiny-ghost.csv
 would junk 5 item(s) and flag 6 for review
 
 JUNK wishlist-trash whole-item (weapons) — 5 item(s)
-  Avalanche (id 6917529555207305475, class weapons; location Vault)
-  Coriolis Force (id 6917530188278338308, class weapons; location Vault)
-  Qua Furor V (id 6917530148717110788, class weapons; location Vault)
-  Survivor's Epitaph (id 6917530189831483157, class weapons; location Vault)
-  Whistler's Whim (id 6917530169692096400, class weapons; location Vault)
+  Avalanche (id <redacted>, class weapons; location Vault)
+  Coriolis Force (id <redacted>, class weapons; location Vault)
+  Qua Furor V (id <redacted>, class weapons; location Vault)
+  Survivor's Epitaph (id <redacted>, class weapons; location Vault)
+  Whistler's Whim (id <redacted>, class weapons; location Vault)
 
 REVIEW wishlist-trash whole-item (weapons) — 4 item(s)
-  Crowd Pleaser (id 6917529252812922410, class weapons; location Vault)
-  Frozen Orbit (id 6917530189813264038, class weapons; location Vault)
-  THE SWARM (Adept) (id 6917529922188621567, class weapons; location Hunter(550))
-  Truthteller (id 6917529227410856423, class weapons; location Vault)
+  Crowd Pleaser (id <redacted>, class weapons; location Vault)
+  Frozen Orbit (id <redacted>, class weapons; location Vault)
+  THE SWARM (Adept) (id <redacted>, class weapons; location Hunter(550))
+  Truthteller (id <redacted>, class weapons; location Vault)
 
 REVIEW dupe-lower (weapons) — 2 item(s)
-  Praxic Blade (id 6917530158539892712, class weapons; location Warlock(550)) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
-  Praxic Blade (id 6917530161179940241, class weapons; location Vault) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+  Praxic Blade (id <redacted>, class weapons; location Warlock(550)) — review: dupe-lower (exotic); keep [id <redacted>; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+  Praxic Blade (id <redacted>, class weapons; location Vault) — review: dupe-lower (exotic); keep [id <redacted>; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
 
 note: 21 weapon(s) matched both keep and trash lists — keep outranked trash; normal dupe rules still apply to these items
 
@@ -664,68 +722,71 @@ dry run — pass --write to write the combined import CSV
 
 ## 9. Upstream wishlist repository metadata
 
-Queries executed on 2026-09-06 via GitHub CLI / API to verify candidate source freshness:
+Queries re-executed on 2026-09-06 via GitHub CLI / API to verify candidate source
+freshness, under the fence contract (`set -euo pipefail`, a fresh `OUT="$(mktemp -d)"`,
+capture to a file, `cat` that file last). `gh`'s `--jq` output is genuinely compact
+single-line JSON — round 1's blocks below were pretty-printed by hand and are
+replaced here with the literal captured bytes.
 
 ### Choosy Voltron (`48klocs/dim-wish-list-sources`)
 
 ```bash
-gh api repos/48klocs/dim-wish-list-sources --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+set -euo pipefail
+OUT="$(mktemp -d)"
+gh api repos/48klocs/dim-wish-list-sources --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}' > "$OUT/gh_48klocs.txt" 2>&1
+cat "$OUT/gh_48klocs.txt"
 ```
 
-Output:
+`$OUT/gh_48klocs.txt`:
 
-```json
-{
-  "default_branch": "master",
-  "description": "Source files for wish lists for DIM",
-  "pushed_at": "2026-08-03T22:53:37Z"
-}
+```text
+{"default_branch":"master","description":"Source files for wish lists for DIM","pushed_at":"2026-08-03T22:53:37Z"}
 ```
 
 ### Ciceron (`Ciceron14/dim-extra-wishlists`)
 
 ```bash
-gh api repos/Ciceron14/dim-extra-wishlists --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+set -euo pipefail
+OUT="$(mktemp -d)"
+gh api repos/Ciceron14/dim-extra-wishlists --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}' > "$OUT/gh_ciceron.txt" 2>&1
+cat "$OUT/gh_ciceron.txt"
 ```
 
-Output:
+`$OUT/gh_ciceron.txt`:
 
-```json
-{
-  "default_branch": "main",
-  "description": "Collection of DIM Wishlists for Destiny 2 Weapons, based on Aegis's Spreadsheets",
-  "pushed_at": "2026-08-27T20:25:09Z"
-}
+```text
+{"default_branch":"main","description":"Collection of DIM Wishlists for Destiny 2 Weapons, based on Aegis's Spreadsheets","pushed_at":"2026-08-27T20:25:09Z"}
 ```
 
 ### MrCharles (`charlesxcaliber/DIMAegisWeaponWishlist`)
 
 ```bash
-gh api repos/charlesxcaliber/DIMAegisWeaponWishlist --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+set -euo pipefail
+OUT="$(mktemp -d)"
+gh api repos/charlesxcaliber/DIMAegisWeaponWishlist --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}' > "$OUT/gh_mrcharles.txt" 2>&1
+cat "$OUT/gh_mrcharles.txt"
 ```
 
-Output:
+`$OUT/gh_mrcharles.txt`:
 
-```json
-{
-  "default_branch": "main",
-  "description": "Based on Aegis's Endgame PvE Analysis, this wishlist labels all the best perks on all weapons, making it easier for you to determine whether to keep or dismantle weapons.",
-  "pushed_at": "2026-08-15T00:45:01Z"
-}
+```text
+{"default_branch":"main","description":"Based on Aegis's Endgame PvE Analysis, this wishlist labels all the best perks on all weapons, making it easier for you to determine whether to keep or dismantle weapons.","pushed_at":"2026-08-15T00:45:01Z"}
 ```
 
 ### Nitaraku (`Nitaraku/dim-wishlists`)
 
 ```bash
-gh api repos/Nitaraku/dim-wishlists --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+set -euo pipefail
+OUT="$(mktemp -d)"
+gh api repos/Nitaraku/dim-wishlists --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}' > "$OUT/gh_nitaraku.txt" 2>&1
+cat "$OUT/gh_nitaraku.txt"
 ```
 
-Output:
+`$OUT/gh_nitaraku.txt`:
 
-```json
-{
-  "default_branch": "main",
-  "description": "Wishlists for DIM (Destiny Item Manager) based on Aegis Endgame Analysis",
-  "pushed_at": "2026-07-04T08:37:05Z"
-}
+```text
+{"default_branch":"main","description":"Wishlists for DIM (Destiny Item Manager) based on Aegis Endgame Analysis","pushed_at":"2026-07-04T08:37:05Z"}
 ```
+
+All four values reproduced exactly against the round 1 capture (`default_branch`,
+`description`, `pushed_at` all identical) — only the formatting was wrong before.
