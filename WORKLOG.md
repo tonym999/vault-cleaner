@@ -73,6 +73,15 @@ surprises the next agent should know about.
   empirical claims only, with three accepted citation forms (command, `file:line`,
   or URL plus retrieval date); requirements figures cite #140/#142. Check 3 and the
   reviewer remit moved with it.
+- Follow-up round, caused by the verbatim fix itself: the quoted captures were
+  only reproducible under one capture method that the plan never named. Measured —
+  `> file 2>&1` is byte-stable across five consecutive runs (one distinct
+  `md5sum`), but a stdout-only run drops the two stderr `skipping` lines and starts
+  at `would junk 4 item(s)`. Since Check 2 calls a non-reproducing capture a P1, an
+  undefined method would have manufactured false findings. The redirection now
+  appears in every command fence, the report and evidence file must quote a single
+  combined file, and Check 2 says a stream-splitting mismatch is a re-capture
+  rather than a finding.
 - Branch allocation corrected to `feat/issue-142-clearout-measurement`:
   `AGENTS.md` and `handoffs/README.md` enumerate `fix/` or `feat/`, and the
   `docs/issue-124-workflow-pilot-record` precedent is not authority over the

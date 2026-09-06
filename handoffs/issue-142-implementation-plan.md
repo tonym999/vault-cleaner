@@ -136,10 +136,10 @@ landed guarantees and are **out of scope to change**.
 Measured baseline yield on committed fake data:
 
 ```bash
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > runA.txt 2>&1
 ```
 
-Captured verbatim on the baseline (stdout and stderr, unedited):
+`runA.txt`, unedited:
 
 ```text
 would junk 1 item(s) and flag 5 for review
@@ -165,11 +165,11 @@ The weapons section contributes **zero** decisions there. The weapon volume live
 the dupe fixture:
 
 ```bash
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > runB.txt 2>&1
 ```
 
-Captured verbatim on the baseline (stdout and stderr, unedited — the two
-`skipping` lines are stderr and are part of the expected output):
+`runB.txt`, unedited — the two `skipping` lines are stderr and are part of the
+expected capture:
 
 ```text
 skipping armor: data/in/destiny-armor.csv not found; expected destiny-armor.csv or a browser-numbered copy such as destiny-armor (1).csv
@@ -194,9 +194,20 @@ REVIEW dupe-tie (weapons) — 1 item(s)
 dry run — pass --write to write the combined import CSV
 ```
 
-Both blocks are literal captures, including blank lines, two-space indentation
-and U+2014 em dashes. Re-running must reproduce them byte for byte; if it does
-not, the divergence is itself the finding.
+**Capture method, and the only comparison that is meaningful.** Both blocks are
+literal captures of a *single combined file* produced by `> file 2>&1`, including
+blank lines, two-space indentation and U+2014 em dashes. Reproduce and compare that
+one file — never two separate streams, and never text copied from a terminal.
+
+The redirection is load-bearing, not decoration. The `skipping` lines go to stderr
+and the summary to stdout, so `2>/dev/null` (or any stdout-only capture) drops the
+first two lines and will *not* match. Measured on the baseline: the combined capture
+is byte-stable across five consecutive runs (one distinct `md5sum`), while a
+stdout-only run begins at `would junk 4 item(s) and flag 3 for review`.
+
+A combined capture that does not reproduce byte for byte is a finding. A mismatch
+caused by capturing the streams differently is **not** — re-capture with `2>&1`
+first.
 
 ### C4 — Wishlist reality
 
@@ -557,11 +568,16 @@ PY
 ```
 
 ```bash
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_hostile.csv --no-wishlists
-.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_slammer_like.csv --no-wishlists
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > runA.txt 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > runB.txt 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_hostile.csv --no-wishlists > runC.txt 2>&1
+.venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_slammer_like.csv --no-wishlists > runD.txt 2>&1
 ```
+
+Every quoted capture in the report and evidence file is one such combined
+`> file 2>&1` result. Quote the file, state the command **including** its
+redirection, and keep the scratch files out of the repository — they are working
+artifacts, not tracked evidence.
 
 ```bash
 .venv/bin/vault-cleaner wishlists
@@ -788,7 +804,10 @@ effort at dispatch time.
       still `4`.
 - [ ] **Check 2 — reproduction.** Every command quoted in the report and evidence
       file was re-run independently and its output matches what the report records.
-      Divergences are either explained in the report or raised as findings.
+      Command captures are compared as a single combined `> file 2>&1` result, the
+      way the report states them; a mismatch caused by capturing stdout and stderr
+      separately is a re-capture, not a finding. Genuine divergences are either
+      explained in the report or raised as findings.
 - [ ] **Check 3 — no unsourced empirical claims (likely finding 1).** Every claim
       about repository, fixture or export state carries a command, a `file:line`, or
       a URL with a retrieval date. Section numbers, issue references, dates and
