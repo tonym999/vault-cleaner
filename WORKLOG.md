@@ -3,6 +3,61 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-06 — #142 plan review rounds (PR 1 continued)
+
+Continues the 2026-09-05 #142 planning entry below; same PR 1, same branch, work
+that ran past midnight. Three review rounds, every finding accepted, and each fix
+introduced the next defect until the verification method itself changed.
+
+- Follow-up round, caused by the verbatim fix itself: the quoted captures were
+  only reproducible under one capture method that the plan never named. Measured —
+  `> file 2>&1` is byte-stable across five consecutive runs (one distinct
+  `md5sum`), but a stdout-only run drops the two stderr `skipping` lines and starts
+  at `would junk 4 item(s)`. Since Check 2 calls a non-reproducing capture a P1, an
+  undefined method would have manufactured false findings. The redirection now
+  appears in every command fence, the report and evidence file must quote a single
+  combined file, and Check 2 says a stream-splitting mismatch is a re-capture
+  rather than a finding.
+- Second follow-up, again self-inflicted: naming the capture files `runA.txt` etc.
+  with no path would have written them into the repository root, contradicting the
+  plan's own no-scratch-in-tree rule and breaking the `git status --porcelain`
+  verification step. The capture rule also claimed to cover every quoted output
+  while only the `report` fences carried a redirection. Every contract command now
+  captures into a `mktemp -d` `$OUT` directory — `wishlists` needs it too, since it
+  writes stale-cache warnings to stderr — and all four commands were re-run to
+  confirm they work and leave the tree clean.
+- Third follow-up round, and the one that changed how this gets verified. `OUT` was
+  defined in one fenced block and used from later ones; shell state does not survive
+  between separately executed blocks, so `"$OUT/versions.txt"` resolved to
+  `/versions.txt` and failed with `permission denied` (reproduced directly). The
+  contract is now a single atomic block, each standalone evidence fence defines its
+  own `OUT`, and the heredoc carries its redirection on the invocation line instead
+  of a prose pseudo-command. The five-run byte-stability claim now ships the loop and
+  `md5sum` command with its `1` output, rather than asserting a measurement with no
+  way to reproduce it.
+- Changed the verification method rather than spot-checking again: every `bash` fence
+  is now extracted from the document and executed in a fresh shell with `OUT`
+  explicitly unset, and every quoted capture is diffed against a fresh run. That
+  immediately found a fifth instance of the original defect that three review rounds
+  had missed — the C2 fixture table was hand-aligned (`rows=15` for the real
+  `rows= 15`, `Tag` column dropped) and did not reproduce. It is now a literal
+  capture with its command. Four consecutive rounds of fixes introducing the next
+  defect all had one cause: writing shell into a document without executing it.
+- Fail-closed measurement blocks. Neither the atomic contract block nor the five-run
+  stability loop set `set -euo pipefail`, and the consequence was demonstrable: run
+  the loop against a nonexistent fixture and all five runs fail, yet it still prints
+  `1` — the exact digest count the plan cites as proof of byte-stability. The digest
+  proves the runs were *identical*, not that they *succeeded*, so five identical
+  failures read as a pass. Both blocks now set `set -euo pipefail`, and the loop adds
+  an explicit `cmp` assertion so a mismatch aborts rather than relying on the digest
+  count. Verified both ways: good path still prints `1` at exit 0, failing path exits
+  1. `set -u` also hardens the previous round's unset-`OUT` defect, aborting instead
+  of writing to `/`.
+- Split this entry out of the 2026-09-05 one on review: WORKLOG is one entry per
+  working session and the clock had rolled, so post-midnight rounds were sitting
+  under the previous day's heading. The #117 precedent for folding dispositions into
+  a single planning entry still holds within a day; it does not license a wrong date.
+
 ## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
 
 - Authored `handoffs/issue-142-implementation-plan.md` against `main` at
@@ -73,40 +128,6 @@ surprises the next agent should know about.
   empirical claims only, with three accepted citation forms (command, `file:line`,
   or URL plus retrieval date); requirements figures cite #140/#142. Check 3 and the
   reviewer remit moved with it.
-- Follow-up round, caused by the verbatim fix itself: the quoted captures were
-  only reproducible under one capture method that the plan never named. Measured —
-  `> file 2>&1` is byte-stable across five consecutive runs (one distinct
-  `md5sum`), but a stdout-only run drops the two stderr `skipping` lines and starts
-  at `would junk 4 item(s)`. Since Check 2 calls a non-reproducing capture a P1, an
-  undefined method would have manufactured false findings. The redirection now
-  appears in every command fence, the report and evidence file must quote a single
-  combined file, and Check 2 says a stream-splitting mismatch is a re-capture
-  rather than a finding.
-- Second follow-up, again self-inflicted: naming the capture files `runA.txt` etc.
-  with no path would have written them into the repository root, contradicting the
-  plan's own no-scratch-in-tree rule and breaking the `git status --porcelain`
-  verification step. The capture rule also claimed to cover every quoted output
-  while only the `report` fences carried a redirection. Every contract command now
-  captures into a `mktemp -d` `$OUT` directory — `wishlists` needs it too, since it
-  writes stale-cache warnings to stderr — and all four commands were re-run to
-  confirm they work and leave the tree clean.
-- Third follow-up round, and the one that changed how this gets verified. `OUT` was
-  defined in one fenced block and used from later ones; shell state does not survive
-  between separately executed blocks, so `"$OUT/versions.txt"` resolved to
-  `/versions.txt` and failed with `permission denied` (reproduced directly). The
-  contract is now a single atomic block, each standalone evidence fence defines its
-  own `OUT`, and the heredoc carries its redirection on the invocation line instead
-  of a prose pseudo-command. The five-run byte-stability claim now ships the loop and
-  `md5sum` command with its `1` output, rather than asserting a measurement with no
-  way to reproduce it.
-- Changed the verification method rather than spot-checking again: every `bash` fence
-  is now extracted from the document and executed in a fresh shell with `OUT`
-  explicitly unset, and every quoted capture is diffed against a fresh run. That
-  immediately found a fifth instance of the original defect that three review rounds
-  had missed — the C2 fixture table was hand-aligned (`rows=15` for the real
-  `rows= 15`, `Tag` column dropped) and did not reproduce. It is now a literal
-  capture with its command. Four consecutive rounds of fixes introducing the next
-  defect all had one cause: writing shell into a document without executing it.
 - Branch allocation corrected to `feat/issue-142-clearout-measurement`:
   `AGENTS.md` and `handoffs/README.md` enumerate `fix/` or `feat/`, and the
   `docs/issue-124-workflow-pilot-record` precedent is not authority over the
@@ -115,7 +136,7 @@ surprises the next agent should know about.
   `parse.py` required-column ranges were all shifted (base is 32-34 not 36-38;
   weapons 42-44 not 45-49, which landed in the *ghost* comment; armor 71-76), plus
   `wishlist.py` 22/29/51-57/160-184, `weapons.py` 59-111 and 102-107, `dupes.py`
-  42-52, `report_run.py` 241-257, `review.py` 496-543 and `armor_dupes.py` 99-100.
+  42-51, `report_run.py` 241-257, `review.py` 496-543 and `armor_dupes.py` 99-100.
   Root cause for both this and the fake-verbatim blocks: transcribing from memory
   of earlier tool output instead of re-deriving from the file. Also took
   CodeRabbit's inclusion-test wording fix — "exactly one of" read as a one-path

@@ -232,10 +232,12 @@ set in an earlier one resolves `"$OUT/runB.txt"` to `/runB.txt` and fails with
 The byte-stability of a combined capture is measured, not assumed:
 
 ```bash
+set -euo pipefail
 OUT="$(mktemp -d)"
 for i in 1 2 3 4 5; do
   .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.$i.txt" 2>&1
 done
+for i in 2 3 4 5; do cmp "$OUT/runB.1.txt" "$OUT/runB.$i.txt"; done
 md5sum "$OUT"/runB.*.txt | awk '{print $1}' | sort -u | wc -l
 ```
 
@@ -243,7 +245,11 @@ md5sum "$OUT"/runB.*.txt | awk '{print $1}' | sort -u | wc -l
 1
 ```
 
-One distinct digest across five runs. A stdout-only run, by contrast, begins at
+One distinct digest across five runs. `set -euo pipefail` and the `cmp` assertion
+are what make that `1` mean anything: without them, five runs that all *fail*
+produce five identical error captures and print `1` just the same — the digest
+proves the runs were identical, never that they succeeded. A stdout-only run, by
+contrast, begins at
 `would junk 4 item(s) and flag 3 for review` — the two stderr lines are simply
 absent.
 
@@ -593,6 +599,7 @@ directory outside the working tree, leaving no untracked artifact behind (the
 verification step below requires `git status --porcelain` to be empty):
 
 ```bash
+set -euo pipefail
 OUT="$(mktemp -d)"; echo "scratch: $OUT"
 
 .venv/bin/python -c "import sys, pandas; print(sys.version); print(pandas.__version__)" > "$OUT/versions.txt" 2>&1
@@ -628,7 +635,9 @@ ls -1 "$OUT"
 Every quoted capture in the report and evidence file is one of these combined
 `> "$OUT/file" 2>&1` results — this applies to **every** command above, not only the
 `report` runs, because several of them (`report`, `wishlists`) write to both
-streams. Quote the file, and state the command **including** its redirection. If a
+streams. The block sets `set -euo pipefail` so a failed command aborts it instead of
+leaving an error message inside a capture file that then gets quoted as evidence;
+the closing `ls -1 "$OUT"` is only reached when every capture succeeded. Quote the file, and state the command **including** its redirection. If a
 command is run on its own rather than as part of the block, repeat the
 `OUT="$(mktemp -d)"` line with it. The `$OUT` files are working artifacts: never
 commit them, and never write them into the working tree.
