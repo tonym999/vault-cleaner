@@ -69,6 +69,22 @@ introduced the next defect until the verification method itself changed.
   defined derivation first. Separately, `parse.py` declares four named
   `REQUIRED_*_COLUMNS` sets, not three — requiring "three" invited omitting the base
   set, which is the one carrying `Equipped`, `Locked` and `Notes`.
+- Corrected the `Owner` read count from twelve to 13 and, more to the point, gave it
+  a command. The miss was `cli.py:151`, which writes `r.get('Owner', '?')` inside an
+  f-string, so the original `grep` for the double-quoted `"Owner"` never saw it — a
+  too-narrow pattern producing a confident number. The 13 are 10 `Decision.location`
+  assignments, 2 display reads through `safe_fragment`, and 1 CLI dry-run print; the
+  CLI line is a third display-only use, so the "never parsed semantically" conclusion
+  is strengthened, not weakened. The count now ships its `grep` and its scope, plus a
+  warning that a narrower pattern returns 12. An uncited repository-wide count was
+  the same evidence-rule violation as the earlier fake captures — written, this time,
+  inside a paragraph that was itself fixing an evidence problem.
+- Check 5 still demanded "the two `Owner` formats" after the body moved to three
+  shapes, so a reviewer could have accepted a report omitting the `Vault` sentinel
+  and silently undone the previous round. It now requires all three shapes with the
+  sentinel called out, and all four `REQUIRED_*_COLUMNS` sets. Swept the rest of the
+  document for stale siblings of both changes: line 121 was already correct, and
+  every other "three" is right in its own context.
 
 ## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
 

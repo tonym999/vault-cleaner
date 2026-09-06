@@ -121,10 +121,11 @@ Three consequences the report must state explicitly:
 2. `Owner` is not a stable identifier. It carries three measured shapes: the literal
    `Vault` sentinel, a bare class name (`Titan`, in the weapons fixtures), and a
    class with a parenthesized number (`Titan(550)`, `Hunter(506)`, `Titan(415)`).
-   Nothing in `src/` parses it semantically — it reaches twelve call sites, is
-   copied into `Decision.location`, and on two of them passes through
-   `safe_fragment` for display bounding only. Character-vs-vault accounting
-   therefore has **no** current implementation and no measured format contract.
+   Nothing in `src/` parses it semantically — 13 reads under `src/vault_cleaner`
+   (10 `Decision.location` assignments, 2 display reads through `safe_fragment`,
+   1 CLI dry-run print), none deriving residency, class or power. Character-vs-vault
+   accounting therefore has **no** current implementation and no measured format
+   contract.
 3. No export column reports vault capacity or free spaces. `F` in the #140 capacity
    formula is not derivable from any export.
 
@@ -481,13 +482,31 @@ character cases:
 | **class with parenthesized number** | `Titan(550)`, `Hunter(506)`, `Titan(415)` | a character, annotated (armor and ghost fixtures). |
 
 Say precisely that `Owner` is **not semantically parsed or normalized** anywhere.
-It is read at twelve call sites and copied into `Decision.location`; on two of them
+Measured scope — every read under `src/vault_cleaner`:
+
+```bash
+OUT="$(mktemp -d)"
+grep -rn "Owner" src/vault_cleaner --include=*.py > "$OUT/owner.txt" 2>&1
+wc -l < "$OUT/owner.txt"
+```
+
+```text
+13
+```
+
+Those 13 reads are 10 `Decision.location` assignments, 2 display reads through
+`safe_fragment`
 ([duplicate_reference.py:184](../src/vault_cleaner/duplicate_reference.py#L184),
-[duplicate_reference.py:212](../src/vault_cleaner/duplicate_reference.py#L212)) it
-passes through `safe_fragment`, which bounds it and neutralizes structural
-punctuation for **display** without changing the raw value. Neither path derives
+[duplicate_reference.py:212](../src/vault_cleaner/duplicate_reference.py#L212)),
+which bound the value and neutralize structural punctuation for **display** without
+changing it, and 1 dry-run print in the CLI tag path
+([cli.py:151](../src/vault_cleaner/cli.py#L151)). None of them derives
 vault-versus-character residency, a class, or a power level, so a capacity model
 needs a defined, measured derivation before child 6 can rely on one.
+
+Re-derive that count rather than quoting it: a narrower pattern than the one above
+misses reads. The `cli.py` line writes `r.get('Owner', '?')` inside an f-string, so
+a `grep` for the double-quoted `"Owner"` returns 12 and silently omits it.
 
 On identifier types, state the **measured** boundary rather than a blanket claim:
 `Id` is an opaque string end to end — `id_order.instance_id_order` orders it without
@@ -905,8 +924,11 @@ effort at dispatch time.
       non-empty, or its emptiness is justified.
 - [ ] **Check 5 — schema findings.** Section 2 states the weapon `Loadouts` gap
       (header present, not schema-required, zero non-empty cells across all committed
-      weapon fixtures), the two `Owner` formats, the absence of any vault-capacity
-      column, and the required fail-safe when the protection input is missing.
+      weapon fixtures), all **four** named `REQUIRED_*_COLUMNS` sets including base,
+      all **three** `Owner` shapes — the `Vault` sentinel specified separately from
+      the two character encodings, since vault-versus-character accounting depends on
+      it — the absence of any vault-capacity column, and the required fail-safe when
+      the protection input is missing.
 - [ ] **Check 6 — seams.** Section 9 names **both** `apply_vetoes` call sites
       (`src/vault_cleaner/cli.py:484` and `src/vault_cleaner/server/app.py:790`) and
       describes today's subtractive behaviour correctly. Section 8 names
