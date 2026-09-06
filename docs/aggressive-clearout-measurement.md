@@ -6,6 +6,7 @@
 - **Base SHA:** `9a74192d136242a9820830d4547dd2209db37ca5`
 - **Environment:** Python `3.13.14`, pandas `3.0.5`
 - **Scope:** This document is an investigative measurement and policy design spike for Issue #142 (part of umbrella Issue #140). It changes no production behaviour: no rule, parser, schema, config, server, UI, `RULESET_VERSION`, or fixture change is introduced by this investigation.
+- **Authorized plan deviation (owner directive):** On 2026-09-06, the repository owner explicitly provided a fresh DIM weapon export (`destiny-weapon (12).csv`) and authorized aggregate-only measurement of it within this spike. This supersedes the plan's "specified, not executed" restriction (plan lines 417-419 and 637) and satisfies stop condition S4 while preserving the hard privacy rule (aggregate-only data, zero account data or rows committed). Future agents must not reverse this decision.
 
 ### Evidence rule
 
@@ -69,15 +70,15 @@ Verbatim outputs of each capture are archived in [docs/evidence/issue-142/README
 
 DIM export validation in `parse.py` enforces four named column sets:
 
-1. **`REQUIRED_BASE_COLUMNS`** ([parse.py:32-34](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/parse.py#L32-L34)):
+1. **`REQUIRED_BASE_COLUMNS`** ([parse.py:32-34](../src/vault_cleaner/parse.py#L32-L34)):
    `Name`, `Hash`, `Id`, `Tag`, `Rarity`, `Locked`, `Equipped`, `Notes`.
-2. **`REQUIRED_WEAPONS_COLUMNS`** ([parse.py:42-44](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/parse.py#L42-L44)):
+2. **`REQUIRED_WEAPON_COLUMNS`** ([parse.py:42-44](../src/vault_cleaner/parse.py#L42-L44)):
    `REQUIRED_BASE_COLUMNS` + `Type`, `Ammo`, `Crafted`, `Crafted Level`, `Perks 0`.
-   **Finding:** `Loadouts` is **not** in `REQUIRED_WEAPONS_COLUMNS`.
-3. **`REQUIRED_GHOSTS_COLUMNS`** ([parse.py:47](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/parse.py#L47)):
+   **Finding:** `Loadouts` is **not** in `REQUIRED_WEAPON_COLUMNS`.
+3. **`REQUIRED_GHOST_COLUMNS`** ([parse.py:47](../src/vault_cleaner/parse.py#L47)):
    `REQUIRED_BASE_COLUMNS` + `Loadouts`.
-4. **`REQUIRED_ARMOR_COLUMNS`** ([parse.py:71-76](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/parse.py#L71-L76)):
-   `REQUIRED_BASE_COLUMNS` + `Type`, `Equippable`, `Loadouts`, `Tuning Stat`, `Seasonal Mod`, `Holofoil`, `Masterwork Tier`, `Power`, `Tier`, `Perks 0`, `Archetype`, plus the six `ARMOR_STATS` columns (`Weapons`, `Health`, `Class`, `Grenade`, `Super`, `Melee`).
+4. **`REQUIRED_ARMOR_COLUMNS`** ([parse.py:71-76](../src/vault_cleaner/parse.py#L71-L76)):
+   `REQUIRED_BASE_COLUMNS` + `Type`, `Equippable`, `Loadouts`, `Tuning Stat`, `Seasonal Mod`, `Holofoil`, `Masterwork Tier`, `Power`, `Tier`, `Perks 0`, `Archetype`, plus the six `ARMOR_STATS` columns (`Weapons (Base)`, `Health (Base)`, `Class (Base)`, `Grenade (Base)`, `Super (Base)`, `Melee (Base)`).
 
 ### Measured fixture headers and content
 
@@ -107,10 +108,10 @@ Cell population across all committed fixtures:
 
 ### Core schema findings
 
-1. **Weapon `Loadouts` coverage gap:** Across all 36 weapon rows in all 4 weapon fixtures (`weapons.csv`, `weapons_dupes.csv`, `weapons_hostile.csv`, `weapons_slammer_like.csv`), **zero** non-empty `Loadouts` cells exist. Because `Loadouts` is not in `REQUIRED_WEAPONS_COLUMNS`, an export that dropped `Loadouts` entirely would load silently without triggering schema validation.
+1. **Weapon `Loadouts` coverage gap:** Across all 36 weapon rows in all 4 weapon fixtures (`weapons.csv`, `weapons_dupes.csv`, `weapons_hostile.csv`, `weapons_slammer_like.csv`), **zero** non-empty `Loadouts` cells exist. Because `Loadouts` is not in `REQUIRED_WEAPON_COLUMNS`, an export that dropped `Loadouts` entirely would load silently without triggering schema validation.
 2. **Three distinct `Loadouts` states:**
-   - **Column missing:** Incomplete export schema. The protection input is absent. Must not default to "not in a loadout". Child 2a must add `"Loadouts"` to `REQUIRED_WEAPONS_COLUMNS` in `parse.py` so incomplete weapon exports fail loudly.
-   - **Cell empty on a row:** The normal measured state for items not saved to any loadout ([ghosts.py:36](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/ghosts.py#L36), [armor_dupes.py:99-100](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/armor_dupes.py#L99-L100)). Treated as unprotected by this dimension.
+   - **Column missing:** Incomplete export schema. The protection input is absent. Must not default to "not in a loadout". Child 2a must add `"Loadouts"` to `REQUIRED_WEAPON_COLUMNS` in `parse.py` so incomplete weapon exports fail loudly.
+   - **Cell empty on a row:** The normal measured state for items not saved to any loadout ([ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36), [armor_dupes.py:99-100](../src/vault_cleaner/rules/armor_dupes.py#L99-L100)). Treated as unprotected by this dimension.
    - **Column present but empty on every row:** Ambiguous state (either the player has saved no DIM loadouts, or DIM export formatting changed). Must be detected and surfaced in the report summary as an explicit advisory notice.
 3. **`Owner` contract and lack of semantic parsing:**
    `Owner` exhibits three observed shapes in DIM exports:
@@ -118,7 +119,7 @@ Cell population across all committed fixtures:
    - Bare class name: e.g. `Titan` (observed in `weapons.csv`).
    - Class with power level: e.g. `Titan(451)`, `Titan(550)`, `Hunter(506)` (observed in armor/ghost fixtures and real exports).
 
-   A comprehensive search for `"Owner"` across `src/vault_cleaner` yields exactly **13 reads** ([docs/evidence/issue-142/README.md](evidence/issue-142/README.md#4-semantic-owner-reads-in-codebase)): 10 `Decision.location` assignments, 2 display reads through `safe_fragment` ([duplicate_reference.py:184,212](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/duplicate_reference.py#L184)), and 1 CLI dry-run print ([cli.py:151](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/cli.py#L151)). **`Owner` is not semantically parsed anywhere**: no function parses `Owner` to derive residency, character class, or power level. Child 6 must define and implement this derivation before capacity accounting can rely on it.
+   A comprehensive search for `"Owner"` across `src/vault_cleaner` yields exactly **13 reads** ([docs/evidence/issue-142/README.md](evidence/issue-142/README.md#4-semantic-owner-reads-in-codebase)): 10 `Decision.location` assignments, 2 display reads through `safe_fragment` ([duplicate_reference.py:184,212](../src/vault_cleaner/duplicate_reference.py#L184)), and 1 CLI dry-run print ([cli.py:151](../src/vault_cleaner/cli.py#L151)). **`Owner` is not semantically parsed anywhere**: no function parses `Owner` to derive residency, character class, or power level. Child 6 must define and implement this derivation before capacity accounting can rely on it.
 4. **No export column reports vault capacity or free space:** DIM CSV exports do not report total vault capacity (e.g. 700 spaces) or current free spaces (`F`). `F` is inherently an external input.
 
 ### Protection dimension comparison
@@ -136,8 +137,8 @@ Cell population across all committed fixtures:
 
 ### Identifier handling and types
 
-- **`Id`:** Opaque string end-to-end. Handled as a string in `parse.py`, stored as string in `Decision.id`, formatted with surrounding triple-quotes on export ([report.py:73](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/report.py#L73)), and ordered lexically by `id_order.instance_id_order` without numeric conversion.
-- **`Hash`:** String in DataFrame representation, dupe grouping ([dupes.py:100,216](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/dupes.py#L100)), and `Decision.hash`. Converted to `int` specifically at the wishlist boundary ([weapons.py:72](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/weapons.py#L72)) because `Wishlist.keep` and `Wishlist.trash` maps are int-keyed ([wishlist.py:79](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/wishlist.py#L79)). `AGENTS.md`'s rule ("keep Id/Hash opaque strings") governs untrusted input (review manifests and `data/overrides.json`), not internal wishlist lookup.
+- **`Id`:** Opaque string end-to-end. Handled as a string in `parse.py`, stored as string in `Decision.id`, formatted with surrounding triple-quotes on export ([report.py:100](../src/vault_cleaner/report.py#L100)), and ordered lexically by `id_order.instance_id_order` without numeric conversion.
+- **`Hash`:** String in DataFrame representation, dupe grouping ([dupes.py:100,216](../src/vault_cleaner/rules/dupes.py#L100)), and `Decision.hash`. Converted to `int` specifically at the wishlist boundary ([weapons.py:72](../src/vault_cleaner/rules/weapons.py#L72)) because `Wishlist.keep` and `Wishlist.trash` maps are int-keyed ([wishlist.py:79](../src/vault_cleaner/wishlist.py#L79)). `AGENTS.md`'s rule ("keep Id/Hash opaque strings") governs untrusted input (review manifests and `data/overrides.json`), not internal wishlist lookup.
 
 ---
 
@@ -145,15 +146,15 @@ Cell population across all committed fixtures:
 
 ### Rail precedence order in `rules/rails.py`
 
-In `src/vault_cleaner/rules/rails.py:30-56`, `protection(row)` evaluates in strict sequence:
+In `src/vault_cleaner/rules/rails.py:30-56`, `protection(row, crafted_level_protect: int) -> tuple[str | None, str]` evaluates in strict sequence, returning `(HARD|SOFT|None, reason)`:
 
-1. `Tag in PROTECTED_TAGS` (`favorite`, `keep`, `archive`): `Protection(HARD, "tag-protected")` ([rails.py:33-35](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L33-L35))
-2. `Equipped == 'true'`: `Protection(HARD, "equipped")` ([rails.py:37-39](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L37-L39))
-3. `Crafted == 'crafted'` and `Crafted Level == ''`: `Protection(HARD, "crafted-lvunknown")` ([rails.py:42-43](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L42-L43))
-4. `Crafted == 'crafted'` and `int(Crafted Level) >= crafted_level_protect` (default 10): `Protection(HARD, "crafted-level")` ([rails.py:44-46](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L44-L46))
-5. `Rarity == 'Exotic'`: `Protection(SOFT, "exotic")` ([rails.py:48-50](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L48-L50))
-6. `Locked == 'true'`: `Protection(SOFT, "locked")` ([rails.py:52-54](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L52-L54))
-7. Default: `Protection(NONE, "")` ([rails.py:56](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/rails.py#L56))
+1. `Tag in HARD_PROTECT_TAGS` (`favorite`, `keep`, `archive`): `(HARD, f"dim-tag:{tag}")` ([rails.py:44-45](../src/vault_cleaner/rules/rails.py#L44-L45))
+2. `is_true(Equipped)`: `(HARD, "equipped")` ([rails.py:46-47](../src/vault_cleaner/rules/rails.py#L46-L47))
+3. `Crafted == 'crafted'` and `Crafted Level == ''`: `(HARD, "crafted-lvunknown")` ([rails.py:48-49](../src/vault_cleaner/rules/rails.py#L48-L49))
+4. `Crafted == 'crafted'` and `int(Crafted Level) >= crafted_level_protect` (default 10): `(HARD, f"crafted-lv{level}")` ([rails.py:50-51](../src/vault_cleaner/rules/rails.py#L50-L51))
+5. `Rarity == 'Exotic'`: `(SOFT, "exotic")` ([rails.py:52-53](../src/vault_cleaner/rules/rails.py#L52-L53))
+6. `is_true(Locked)`: `(SOFT, "locked")` ([rails.py:54-55](../src/vault_cleaner/rules/rails.py#L54-L55))
+7. Default: `(None, "")` ([rails.py:56](../src/vault_cleaner/rules/rails.py#L56))
 
 **Loadouts gap:** There is no weapon loadout rail. Only `ghosts.py:36` and `armor_dupes.py:99-100` check `Loadouts`. `report_run.py:317` records `in_loadout` strictly for UI presentation.
 
@@ -161,16 +162,20 @@ In `src/vault_cleaner/rules/rails.py:30-56`, `protection(row)` evaluates in stri
 
 In `src/vault_cleaner/rules/weapons.py:59-111`:
 
-1. **Rails check:** Every row is evaluated against `protection(row)`. Hard-protected rows are skipped immediately.
-2. **Wishlist evaluation:**
-   - Rows matching `wishlist.trash` are identified (whole-item or perk-set match).
-   - If a row also matches `wishlist.keep`, **keep beats trash**: the trash decision is suppressed, and `keep_trash_conflicts` is incremented ([weapons.py:79-80](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/weapons.py#L79-L80)).
-   - Rows junked by wishlist trash are recorded and their IDs are removed from the exact-dupe candidate pool ([weapons.py:102-107](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/weapons.py#L102-L107)).
-3. **Exact-duplicate pass:**
-   - Remaining candidates are grouped by `Hash` + normalized perks prefix ([dupes.py:100-177](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/dupes.py#L100-L177)).
-   - Exact duplicates are sorted deterministically using #31's landed guarantees: `Tier` desc, `Masterwork Tier` desc, `Crafted Level` desc, stat total desc, opaque instance `Id` desc ([dupes.py:42-51](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/dupes.py#L42-L51)).
-   - Winner is retained; lower copies are marked junk (or review if soft rail applies). Ties use deterministic opaque ID tie-breaks.
-   - Any row lacking a measured tracker boundary or complete prefix fails safe as ungroupable ([dupes.py:126-177](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/rules/dupes.py#L126-L177)).
+1. **Wishlist evaluation and selective rails check:**
+   - In `weapons.run` ([weapons.py:71-84](../src/vault_cleaner/rules/weapons.py#L71-L84)), each weapon row is checked against `wishlist.trash` (`whole-item` or `roll` match).
+   - If a row does not match trash, `rails.protection` is **not** evaluated in this pass; the row continues to the duplicate candidate pool.
+   - If a row matches `wishlist.trash` and also matches `wishlist.keep`, **keep beats trash**: the trash decision is suppressed, and `keep_trash_conflicts` is incremented ([weapons.py:79-81](../src/vault_cleaner/rules/weapons.py#L79-L81)).
+   - Only for rows matching unsuppressed trash is `rails.protection(row, crafted_level_protect)` evaluated ([weapons.py:82-90](../src/vault_cleaner/rules/weapons.py#L82-L90)):
+     - Hard-protected rows are skipped (`continue`).
+     - Soft-protected rows emit `review` with hashtag `#vc-review: wishlist-trash {kind} ({reason})`.
+     - Unprotected rows emit `junk` with hashtag `#vc-junk: wishlist-trash {kind}`.
+   - Rows junked by wishlist trash are recorded and their IDs are removed from the exact-dupe candidate pool ([weapons.py:102-107](../src/vault_cleaner/rules/weapons.py#L102-L107)).
+2. **Exact-duplicate pass:**
+   - Remaining candidates are grouped by `Hash` + normalized perks prefix ([dupes.py:100-177](../src/vault_cleaner/rules/dupes.py#L100-L177)).
+   - Exact duplicates are sorted deterministically using #31's landed guarantees: `Tier` desc, `Masterwork Tier` desc, `Crafted Level` desc, stat total desc, opaque instance `Id` desc ([dupes.py:42-51](../src/vault_cleaner/rules/dupes.py#L42-L51)).
+   - Winner is retained; lower copies are evaluated against `rails.protection` separately in `dupes.resolve`: lower copies marked junk (or review if soft rail applies). Ties use deterministic opaque ID tie-breaks.
+   - Any row lacking a measured tracker boundary or complete prefix fails safe as ungroupable ([dupes.py:126-177](../src/vault_cleaner/rules/dupes.py#L126-L177)).
 
 ### Verified baseline captures on committed fake fixtures
 
@@ -221,9 +226,9 @@ dry run â€” pass --write to write the combined import CSV
 
 ### Current finalization seam
 
-The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/report.py#L83)). It has two sibling call sites:
-1. Server finalization: [src/vault_cleaner/server/app.py:790-792](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/server/app.py#L790-L792)
-2. CLI review: [src/vault_cleaner/cli.py:484](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/cli.py#L484)
+The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](../src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). It has two sibling call sites:
+1. Server finalization: [server/app.py:790-792](../src/vault_cleaner/server/app.py#L790-L792)
+2. CLI review: [cli.py:484](../src/vault_cleaner/cli.py#L484)
 
 `apply_vetoes` is currently **subtractive**: it subtracts vetoed IDs from the pipeline's proposal set, meaning all unreviewed proposals are included in the generated import CSV.
 
@@ -237,7 +242,7 @@ To prevent premature automatic dismantling while enabling high-confidence clear-
 |---|---|---|---|---|
 | **Automatic junk candidate** | Deterministic evidence of inferiority with zero soft-rail impediment | `wishlist-trash whole-item`, `wishlist-trash roll`, `dupe-lower`, `dupe-tie` on unprotected items | `junk` | Proposed for junk; included in CSV under current subtractive seam, but requires explicit approval under Child 2b approval-only seam |
 | **Review-only comparison** | Proposal backed by evidence but restricted by a soft rail (locked/exotic) or pairwise coverage trade-off | `#vc-review: wishlist-trash whole-item (locked)`, `#vc-review: wishlist-trash whole-item (exotic)`, `#vc-review: dupe-lower (locked)`, `#vc-review: dupe-lower (exotic)`, `#vc-review: dupe-tie (exotic)`, future useful-combination dominance (#34) | `review` | Displayed in review UI; excluded from CSV unless user explicitly approves |
-| **Protected / retained** | Hard-protected by player directive, system state, or dupe winner | Hard rails (`tag-protected`, `equipped`, `crafted-level`, `crafted-lvunknown`, `loadout-protected`), dupe survivor / winner | `keep` | Never proposed for junk; excluded from CSV |
+| **Protected / retained** | Hard-protected by player directive, system state, or dupe winner | Hard rails (`dim-tag:{tag}`, `equipped`, `crafted-lv{level}`, `crafted-lvunknown`, `loadout-protected`), dupe survivor / winner | `keep` | Never proposed for junk; excluded from CSV |
 | **Unknown or uncovered** | No wishlist match, ungroupable perks, or unique roll without comparable duplicate | Unmatched rolls, ungroupable exact-dupe rows, lone rolls | None | Retained. **Explicit invariant:** absence of wishlist coverage or inability to determine roll identity is **never** evidence of junk. |
 
 ---
@@ -246,21 +251,21 @@ To prevent premature automatic dismantling while enabling high-confidence clear-
 
 ### Candidate evaluation matrix
 
-Evaluation conducted on 2026-09-06:
+Evaluation conducted on 2026-09-06 (see upstream repository metadata and API query evidence in [docs/evidence/issue-142/README.md](evidence/issue-142/README.md#9-upstream-wishlist-repository-metadata)):
 
 | Candidate | Upstream Curation Family | Activity Scope | Roll / Hash Coverage | Tier & Quality Metadata | Notes & Attribution | Freshness / Check Date | Base/Enhanced Normalization |
 |---|---|---|---|---|---|---|---|
-| **Choosy Voltron** | Multi-curator community (PandaPaxxy, Mercules, etc.) | Broad PvE & PvP across all Destiny history | 255,373 keep rolls across 1,234 items; 53 trash entries across 53 items | None (binary keep/trash) | Rich `#notes:` descriptions with curator names in raw file; discarded at `LINE_RE` | `2026-08-03T22:53:37Z` upstream; cached `2026-09-03` | Hash-based; enhanced perk hashes listed explicitly |
-| **Ciceron Aegis Lists** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame (GM, Master Raids, Dungeons) | Full: A+S tiers; Exclusive: S tier; Trashlist: 286 whole-item entries (D-tier and below) | Implicit in filename / tier subfolders (S, A, D-tier trash) | File-level curation; roll notes present in raw text; discarded at `LINE_RE` | `2026-08-27T20:25:09Z` upstream; cached `2026-09-03` | Separate "major-perks" files filter out barrels/mags to focus on traits |
-| **MrCharles Configurable Aegis** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 28 split files based on Rank (`MRS`..`MRF`) and perks per column (`PPC0`..`PPC3`); 443KB to 36.7MB | Explicit rank metadata (`S`, `A`, `B`, `C`, `D`, `E`, `F`) in `//notes:` | Detailed notes with Tier, Rank, origin trait, and Aegis quote; discarded at `LINE_RE` | `2026-08-15T00:45:01Z` upstream; evaluated 2026-09-06 | Uses Bungie hash combinations; combinations expand with lower PPC |
-| **Nitaraku Aegis List** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 5,022 keep rolls across 968 items; 0 trash entries | Explicit Tier/Rank in `//notes:[Tier: S, Rank: 1]` | Concise notes with Tier, Rank, and reason; discarded at `LINE_RE` | `2026-07-04T08:37:05Z` upstream; cached `2026-09-03` | Focuses strictly on trait columns (traits 1 & 2 only) |
+| **Choosy Voltron** | Multi-curator community (PandaPaxxy, Mercules, etc.) | Broad PvE & PvP across all Destiny history | 255,373 keep rolls across 1,234 items; 53 trash entries across 53 items | None (binary keep/trash) | Rich `#notes:` descriptions with curator names in raw file; discarded at `LINE_RE` | [`2026-08-03T22:53:37Z`](https://github.com/48klocs/dim-wish-list-sources) upstream (retrieved 2026-09-06; cached `2026-09-03`) | Hash-based; enhanced perk hashes listed explicitly |
+| **Ciceron Aegis Lists** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame (GM, Master Raids, Dungeons) | Full: A+S tiers; Exclusive: S tier; Trashlist: 286 whole-item entries (D-tier and below) | Implicit in filename / tier subfolders (S, A, D-tier trash) | File-level curation; roll notes present in raw text; discarded at `LINE_RE` | [`2026-08-27T20:25:09Z`](https://github.com/Ciceron14/dim-extra-wishlists) upstream (retrieved 2026-09-06; cached `2026-09-03`) | Separate "major-perks" files filter out barrels/mags to focus on traits |
+| **MrCharles Configurable Aegis** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 28 split files based on Rank (`MRS`..`MRF`) and perks per column (`PPC0`..`PPC3`); 443KB to 36.7MB | Explicit rank metadata (`S`, `A`, `B`, `C`, `D`, `E`, `F`) in `//notes:` | Detailed notes with Tier, Rank, origin trait, and Aegis quote; discarded at `LINE_RE` | [`2026-08-15T00:45:01Z`](https://github.com/charlesxcaliber/DIMAegisWeaponWishlist) upstream (retrieved 2026-09-06) | Uses Bungie hash combinations; combinations expand with lower PPC |
+| **Nitaraku Aegis List** | Aegis PvE Endgame Analysis (mechanical conversion) | PvE Endgame | 5,022 keep rolls across 968 items; 0 trash entries | Explicit Tier/Rank in `//notes:[Tier: S, Rank: 1]` | Concise notes with Tier, Rank, and reason; discarded at `LINE_RE` | [`2026-07-04T08:37:05Z`](https://github.com/Nitaraku/dim-wishlists) upstream (retrieved 2026-09-06; cached `2026-09-03`) | Focuses strictly on trait columns (traits 1 & 2 only) |
 
 ### Parser facts and data loss in current code
 
 In `src/vault_cleaner/wishlist.py`:
 
-- **Note loss at `LINE_RE`:** `LINE_RE = re.compile(r"^dimwishlist:item=(-?\d{1,10})(?:&perks=([\d,]*))?(?:#.*)?$")` ([wishlist.py:29](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/wishlist.py#L29)). The `(?:#.*)?` non-capturing group discards the comment tail. All entry notes, tier ratings (`Tier: S`), and curator attribution are deleted at parse time.
-- **Source loss at `merge`:** `Wishlist.merge` ([wishlist.py:51-57](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/wishlist.py#L51-L57)) merges all rolls into unified `keep` and `trash` dictionaries. Once merged, the engine cannot determine whether a roll came from Choosy Voltron or Aegis.
+- **Note loss at `LINE_RE`:** `LINE_RE = re.compile(r"^dimwishlist:item=(-?\d{1,10})(?:&perks=([\d,]*))?(?:#.*)?$")` ([wishlist.py:29](../src/vault_cleaner/wishlist.py#L29)). The `(?:#.*)?` non-capturing group discards the comment tail. All entry notes, tier ratings (`Tier: S`), and curator attribution are deleted at parse time.
+- **Source loss at `merge`:** `Wishlist.merge` ([wishlist.py:51-57](../src/vault_cleaner/wishlist.py#L51-L57)) merges all rolls into unified `keep` and `trash` dictionaries. Once merged, the engine cannot determine whether a roll came from Choosy Voltron or Aegis.
 
 This parser reality is the measured justification for #140 Child 3.
 
@@ -315,18 +320,18 @@ Issue #34 ("Rank weapons by unique useful-combination coverage", milestone `M6 â
 2. **Weapons-only proposal scope:** The aggressive policy emits removal proposals **exclusively for weapons**.
 3. **Armor handling:** Armor is imported and counted for inventory capacity accounting (measuring character and vault capacity), but all armor removal proposals are suppressed at the pipeline boundary. Hiding a UI tab is insufficient; the engine must emit zero armor junk decisions under this policy.
 4. **Hard rails:**
-   - `Tag in {'favorite', 'keep', 'archive'}` -> HARD
-   - `Equipped == 'true'` -> HARD
-   - `Crafted == 'crafted'` with level â‰¥ 10 -> HARD
-   - `Crafted == 'crafted'` with empty level -> HARD
-   - **`Loadouts != ''` -> HARD** (settled owner decision; Child 2a)
+   - `Tag in {'favorite', 'keep', 'archive'}` -> HARD (`dim-tag:{tag}`)
+   - `Equipped == 'true'` -> HARD (`equipped`)
+   - `Crafted == 'crafted'` with level >= 10 -> HARD (`crafted-lv{level}`)
+   - `Crafted == 'crafted'` with empty level -> HARD (`crafted-lvunknown`)
+   - **`Loadouts != ''` -> HARD** (`loadout-protected`; settled owner decision; Child 2a)
    - Durable vetoes in `overrides.json` -> HARD exclusion
 5. **Aegis tier discrimination:**
    - D-tier whole-item trash with no keep match -> Automatic junk candidate.
    - D-tier whole-item trash with Voltron keep match -> Review-only comparison (`#vc-review: aegis-trash-voltron-keep`).
    - Unrated / no Aegis coverage -> `unknown or uncovered`; retained.
 6. **Retained alternatives requirement:** Any outclassed-weapon proposal must name an owned, retained weapon instance covering the same role and element. If the alternative is proposed for removal, the recommendation is invalid.
-7. **Ruleset and fingerprint effects:** Adding `policy` settings requires projecting the new configuration in `report_run._decision_config` ([report_run.py:173-224](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/report_run.py#L173-L224)) and bumping `RULESET_VERSION` ([report_run.py:44](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/report_run.py#L44)) from `4` to `5`.
+7. **Ruleset and fingerprint effects:** Adding `policy` settings requires projecting the new configuration in `report_run._decision_config` ([report_run.py:173-224](../src/vault_cleaner/report_run.py#L173-L224)) and bumping `RULESET_VERSION` ([report_run.py:44](../src/vault_cleaner/report_run.py#L44)) from `4` to `5`.
 8. **No manufactured proposals:** The 100-space goal is a target, not a quota. If justified proposals fall short of 100, the shortfall is reported honestly; rules must never manufacture junk decisions.
 
 ---
@@ -335,16 +340,22 @@ Issue #34 ("Rank weapons by unique useful-combination coverage", milestone `M6 â
 
 ### Authoritative seam and call sites
 
-The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/report.py#L83)). Both sibling call sites must be updated together:
-1. Server: `src/vault_cleaner/server/app.py:790-792`
-2. CLI: `src/vault_cleaner/cli.py:484`
+The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](../src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). Both sibling call sites must be updated together:
+1. Server: `../src/vault_cleaner/server/app.py:790-792`
+2. CLI: `../src/vault_cleaner/cli.py:484`
 
 ### Approval-only rule
 
 Today, `apply_vetoes` is subtractive:
 ```python
-# Current subtractive behavior (review.py:557):
-surviving = [d for d in decisions if d.id not in vetoed_ids]
+# Current subtractive behavior (review.py:553-559):
+suppressed = frozenset(vetoed_ids)
+return [
+    decision
+    for section in run.sections
+    for decision in section.decisions
+    if decision.id not in suppressed
+]
 ```
 
 In approval-only finalization (Child 2b):
@@ -355,7 +366,7 @@ In approval-only finalization (Child 2b):
 ### Durable veto interaction and semantics
 
 - `ReviewManifest.vetoes` and `data/overrides.json` store durable vetoes.
-- `review.classify` ([review.py:496-543](file:///c:/Users/raver/Documents/Projects/Personal/vault-cleaner/vault-cleaner/src/vault_cleaner/review.py#L496-L543)) classifies stored vetoes against current proposals. A veto becomes `stale` when `(action, reason)` no longer matches the current proposal. This allows new rules to surface previously vetoed items for fresh review without resetting durable state.
+- `review.classify` ([review.py:496-543](../src/vault_cleaner/review.py#L496-L543)) classifies stored vetoes against current proposals. A veto becomes `stale` when `(action, reason)` no longer matches the current proposal. This allows new rules to surface previously vetoed items for fresh review without resetting durable state.
 - **Definition:** "Removed" means excluded from the CSV. Vault Cleaner never deletes items or issues automated dismantle commands.
 
 ---
@@ -366,7 +377,9 @@ In approval-only finalization (Child 2b):
 
 Umbrella Issue #140 defines projected free vault space:
 
-$$\text{projected\_free} = F + D_v - (C - D_c)$$
+```text
+projected_free = F + D_v - (C - D_c)
+```
 
 Where:
 - $F$: Current free vault spaces. **Not derivable from DIM export**; must be entered by the user or confirmed against an external baseline.
@@ -379,8 +392,8 @@ Where:
 
 The capacity model must report four distinct states honestly:
 
-1. **Proposed capacity:** Potential capacity if every proposed item (automatic junk + review proposals) were approved: $F + D_{v,\text{prop}} - (C - D_{c,\text{prop}})$.
-2. **Explicitly accepted capacity:** Capacity based strictly on user-approved verdicts in the review session: $F + D_{v,\text{acc}} - (C - D_{c,\text{acc}})$.
+1. **Proposed capacity:** Potential capacity if every proposed item (automatic junk + review proposals) were approved: `F + D_v_prop - (C - D_c_prop)`.
+2. **Explicitly accepted capacity:** Capacity based strictly on user-approved verdicts in the review session: `F + D_v_acc - (C - D_c_acc)`.
 3. **Finalized-output capacity:** Capacity resulting from the generated DIM import CSV.
 4. **Observed / confirmed free space:** Actual empty vault slots verified via a fresh DIM export or user confirmation after in-game dismantling and transfers.
 
@@ -412,24 +425,36 @@ When analyzing a real user export:
 
 ### Aggregate findings on authorized real export (2026-09-06)
 
-Measured on the owner's supplied export of 664 weapons ([docs/evidence/issue-142/README.md](evidence/issue-142/README.md#8-aggregate-only-real-export-analysis-authorized-session-data)):
+Measured on the owner's supplied export of 664 weapons (see self-contained reproduction commands and output in [docs/evidence/issue-142/README.md](evidence/issue-142/README.md#8-aggregate-only-real-export-analysis-authorized-session-data)):
 
-- **Total weapons:** 664 (555 in Vault, 109 on characters)
+- **Export identity:** `destiny-weapon (12).csv`, size 323,610 bytes, SHA-256 `35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571`, measured on 2026-09-06. The file contains 664 data rows across 74 header columns. Note that 664 is the true CSV data row count (as parsed by `csv.reader` and `pandas`); the file has 665 lines total because it does not end with a trailing newline (1 header line + 664 data lines).
+- **Location breakdown:**
+  - Owner `Vault`: 555
+  - Owner `Titan(451)`: 43 (measured power level 451 at snapshot time)
+  - Owner `Warlock(550)`: 35
+  - Owner `Hunter(550)`: 31
+  - Total on characters: 109
 - **Equipped weapons:** 9 (3 characters Ã— 3 equipped slots)
-- **Unequipped character weapons ($C$):** 100
+- **Unequipped character weapons ($C$):** 100 ($109 - 9$)
 - **Unique hashes:** 440; **Multi-copy hashes:** 115 hashes account for 339 items.
-- **Protection breakdown:**
-  - Hard-protected under current rules: 56
-  - **Hard-protected with loadouts rail:** 169 (136 weapons in DIM loadouts; 113 incremental)
-  - Soft-protected (exotic or locked, not hard-protected): 223 (82 exotic, 141 locked legendary)
-  - **Completely unprotected:** 272 (231 in vault, 41 on characters)
-- **Baseline yield:**
+- **Protection breakdown across rule worlds:**
+  - **Current-rules world (no loadouts rail):**
+    - Hard-protected: 56 (8 tag-protected, 9 equipped, 41 crafted level >= 10 or unknown)
+    - Soft-protected (exotic or locked, not hard): 323 (125 exotic, 198 locked legendary)
+    - Completely unprotected: 285 (239 in vault, 46 unequipped on characters)
+  - **Proposed-rules world (with hard loadouts rail):**
+    - Hard-protected: 169 (136 in loadouts; 113 incremental over current rules)
+    - Soft-protected (exotic or locked, not hard): 223 (82 exotic, 141 locked legendary)
+    - Completely unprotected: 272 (231 in vault, 41 unequipped on characters)
+- **Baseline pipeline yield:**
   - With `--no-wishlists`: 0 junk, 2 review (both exotic Praxic Blade duplicates).
-  - With current wishlists: 5 junk (all Ciceron whole-item trash), 6 review (4 locked trash + 2 Praxic Blade). 21 weapons had trash suppressed by keep matches.
+  - With wishlists (using local Bungie manifest cache, version `244213.26.06.29.2000-1-bnet.65864`; note this run is environment-dependent): 5 junk (all Ciceron whole-item trash), 6 review (4 locked trash + 2 Praxic Blade). 21 weapons had trash suppressed by keep matches.
 - **Required removals for 100-space goal:**
   Given estimated $F \approx 10$ and $C = 100$:
-  $$\text{projected\_free} = 10 + D_v - (100 - D_c) \ge 100 \implies D_v + D_c \ge 190$$
-  The owner needs **at least 190 approved removals** across vault and characters. Because only 272 weapons are completely unprotected, reaching the goal requires evaluating distinct useful-combination coverage (#34) and reviewing locked/outclassed rolls, rather than relying on exact duplicates alone.
+  ```text
+  projected_free = 10 + D_v - (100 - D_c) >= 100  ==>  D_v + D_c >= 190
+  ```
+  The owner needs **at least 190 approved removals** across vault and characters ($D_v + D_c \ge 190$). Because only 272 weapons are completely unprotected in the proposed ruleset (and only 285 in current rules), reaching the goal requires evaluating distinct useful-combination coverage (#34) and reviewing locked/outclassed rolls, rather than relying on exact duplicates alone.
 
 ---
 
@@ -451,8 +476,8 @@ Measured on the owner's supplied export of 664 weapons ([docs/evidence/issue-142
 ## 13. Open questions requiring an owner decision
 
 1. **Weapon `Loadouts` schema enforcement (Child 2a):**
-   Should Child 2a make `Loadouts` strictly required in `REQUIRED_WEAPONS_COLUMNS` (failing loudly if a CSV lacks the header, matching armor/ghost behavior), or degrade gracefully with an explicit error/warning?
-   *Recommendation:* Make `Loadouts` required in `REQUIRED_WEAPONS_COLUMNS`. Incomplete exports should fail loudly rather than silently treating all weapons as unprotected.
+   Should Child 2a make `Loadouts` strictly required in `REQUIRED_WEAPON_COLUMNS` (failing loudly if a CSV lacks the header, matching armor/ghost behavior), or degrade gracefully with an explicit error/warning?
+   *Recommendation:* Make `Loadouts` required in `REQUIRED_WEAPON_COLUMNS`. Incomplete exports should fail loudly rather than silently treating all weapons as unprotected.
 2. **Character inventory clear-out workflow (Child 6):**
    Should unequipped character weapons ($C = 100$) be proposed for dismantling in place on characters ($D_c$), or should the policy instruct transferring them to the vault first?
    *Recommendation:* Support in-place dismantling ($D_c$). In DIM, tag and note updates apply regardless of location. Dismantling in-place reduces character clutter without requiring intermediate vault space.
@@ -467,7 +492,8 @@ Measured on the owner's supplied export of 664 weapons ([docs/evidence/issue-142
 
 ## 14. Limitations and NOT MEASURED register
 
-1. **Live Bungie Manifest download:** The ~200MB Bungie manifest download was not executed in this session; measurements utilized the valid local cache at `data/cache/perk-name-map.json` (mtime verified).
+1. **Live Bungie Manifest download:** The ~200MB Bungie manifest download was not executed in this session; measurements utilized the valid local cache at `data/cache/perk-name-map.json` (mtime verified, manifest version `244213.26.06.29.2000-1-bnet.65864`).
 2. **MrCharles full matrix run:** The complete 28-file MrCharles wishlist matrix (totaling >200MB) was evaluated via upstream repository inspection, Git tree analysis, and file head samples, but was not imported into `vault-cleaner wishlists` due to memory/cache constraints.
-3. **Non-weapon vault inventory:** The supplied real export contained weapons only (`destiny-weapon (12).csv`). Armor, ghost shells, and consumable vault holdings were not measured; total free space $F \approx 10$ is based on owner estimate.
+3. **Non-weapon vault inventory:** The supplied real export contained weapons only (`destiny-weapon (12).csv`, SHA-256 `35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571`, 664 true data rows, 323,610 bytes, measured 2026-09-06). Armor, ghost shells, and consumable vault holdings were not measured; total free space $F \approx 10$ is based on owner estimate.
 4. **Third-party dates and commits:** External repository commit timestamps (`pushed_at`) and raw file contents are cited to GitHub API queries executed on 2026-09-06.
+5. **Authorized plan deviation (real export analysis):** The repository owner explicitly provided `destiny-weapon (12).csv` on 2026-09-06 and authorized aggregate-only measurement of it within this spike, superseding the plan's "specified, not executed" restriction (plan lines 417-419 and 637). Stop condition S4 was satisfied under strict aggregate-only privacy rules (zero rows, names, hashes, or instance IDs committed). Future agents must not reverse this decision.

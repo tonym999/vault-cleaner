@@ -11,13 +11,56 @@ fourteen-section skeleton and `docs/evidence/issue-142/README.md` containing ver
 reproduction transcripts. No production code, schema, config, server, UI, or fixture
 changes were made (satisfying the mechanical inclusion test).
 
+Authorized plan deviation (owner directive per finding P2-6):
+- On 2026-09-06, the repository owner explicitly provided a fresh DIM weapon export
+  (`destiny-weapon (12).csv`, SHA-256 `35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571`,
+  664 true CSV data rows, 323,610 bytes) and authorized aggregate-only measurement of it
+  within this spike. This supersedes the plan's "specified, not executed" restriction
+  (plan lines 417-419 and 637) and satisfies stop condition S4 while preserving the hard
+  privacy rule (aggregate-only metrics, zero account data or rows committed). Future
+  agents must not reverse this decision.
+
+Independent adversarial review round 1 resolution (12 accepted findings):
+- P1-1: Added self-contained `set -euo pipefail` command fences in Evidence §8 and
+  cited in report §11; noted local Bungie manifest cache version
+  `244213.26.06.29.2000-1-bnet.65864` on the supplementary wishlist run as
+  environment-dependent.
+- P1-2: Added upstream repository URLs and retrieval dates (2026-09-06) to the candidate
+  matrix in §5, backed by GitHub API queries recorded in Evidence §9.
+- P1-3: Replaced flattened list comprehension with the actual nested comprehension from
+  `src/vault_cleaner/review.py:553-559`.
+- P2-1: Documented real export identity (`destiny-weapon (12).csv`, 664 true CSV rows
+  confirmed by `csv.reader` and `pandas`, 665 lines total without trailing newline,
+  `Titan(451)` measured power level at snapshot time).
+- P2-2: Corrected schema constants to singular `REQUIRED_WEAPON_COLUMNS` (`parse.py:42`)
+  and `REQUIRED_GHOST_COLUMNS` (`parse.py:47`), and `ARMOR_STATS` columns to
+  `Weapons (Base)`, `Health (Base)`, `Class (Base)`, `Grenade (Base)`, `Super (Base)`,
+  `Melee (Base)`.
+- P2-3: Corrected `rails.protection` return type to `tuple[str | None, str]` returning
+  `(HARD|SOFT|None, reason)` across lines 44-56; corrected emitted reason slugs to
+  `dim-tag:{tag}`, `equipped`, `crafted-lvunknown`, `crafted-lv{level}`, `exotic`,
+  `locked`, `""`; and corrected DIM `Id` quote re-wrapping citation to `report.py:100`.
+- P2-4: Converted all 35 `file:///c:/...` absolute citations across the measurement
+  document to clean repo-relative markdown links (`../src/vault_cleaner/...`).
+- P2-5: Explicitly detailed both rule-world breakdowns in §11 and Evidence §8:
+  Current rules (56 hard, 323 soft [125 exotic + 198 locked leg], 285 unprotected
+  [239 vault + 46 char unequipped]); Proposed rules with loadouts (169 hard [136 in
+  loadouts], 223 soft [82 exotic + 141 locked leg], 272 unprotected [231 vault + 41
+  char unequipped]).
+- P2-6: Recorded the authorized plan deviation in §1, §14, and WORKLOG.
+- P3-1: Documented `ls -l wishlists/` command and output in Evidence §7.
+- P3-2: Clarified selective rails execution in `weapons.run` (evaluated only on
+  trash-matched rows; duplicate pass evaluates rails separately).
+- P3-3: Converted all LaTeX `$$...$$` math delimiters and `\text` formatting to plain
+  text and code blocks.
+
 What was measured:
 - Export schemas and completeness: All four named `REQUIRED_*_COLUMNS` sets verified in
   `parse.py`. Confirmed the weapon `Loadouts` gap: `Loadouts` is present in weapon
-  exports but not in `REQUIRED_WEAPONS_COLUMNS`, and carries zero non-empty cells across
+  exports but not in `REQUIRED_WEAPON_COLUMNS`, and carries zero non-empty cells across
   all 36 weapon rows in committed fixtures.
 - `Owner` contract: Confirmed three observed shapes (`Vault`, bare class `Titan`, and
-  class with power `Titan(550)`). Grepped 13 reads across `src/vault_cleaner`, confirming
+  class with power `Titan(451)`). Grepped 13 reads across `src/vault_cleaner`, confirming
   that `Owner` is never semantically parsed or normalized today.
 - Vault capacity: Verified that no DIM export column reports vault capacity or free
   spaces `F`.

@@ -1,7 +1,7 @@
 # Issue #142 baseline measurement evidence
 
 Verbatim command transcripts and raw outputs backing the measurements in
-[docs/aggressive-clearout-measurement.md](../../docs/aggressive-clearout-measurement.md).
+[docs/aggressive-clearout-measurement.md](../../aggressive-clearout-measurement.md).
 
 All commands were run on Windows within Git Bash (`bash 5.2.26`) on Python 3.13.14
 with pandas 3.0.5, using `export PYTHONUTF8=1` to enforce UTF-8 streams and avoid
@@ -418,10 +418,12 @@ Output:
 set -euo pipefail
 OUT="$(mktemp -d)"
 .venv/bin/vault-cleaner wishlists > "$OUT/wishlists.txt" 2>&1
+ls -l wishlists/ > "$OUT/wishlists_ls.txt" 2>&1
 cat "$OUT/wishlists.txt"
+cat "$OUT/wishlists_ls.txt"
 ```
 
-Output:
+Output (`wishlists.txt`):
 
 ```text
 choosy_voltron: 255373 keep rolls across 1234 items, 53 trash entries across 53 items
@@ -430,67 +432,300 @@ aegis_trash: 0 keep rolls across 0 items, 286 trash entries across 286 items
 total: 260395 keep rolls, 339 trash entries
 ```
 
-Cache mtimes in `wishlists/` directory:
-- `aegis.txt`: `354,210 bytes`, mtime `2026-09-03 21:27`
-- `aegis_trash.txt`: `30,195 bytes`, mtime `2026-09-03 21:27`
-- `choosy_voltron.txt`: `27,014,559 bytes`, mtime `2026-09-03 21:27`
+Output (`wishlists_ls.txt`):
 
-Because the cached files were 3 days old (well under `config.toml`'s 7-day `max_age_days`),
-`vault-cleaner wishlists` served all three files from cache without re-downloading.
+```text
+total 26764
+-rw-r--r-- 1 raver 197609   354210 Sep  3 21:27 aegis.txt
+-rw-r--r-- 1 raver 197609    30195 Sep  3 21:27 aegis_trash.txt
+-rw-r--r-- 1 raver 197609 27014559 Sep  3 21:27 choosy_voltron.txt
+```
 
 ---
 
 ## 8. Aggregate-only real-export analysis (authorized session data)
 
-An actual DIM weapon export was supplied and authorized for aggregate measurement
-in this session (`2026-09-06`). In strict accordance with the repository privacy
-rules, **no item names, hashes, instance IDs, or individual rows** are stored,
-quoted, or committed.
+An actual DIM weapon export (`destiny-weapon (12).csv`) was supplied and authorized
+for aggregate measurement by the repository owner on 2026-09-06.
 
-### Inventory population and location breakdown
+In strict accordance with the repository privacy rules, **no item names, hashes,
+instance IDs, or individual rows** are stored, quoted, or committed.
 
-- **Total weapon rows:** 664
-- **Unique weapon hashes:** 440
-- **Unique instance IDs:** 664 (all distinct 64-bit identifiers)
-- **Location breakdown (`Owner`):**
-  - `Vault`: 555
-  - `Titan(451)`: 43
-  - `Warlock(550)`: 35
-  - `Hunter(550)`: 31
-  - Total on characters: 109
-- **Equipped state (`Equipped`):**
-  - `false`: 655
-  - `true`: 9 (exactly 3 weapons equipped per character × 3 characters)
-- **Unequipped character weapons (`C`):** `109 - 9 = 100`
+### Derivation script and output
 
-### Protection state breakdown (N=664)
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
 
-- **Hard-protected under current rules:** 56
-  - Tag in `{'favorite', 'keep', 'archive'}`: 8 (7 keep, 1 favorite)
-  - `Equipped == 'true'`: 9
-  - Crafted level >= 10: 41 (out of 43 total crafted weapons; 2 are level < 10)
-- **Hard-protected with loadouts rail (settled decision):** 169
-  - Non-empty `Loadouts` cell: 136 weapons
-  - Incremental protection added by loadouts: 113 weapons
-- **Soft-protected (not hard-protected):** 223
-  - Exotic weapons: 82
-  - Locked Legendary weapons: 141 (out of 326 total locked weapons)
-- **Completely unprotected weapons:** 272
-  - In vault: 231
-  - On characters (unequipped): 41
+.venv/bin/python - <<'PY' > "$OUT/real_export_summary.txt" 2>&1
+import hashlib
+import pandas as pd
+import csv
 
-### Capacity equation validation on real data
+path = "C:/Users/raver/Downloads/destiny-weapon (12).csv"
+with open(path, "rb") as f:
+    content = f.read()
+    sha256 = hashlib.sha256(content).hexdigest()
 
-Given the owner's estimate of current free vault spaces `F ≈ 10`:
-- Unequipped character weapons to clear into vault: `C = 100`
-- Raw vault impact before removals: `F - C = 10 - 100 = -90` (a shortfall of 90 spaces)
-- Required removals across vault (`Dv`) and characters (`Dc`) to achieve `projected_free >= 100`:
-  `projected_free = F + Dv - (C - Dc) >= 100`
-  `10 + Dv - (100 - Dc) >= 100`
-  `Dv + Dc >= 190`
+csv_rows = list(csv.reader(content.decode("utf-8", errors="replace").splitlines()))
+header = csv_rows[0]
+data_rows = csv_rows[1:]
+df = pd.read_csv(path, dtype=str, keep_default_na=False)
 
-The clear-out workflow requires **at least 190 approved removals** across vault and
-character inventories to achieve 100 free spaces after clearing character inventories.
-With 272 completely unprotected weapons (and 141 locked legendary weapons available
-for manual review), the goal is mechanically feasible, but current baseline rules
-yield only 5 removals.
+print("=== 1. Export identity & integrity ===")
+print("Export file: destiny-weapon (12).csv")
+print(f"File size: {len(content)} bytes")
+print(f"SHA-256: {sha256}")
+print(f"Header columns: {len(header)}")
+print(f"Data rows (csv.reader): {len(data_rows)}")
+print(f"Data rows (pandas): {len(df)}")
+print(f"Unique instance IDs: {df['Id'].nunique()}")
+print(f"Unique weapon Hashes: {df['Hash'].nunique()}")
+
+print("\n=== 2. Location & equipped breakdown ===")
+owner_counts = df["Owner"].value_counts().to_dict()
+for k, v in owner_counts.items():
+    print(f"  Owner '{k}': {v}")
+total_char = sum(v for k, v in owner_counts.items() if k != "Vault")
+print(f"Total on characters: {total_char}")
+eq_count = (df["Equipped"] == "true").sum()
+print(f"Equipped (true): {eq_count}")
+print(f"Unequipped on characters (C = total_char - equipped): {total_char - eq_count}")
+
+tag_prot = df["Tag"].isin(["favorite", "keep", "archive"])
+eq_prot = df["Equipped"] == "true"
+crafted_prot = (df["Crafted"] == "crafted") & ((df["Crafted Level"] == "") | (df["Crafted Level"].astype(int) >= 10))
+loadout_prot = df["Loadouts"].str.strip().ne("")
+
+exotic = df["Rarity"] == "Exotic"
+locked = df["Locked"] == "true"
+
+# Current rules: Tag, Equipped, Crafted (no loadout rail)
+hard_cur = tag_prot | eq_prot | crafted_prot
+soft_cur = (exotic | locked) & ~hard_cur
+unprot_cur = ~hard_cur & ~exotic & ~locked
+
+print("\n=== 3. Current-rules world (no loadout rail) ===")
+print(f"Hard-protected: {hard_cur.sum()}")
+print(f"  - Tag protected: {tag_prot.sum()}")
+print(f"  - Equipped: {eq_prot.sum()}")
+print(f"  - Crafted (level >= 10 or unknown): {crafted_prot.sum()}")
+print(f"Soft-protected (exotic or locked, not hard): {soft_cur.sum()}")
+print(f"  - Exotic (not hard): {(exotic & ~hard_cur).sum()}")
+print(f"  - Locked Legendary (not hard): {(locked & ~exotic & ~hard_cur).sum()}")
+print(f"Completely unprotected: {unprot_cur.sum()}")
+in_vault = df["Owner"] == "Vault"
+on_char_uneq = (df["Owner"] != "Vault") & ~eq_prot
+print(f"  - Unprotected in Vault: {(unprot_cur & in_vault).sum()}")
+print(f"  - Unprotected on characters (unequipped): {(unprot_cur & on_char_uneq).sum()}")
+
+# Proposed rules: Add loadouts rail
+hard_prop = hard_cur | loadout_prot
+soft_prop = (exotic | locked) & ~hard_prop
+unprot_prop = ~hard_prop & ~exotic & ~locked
+
+print("\n=== 4. Proposed-rules world (with loadouts rail) ===")
+print(f"Hard-protected: {hard_prop.sum()}")
+print(f"  - Loadouts non-empty: {loadout_prot.sum()}")
+print(f"  - Incremental protection from loadouts: {hard_prop.sum() - hard_cur.sum()}")
+print(f"Soft-protected (exotic or locked, not hard): {soft_prop.sum()}")
+print(f"  - Exotic (not hard): {(exotic & ~hard_prop).sum()}")
+print(f"  - Locked Legendary (not hard): {(locked & ~exotic & ~hard_prop).sum()}")
+print(f"Completely unprotected: {unprot_prop.sum()}")
+print(f"  - Unprotected in Vault: {(unprot_prop & in_vault).sum()}")
+print(f"  - Unprotected on characters (unequipped): {(unprot_prop & on_char_uneq).sum()}")
+
+print("\n=== 5. Capacity model calculation ===")
+f_est = 10
+c_val = total_char - eq_count
+print(f"Estimated baseline free vault spaces (F): {f_est}")
+print(f"Unequipped character items to clear (C): {c_val}")
+print(f"Net vault capacity before removals (F - C): {f_est - c_val} (shortfall of {abs(f_est - c_val)} spaces)")
+target_free = 100
+req_removals = target_free - f_est + c_val
+print(f"Required total unique removals (Dv + Dc >= target_free - F + C): {req_removals}")
+PY
+
+cat "$OUT/real_export_summary.txt"
+```
+
+Output:
+
+```text
+=== 1. Export identity & integrity ===
+Export file: destiny-weapon (12).csv
+File size: 323610 bytes
+SHA-256: 35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571
+Header columns: 74
+Data rows (csv.reader): 664
+Data rows (pandas): 664
+Unique instance IDs: 664
+Unique weapon Hashes: 440
+
+=== 2. Location & equipped breakdown ===
+  Owner 'Vault': 555
+  Owner 'Titan(451)': 43
+  Owner 'Warlock(550)': 35
+  Owner 'Hunter(550)': 31
+Total on characters: 109
+Equipped (true): 9
+Unequipped on characters (C = total_char - equipped): 100
+
+=== 3. Current-rules world (no loadout rail) ===
+Hard-protected: 56
+  - Tag protected: 8
+  - Equipped: 9
+  - Crafted (level >= 10 or unknown): 41
+Soft-protected (exotic or locked, not hard): 323
+  - Exotic (not hard): 125
+  - Locked Legendary (not hard): 198
+Completely unprotected: 285
+  - Unprotected in Vault: 239
+  - Unprotected on characters (unequipped): 46
+
+=== 4. Proposed-rules world (with loadouts rail) ===
+Hard-protected: 169
+  - Loadouts non-empty: 136
+  - Incremental protection from loadouts: 113
+Soft-protected (exotic or locked, not hard): 223
+  - Exotic (not hard): 82
+  - Locked Legendary (not hard): 141
+Completely unprotected: 272
+  - Unprotected in Vault: 231
+  - Unprotected on characters (unequipped): 41
+
+=== 5. Capacity model calculation ===
+Estimated baseline free vault spaces (F): 10
+Unequipped character items to clear (C): 100
+Net vault capacity before removals (F - C): -90 (shortfall of 90 spaces)
+Required total unique removals (Dv + Dc >= target_free - F + C): 190
+```
+
+### Dry-run pipeline yield on real export
+
+```bash
+set -euo pipefail
+export PYTHONUTF8=1
+OUT="$(mktemp -d)"
+
+.venv/bin/vault-cleaner report --weapons "C:/Users/raver/Downloads/destiny-weapon (12).csv" --no-wishlists > "$OUT/real_nowishlists.txt" 2>&1
+cat "$OUT/real_nowishlists.txt"
+
+# Supplementary wishlist-enabled run using local Bungie manifest cache
+# Note: Manifest version 244213.26.06.29.2000-1-bnet.65864; environment-dependent.
+.venv/bin/vault-cleaner report --weapons "C:/Users/raver/Downloads/destiny-weapon (12).csv" > "$OUT/real_wishlists.txt" 2>&1
+cat "$OUT/real_wishlists.txt"
+```
+
+Output (`real_nowishlists.txt`):
+
+```text
+skipping armor: data\in\destiny-armor.csv not found; expected destiny-armor.csv or a browser-numbered copy such as destiny-armor (1).csv
+skipping ghosts: data\in\destiny-ghost.csv not found; expected destiny-ghost.csv or a browser-numbered copy such as destiny-ghost (1).csv
+would junk 0 item(s) and flag 2 for review
+
+REVIEW dupe-lower (weapons) — 2 item(s)
+  Praxic Blade (id 6917530158539892712, class weapons; location Warlock(550)) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+  Praxic Blade (id 6917530161179940241, class weapons; location Vault) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+
+dry run — pass --write to write the combined import CSV
+```
+
+Output (`real_wishlists.txt`):
+
+```text
+skipping armor: data\in\destiny-armor.csv not found; expected destiny-armor.csv or a browser-numbered copy such as destiny-armor (1).csv
+skipping ghosts: data\in\destiny-ghost.csv not found; expected destiny-ghost.csv or a browser-numbered copy such as destiny-ghost (1).csv
+would junk 5 item(s) and flag 6 for review
+
+JUNK wishlist-trash whole-item (weapons) — 5 item(s)
+  Avalanche (id 6917529555207305475, class weapons; location Vault)
+  Coriolis Force (id 6917530188278338308, class weapons; location Vault)
+  Qua Furor V (id 6917530148717110788, class weapons; location Vault)
+  Survivor's Epitaph (id 6917530189831483157, class weapons; location Vault)
+  Whistler's Whim (id 6917530169692096400, class weapons; location Vault)
+
+REVIEW wishlist-trash whole-item (weapons) — 4 item(s)
+  Crowd Pleaser (id 6917529252812922410, class weapons; location Vault)
+  Frozen Orbit (id 6917530189813264038, class weapons; location Vault)
+  THE SWARM (Adept) (id 6917529922188621567, class weapons; location Hunter(550))
+  Truthteller (id 6917529227410856423, class weapons; location Vault)
+
+REVIEW dupe-lower (weapons) — 2 item(s)
+  Praxic Blade (id 6917530158539892712, class weapons; location Warlock(550)) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+  Praxic Blade (id 6917530161179940241, class weapons; location Vault) — review: dupe-lower (exotic); keep [id …1773; location Vault; Tier 0; MW10; roll Balanced Grip / Cormorant Reversal]; winner higher stat total
+
+note: 21 weapon(s) matched both keep and trash lists — keep outranked trash; normal dupe rules still apply to these items
+
+dry run — pass --write to write the combined import CSV
+```
+
+---
+
+## 9. Upstream wishlist repository metadata
+
+Queries executed on 2026-09-06 via GitHub CLI / API to verify candidate source freshness:
+
+### Choosy Voltron (`48klocs/dim-wish-list-sources`)
+
+```bash
+gh api repos/48klocs/dim-wish-list-sources --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+```
+
+Output:
+
+```json
+{
+  "default_branch": "master",
+  "description": "Source files for wish lists for DIM",
+  "pushed_at": "2026-08-03T22:53:37Z"
+}
+```
+
+### Ciceron (`Ciceron14/dim-extra-wishlists`)
+
+```bash
+gh api repos/Ciceron14/dim-extra-wishlists --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+```
+
+Output:
+
+```json
+{
+  "default_branch": "main",
+  "description": "Collection of DIM Wishlists for Destiny 2 Weapons, based on Aegis's Spreadsheets",
+  "pushed_at": "2026-08-27T20:25:09Z"
+}
+```
+
+### MrCharles (`charlesxcaliber/DIMAegisWeaponWishlist`)
+
+```bash
+gh api repos/charlesxcaliber/DIMAegisWeaponWishlist --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+```
+
+Output:
+
+```json
+{
+  "default_branch": "main",
+  "description": "Based on Aegis's Endgame PvE Analysis, this wishlist labels all the best perks on all weapons, making it easier for you to determine whether to keep or dismantle weapons.",
+  "pushed_at": "2026-08-15T00:45:01Z"
+}
+```
+
+### Nitaraku (`Nitaraku/dim-wishlists`)
+
+```bash
+gh api repos/Nitaraku/dim-wishlists --jq '{default_branch: .default_branch, pushed_at: .pushed_at, description: .description}'
+```
+
+Output:
+
+```json
+{
+  "default_branch": "main",
+  "description": "Wishlists for DIM (Destiny Item Manager) based on Aegis Endgame Analysis",
+  "pushed_at": "2026-07-04T08:37:05Z"
+}
+```
