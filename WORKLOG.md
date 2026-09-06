@@ -103,6 +103,25 @@ introduced the next defect until the verification method itself changed.
   the implementer's measurement run, and standalone evidence fences are explicitly
   permitted under three stated conditions, so a reviewer can re-derive one claim
   without running the whole sequence.
+- The audit that "found" the previous round's siblings was itself self-selecting: it
+  filtered to fences containing `mktemp` or `$OUT`, so it could only ever inspect
+  fences that were already partway compliant and was structurally blind to a bare
+  one. The document has **8** bash fences, not the 6 reported. The two it never saw
+  were the C4 `wishlists` evidence fence — now hardened, captured and labelled — and
+  the verification command list, which is correctly exempt and now says so: it quotes
+  no output, and `set -e` there would abort at the first failure and hide the rest.
+- Three fences wrote a capture file but never emitted it, so running them printed
+  nothing and reproduction was a judgement call rather than a diff. Every
+  output-quoting fence now ends on `cat "$OUT/<file>"`, making its stdout exactly the
+  quoted block. The audit is correspondingly mechanical: extract all fences, execute
+  each in a fresh shell with `OUT` unset, diff stdout against the quoted text. Six
+  output-quoting fences, all reproducing, one exempt.
+- Recorded that the `wishlists` capture is the one output legitimately expected not
+  to reproduce, so Check 2 does not manufacture a false P1 on it. `wishlist.fetch`
+  re-downloads past `max_age_days` (7) and prints a stale-cache warning to stderr on
+  a failed download, so the combined capture varies with cache age and network; the
+  counts also move when an upstream list refreshes. Stable across three runs on
+  same-day caches, but that is a property of this environment, not of the command.
 
 ## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
 

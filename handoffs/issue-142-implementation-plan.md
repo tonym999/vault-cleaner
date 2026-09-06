@@ -92,6 +92,7 @@ for path in sorted(glob.glob("tests/fixtures/*.csv")):
           "| Owner=", sorted(set(df["Owner"])) if "Owner" in cols else None,
           "| Tag=", sorted(set(df["Tag"])) if "Tag" in cols else None)
 PY
+cat "$OUT/fixtures.txt"
 ```
 
 `$OUT/fixtures.txt`, unedited:
@@ -162,6 +163,7 @@ Measured baseline yield on committed fake data:
 set -euo pipefail
 OUT="$(mktemp -d)"
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > "$OUT/runA.txt" 2>&1
+cat "$OUT/runA.txt"
 ```
 
 `$OUT/runA.txt`, unedited:
@@ -193,6 +195,7 @@ the dupe fixture:
 set -euo pipefail
 OUT="$(mktemp -d)"
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.txt" 2>&1
+cat "$OUT/runB.txt"
 ```
 
 `$OUT/runB.txt`, unedited — the two `skipping` lines are stderr and are part of the
@@ -274,8 +277,13 @@ Configured sources ([config.toml](../config.toml) `[wishlists.sources]`):
 against the locally cached copies on the baseline:
 
 ```bash
-.venv/bin/vault-cleaner wishlists
+set -euo pipefail
+OUT="$(mktemp -d)"
+.venv/bin/vault-cleaner wishlists > "$OUT/wishlists.txt" 2>&1
+cat "$OUT/wishlists.txt"
 ```
+
+`$OUT/wishlists.txt`:
 
 ```text
 choosy_voltron: 255373 keep rolls across 1234 items, 53 trash entries across 53 items
@@ -284,10 +292,21 @@ aegis_trash: 0 keep rolls across 0 items, 286 trash entries across 286 items
 total: 260395 keep rolls, 339 trash entries
 ```
 
-These numbers came from a **stale local cache** on the planner's machine
-(`wishlists/` is gitignored, [.gitignore:5](../.gitignore#L5)) and are a shape
-reference, not a freshness claim. The implementer must re-derive them and record the
-actual fetch/check dates.
+These numbers came from a local cache on the planner's machine (`wishlists/` is
+gitignored, [.gitignore:5](../.gitignore#L5)) and are a shape reference, not a
+freshness claim. The implementer must re-derive them and record the actual
+fetch/check dates.
+
+**This is the one capture that is expected not to reproduce, and Check 2 must not
+treat that as a finding.** `wishlist.fetch` re-downloads whenever the cache is older
+than `wishlists.max_age_days` (7) and, on a failed download, prints a
+`warning: … using stale cache` line to **stderr** before falling back — so the
+combined capture legitimately varies with cache age and network reachability. The
+counts themselves also move when an upstream list is refreshed. Measured on the
+baseline with same-day caches it is stable (three consecutive runs, identical
+`md5sum`), but a divergent `wishlists` capture is evidence about the environment,
+not a defect. Record the cache mtimes and whether a download occurred alongside the
+numbers.
 
 Parser facts the report must carry
 ([wishlist.py](../src/vault_cleaner/wishlist.py)):
@@ -707,8 +726,16 @@ fence must satisfy the same contract on its own:
 - set `set -euo pipefail`, so a failed command cannot leave its error text in a
   capture file to be counted or quoted as a measurement;
 - define its own `OUT="$(mktemp -d)"`, because shell state does not cross blocks;
-- write its result to a file under `$OUT` and quote **that file**, naming it above
-  the quoted block — never terminal stdout from the end of a pipeline.
+- write its result to a file under `$OUT`, `cat` that file as its last command, and
+  quote **that file**, naming it above the quoted block — never terminal stdout from
+  the end of a pipeline. Ending on the `cat` is what makes the fence checkable: run
+  it and its stdout is exactly the quoted block, so reproduction is a diff rather
+  than a judgement.
+
+These rules govern fences that **quote measured output**. The verification command
+list below is deliberately exempt: it quotes nothing, and `set -e` there would abort
+at the first failure and hide the remaining results, when the point is to run every
+check and report each outcome.
 
 Rules for this contract:
 
