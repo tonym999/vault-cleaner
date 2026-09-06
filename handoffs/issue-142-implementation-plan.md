@@ -78,6 +78,7 @@ Measured fixture headers (`head -1 tests/fixtures/<file>.csv | tr ',' '\n' | nl`
 Measured cell content across every fixture:
 
 ```bash
+set -euo pipefail
 OUT="$(mktemp -d)"
 .venv/bin/python - <<'PY' > "$OUT/fixtures.txt" 2>&1
 import pandas as pd, glob, os
@@ -158,6 +159,7 @@ landed guarantees and are **out of scope to change**.
 Measured baseline yield on committed fake data:
 
 ```bash
+set -euo pipefail
 OUT="$(mktemp -d)"
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons.csv --armor tests/fixtures/armor.csv --ghosts tests/fixtures/ghosts.csv --no-wishlists > "$OUT/runA.txt" 2>&1
 ```
@@ -188,6 +190,7 @@ The weapons section contributes **zero** decisions there. The weapon volume live
 the dupe fixture:
 
 ```bash
+set -euo pipefail
 OUT="$(mktemp -d)"
 .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.txt" 2>&1
 ```
@@ -242,8 +245,11 @@ for i in 1 2 3 4 5; do
   .venv/bin/vault-cleaner report --weapons tests/fixtures/weapons_dupes.csv --no-wishlists > "$OUT/runB.$i.txt" 2>&1
 done
 for i in 2 3 4 5; do cmp "$OUT/runB.1.txt" "$OUT/runB.$i.txt"; done
-md5sum "$OUT"/runB.*.txt | awk '{print $1}' | sort -u | wc -l
+md5sum "$OUT"/runB.*.txt | awk '{print $1}' | sort -u | wc -l > "$OUT/digests.txt" 2>&1
+cat "$OUT/digests.txt"
 ```
+
+`$OUT/digests.txt`:
 
 ```text
 1
@@ -485,14 +491,22 @@ Say precisely that `Owner` is **not semantically parsed or normalized** anywhere
 Measured scope — every read under `src/vault_cleaner`:
 
 ```bash
+set -euo pipefail
 OUT="$(mktemp -d)"
 grep -rn "Owner" src/vault_cleaner --include=*.py > "$OUT/owner.txt" 2>&1
-wc -l < "$OUT/owner.txt"
+wc -l < "$OUT/owner.txt" > "$OUT/owner-count.txt" 2>&1
+cat "$OUT/owner-count.txt"
 ```
+
+`$OUT/owner-count.txt`:
 
 ```text
 13
 ```
+
+Without `set -euo pipefail` this measurement fails open: a missing or renamed source
+directory sends grep's error into `owner.txt`, `wc` counts that one error line, and
+the block prints `1` and exits **0**. The guard aborts at the failed grep instead.
 
 Those 13 reads are 10 `Decision.location` assignments, 2 display reads through
 `safe_fragment`
@@ -637,10 +651,11 @@ implementation branch, and paste **actual** output — never edited, never predi
 **Run the whole sequence as one shell block.** Shell variables do not survive
 between separately executed command blocks — a later block referencing an `OUT` set
 in an earlier one resolves `"$OUT/versions.txt"` to `/versions.txt` and fails with
-`permission denied`. Every command therefore lives in the single block below, which
-captures each one as a combined stdout+stderr file in a `mktemp -d` scratch
-directory outside the working tree, leaving no untracked artifact behind (the
-verification step below requires `git status --porcelain` to be empty):
+`permission denied`. Every command of the implementer's measurement run therefore
+lives in the single block below, which captures each one as a combined
+stdout+stderr file in a `mktemp -d` scratch directory outside the working tree,
+leaving no untracked artifact behind (the verification step below requires
+`git status --porcelain` to be empty):
 
 ```bash
 set -euo pipefail
@@ -681,10 +696,19 @@ Every quoted capture in the report and evidence file is one of these combined
 `report` runs, because several of them (`report`, `wishlists`) write to both
 streams. The block sets `set -euo pipefail` so a failed command aborts it instead of
 leaving an error message inside a capture file that then gets quoted as evidence;
-the closing `ls -1 "$OUT"` is only reached when every capture succeeded. Quote the file, and state the command **including** its redirection. If a
-command is run on its own rather than as part of the block, repeat the
-`OUT="$(mktemp -d)"` line with it. The `$OUT` files are working artifacts: never
-commit them, and never write them into the working tree.
+the closing `ls -1 "$OUT"` is only reached when every capture succeeded. Quote the
+file, and state the command **including** its redirection. The `$OUT` files are
+working artifacts: never commit them, and never write them into the working tree.
+
+**Standalone evidence fences are permitted** — sections C2 and C3 above use them, so
+a reviewer can re-derive one claim without running the whole sequence. Each such
+fence must satisfy the same contract on its own:
+
+- set `set -euo pipefail`, so a failed command cannot leave its error text in a
+  capture file to be counted or quoted as a measurement;
+- define its own `OUT="$(mktemp -d)"`, because shell state does not cross blocks;
+- write its result to a file under `$OUT` and quote **that file**, naming it above
+  the quoted block — never terminal stdout from the end of a pipeline.
 
 Rules for this contract:
 

@@ -85,6 +85,24 @@ introduced the next defect until the verification method itself changed.
   sentinel called out, and all four `REQUIRED_*_COLUMNS` sets. Swept the rest of the
   document for stale siblings of both changes: line 121 was already correct, and
   every other "three" is right in its own context.
+- Fourth appearance of the fail-open measurement, this time in the very block added
+  to fix an evidence problem. Reproduced: point the `Owner` count fence at a missing
+  directory and grep's error lands in `owner.txt`, `wc` counts that one line, and the
+  block prints `1` and exits **0** — error text becoming the measurement, exactly as
+  the five-run `md5sum` block did two rounds earlier. The fence also quoted `wc`
+  stdout from a terminal while writing a different file, breaching the plan's own
+  combined-capture rule.
+- Fixed by auditing every fence rather than the one flagged, which found two siblings
+  the review had not named: the stability block quoted uncaptured pipeline stdout the
+  same way, and the three C2/C3 evidence fences were unhardened. All six fences now
+  set `set -euo pipefail`, define their own `OUT`, write their result to a `$OUT`
+  file and quote that file by name. Verified: good paths unchanged (`13` and `1`), a
+  missing source directory now exits 2.
+- Reconciled the contract, which claimed every command lives in the single atomic
+  block while five evidence fences sat outside it. The atomic block is now scoped to
+  the implementer's measurement run, and standalone evidence fences are explicitly
+  permitted under three stated conditions, so a reviewer can re-derive one claim
+  without running the whole sequence.
 
 ## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
 
