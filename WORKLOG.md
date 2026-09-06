@@ -3,6 +3,235 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-06 — #142 plan review rounds (PR 1 continued)
+
+Continues the 2026-09-05 #142 planning entry below; same PR 1, same branch, work
+that ran past midnight. Three review rounds, every finding accepted, and each fix
+introduced the next defect until the verification method itself changed.
+
+- Follow-up round, caused by the verbatim fix itself: the quoted captures were
+  only reproducible under one capture method that the plan never named. Measured —
+  `> file 2>&1` is byte-stable across five consecutive runs (one distinct
+  `md5sum`), but a stdout-only run drops the two stderr `skipping` lines and starts
+  at `would junk 4 item(s)`. Since Check 2 calls a non-reproducing capture a P1, an
+  undefined method would have manufactured false findings. The redirection now
+  appears in every command fence, the report and evidence file must quote a single
+  combined file, and Check 2 says a stream-splitting mismatch is a re-capture
+  rather than a finding.
+- Second follow-up, again self-inflicted: naming the capture files `runA.txt` etc.
+  with no path would have written them into the repository root, contradicting the
+  plan's own no-scratch-in-tree rule and breaking the `git status --porcelain`
+  verification step. The capture rule also claimed to cover every quoted output
+  while only the `report` fences carried a redirection. Every contract command now
+  captures into a `mktemp -d` `$OUT` directory — `wishlists` needs it too, since it
+  writes stale-cache warnings to stderr — and all four commands were re-run to
+  confirm they work and leave the tree clean.
+- Third follow-up round, and the one that changed how this gets verified. `OUT` was
+  defined in one fenced block and used from later ones; shell state does not survive
+  between separately executed blocks, so `"$OUT/versions.txt"` resolved to
+  `/versions.txt` and failed with `permission denied` (reproduced directly). The
+  contract is now a single atomic block, each standalone evidence fence defines its
+  own `OUT`, and the heredoc carries its redirection on the invocation line instead
+  of a prose pseudo-command. The five-run byte-stability claim now ships the loop and
+  `md5sum` command with its `1` output, rather than asserting a measurement with no
+  way to reproduce it.
+- Changed the verification method rather than spot-checking again: every `bash` fence
+  is now extracted from the document and executed in a fresh shell with `OUT`
+  explicitly unset, and every quoted capture is diffed against a fresh run. That
+  immediately found a fifth instance of the original defect that three review rounds
+  had missed — the C2 fixture table was hand-aligned (`rows=15` for the real
+  `rows= 15`, `Tag` column dropped) and did not reproduce. It is now a literal
+  capture with its command. Four consecutive rounds of fixes introducing the next
+  defect all had one cause: writing shell into a document without executing it.
+- Fail-closed measurement blocks. Neither the atomic contract block nor the five-run
+  stability loop set `set -euo pipefail`, and the consequence was demonstrable: run
+  the loop against a nonexistent fixture and all five runs fail, yet it still prints
+  `1` — the exact digest count the plan cites as proof of byte-stability. The digest
+  proves the runs were *identical*, not that they *succeeded*, so five identical
+  failures read as a pass. Both blocks now set `set -euo pipefail`, and the loop adds
+  an explicit `cmp` assertion so a mismatch aborts rather than relying on the digest
+  count. Verified both ways: good path still prints `1` at exit 0, failing path exits
+  1. `set -u` also hardens the previous round's unset-`OUT` defect, aborting instead
+  of writing to `/`.
+- Split this entry out of the 2026-09-05 one on review: WORKLOG is one entry per
+  working session and the clock had rolled, so post-midnight rounds were sitting
+  under the previous day's heading. The #117 precedent for folding dispositions into
+  a single planning entry still holds within a day; it does not license a wrong date.
+- Completed the `Owner` contract and corrected the schema-set count. `Owner` carries
+  three measured shapes, not two: the `Vault` sentinel plus bare class (`Titan`) and
+  class-with-number (`Titan(550)`, `Hunter(506)`, `Titan(415)`). The sentinel was the
+  one omitted, and it is the one that matters — distinguishing vault from character
+  residency is the entire basis of `C` and `Dc` in the capacity formula. Also made
+  the "parsed nowhere" claim precise: `Owner` reaches twelve call sites, is copied
+  into `Decision.location`, and on two of them passes through `safe_fragment`, which
+  bounds it and neutralizes structural punctuation for display without changing the
+  raw value. Nothing derives residency, class or power from it, so child 6 needs a
+  defined derivation first. Separately, `parse.py` declares four named
+  `REQUIRED_*_COLUMNS` sets, not three — requiring "three" invited omitting the base
+  set, which is the one carrying `Equipped`, `Locked` and `Notes`.
+- Corrected the `Owner` read count from twelve to 13 and, more to the point, gave it
+  a command. The miss was `cli.py:151`, which writes `r.get('Owner', '?')` inside an
+  f-string, so the original `grep` for the double-quoted `"Owner"` never saw it — a
+  too-narrow pattern producing a confident number. The 13 are 10 `Decision.location`
+  assignments, 2 display reads through `safe_fragment`, and 1 CLI dry-run print; the
+  CLI line is a third display-only use, so the "never parsed semantically" conclusion
+  is strengthened, not weakened. The count now ships its `grep` and its scope, plus a
+  warning that a narrower pattern returns 12. An uncited repository-wide count was
+  the same evidence-rule violation as the earlier fake captures — written, this time,
+  inside a paragraph that was itself fixing an evidence problem.
+- Check 5 still demanded "the two `Owner` formats" after the body moved to three
+  shapes, so a reviewer could have accepted a report omitting the `Vault` sentinel
+  and silently undone the previous round. It now requires all three shapes with the
+  sentinel called out, and all four `REQUIRED_*_COLUMNS` sets. Swept the rest of the
+  document for stale siblings of both changes: line 121 was already correct, and
+  every other "three" is right in its own context.
+- Fourth appearance of the fail-open measurement, this time in the very block added
+  to fix an evidence problem. Reproduced: point the `Owner` count fence at a missing
+  directory and grep's error lands in `owner.txt`, `wc` counts that one line, and the
+  block prints `1` and exits **0** — error text becoming the measurement, exactly as
+  the five-run `md5sum` block did two rounds earlier. The fence also quoted `wc`
+  stdout from a terminal while writing a different file, breaching the plan's own
+  combined-capture rule.
+- Fixed by auditing every fence rather than the one flagged, which found two siblings
+  the review had not named: the stability block quoted uncaptured pipeline stdout the
+  same way, and the three C2/C3 evidence fences were unhardened. All six fences now
+  set `set -euo pipefail`, define their own `OUT`, write their result to a `$OUT`
+  file and quote that file by name. Verified: good paths unchanged (`13` and `1`), a
+  missing source directory now exits 2.
+- Reconciled the contract, which claimed every command lives in the single atomic
+  block while five evidence fences sat outside it. The atomic block is now scoped to
+  the implementer's measurement run, and standalone evidence fences are explicitly
+  permitted under three stated conditions, so a reviewer can re-derive one claim
+  without running the whole sequence.
+- The audit that "found" the previous round's siblings was itself self-selecting: it
+  filtered to fences containing `mktemp` or `$OUT`, so it could only ever inspect
+  fences that were already partway compliant and was structurally blind to a bare
+  one. The document has **8** bash fences, not the 6 reported. The two it never saw
+  were the C4 `wishlists` evidence fence — now hardened, captured and labelled — and
+  the verification command list, which is correctly exempt and now says so: it quotes
+  no output, and `set -e` there would abort at the first failure and hide the rest.
+- Three fences wrote a capture file but never emitted it, so running them printed
+  nothing and reproduction was a judgement call rather than a diff. Every
+  output-quoting fence now ends on `cat "$OUT/<file>"`, making its stdout exactly the
+  quoted block. The audit is correspondingly mechanical: extract all fences, execute
+  each in a fresh shell with `OUT` unset, diff stdout against the quoted text. Six
+  output-quoting fences, all reproducing, one exempt.
+- Recorded that the `wishlists` capture is the one output legitimately expected not
+  to reproduce, so Check 2 does not manufacture a false P1 on it. `wishlist.fetch`
+  re-downloads past `max_age_days` (7, `config.toml:62`) and prints a stale-cache
+  warning to stderr on a failed download (`wishlist.py:111-157`), so the combined
+  capture varies with cache age and network; the counts also move when an upstream
+  list refreshes. It is held to successful execution plus recorded cache mtimes and
+  download-or-fallback state rather than byte-for-byte reproduction.
+- Deleted the incidental wishlist stability claim rather than sourcing it. "Three
+  consecutive runs, identical `md5sum`" was another unsourced empirical assertion,
+  and the right correction was removal, not a fifth measurement mechanism: the claim
+  gated nothing, and what a reader needs is why the capture varies. C4 now cites the
+  behaviour itself — `wishlist.py:111-157` for the freshness test, stale-cache
+  fallback and stderr warning, and `config.toml:62` for the seven-day age.
+- Reconciled the C4 exception across every review instruction, a contradiction
+  introduced in the previous round by adding the exception in one place only. The
+  reviewer remit demanded a P1 for any non-reproducing quoted output while C4 said
+  its capture was expected to differ, so a reviewer following either one violated the
+  other. The remit, Check 2 and the byte-for-byte sentence now all state the same
+  rule: five deterministic captures are diffed byte for byte; the C4 capture is held
+  to successful execution plus recorded cache mtimes and download-or-fallback state,
+  and an unexplained content difference is still a finding. That keeps the exception
+  falsifiable instead of making it a hole.
+- Completion sweep run as specified: no `three consecutive` / `identical md5sum` /
+  `same-day caches` text remains in either file; all eight fences enumerated (six
+  output-quoting, all fail-closed with their own `OUT` and ending on the `cat` of
+  their named capture, two correctly exempt); five deterministic captures diff
+  byte-identical and C4 executes successfully; anchors, ruff, pytest, `git diff
+  --check` and the `data/`/`wishlists/` hygiene checks all clean. One checker
+  artifact worth noting for the next agent: pairing a fence with "the next ```text
+  block" mis-associates the verification list with a block 6479 characters later, so
+  the audit requires adjacency.
+
+## 2026-09-05 — #142 planning: aggressive weapons-first measurement spike (PR 1)
+
+- Authored `handoffs/issue-142-implementation-plan.md` against `main` at
+  `66b121aee1247d9823e783646f73d470359bb79d` and allocated
+  `feat/issue-142-clearout-measurement` for implementation by Google
+  `gemini-3.8-flash` with native `thinking_level = high`. Re-verified against the
+  provider's thinking-controls documentation on 5 September 2026 that this model
+  accepts only `low`/`medium`/`high`, so `high` is its maximum effort; the
+  repository matrix (verified 2026-09-03) agrees. The tier is the owner's explicit
+  choice and sits below the matrix's Planning-class recommendation, so the plan
+  compensates with a fixed report skeleton, a pinned command-by-command measurement
+  contract, a documentation-only inclusion test, and mandatory independent review.
+- Verified #142 is open, labelled `question`, deliberately unassigned to a
+  milestone, and `Todo` on project 3. It is item 1 ("Measurement and policy
+  design") of the #140 tracking comment of 2026-09-05. #31 is closed; #34, #114,
+  #117, #136, #137 and #138 are open and stay untouched — the plan only lets the
+  report *recommend* a #34 reconciliation.
+- The spike ships a document, not code: `docs/aggressive-clearout-measurement.md`
+  under a fixed fourteen-section skeleton, `docs/evidence/issue-142/README.md` for
+  verbatim transcripts, and a WORKLOG entry. Precedent is the M6 armor spike (#16 →
+  `docs/armor-archetypes.md`) and the #113 design pass.
+- Measured on the baseline, and the three findings that shaped the plan:
+  **(1)** all four committed weapon fixtures carry a `Loadouts` header with zero
+  non-empty cells (0 of 36 rows), and `Loadouts` is not in
+  `REQUIRED_WEAPON_COLUMNS` — so weapon loadout protection has no coverage today
+  and a DIM export dropping the column would load silently. **(2)** `Owner` has two
+  observed formats (`Titan` in weapons fixtures, `Titan(550)`/`Hunter(506)`
+  elsewhere) and is parsed nowhere beyond `Decision.location`; no export column
+  reports vault capacity, so `F` in the #140 capacity formula is not derivable from
+  any export. **(3)** `apply_vetoes` is subtractive and has two sibling call sites
+  (`cli.py:484`, `server/app.py:790`) — approval-only finalization must change
+  both.
+- Also measured: `keep_counts` in `rules/weapons.py` is now used only for the
+  keep-beats-trash conflict counter and no longer ranks dupe survivors, which
+  confirms #140's claim that #34's survivor-ranking statement is stale.
+  `wishlist.LINE_RE` discards the `#notes:` tail and `Wishlist.merge` folds every
+  source into one map, so entry notes, tier text and source attribution are lost
+  before the rules ever see them — the measured reason #140 child 3 exists.
+- Baseline fixture yield recorded for reproduction: the three-export
+  `--no-wishlists` report gives 1 junk + 5 review (all armor/ghost, zero weapons),
+  and `weapons_dupes.csv` gives 4 junk + 3 review. The plan requires
+  `--no-wishlists` throughout so the ticket never depends on the ~200 MB Bungie
+  manifest download.
+- Review path set to independent adversarial despite a documentation-only diff:
+  this report is the specification for #140 children 2a-8, and the failure mode of
+  a document is unverifiable assertion. The reviewer's remit is explicitly to
+  re-run every quoted command and diff the output; a non-reproducing output or a
+  number with no command is a P1.
+- Review disposition before merge, all accepted. The two `report` outputs quoted in
+  C3 were hand-summarized rather than captured — id lists were appended to group
+  headings and the per-item detail lines dropped — while the plan itself demands
+  those runs verbatim and calls a non-reproducing quotation a P1. Both blocks are
+  now literal captures. The blanket "`Id`/`Hash` remain strings throughout" claim
+  was false and would have forced the implementer to assert it: `Hash` is a string
+  in the DataFrame, in dupe grouping and on `Decision.hash`, but becomes `int` at
+  the wishlist-matching boundary (`weapons.py:72`, int-keyed `Wishlist` maps at
+  `wishlist.py:79`); only `Id` is opaque end to end. `AGENTS.md`'s opaque-strings
+  rule is scoped to untrusted input, so the plan now says so explicitly to stop an
+  implementer "fixing" `weapons.py:72`.
+- `Loadouts` now has three separately specified states — column missing (unknown,
+  must not read as "not in a loadout"), cell empty (the measured normal case: not
+  in a loadout, per `ghosts.py:36` and `armor_dupes.py:99-100`), and column present
+  but empty on every row (ambiguous). Collapsing the first two would hard-protect
+  nearly every weapon and defeat the clear-out entirely.
+- The absolute "every number carries a command" rule was unenforceable — section
+  numbers, dates and the 100-space goal have no local command — and would have
+  manufactured false P1s in the adversarial review it mandates. It now covers
+  empirical claims only, with three accepted citation forms (command, `file:line`,
+  or URL plus retrieval date); requirements figures cite #140/#142. Check 3 and the
+  reviewer remit moved with it.
+- Branch allocation corrected to `feat/issue-142-clearout-measurement`:
+  `AGENTS.md` and `handoffs/README.md` enumerate `fix/` or `feat/`, and the
+  `docs/issue-124-workflow-pilot-record` precedent is not authority over the
+  written convention.
+- A full sweep of every `file:line` anchor found more drift than review named: the
+  `parse.py` required-column ranges were all shifted (base is 32-34 not 36-38;
+  weapons 42-44 not 45-49, which landed in the *ghost* comment; armor 71-76), plus
+  `wishlist.py` 22/29/51-57/160-184, `weapons.py` 59-111 and 102-107, `dupes.py`
+  42-51, `report_run.py` 241-257, `review.py` 496-543 and `armor_dupes.py` 99-100.
+  Root cause for both this and the fake-verbatim blocks: transcribing from memory
+  of earlier tool output instead of re-deriving from the file. Also took
+  CodeRabbit's inclusion-test wording fix — "exactly one of" read as a one-path
+  limit against a three-path deliverable.
+
 ## 2026-09-05 — #117 planning: per-group DIM search queries (PR 1)
 
 - Authored `handoffs/issue-117-implementation-plan.md` against `main` at
