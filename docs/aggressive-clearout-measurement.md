@@ -2,9 +2,12 @@
 
 ## 1. Scope, baseline and reproduction
 
-- **Date:** 2026-09-06
+- **Date:** 2026-09-06 (original measurement and round 1/2 review), corrected 2026-09-07 (round 3 review)
 - **Base SHA:** `9a74192d136242a9820830d4547dd2209db37ca5`
-- **Environment:** Python `3.13.14`, pandas `3.0.5`
+- **Environment:** This document was produced across two machines, and no single "Environment" line covers it honestly:
+  - **Windows** (Git Bash, `bash 5.2.26`), Python `3.13.14`, pandas `3.0.5` — the original implementer's session, 2026-09-06. Covers §§1–4, 6, 8, 10–13 and the original captures in §5, §7, §11, §14 (see [docs/evidence/issue-142/README.md](evidence/issue-142/README.md) for the section-by-section split).
+  - **Linux**, Python `3.14.4`, pandas `3.0.5` — round 2's correction session, 2026-09-06, and round 3's correction session, 2026-09-07 (this session; version re-confirmed with the same `.venv/bin/python -c "import sys, pandas; ..."` command). Covers §5's "Measured source detail" subsection, §7's re-run, §9, and round 3's additions to §5 (malformed/skipped/wildcard counts and conflict behaviour) and §6 (the single Aegis-strategy recommendation).
+  Every quoted capture states its own command; where it matters which machine produced a number (the C4 `wishlists` capture, whose byte-for-byte reproduction is not required), the surrounding text says so explicitly rather than relying on this line alone.
 - **Scope:** This document is an investigative measurement and policy design spike for Issue #142 (part of umbrella Issue #140). It changes no production behaviour: no rule, parser, schema, config, server, UI, `RULESET_VERSION`, or fixture change is introduced by this investigation.
 - **Authorized plan deviation (owner directive):** On 2026-09-06, the repository owner explicitly provided a fresh DIM weapon export (`destiny-weapon (12).csv`) and authorized measurement of it within this spike. This supersedes the plan's "specified, not executed" restriction (plan lines 417-419 and 637) and satisfies stop condition S4. What was actually committed from that export is: aggregate counts, and — under a second, explicit owner authorization dated 2026-09-06 — the real item names appearing in two `report` captures in evidence §8. Instance `Id`s, `Hash` values, and raw rows were never authorized for commit and are redacted (see §14 for the full record). Future agents must not reverse either authorization or restore the redacted IDs.
 
@@ -242,7 +245,7 @@ To prevent premature automatic dismantling while enabling high-confidence clear-
 |---|---|---|---|---|
 | **Automatic junk candidate** | Deterministic evidence of inferiority with zero soft-rail impediment | `wishlist-trash whole-item`, `wishlist-trash roll`, `dupe-lower`, `dupe-tie` on unprotected items | `junk` | Proposed for junk; included in CSV under current subtractive seam, but requires explicit approval under Child 2b approval-only seam |
 | **Review-only comparison** | Proposal backed by evidence but restricted by a soft rail (locked/exotic) or pairwise coverage trade-off | `#vc-review: wishlist-trash whole-item (locked)`, `#vc-review: wishlist-trash whole-item (exotic)`, `#vc-review: dupe-lower (locked)`, `#vc-review: dupe-lower (exotic)`, `#vc-review: dupe-tie (exotic)`, future useful-combination dominance (#34) | `review` | Displayed in review UI; excluded from CSV unless user explicitly approves |
-| **Protected / retained** | Hard-protected by player directive, system state, or dupe winner | Hard rails (`dim-tag:{tag}`, `equipped`, `crafted-lv{level}`, `crafted-lvunknown`, `loadout-protected`), dupe survivor / winner | `keep` | Never proposed for junk; excluded from CSV |
+| **Protected / retained** | Hard-protected by player directive, system state, or dupe winner | Hard rails (`dim-tag:{tag}`, `equipped`, `crafted-lv{level}`, `crafted-lvunknown`) — current behaviour; plus `loadout-protected`, a **Child 2a settled decision, not yet implemented** (`grep -rn "loadout-protected" src/ tests/` returns nothing today; see §2 and §8) — and dupe survivor / winner | `keep` | Never proposed for junk; excluded from CSV |
 | **Unknown or uncovered** | No wishlist match, ungroupable perks, or unique roll without comparable duplicate | Unmatched rolls, ungroupable exact-dupe rows, lone rolls | None | Retained. **Explicit invariant:** absence of wishlist coverage or inability to determine roll identity is **never** evidence of junk. |
 
 ---
@@ -351,7 +354,7 @@ set -euo pipefail
 OUT="$(mktemp -d)"
 gh api "repos/Ciceron14/dim-extra-wishlists/readme" --jq '.content' > "$OUT/raw_b64.txt" 2>&1
 base64 -d "$OUT/raw_b64.txt" > "$OUT/ciceron_readme.txt" 2>&1
-grep -n -A1 "^### Everything Good\|^### Only The Greats\|^## Barrels and Mags" "$OUT/ciceron_readme.txt" > "$OUT/ciceron_readme_excerpt.txt" 2>&1
+grep -n -A5 "^### Everything Good\|^### Only The Greats\|^## Barrels and Mags" "$OUT/ciceron_readme.txt" > "$OUT/ciceron_readme_excerpt.txt" 2>&1
 cat "$OUT/ciceron_readme_excerpt.txt"
 ```
 
@@ -360,15 +363,24 @@ cat "$OUT/ciceron_readme_excerpt.txt"
 ```text
 20:### Everything Good
 21-_A & S Tier Endgame Weapons + Endgame Shopping List_
+22-
+23-```
+24-https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/Shopping%20List/dim_aegis_endgame-shopping_list.txt|https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/dim_aegis_endgame.txt
+25-```
 --
 30:### Only The Greats
 31-_S Tier Endgame Weapons + Endgame Shopping List_
+32-```
+33-https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/Shopping%20List/dim_aegis_endgame-shopping_list.txt|https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/dim_aegis_endgame-exclusive.txt
+34-```
+35-> Or, ignore Barrels and Mags for less grind:
 --
 75:## Barrels and Mags
 76-If you are looking for less grindy wishlists, you can replace any of them with their "Major Perks" version. You can find them in the folders next to the standard ones.
+77-Note that Endgame Shopping List does not list Barrels and Mags in the sheet so this one is always Major Perks only.
 ```
 
-"Everything Good" bundles `dim_aegis_endgame.txt` (the "Full" list) and is described as A & S tier; "Only The Greats" bundles `dim_aegis_endgame-exclusive.txt` (the "Exclusive" list) and is described as S tier only — confirming the round 1 claim, now cited to this README fetch instead of left uncited.
+"Everything Good" bundles `dim_aegis_endgame.txt` (the "Full" list, line 24's raw URL) and is described as A & S tier; "Only The Greats" bundles `dim_aegis_endgame-exclusive.txt` (the "Exclusive" list, line 33's raw URL) and is described as S tier only. Widened from round 2's `-A1` to `-A5` specifically so the excerpt itself carries the raw URLs naming both files, rather than requiring the reader to trust the surrounding prose — this fence is now self-supporting for the claim it backs.
 
 ### Parser facts and data loss in current code
 
@@ -410,6 +422,36 @@ choosy_voltron.txt: dimwishlist_lines=255426 hash_notes_tail=2726 standalone_sla
 
 Both Aegis sources carry **zero** `#notes:` tails on their `dimwishlist:` lines; their tier/attribution text is entirely in standalone `//notes:` block lines, discarded at `wishlist.py:73-74` before `LINE_RE` ever runs. Only Choosy Voltron's minority `#notes:` tail (~1% of its lines) reaches `LINE_RE`'s discard group. A Child 3 implementer who targets only `LINE_RE` would recover zero notes from either Aegis source. This is the measured justification for #140 Child 3, and Child 3 must address both discard seams, not only `LINE_RE`.
 
+### Malformed/skipped counts, and conflict behaviour (measured 2026-09-07)
+
+`Wishlist.skipped` and `Wishlist.wildcards` ([wishlist.py:43-44](../src/vault_cleaner/wishlist.py#L43-L44)) count, per source, malformed `dimwishlist:` lines and wildcard-item (`69420`) entries respectively. `vault-cleaner wishlists` prints them per source:
+
+```bash
+set -euo pipefail
+OUT="$(mktemp -d)"
+.venv/bin/vault-cleaner wishlists > "$OUT/p2-1_wishlists.txt" 2>&1
+cat "$OUT/p2-1_wishlists.txt"
+```
+
+`$OUT/p2-1_wishlists.txt`:
+
+```text
+choosy_voltron: 255373 keep rolls across 1234 items, 53 trash entries across 53 items
+aegis: 5022 keep rolls across 968 items, 0 trash entries across 0 items
+aegis_trash: 0 keep rolls across 0 items, 286 trash entries across 286 items
+total: 260395 keep rolls, 339 trash entries
+```
+
+None of the three lines carries a parenthesized suffix. `cli.py:560-565` appends `"{N} malformed lines skipped"` and `"{N} wildcard entries ignored"` clauses to a source's line **only when the corresponding count is non-zero** (`if wl.skipped: ...` / `if wl.wildcards: ...`); a zero count produces no suffix at all, not a printed `0`. The table below therefore states skipped/wildcard counts of zero as an **inference from the absence of that suffix**, cited to the `cli.py:560-565` derivation — not as a value any command printed directly:
+
+| Source | malformed/skipped (inferred from absent suffix, `cli.py:560-565`) | wildcards (inferred from absent suffix, `cli.py:560-565`) | Conflict behaviour |
+|---|---|---|---|
+| `choosy_voltron` | 0 | 0 | Additive merge, no dedup/priority (below) |
+| `aegis` (Nitaraku) | 0 | 0 | Additive merge, no dedup/priority (below) |
+| `aegis_trash` (Ciceron) | 0 | 0 | Additive merge, no dedup/priority (below) |
+
+**Conflict behaviour:** `Wishlist.merge` ([wishlist.py:51-57](../src/vault_cleaner/wishlist.py#L51-L57)) is purely additive — for each item hash it extends the merged map's roll list with the other source's rolls, with **no de-duplication and no source priority**. If two configured sources both have keep or trash rolls for the same item hash, both sets of rolls survive independently in the merged `Wishlist`; the merge step itself never resolves a conflict. A keep-vs-trash conflict on the *same* item (one source's keep against another's trash, or the same source's own keep and trash) is resolved downstream, at the rule layer, by `weapons.py`'s keep-beats-trash check (§3) — not inside `merge`.
+
 ---
 
 ## 6. Recommended Aegis-derived source strategy
@@ -421,7 +463,7 @@ Ciceron, MrCharles, and Nitaraku are **not independent curators**. All three are
 ### Strategy recommendation
 
 1. **Broad baseline:** Retain Choosy Voltron as the baseline keep source for general utility and PvP protection.
-2. **Endgame keep curation:** Adopt Nitaraku's traits-only feed (`aegis_wishlist.txt`) or Ciceron's `dim_aegis_endgame_major-perks.txt` for endgame keep rolls. Focus on trait columns rather than full 4-perk combinations to avoid false negative mismatches on barrel/mag rolls.
+2. **Endgame keep curation — recommendation: keep Nitaraku's traits-only feed** (the already-configured `aegis` source, `wishlists/aegis.txt`, upstream `aegis_wishlist.txt`), not Ciceron's sibling `dim_aegis_endgame_major-perks.txt`. Reasoning: (a) Nitaraku is already a configured `[wishlists.sources]` entry with a measured, working parse (5,022 keep rolls across 968 items, §5) — adopting Ciceron's major-perks file instead would require adding a **new** `[wishlists.sources]` entry, which is a `config.toml` change out of this ticket's scope (the mechanical inclusion test bars it) and would need to be a Child 3 deliverable, not a §6 recommendation to act on today; (b) Nitaraku's traits-only scope is confirmed directly from the cached file's own `description:` header line ("Uses only Trait 1 and Trait 2 columns", §5) with no inference required, while Ciceron's major-perks filtering is known only from the upstream README's "Barrels and Mags" prose (§5's widened fence), one step further from the parsed bytes; (c) Nitaraku's file already carries explicit `Tier`/`Rank` tokens in its standalone `//notes:` lines (§5), which Child 3 can parse directly once it addresses the `wishlist.py:73-74` discard seam. Either file remains a defensible choice — Ciceron's major-perks variant is a candidate migration if Child 3 finds Nitaraku's coverage insufficient — but Nitaraku is the one recommendation this section commits to, since it needs no new source entry to act on. Focus on trait columns rather than full 4-perk combinations to avoid false negative mismatches on barrel/mag rolls.
 3. **Endgame trash curation:** Retain Ciceron's whole-item trash list (`dim_aegis_endgame-trashlist.txt`, D-tier and below).
 4. **Attribution and tier preservation (Child 3):** Enhance `parse_wishlist` to parse and retain `#notes:` tier tokens (`Tier: S`, `Tier: A`, etc.) and record the originating `source_name`.
 5. **Conflict and uncertainty rules:**
@@ -438,7 +480,7 @@ Ciceron, MrCharles, and Nitaraku are **not independent curators**. All three are
 Issue #34 ("Rank weapons by unique useful-combination coverage", milestone `M6 — Armor dupes`) states:
 > "The current `keep_match_count` counts every keep-wishlist entry whose perk hashes are a subset of the row's combined perk set. That is a useful first approximation and currently influences same-Hash survivor ranking, but..."
 
-**Measured reality:** This statement is **stale**. In `src/vault_cleaner/rules/weapons.py:76-80`, `keep_counts` is used **exclusively** to detect keep-vs-trash conflicts (`keep_counts.get(idx, 0) > 0`). Exact duplicate ranking in `src/vault_cleaner/rules/dupes.py:42-51` uses `RANK_COLUMNS = ["Tier", "Masterwork Tier", "Crafted Level"]` then stat total, then opaque `Id`. Wishlist match counts have **zero** influence on survivor ranking today.
+**Measured reality:** This statement is **stale**. `keep_counts` appears at `src/vault_cleaner/rules/weapons.py:65,74,79`; it is used **exclusively** to detect keep-vs-trash conflicts, guarded at `weapons.py:79` by `if keep_counts[row["Id"]] > 0:`. Exact duplicate ranking in `src/vault_cleaner/rules/dupes.py:42-51` uses `RANK_COLUMNS = ["Tier", "Masterwork Tier", "Crafted Level"]` then stat total, then opaque `Id`. Wishlist match counts have **zero** influence on survivor ranking today.
 
 ### Authoritative criteria to preserve
 
@@ -509,7 +551,7 @@ In approval-only finalization (Child 2b):
 - An item is included in the output CSV **only if explicitly approved** (`verdict == "approved"`).
 - Vetoed proposals (`verdict == "vetoed"`) are excluded.
 - Unreviewed proposals (`verdict` unset / unchecked) are **excluded**.
-- The canonical verdict token set is `VERDICTS = frozenset({"approved", "vetoed"})` ([review_session.py:41](../src/vault_cleaner/review_session.py#L41)), enforced identically at both untrusted-input boundaries: [review.py:301](../src/vault_cleaner/review.py#L301) (the review-manifest validator) and [server/app.py:225](../src/vault_cleaner/server/app.py#L225) (the server's verdict-request validator). There is no `"approve"` / `"veto"` token anywhere in the codebase.
+- The canonical verdict token set is `VERDICTS = frozenset({"approved", "vetoed"})` ([review_session.py:41](../src/vault_cleaner/review_session.py#L41)), enforced identically at both untrusted-input boundaries: [review.py:301](../src/vault_cleaner/review.py#L301) (the review-manifest validator) and [server/app.py:225](../src/vault_cleaner/server/app.py#L225) (the server's verdict-request validator). `review_ui.js:131` accepts only these two *verdict* tokens (`verdict === "approved" || verdict === "vetoed"`); there is no `"approve"` / `"veto"` **verdict** token anywhere in the codebase. (`"approve"` and `"veto"` do appear elsewhere in `review_ui.js` — e.g. lines 893, 900, 1231, 1233, 1238, 1240 — but only as CSS class names and `aria-label` fragments for the UI buttons, and in `tests/test_review_ui_js.py:1557` asserting that presentation; none of those is a verdict value.)
 
 ### Durable veto interaction and semantics
 
@@ -577,7 +619,7 @@ When analyzing a real user export:
 
 Measured on the owner's supplied export of 664 weapons (see self-contained reproduction commands and output in [docs/evidence/issue-142/README.md](evidence/issue-142/README.md#8-aggregate-only-real-export-analysis-authorized-session-data)):
 
-- **Export identity:** `destiny-weapon (12).csv`, size 323,610 bytes, SHA-256 `35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571`, measured on 2026-09-06. The file contains 664 data rows across 74 header columns. Note that 664 is the true CSV data row count (as parsed by `csv.reader` and `pandas`); the file has 665 lines total because it does not end with a trailing newline (1 header line + 664 data lines).
+- **Export identity:** `destiny-weapon (12).csv`, size 323,610 bytes, SHA-256 `35c9ee801b73a64c641dfe7a0f556c05d244f96a52902083e7a2fff7e0fb5571`, measured on 2026-09-06. The file contains 664 data rows across 74 header columns, per the `csv.reader` and `pandas` counts quoted in evidence §8's `real_export_summary.txt`. (Round 1 additionally claimed a total line count and a trailing-newline state for this file; neither was ever produced by a command in evidence §8, which only calls `.splitlines()` and never reports a line count or newline state. The file is on another machine and unavailable to this session, so that claim is retracted rather than re-measured — see §14.)
 - **Location breakdown:**
   - Owner `Vault`: 555
   - Owner `Titan(451)`: 43 (measured power level 451 at snapshot time)
@@ -680,3 +722,4 @@ Measured on the owner's supplied export of 664 weapons (see self-contained repro
 7. **Authorized plan deviation and owner privacy decision (real export analysis):** The repository owner explicitly provided `destiny-weapon (12).csv` on 2026-09-06 and authorized measurement of it within this spike, superseding the plan's "specified, not executed" restriction (plan lines 417-419 and 637). Stop condition S4 was satisfied. Two privacy rules apply, and they are distinct:
    - **Aggregate counts** (location breakdown, protection breakdown, capacity arithmetic) were authorized and committed from the start; zero raw rows, `Hash` values, or instance `Id`s were ever authorized for commit.
    - **Item names** in the two `report` captures quoted in evidence §8 were additionally authorized for publication by the repository owner, explicitly, on 2026-09-06. That authorization does **not** extend to instance `Id`s: the eleven 19-digit instance `Id`s that originally appeared alongside those names in evidence §8 have been redacted post-capture to `id <redacted>` (see the note above each capture in evidence §8). This is the owner's 2026-09-06 decision recorded in `WORKLOG.md`; future agents must not reverse it, and must not restore the redacted IDs without a fresh, explicit owner authorization.
+8. **Real-export total line count and trailing-newline state (retracted, round 3):** Round 2's §11 stated the file "has 665 lines total because it does not end with a trailing newline," citing the 664-data-row count as its basis. No command in evidence §8 ever measured a total line count or a trailing-newline state — the export script only calls `.splitlines()` and prints `Data rows (csv.reader)` / `Data rows (pandas)`, never a line count. The claim was also internally wrong regardless of citation: a file of 1 header line + 664 data lines has 665 lines whether or not it ends with a trailing newline; the absence of a trailing newline would make `wc -l` under-count to 664, not add a 665th line. The file is on another machine and unavailable to this session, so the sentence is retracted from §11 rather than re-measured. **NOT MEASURED.**

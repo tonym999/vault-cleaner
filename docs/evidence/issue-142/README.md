@@ -8,13 +8,26 @@ decision, so they are not byte-verbatim against the original command's actual
 output (see the note directly above each one, and §14 item 7 in the measurement
 document).
 
-Sections 1–8 were run on Windows within Git Bash (`bash 5.2.26`) on Python 3.13.14
-with pandas 3.0.5, using `export PYTHONUTF8=1` to enforce UTF-8 streams and avoid
-codepage encoding errors on Unicode fixture symbols (such as the emoji in
-`tests/fixtures/weapons_hostile.csv`). This correction round's re-verification of
-§9 (and the new measurements added to §5's "Measured source detail" in the
-measurement document) ran on Linux, in this session, on 2026-09-06; the reproduced
-values are identical, so no divergence is recorded.
+Sections 1–6 and 8 were run on Windows within Git Bash (`bash 5.2.26`) on Python
+3.13.14 with pandas 3.0.5, using `export PYTHONUTF8=1` to enforce UTF-8 streams and
+avoid codepage encoding errors on Unicode fixture symbols (such as the emoji in
+`tests/fixtures/weapons_hostile.csv`).
+
+Round 2's correction session re-ran **both §7** (the `wishlists` command and cache
+state) **and §9** (upstream repository metadata) on Linux, in that session, on
+2026-09-06 — plus the new measurements added to §5's "Measured source detail" in the
+measurement document. The two re-runs did not behave identically: §9's four `gh api`
+values reproduced byte for byte against round 1's capture. §7 did **not** reproduce
+byte for byte — the parsed keep/trash counts matched round 1's exactly, but the
+`ls -l wishlists/` cache file sizes and mtimes differed (a different machine, a
+different fetch than round 1's). §7's own text below records that divergence and
+explains it; it is not a "no divergence" result, and this preamble no longer claims
+one for the file as a whole.
+
+Round 3's correction session (2026-09-07, this session) re-ran the malformed/skipped
+count derivation and widened one Ciceron fence to `-A5`; both landed directly in the
+measurement document's §5 rather than here, on the same Linux environment as round 2
+(Python 3.14.4, pandas 3.0.5 — see the measurement document §1).
 
 Every file capture below was produced using a single combined stdout+stderr
 redirection (`> "$OUT/file.txt" 2>&1`) into a disposable `mktemp -d` scratch
@@ -459,13 +472,17 @@ total 26472
 -rw-rw-r-- 1 raver raver 26723730 Sep  6 14:23 choosy_voltron.txt
 ```
 
-No `warning: ... download failed` line appears in `wishlists.txt`, and the three
-files' mtime (`Sep 6 14:23`) was already current at the start of this session,
-before this command ran — confirmed by comparing this `ls -l` capture (run after
-the `vault-cleaner wishlists` call above) against an identical `ls -la wishlists/`
-run at the very start of this session, which showed the same three mtimes. The
-command therefore **served all three sources from cache**, not by downloading, in
-this session.
+No `warning: ... download failed` line appears in `wishlists.txt` — though that
+absence alone does not distinguish a cache hit from a *successful* download,
+since `wishlist.py:152` prints that warning only when a download **fails**. What
+settles it is the recorded mtime itself: all three files carry `Sep 6 14:23`, which
+is hours before this evidence was committed later the same session. Had this
+capture's `vault-cleaner wishlists` invocation downloaded fresh content for any of
+the three sources, that source's file would carry a write time at (or after) the
+moment the command ran, not an already-current timestamp from hours earlier. The
+unchanged, already-hours-old mtime is therefore the basis for concluding the
+command **served all three sources from cache**, not by downloading, in this
+session — not a separate uncommitted `ls -la` run.
 
 ---
 

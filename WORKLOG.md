@@ -3,6 +3,132 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-07 — #142 review round 3 corrections (PR 2 continued)
+
+Continues the 2026-09-06 #142 implementation entry below; same PR 2, same branch
+`feat/issue-142-clearout-measurement`, work that ran on the next day. Independent
+adversarial review round 3 (reviewed range
+`9a74192d136242a9820830d4547dd2209db37ca5...09a66c16cb3fd8580fc69cffb7bffe24180ea049`,
+Anthropic `claude-opus-5`, fresh context, read-only, disposable checkout pinned to
+`09a66c1`) returned eleven accepted findings; this session addressed all eleven on
+the same branch. This session ran on Linux, Python `3.14.4`, pandas `3.0.5`
+(re-confirmed with the same version-check command used in prior rounds); the real
+export (`destiny-weapon (12).csv`) remains on the original implementer's Windows
+machine and was unavailable here, same as round 2.
+
+Findings and how each was addressed:
+- **P1-1 (blocking):** Report §11 claimed the real export "has 665 lines total
+  because it does not end with a trailing newline" — uncited (evidence §8's script
+  never measures a line count or newline state) and internally wrong regardless (a
+  file of 1 header + 664 data lines has 665 lines independent of trailing-newline
+  state; a missing trailing newline would make `wc -l` under-count to 664, not add a
+  line). Retracted the sentence from §11 and added §14 item 8 as `NOT MEASURED`
+  rather than re-measuring — the file is on another machine and unavailable here.
+- **P2-1 (blocking):** §5 had no malformed/skipped/wildcard counts despite round 2's
+  WORKLOG claiming they were recorded, and the WORKLOG cited them to "matching the
+  reviewer's claim" instead of to a command run in this session. **Resolution
+  chosen: measured and added to the deliverable**, not dropped from the WORKLOG. Ran
+  `.venv/bin/vault-cleaner wishlists` this session (own capture, quoted in §5's new
+  "Malformed/skipped counts, and conflict behaviour" subsection): none of the three
+  output lines carries a parenthesized suffix. Stated explicitly — citing
+  `cli.py:560-565` — that this is an **inference** from the absence of the
+  `"N malformed lines skipped"` / `"N wildcard entries ignored"` suffix (which
+  `cli.py` appends only when the count is non-zero), not a printed `0`; §5 now says
+  so in those words rather than silently treating absence as zero. Added the
+  per-source conflict-behaviour cell: `Wishlist.merge` (`wishlist.py:51-57`) is
+  purely additive with no de-duplication or source priority; a same-item keep/trash
+  conflict across sources is resolved downstream by `weapons.py`'s keep-beats-trash
+  check, not inside `merge`.
+- **P2-2 (blocking):** Evidence README's preamble said sections 1–8 ran on Windows
+  and that round 2 re-verified only §9 on Linux with "no divergence... recorded" —
+  both wrong. §7 (`wishlists` cache state) was also re-run on Linux in round 2, and
+  it **did** diverge (the `ls -l wishlists/` sizes/mtimes changed between the
+  Windows and Linux captures, though the parsed keep/trash counts matched). Rewrote
+  the preamble to list §7 among the Linux re-runs, state that §9 reproduced byte for
+  byte while §7 did not (and why that is not a finding — §7's own text explains it),
+  and added a note for round 3's own two Linux additions.
+- **P2-3 (blocking):** This entry itself. Round 2's PR-2 WORKLOG entry recorded no
+  verification command results and no browser-suite disposition, departing from
+  this repository's own convention (comparable entries at the lines the reviewer
+  cited). See the "Verification" section below.
+- **P3-1:** Report §9 said "There is no `\"approve\"` / `\"veto\"` token anywhere in
+  the codebase," but both literals exist in `review_ui.js` (lines 893, 900, 1231,
+  1233, 1238, 1240) and `tests/test_review_ui_js.py:1557` as CSS class names /
+  aria-label fragments. Scoped the sentence to **verdict** tokens specifically
+  (`review_ui.js:131` accepts only `"approved"`/`"vetoed"` as a verdict value) and
+  named the non-verdict occurrences so the distinction is explicit rather than
+  contradicted two lines later.
+- **P3-2:** Report §7 quoted `keep_counts.get(idx, 0) > 0` citing `weapons.py:76-80`;
+  neither the expression nor the line range matches the source. `keep_counts`
+  actually appears at `weapons.py:65,74,79`, and the real guard at `weapons.py:79`
+  is `if keep_counts[row["Id"]] > 0:`. Fixed both the quote and the citation; the
+  substantive claim (that `keep_counts` gates only the conflict test, not survivor
+  ranking) was already correct and unchanged.
+- **P3-3:** Report §4 listed `loadout-protected` among current "Hard rails" in the
+  proposal-strength table with no marking, even though `grep -rn "loadout-protected"
+  src/ tests/` returns nothing (verified again this session). Marked it explicitly
+  as a Child 2a settled decision not yet implemented, matching how §2 and §8 already
+  mark it.
+- **P3-4:** Report §1 stated one "Environment: Python 3.13.14, pandas 3.0.5" line
+  for a document produced across two machines. Rewrote §1 to name both — Windows
+  Python 3.13.14/pandas 3.0.5 (original implementer, most sections) and Linux Python
+  3.14.4/pandas 3.0.5 (round 2 and round 3 correction sessions, re-confirmed this
+  session) — and which sections each covers.
+- **P3-5:** Evidence §7 justified "served from cache" partly by citing "an identical
+  `ls -la wishlists/` run at the very start of this session," which is not
+  committed anywhere. Replaced that basis with the inference the recorded mtime
+  already supports without it: all three files carry `Sep 6 14:23`, hours before
+  this evidence was committed the same session, so a fresh download during this
+  capture would have left a newer mtime than that. Also stated plainly that the
+  absence of a `download failed` warning alone does not distinguish a cache hit from
+  a successful download (`wishlist.py:152` prints that warning only on failure).
+- **P3-6:** Report §5's Ciceron README fence used `grep -n -A1`, which shows the
+  heading and description lines but not the raw URLs naming
+  `dim_aegis_endgame.txt` / `dim_aegis_endgame-exclusive.txt`. Re-ran the same `gh
+  api` query this session with `-A5`; the widened output now quotes those raw URLs
+  directly, making the fence self-supporting for the claim instead of requiring the
+  reader's trust in the surrounding prose.
+- **P3-7:** Report §6 left an either/or ("Adopt Nitaraku's traits-only feed **or**
+  Ciceron's `dim_aegis_endgame_major-perks.txt`") where the plan requires one
+  recommendation, and §13 did not carry it as an open owner decision either.
+  **Resolution chosen: picked one recommendation (Nitaraku), not moved to §13.**
+  Reasoning recorded in §6: Nitaraku is already a configured `[wishlists.sources]`
+  entry with a measured working parse, so acting on the recommendation needs no new
+  `config.toml` source addition (which would be out of this ticket's scope);
+  Nitaraku's traits-only scope is confirmed directly from its own cached file's
+  header with no inference, while Ciceron's major-perks filtering is known only from
+  upstream README prose; and Nitaraku already carries explicit Tier/Rank tokens for
+  Child 3 to parse. Ciceron's major-perks file remains a candidate migration if
+  Nitaraku's coverage later proves insufficient, but is not today's recommendation.
+
+What could not be measured this round (unchanged from round 2, plus one new item):
+- Report §11's retracted total-line-count/trailing-newline claim (P1-1 above) — the
+  real export is on another machine and unavailable here; recorded as §14 item 8,
+  `NOT MEASURED`.
+- Everything round 2 already recorded as `NOT MEASURED` remains so: the original
+  session's exact real-export wishlist-enabled cache state, MrCharles's per-file
+  parsed content, and the real export's multi-copy-hash breakdown and per-source
+  wishlist-trash attribution. None of these needed to change this round; the real
+  export and the original manifest cache are still unavailable on this machine.
+
+Verification (all run this session, from the repository root, on this branch):
+- `.venv/bin/ruff check src tests scripts` — passed (`All checks passed!`).
+- `.venv/bin/pytest -q` — passed (967 passed).
+- `git diff --check origin/main...HEAD` — printed nothing (no whitespace/line-ending
+  errors).
+- `git status --porcelain` — printed nothing (clean tree after commit).
+- `git ls-files data/` — printed nothing.
+- `git ls-files wishlists/` — printed nothing.
+- The Playwright browser suite is **not applicable** to this round: no UI, JS, CSS,
+  or server file changed — only `docs/aggressive-clearout-measurement.md`,
+  `docs/evidence/issue-142/README.md`, and this WORKLOG entry. It was not run and is
+  not claimed as run or skipped.
+
+Scope: changed only `docs/aggressive-clearout-measurement.md`,
+`docs/evidence/issue-142/README.md`, and this WORKLOG entry — the three paths
+authorized for this ticket. `AGENTS.md` was not touched (issue #145 carries that
+amendment). No PR was opened; the branch was pushed for the next review round.
+
 ## 2026-09-06 — #142: aggressive weapons-first measurement and policy design (PR 2)
 
 Delivered the measurement spike and policy design document for #142 (first child of
@@ -146,6 +272,13 @@ the original manifest cache):
   `wishlists/aegis.txt`, no inference needed). Re-ran `vault-cleaner wishlists` this
   session: `skipped=0, wildcards=0` for all three configured sources, matching the
   reviewer's claim. Added a retrieval date to §6's Aegis spreadsheet URL.
+  **Correction (round 3, P2-1):** this note claimed the counts were "recorded" and
+  cited them to "matching the reviewer's claim" — a review packet, not a command run
+  in this session — and the counts never actually reached §5 or evidence §7 despite
+  this note saying so. Round 3 measured them properly (own `vault-cleaner wishlists`
+  capture, cited to the `cli.py:560-565` derivation, explicit about the
+  absence-implies-zero inference) and added them to §5 for real; see the round 3
+  entry above.
 - P3-1: §3's two `../src/vault_cleaner/...` code spans (leftovers of the round-1
   link conversion) rendered as plain code, not links. Converted both to proper
   markdown links.
