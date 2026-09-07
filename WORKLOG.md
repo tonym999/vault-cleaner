@@ -3,6 +3,118 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-07 — #142 review round 5 corrections (PR 2 continued, closing pass)
+
+Continues the round 4 entry below; same PR 2, same branch
+`feat/issue-142-clearout-measurement`. Independent adversarial review round 5
+(reviewed range
+`9a74192d136242a9820830d4547dd2209db37ca5...84f9cbbfd01b61b3966363f17564623d60a83a38`,
+Anthropic `claude-opus-5`, fresh context, read-only, disposable checkout pinned to
+`84f9cbb`) returned four accepted findings — one P2, three P3, no P0/P1 — and stated
+plainly that nothing in the range is blocking under a strict reading. This session
+addressed all four on the same branch and touched no other content.
+
+The review packet framed the two new findings as a different shape from round 4's
+sibling-site defect: not a claim fixed at one site and left standing at a sibling,
+but (a) a stale sub-citation *inside* the very sentence round 4 corrected, which a
+`\b`-anchored grep for the old citation matched and mis-read as already fixed, and
+(b) a parallel narrative in the third file (the evidence README) that round 4's
+greps never targeted. Findings and how each was addressed:
+
+- **P2-1:** §1's "Environment" bullet stated a universal rule — "any fence or
+  surrounding prose added or re-run on Linux says so directly in its own text" —
+  that is false as written: only one fence (§5's "Measured seam usage") actually
+  states an environment, while several Linux-run fences and paragraphs (the
+  round-3 skipped/wildcard subsection, both round-4 fences, §6's recommendation,
+  §9's verdict-token paragraph) state none. A second sentence in the same bullet
+  ("Where it matters which machine produced a number... the surrounding text says
+  so explicitly") then contradicted the C4 capture's own text, which names no
+  machine anywhere near it. This is the fourth consecutive round in which this
+  bullet misdescribed the document (round 3's P3-2, round 4's P3-2, and now this).
+  **Decision: chose fix (b)** — rewrote §1 to describe what the document actually
+  does (a fence states its producing machine only where that machine is material
+  to the claim, such as the C4 capture; everywhere else a capture is dated but not
+  machine-labeled, and session-to-machine provenance lives in this file) — over
+  fix (a) (retrofitting an environment clause onto every non-conforming fence).
+  Reasoning: (a) makes today's rule true but has to be re-satisfied by every future
+  fence added under a different rule reading; a fourth straight round of drift
+  shows that maintenance burden is exactly what keeps failing. (b) states a rule
+  that is true by construction — it doesn't require every fence to carry a clause,
+  only the ones where it already matters — so it can't go stale the same way
+  again. Kept the "per-capture provenance rule" name so §5's two existing
+  cross-references (the "Measured seam usage" fence and the C4 capture
+  subsection) still resolve correctly without their own edits. Grep:
+  `grep -rn "per-capture provenance" docs/aggressive-clearout-measurement.md
+  docs/evidence/issue-142/README.md WORKLOG.md` — both §5 cross-references still
+  point at §1's rule, which is now true as restated; `grep -rn "says so directly
+  in its own text\|any fence or surrounding prose added or re-run on Linux"
+  docs/aggressive-clearout-measurement.md docs/evidence/issue-142/README.md` —
+  zero hits, the retracted universal claim is gone everywhere.
+- **P3-1:** The same §9 sentence round 4's P3-3 fix corrected still cited a second,
+  stale sub-citation for the server's `verdict: null` clear-path f-string:
+  `app.py:225`, which is actually `if verdict not in {"approved", "vetoed"}:` —
+  the f-string itself is at `app.py:227` (verified by reading the source). Fixed
+  the citation to `app.py:227`. Grep: `grep -rn "app.py:225"
+  docs/aggressive-clearout-measurement.md docs/evidence/issue-142/README.md
+  WORKLOG.md` — the only remaining hits are historical WORKLOG entries describing
+  what earlier rounds wrote (round 4's own entry, and an older entry predating
+  round 4's line-range fix), left alone per this file's convention for prior
+  entries; no live citation site remains uncorrected.
+- **P3-2:** §7's "Measured inputs a useful-combination enumeration would need"
+  attributed stat totals to `dupes.py:42-51`'s `RANK_COLUMNS`, but `RANK_COLUMNS`
+  (`dupes.py:45`) holds only `Tier`, `Masterwork Tier`, `Crafted Level`; stat
+  totals come from the separate `STAT_COLUMNS` (`dupes.py:47-52`) — verified by
+  reading the source. §7's own staleness paragraph a few lines above already
+  states this correctly. Reworded the bullet to match: `RANK_COLUMNS`
+  (`dupes.py:45`) then stat total (`dupes.py:47-52`'s `STAT_COLUMNS`). Grep:
+  `grep -rn "RANK_COLUMNS\|dupes.py:42-51"
+  docs/aggressive-clearout-measurement.md docs/evidence/issue-142/README.md` — the
+  two remaining `dupes.py:42-51` sites (§3's rules-order description and §7's own
+  staleness paragraph) both correctly cite the combined range for a statement that
+  genuinely spans both constants; only the fixed bullet had misattributed it.
+- **P3-3:** The evidence README's per-round provenance preamble (lines 16-30)
+  recorded round 2's and round 3's environment and their additions to the
+  measurement document's §5, but round 4 added two new §5 fences (the `gh api
+  .../git/trees` tree-path query for P3-5, and the `ls -l wishlists/` capture for
+  P3-6) on Linux with no corresponding preamble sentence — the round's one
+  instance of the fixed-at-one-site pattern, and it was in the file the round
+  report described as needing no changes. Added a round-4 paragraph in the same
+  form as the round-2 and round-3 ones, naming both fences and that neither
+  landed in the evidence README itself. Grep: `grep -n "round 4\|Round 4"
+  docs/evidence/issue-142/README.md` — one hit now, the added paragraph; there
+  was none before this session's edit.
+
+Advisory (not a required finding, not acted on): the reviewer noted that round 4's
+P3-6 insertion now sits between the colon ending "...not as a value any command
+printed directly:" (§5) and the table it introduces, two screens later. The claim
+stays true either way, and fixing it would mean editing that subsection outside
+the four findings above, so it was left as-is per the review packet's own
+guidance ("fix only if you are already editing that subsection for P2-1") — this
+session's P2-1 fix touched only §1, not that subsection.
+
+No measurement was affected or re-run this round; all four findings were citation
+and prose-accuracy corrections. `AGENTS.md` was not touched (issue #145 still
+carries that amendment). No PR was opened.
+
+Verification (all run this session, from the repository root, on this branch):
+- `.venv/bin/ruff check src tests scripts` — passed (`All checks passed!`).
+- `.venv/bin/pytest -q` — passed (967 passed).
+- `git diff --check origin/main...HEAD` — printed nothing (no whitespace/line-ending
+  errors).
+- `git status --porcelain` — printed nothing (clean tree after commit).
+- `git ls-files data/` — printed nothing.
+- `git ls-files wishlists/` — printed nothing.
+- The Playwright browser suite is **not applicable** to this round: no UI, JS,
+  CSS, or server file changed — only `docs/aggressive-clearout-measurement.md`,
+  `docs/evidence/issue-142/README.md`, and this WORKLOG entry. It was not run and
+  is not claimed as run or skipped.
+
+Scope: changed only `docs/aggressive-clearout-measurement.md`,
+`docs/evidence/issue-142/README.md`, and this WORKLOG entry — the three paths
+authorized for this ticket. No PR was opened; the branch was pushed for the next
+review round (or for merge authorization, if the orchestrator judges this closing
+pass sufficient).
+
 ## 2026-09-07 — #142 review round 4 corrections (PR 2 continued)
 
 Continues the round 3 entry below; same PR 2, same branch

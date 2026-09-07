@@ -29,6 +29,13 @@ count derivation and widened one Ciceron fence to `-A5`; both landed directly in
 measurement document's §5 rather than here, on the same Linux environment as round 2
 (Python 3.14.4, pandas 3.0.5 — see the measurement document §1).
 
+Round 4's correction session (2026-09-07) added two further fences directly to the
+measurement document's §5, also on Linux: a `gh api .../git/trees` tree-path query
+confirming the exact existence and byte size of Ciceron's
+`dim_aegis_endgame_major-perks.txt` sibling file, and an `ls -l wishlists/` capture
+confirming that the malformed/skipped counts subsection's `vault-cleaner wishlists`
+invocation also served from cache. Neither fence landed here, same as round 3's.
+
 Every file capture below was produced using a single combined stdout+stderr
 redirection (`> "$OUT/file.txt" 2>&1`) into a disposable `mktemp -d` scratch
 directory outside the repository working tree.
