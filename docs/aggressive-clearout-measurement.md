@@ -458,9 +458,9 @@ aegis_trash: 0 keep rolls across 0 items, 286 trash entries across 286 items
 total: 260395 keep rolls, 339 trash entries
 ```
 
-None of the three lines carries a parenthesized suffix. `cli.py:560-565` appends `"{N} malformed lines skipped"` and `"{N} wildcard entries ignored"` clauses to a source's line **only when the corresponding count is non-zero** (`if wl.skipped: ...` / `if wl.wildcards: ...`); a zero count produces no suffix at all, not a printed `0`. The table below therefore states skipped/wildcard counts of zero as an **inference from the absence of that suffix**, cited to the `cli.py:560-565` derivation — not as a value any command printed directly:
+None of the three lines carries a parenthesized suffix. `cli.py:560-565` appends `"{N} malformed lines skipped"` and `"{N} wildcard entries ignored"` clauses to a source's line **only when the corresponding count is non-zero** (`if wl.skipped: ...` / `if wl.wildcards: ...`); a zero count produces no suffix at all, not a printed `0`. The table below therefore states skipped/wildcard counts of zero as an **inference from the absence of that suffix**, cited to the `cli.py:560-565` derivation — not as a value any command printed directly.
 
-This subsection's own `vault-cleaner wishlists` invocation is the plan's one environment-dependent C4 capture (§1's per-capture provenance rule), and it needs its own cache-state record rather than relying on evidence §7's, which was captured a day earlier. This run also served all three sources from cache: the `wishlists/` mtimes checked immediately afterward are unchanged, byte-for-byte, from evidence §7's `Sep 6 14:23` record —
+This subsection's own `vault-cleaner wishlists` invocation is the plan's one environment-dependent C4 capture, run on Linux during round 3's correction session on 2026-09-07 (§1's per-capture provenance rule), and it needs its own cache-state record rather than relying on evidence §7's, which was captured a day earlier. This run also served all three sources from cache: the `wishlists/` mtimes checked immediately afterward are unchanged, byte-for-byte, from evidence §7's `Sep 6 14:23` record —
 
 ```bash
 set -euo pipefail

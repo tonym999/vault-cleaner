@@ -3,6 +3,37 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-07 — #142 review round 6 corrections (PR 2 continued, closing pass)
+
+Continues the round 5 entry below; same PR 2, same branch
+`feat/issue-142-clearout-measurement`. Independent adversarial review round 6
+returned one P2 (carried forward, partially resolved from round 5) and one
+now-actionable advisory. Both are in `docs/aggressive-clearout-measurement.md`.
+
+- **P2:** §1's per-capture provenance rule (line 7) names the C4 `wishlists`
+  capture in §5 as one of its two exemplars, but the C4 subsection itself
+  (lines 441-479) never named a machine — its heading and prose both pointed
+  back at the §1 rule instead of supplying the fact the rule promised, so a
+  reader following the cross-reference hit a circular reference. Took the
+  reviewer's option (ii): named the machine at line 463 rather than
+  weakening the exemplar at line 7 (left untouched). Confirmed from
+  `WORKLOG.md`'s own round 3 entry (below) that this capture ran on Linux
+  during round 3's correction session on 2026-09-07, and stated that inline.
+- **Advisory (now actionable):** line 461's sentence ends "...not as a value
+  any command printed directly:" — a colon that, at the time it was written,
+  introduced the skipped/wildcard table directly below. A paragraph and two
+  fenced blocks (the C4 machine-naming prose and its `ls -l wishlists/`
+  capture) now sit between that colon and the table. The sentence already
+  names "the table below" earlier in its own text, so the trailing colon was
+  redundant and misleading rather than load-bearing; changed it to a period.
+- Grepped all three tracked documents that discuss C4 provenance
+  (`docs/aggressive-clearout-measurement.md`, `WORKLOG.md`,
+  `handoffs/issue-142-implementation-plan.md`) for `C4` and for
+  "environment-dependent" after the edit. No sibling site repeats the old
+  "no machine named" state or contradicts the correction; the plan document
+  only calls C4 "environment-dependent" and never claimed a machine name, so
+  it needed no change.
+
 ## 2026-09-07 — #142 review round 5 corrections (PR 2 continued, closing pass)
 
 Continues the round 4 entry below; same PR 2, same branch
