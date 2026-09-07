@@ -3,6 +3,169 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-07 — #142 review round 4 corrections (PR 2 continued)
+
+Continues the round 3 entry below; same PR 2, same branch
+`feat/issue-142-clearout-measurement`. Independent adversarial review round 4
+(reviewed range
+`9a74192d136242a9820830d4547dd2209db37ca5...68e584fc5436061c08b7cc705147141909e0e7b3`,
+Anthropic `claude-opus-5`, fresh context, read-only, disposable checkout pinned to
+`68e584f`) returned nine accepted findings; this session addressed all nine on the
+same branch. Ran on Linux, Python `3.14.4`, pandas `3.0.5` (re-confirmed this
+session with the same version-check command used in every prior round); the real
+export (`destiny-weapon (12).csv`) remains on the original implementer's Windows
+machine and was unavailable here, same as rounds 2 and 3.
+
+The review packet opened by naming a defect that had recurred three rounds
+running: a finding gets fixed at one site and left standing at a sibling — round
+1's rail slugs (§3 fixed, §2 missed), round 2's wishlist counts (WORKLOG cited,
+report/evidence never updated), round 3's cache-freshness basis (evidence §7
+corrected, report §5 left standing). After every edit this round, the changed
+claim was grepped across both `docs/aggressive-clearout-measurement.md` and
+`docs/evidence/issue-142/README.md` to confirm no sibling occurrence remained
+uncorrected; each grep is recorded below with its finding.
+
+Findings and how each was addressed:
+- **P1-1 (blocking):** Report §5 justified "served from cache" by citing wishlist
+  cache mtimes "unchanged before and after this session's `vault-cleaner
+  wishlists` invocation" plus the absence of a download-failure warning — the
+  exact basis evidence §7 retracted last round (the "before" half was never run;
+  warning-absence alone doesn't distinguish a cache hit from a successful
+  download). Rewrote report §5 to cite evidence §7's actual corrected argument:
+  the mtimes were already hours old (`Sep 6 14:23`) when the command ran, so a
+  fresh download would have left a newer write time. Grep:
+  `grep -rn "unchanged before and after\|served from cache\|download failed"
+  docs/aggressive-clearout-measurement.md docs/evidence/issue-142/README.md
+  WORKLOG.md` — one live site (report §5, now fixed); the two WORKLOG hits are
+  historical entries describing what earlier rounds decided, left as the
+  repository's own convention treats prior entries. No re-measurement needed;
+  the conclusion was already true.
+- **P2-1 (blocking):** Report §7 was missing three of the plan's four required
+  items. Added: (1) the recommendation is explicitly **advisory only** — `AGENTS.md`
+  gates every issue operation behind explicit user authorization, none has been
+  given, and this document does not carry standing permission to edit #34; (2) a
+  "Measured inputs a useful-combination enumeration would need" list, re-citing
+  existing §2/§3 measurements (`Perks N` prefix, `Hash`, `weapons.py:65,74,79`
+  keep counts, `dupes.py:42-51` rank columns) rather than measuring anything new;
+  (3) explicit separation from **both** #31's exact duplicates and wishlist-trash
+  decisions (item 4 previously named only exact duplicates). Grep:
+  `grep -n "Update Issue #34\|advisory" docs/aggressive-clearout-measurement.md`
+  — confirms the advisory statement now appears in §7 and no other site states an
+  unqualified "update #34" imperative (§4, §8, §12 references to #34 are
+  citations to it as a spec source, not instructions to edit it).
+- **P2-2 (blocking):** Report §10's "Input and counting contracts" labelled only
+  negative projections as shortfalls; the plan requires incomplete exports and
+  omitted categories too. Added a bullet stating that an incomplete export or an
+  omitted item category must surface as an explicit shortfall or uncertainty
+  band, cross-referencing §11's own weapons-only real export and its
+  owner-estimated `F ≈ 10` (§14 item 3) as the concrete case already in this
+  document. Grep: `grep -n "shortfall\|omitted categor" 
+  docs/aggressive-clearout-measurement.md` — one contract bullet, no other site
+  makes a competing or narrower claim.
+- **P3-1:** §5 cited `wishlist.py:43-44` for `Wishlist.skipped`/`Wishlist.wildcards`;
+  the actual lines are `wishlist.py:44-45` (`:42` `keep`, `:43` `trash`, `:44`
+  `skipped`, `:45` `wildcards`, verified by reading the source). Fixed the one
+  citation. Grep: `grep -rn "wishlist.py:4[0-9]"
+  docs/aggressive-clearout-measurement.md docs/evidence/issue-142/README.md` —
+  one occurrence, now correct.
+- **P3-2:** §1's per-section environment-to-machine enumeration was wrong in three
+  places (a Linux §4 grep assigned to Windows; a round-2 Linux §5 seam-count fence
+  assigned to neither bullet; two Linux §14 captures assigned to Windows) — the
+  second time this kind of enumeration has been wrong (round 3 also mis-assigned
+  it). Replaced the enumeration with a **per-capture provenance rule**: every
+  fence states its own command and environment-dependent fences say so in their
+  own text, since a shared calendar date does not disambiguate machine. Added a
+  disambiguating clause to the one fence sharing a date across machines (§5's
+  "Measured seam usage" table, dated 2026-09-06 on both the original Windows
+  session and round 2's Linux session). Verified the two other flagged sites
+  (§4's `loadout-protected` grep, §14 item 1's captures) are already
+  self-sufficient without the removed enumeration. Also updated §1's Date line to
+  add this round, which the new environment line now names. Grep:
+  `grep -n "Windows\|Linux" docs/aggressive-clearout-measurement.md` — reviewed
+  every hit; no remaining section-to-machine assignment claim.
+- **P3-3:** §9 claimed the canonical verdict token set is "enforced identically at
+  both untrusted-input boundaries." `server/app.py:221-228` additionally accepts
+  `verdict: null` as an explicit clear path that `review.py`'s manifest validator
+  has no equivalent for — the token *sets* match, the *enforcement* does not.
+  Scoped the sentence to the token set, cited the correct line ranges
+  (`review.py:300-304`, `server/app.py:221-228`, was `review.py:301`/`app.py:225`),
+  and named the server's additional `null` path and why it matters for the
+  approval-only contract (distinguishing "vetoed" from "unset"). Grep:
+  `grep -n "enforced identically\|review.py:301\|app.py:225\b"
+  docs/aggressive-clearout-measurement.md docs/evidence/issue-142/README.md` —
+  one site, now corrected.
+- **P3-4:** Report §11 attributes the retracted 665-line claim to "Round 1"; §14
+  item 8 attributed the same claim to "Round 2" — `WORKLOG.md`'s round-1 PR-2
+  entry (lines 167-169 pre-edit) confirms round 1 is correct. Fixed §14 item 8 to
+  say "Round 1's §11 stated," matching §11. Also added the inline
+  "**Correction (round 3, P1-1):**" annotation to the round-1 WORKLOG bullet
+  itself, per this file's own convention for superseded notes (used elsewhere,
+  e.g. the round-2 P2-1 entry's round-3 correction) — the bullet previously
+  stated the retracted claim with no marker that it had been retracted. Grep:
+  `grep -n "Round 1 additionally claimed\|Round 2's §11\|Round 1's §11"
+  docs/aggressive-clearout-measurement.md` and `grep -n "665 lines" WORKLOG.md` —
+  both report sites now agree on "Round 1"; the WORKLOG bullet is now annotated.
+- **P3-5:** §6 and §5 named Ciceron's sibling filename
+  `dim_aegis_endgame_major-perks.txt` citing "§5's widened fence" (the `-A5`
+  README excerpt) — that excerpt names only the general "Major Perks" concept in
+  prose, never that literal filename. The claim is true (confirmed via a fresh
+  `gh api .../git/trees` tree-path query: the file exists at 177,699 bytes,
+  sibling to `dim_aegis_endgame.txt`) but was uncited for the specific filename.
+  Added a new one-line tree-query fence in §5 and repointed both citing sites
+  (the candidate matrix row and §6's recommendation) to it instead of the README
+  excerpt. Grep: `grep -n "major-perks" docs/aggressive-clearout-measurement.md`
+  — all three sites (matrix row, §6, plus the new fence) now cite the tree-path
+  query for the filename specifically.
+- **P3-6:** The 2026-09-07 "Malformed/skipped counts" subsection's fresh
+  `vault-cleaner wishlists` capture recorded no cache-state of its own, though
+  it is the plan's one environment-dependent C4 capture. Added an `ls -l
+  wishlists/` fence run this session, confirming the cache mtimes and file sizes
+  are byte-identical to evidence §7's `Sep 6 14:23` record one day later —
+  meaning this round's invocation also served from cache, by evidence §7's own
+  argument (a fresh download would leave a newer write time). Grep:
+  `grep -n "2026-09-07" docs/aggressive-clearout-measurement.md
+  docs/evidence/issue-142/README.md` — confirmed no other capture at that
+  subsection needed the same fix.
+
+Two advisory notes accepted (not required findings):
+- Cross-referenced issue #145 (the `AGENTS.md` amendment that would carry the
+  owner's item-name/instance-`Id` authorization decision durably) into §14 item 7,
+  next to the decision it would formalize — previously named only in this
+  WORKLOG. Verified #145's actual title/body via `gh issue view 145` before
+  citing it, rather than guessing its scope from the phrase already in this file.
+- Added §14 item 9 recording that cross-referencing §11's 440 unique real-export
+  hashes against §5's wishlist keep/trash coverage needs the real export CSV,
+  which is unavailable this round — the plan hedges this row with "where
+  obtainable," so its absence was not a defect, but the gap is now stated rather
+  than silent.
+
+What could not be measured this round:
+- §14 item 9 above (real-export hash-to-wishlist-coverage cross-reference) — the
+  real export remains on another machine.
+- Everything rounds 2 and 3 already recorded as `NOT MEASURED` remains so: the
+  original session's exact real-export wishlist-enabled cache state, MrCharles's
+  per-file parsed content, and the real export's multi-copy-hash breakdown and
+  per-source wishlist-trash attribution. The real export and the original
+  manifest cache are still unavailable on this machine.
+
+Verification (all run this session, from the repository root, on this branch):
+- `.venv/bin/ruff check src tests scripts` — passed (`All checks passed!`).
+- `.venv/bin/pytest -q` — passed (967 passed).
+- `git diff --check origin/main...HEAD` — printed nothing (no whitespace/line-ending
+  errors).
+- `git status --porcelain` — printed nothing (clean tree after commit).
+- `git ls-files data/` — printed nothing.
+- `git ls-files wishlists/` — printed nothing.
+- The Playwright browser suite is **not applicable** to this round: no UI, JS,
+  CSS, or server file changed — only `docs/aggressive-clearout-measurement.md`,
+  `docs/evidence/issue-142/README.md`, and this WORKLOG entry. It was not run and
+  is not claimed as run or skipped.
+
+Scope: changed only `docs/aggressive-clearout-measurement.md`,
+`docs/evidence/issue-142/README.md`, and this WORKLOG entry — the three paths
+authorized for this ticket. `AGENTS.md` was not touched (issue #145 carries that
+amendment). No PR was opened; the branch was pushed for the next review round.
+
 ## 2026-09-07 — #142 review round 3 corrections (PR 2 continued)
 
 Continues the 2026-09-06 #142 implementation entry below; same PR 2, same branch
@@ -167,6 +330,13 @@ Independent adversarial review round 1 resolution (12 accepted findings):
 - P2-1: Documented real export identity (`destiny-weapon (12).csv`, 664 true CSV rows
   confirmed by `csv.reader` and `pandas`, 665 lines total without trailing newline,
   `Titan(451)` measured power level at snapshot time).
+  **Correction (round 3, P1-1):** the "665 lines total without trailing newline"
+  half of this claim was never produced by any command in evidence §8 — the export
+  script only calls `.splitlines()` and prints data-row counts, never a line count
+  or newline state — and was internally wrong regardless of citation (a file of 1
+  header + 664 data lines has 665 lines whether or not it ends with a trailing
+  newline). Retracted from report §11 and recorded as `NOT MEASURED` (§14 item 8);
+  the real export is on another machine and unavailable to re-measure it.
 - P2-2: Corrected schema constants to singular `REQUIRED_WEAPON_COLUMNS` (`parse.py:42`)
   and `REQUIRED_GHOST_COLUMNS` (`parse.py:47`), and `ARMOR_STATS` columns to
   `Weapons (Base)`, `Health (Base)`, `Class (Base)`, `Grenade (Base)`, `Super (Base)`,
