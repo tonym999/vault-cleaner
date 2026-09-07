@@ -59,7 +59,7 @@ Findings and how each was addressed:
   omitted item category must surface as an explicit shortfall or uncertainty
   band, cross-referencing §11's own weapons-only real export and its
   owner-estimated `F ≈ 10` (§14 item 3) as the concrete case already in this
-  document. Grep: `grep -n "shortfall\|omitted categor" 
+  document. Grep: `grep -n "shortfall\|omitted categor"
   docs/aggressive-clearout-measurement.md` — one contract bullet, no other site
   makes a competing or narrower claim.
 - **P3-1:** §5 cited `wishlist.py:43-44` for `Wishlist.skipped`/`Wishlist.wildcards`;
