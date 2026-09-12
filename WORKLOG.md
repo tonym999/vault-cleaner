@@ -3,6 +3,30 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-12 — #142 crafted-equivalence qualification (PR 2 continued)
+
+Continues the entry below on the same PR 2 branch. The latest re-review found
+one remaining P2, independently also reported by CodeRabbit: the evidence called
+the corrected crafted derivation's result provably output-neutral even though
+the captured export did not record the exact `Crafted` tokens needed to prove
+that claim.
+
+- Recast `41` solely as the historical result of the captured fence. Its
+  successful `astype(int)` establishes that all captured `Crafted Level` cells
+  were non-empty integer text, but cannot establish that exact
+  `Crafted == "crafted"` selected the same rows as production's normalized,
+  unknown-token-rejecting `is_crafted` helper.
+- Require a re-run against the original export before claiming equivalence; no
+  new measurement or corrected result is claimed here.
+- Annotated the superseded round-6 worklog conclusion in place. Scope remains
+  documentation-only: the evidence README and this worklog.
+
+Verification: `.venv/bin/ruff check src tests scripts` passed;
+`.venv/bin/pytest -q` passed with 953 tests and 14 skipped;
+`git diff --check` clean; `git ls-files data/ wishlists/` empty. The Playwright
+browser suite is not applicable because no UI, JavaScript, CSS, or server file
+changed.
+
 ## 2026-09-12 — #142 PR re-review corrections (PR 2 continued)
 
 Continues the entry below; same PR 2, same branch. The owner's re-review of the
@@ -110,6 +134,14 @@ Decisions made:
 - The crafted correction **is** provably output-neutral: the original would have
   raised on any empty `Crafted Level` and did not, so the measured export had
   none, on which input both expressions agree. The recorded 41 stands.
+  **Correction (round 8, PR re-review):** this conclusion was too strong. The
+  successful integer conversion proves only that every `Crafted Level` cell was
+  non-empty integer text; the capture did not record the exact `Crafted` tokens,
+  and the old exact equality does not have the corrected helper's normalization
+  and unknown-token rejection semantics. The evidence now treats `41` solely as
+  the captured fence's historical result and requires a re-run against the
+  original export before claiming that the corrected procedure produces the same
+  count.
 - The `C` correction is **not** provably output-neutral. `C = 100` and the
   `Dv + Dc >= 190` projection assume no vault-owned equipped row exists. That
   assumption is now stated at §11, at the projection, and as §14 item 10 —

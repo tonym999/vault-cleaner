@@ -746,10 +746,16 @@ def _crafted_hard(row):
 crafted_prot = df.apply(_crafted_hard, axis=1)
 ```
 
-**Provably output-neutral against the captured run:** the captured expression
-would have raised on any empty `Crafted Level`, and it did not raise, so the
-measured export had none — the input on which both agree. The recorded `41`
-stands.
+**Historical result, not a validated equivalent:** the captured expression
+would have raised on any empty or non-integer `Crafted Level`, and it did not
+raise, so every level in that export was non-empty integer text. That does not
+prove the old and corrected masks are identical: the capture did not record the
+exact `Crafted` tokens, while `is_crafted` strips and case-folds supported tokens
+and rejects unknown non-empty ones where the captured expression used exact
+`== "crafted"`. The recorded `41` remains the historical result of the captured
+fence only. Establishing whether the corrected procedure produces the same count
+requires re-running it against the original export; no such result is claimed
+here.
 
 **3. Count `C` directly, and surface inconsistent rows.** The captured
 `total_char - eq_count` subtracts *every* equipped row from the character rows,
