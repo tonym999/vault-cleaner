@@ -2,11 +2,14 @@
 
 Verbatim command transcripts and raw outputs backing the measurements in
 [docs/aggressive-clearout-measurement.md](../../aggressive-clearout-measurement.md),
-with two exceptions noted individually below: the two real-export `report` captures
-in §8 have had instance `Id`s redacted post-capture under an explicit owner privacy
+with the exceptions noted individually below. Two real-export `report` captures in
+§8 have had instance `Id`s redacted post-capture under an explicit owner privacy
 decision, so they are not byte-verbatim against the original command's actual
 output (see the note directly above each one, and §14 item 7 in the measurement
-document).
+document). §8's "Corrected derivation procedure" subsection is not a transcript at
+all: it is a specified-but-unexecuted correction, carrying no claimed output, and
+is described in the round 7 note below. Every other block in this file is a command
+and the output that command produced.
 
 Sections 1–6 and 8 were run on Windows within Git Bash (`bash 5.2.26`) on Python
 3.13.14 with pandas 3.0.5, using `export PYTHONUTF8=1` to enforce UTF-8 streams and
@@ -35,6 +38,15 @@ confirming the exact existence and byte size of Ciceron's
 `dim_aegis_endgame_major-perks.txt` sibling file, and an `ls -l wishlists/` capture
 confirming that the malformed/skipped counts subsection's `vault-cleaner wishlists`
 invocation also served from cache. Neither fence landed here, same as round 3's.
+
+Round 7's correction session (2026-09-12, Linux) added §8's "Corrected derivation
+procedure" subsection. That subsection is the one block in this file that is
+**not** a command/output pair: three derivations in §8's captured fence are
+defective, the export is on another machine, and rewriting the captured fence so
+it no longer matched the output beneath it would have broken this file's own
+contract. The captured fence and its output are therefore left exactly as
+recorded, and the corrections are stated separately as a procedure carrying no
+claimed output. No figure in this document is derived from it.
 
 Every file capture below was produced using a single combined stdout+stderr
 redirection (`> "$OUT/file.txt" 2>&1`) into a disposable `mktemp -d` scratch
@@ -543,7 +555,6 @@ EXPORT="${EXPORT:-C:/Users/raver/Downloads/destiny-weapon (12).csv}"
 
 .venv/bin/python - "$EXPORT" <<'PY' > "$OUT/real_export_summary.txt" 2>&1
 import hashlib
-import os
 import pandas as pd
 import csv
 import sys
@@ -559,7 +570,7 @@ data_rows = csv_rows[1:]
 df = pd.read_csv(path, dtype=str, keep_default_na=False)
 
 print("=== 1. Export identity & integrity ===")
-print(f"Export file: {os.path.basename(path)}")
+print("Export file: destiny-weapon (12).csv")
 print(f"File size: {len(content)} bytes")
 print(f"SHA-256: {sha256}")
 print(f"Header columns: {len(header)}")
@@ -576,24 +587,11 @@ total_char = sum(v for k, v in owner_counts.items() if k != "Vault")
 print(f"Total on characters: {total_char}")
 eq_count = (df["Equipped"] == "true").sum()
 print(f"Equipped (true): {eq_count}")
-on_character = df["Owner"] != "Vault"
-equipped = df["Equipped"] == "true"
-c_rows = (on_character & ~equipped).sum()
-print(f"Unequipped on characters (C, counted directly): {c_rows}")
-print(f"Inconsistent rows (Owner == 'Vault' and Equipped == 'true'): {(~on_character & equipped).sum()}")
+print(f"Unequipped on characters (C = total_char - equipped): {total_char - eq_count}")
 
 tag_prot = df["Tag"].isin(["favorite", "keep", "archive"])
 eq_prot = df["Equipped"] == "true"
-from vault_cleaner.parse import is_crafted, parse_crafted_level
-
-def _crafted_hard(row):
-    crafted = is_crafted(row.get("Crafted", ""))
-    if not crafted:
-        return False
-    level = parse_crafted_level(row.get("Crafted Level", ""), crafted)
-    return level is None or level >= 10   # empty level is unknown -> hard-protected
-
-crafted_prot = df.apply(_crafted_hard, axis=1)
+crafted_prot = (df["Crafted"] == "crafted") & ((df["Crafted Level"] == "") | (df["Crafted Level"].astype(int) >= 10))
 loadout_prot = df["Loadouts"].str.strip().ne("")
 
 exotic = df["Rarity"] == "Exotic"
@@ -636,7 +634,7 @@ print(f"  - Unprotected on characters (unequipped): {(unprot_prop & on_char_uneq
 
 print("\n=== 5. Capacity model calculation ===")
 f_est = 10
-c_val = c_rows
+c_val = total_char - eq_count
 print(f"Estimated baseline free vault spaces (F): {f_est}")
 print(f"Unequipped character items to clear (C): {c_val}")
 print(f"Net vault capacity before removals (F - C): {f_est - c_val} (shortfall of {abs(f_est - c_val)} spaces)")
@@ -648,44 +646,7 @@ PY
 cat "$OUT/real_export_summary.txt"
 ```
 
-> **This fence was corrected after capture (review round 7) and has not been
-> re-executed.** The export is on another machine and unavailable to this
-> session, so the output below is what the **pre-correction** fence printed on
-> 2026-09-06. Three derivations were corrected; the block below is therefore not
-> a byte-for-byte transcript of the fence as it now reads. Each correction and
-> its effect on the recorded figures:
->
-> 1. **Export label.** `print("Export file: destiny-weapon (12).csv")` was a
->    hardcoded string while the fence accepts an arbitrary `$EXPORT`, so
->    measuring any other file would still have printed the authorized export's
->    name. Now `os.path.basename(path)`. **Output-identical** for the authorized
->    export, which is the file that produced the block below.
-> 2. **Crafted protection.** The original
->    `(df["Crafted"] == "crafted") & ((df["Crafted Level"] == "") | (df["Crafted Level"].astype(int) >= 10))`
->    hand-reimplemented a hard rail and diverged from it twice: pandas evaluates
->    `astype(int)` over the whole column before the `|` short-circuits, so any
->    empty `Crafted Level` raises `ValueError` instead of being hard-protected;
->    and raw `== "crafted"` treats an unknown non-empty crafted token as
->    ordinary, where `AGENTS.md` requires schema validation to fail. Now routed
->    through `is_crafted` / `parse_crafted_level`, the same helpers
->    `rails.protection` uses. **Provably output-neutral here:** the original
->    would have raised on any empty `Crafted Level`, and it did not raise, so the
->    measured export had none — on which input the two expressions agree. The
->    recorded `41` stands.
-> 3. **Unequipped character count (`C`).** The original `total_char - eq_count`
->    subtracted *every* equipped row from the character rows, which undercounts
->    `C` if any row carries `Owner == "Vault"` with `Equipped == "true"`. Now
->    counted directly with a row-level predicate, plus a line reporting any such
->    inconsistent rows. **Not provably output-neutral:** the two agree only if no
->    vault-equipped row exists, which cannot be checked without the export. The
->    recorded `C = 100` — and the `190` removal projection that depends on it —
->    therefore rests on an assumption that is now stated rather than hidden. See
->    §14 item 10 of the measurement document.
->
-> The pre-correction output is retained verbatim rather than regenerated: it is
-> the record of what actually produced the figures §11 quotes.
-
-Output (pre-correction fence, 2026-09-06):
+Output:
 
 ```text
 === 1. Export identity & integrity ===
@@ -736,6 +697,81 @@ Unequipped character items to clear (C): 100
 Net vault capacity before removals (F - C): -90 (shortfall of 90 spaces)
 Required total unique removals (Dv + Dc >= target_free - F + C): 190
 ```
+
+### Corrected derivation procedure (round 7 — specified, not executed)
+
+Three derivations in the captured fence above are defective. The fence and its
+output are left exactly as captured, because that pair is the record of what
+produced the figures §11 quotes. The corrections below are stated as a procedure
+and carry **no claimed output**: the export is on another machine, so this
+version has never been executed and no figure in this document comes from it.
+When the export is available again, running this and diffing against the capture
+above is the check.
+
+**1. Label the export from the supplied path.** The captured fence hardcodes the
+name while accepting an arbitrary `$EXPORT`, so measuring any other file would
+still print the authorized export's name.
+
+```python
+import os
+print(f"Export file: {os.path.basename(path)}")
+```
+
+Output-identical for the authorized export, which is the file that produced the
+capture above.
+
+**2. Derive crafted protection through the production helpers.** The captured
+expression
+`(df["Crafted"] == "crafted") & ((df["Crafted Level"] == "") | (df["Crafted Level"].astype(int) >= 10))`
+hand-reimplements a hard rail and diverges from it twice: pandas evaluates
+`astype(int)` over the whole column before the `|` short-circuits, so an empty
+`Crafted Level` raises `ValueError` instead of being hard-protected; and raw
+`== "crafted"` reads an unknown non-empty crafted token as ordinary, where
+`AGENTS.md` requires schema validation to fail.
+
+```python
+from vault_cleaner.parse import is_crafted, parse_crafted_level
+
+def _crafted_hard(row):
+    # Validate unconditionally, exactly as _validate_weapons
+    # (parse.py:176-181) and rails.protection (rails.py:39-41) do: a malformed
+    # Crafted Level must fail schema validation even on a non-crafted row,
+    # rather than silently reading as unprotected.
+    crafted = is_crafted(row.get("Crafted", ""))
+    level = parse_crafted_level(row.get("Crafted Level", ""), crafted)
+    if not crafted:
+        return False
+    return level is None or level >= 10  # empty level on a crafted row is unknown -> hard-protected
+
+crafted_prot = df.apply(_crafted_hard, axis=1)
+```
+
+**Provably output-neutral against the captured run:** the captured expression
+would have raised on any empty `Crafted Level`, and it did not raise, so the
+measured export had none — the input on which both agree. The recorded `41`
+stands.
+
+**3. Count `C` directly, and surface inconsistent rows.** The captured
+`total_char - eq_count` subtracts *every* equipped row from the character rows,
+which undercounts `C` if any row carries `Owner == "Vault"` with
+`Equipped == "true"`.
+
+```python
+on_character = df["Owner"] != "Vault"
+equipped = df["Equipped"] == "true"
+c_rows = (on_character & ~equipped).sum()
+print(f"Unequipped on characters (C, counted directly): {c_rows}")
+print(f"Inconsistent rows (Owner == 'Vault' and Equipped == 'true'): {(~on_character & equipped).sum()}")
+c_val = c_rows
+```
+
+**Not provably output-neutral:** the two agree only if no vault-equipped row
+exists, which cannot be checked without the export. The recorded `C = 100`, and
+the `190` removal projection that depends on it, therefore rest on an assumption
+that is now stated rather than hidden — see §14 item 10 of the measurement
+document.
+
+---
 
 ### Dry-run pipeline yield on real export
 

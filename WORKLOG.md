@@ -3,6 +3,59 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-12 — #142 PR re-review corrections (PR 2 continued)
+
+Continues the entry below; same PR 2, same branch. The owner's re-review of the
+correction commit confirmed the eight original findings addressed and raised two
+new P2s, both accepted and both verified against source first.
+
+- **Crafted validation was still divergent, in a new way.** The round-6 fix
+  routed crafted protection through `is_crafted` / `parse_crafted_level` but
+  returned early for non-crafted rows, so the level was never validated on them.
+  Production calls `parse_crafted_level` *unconditionally* — `_validate_weapons`
+  (`parse.py:176-181`) and `rails.protection` (`rails.py:39-41`) both pass
+  `crafted` as a flag, not as a gate — so `Crafted=false, Crafted Level=abc`
+  raises `SchemaError` in production and silently returned "unprotected" in the
+  corrected helper. Demonstrated, then fixed by computing `level` before the
+  early return. Using the right helpers is not sufficient if the control flow
+  around them differs.
+- **The corrected fence could not produce its own output.** Round 6 applied the
+  corrections inside the captured fence and added a note explaining the
+  mismatch. The note was honest but did not repair the breach: this file's
+  contract is that its fences are verbatim command/output pairs, and the
+  corrected fence changed the `C` label and added a line, so it provably could
+  not emit the block beneath it. Resolved as the reviewer proposed — the
+  captured fence is restored to exactly what ran, with its historical output,
+  and the corrections now live in a separate "Corrected derivation procedure"
+  subsection carrying **no claimed output**.
+
+Decisions made:
+
+- No figure in the document is derived from the corrected procedure. `41` and
+  `C = 100` remain attributed solely to the captured fence; the corrected form
+  is specified for a future run against the export and nothing more.
+- The evidence preamble now states the contract exception explicitly, alongside
+  the existing redaction exception, rather than leaving one block silently
+  unlike every other.
+- The round-6 decision this supersedes is annotated in place below, per this
+  file's convention for corrected notes.
+
+Surprises for the next agent:
+
+- Fixing a derivation by adopting production helpers can reintroduce the same
+  class of defect through control flow. The check that catches it is not "does
+  this call the right function" but "does this call it on the same rows, in the
+  same order, as production does".
+- When a capture cannot be re-run, correcting it in place is the wrong move
+  regardless of how well the change is documented. Keep the capture, state the
+  correction separately, claim no output for it.
+
+Verification: `.venv/bin/ruff check src tests scripts` passed;
+`.venv/bin/pytest -q` 967 passed; `git diff --check origin/main...HEAD` clean;
+`git status --porcelain` empty; `git ls-files data/` and `git ls-files
+wishlists/` both empty. The Playwright browser suite is not applicable — no UI,
+JS, CSS or server file changed.
+
 ## 2026-09-12 — #142 PR review corrections (PR 2 continued)
 
 Continues the round 6 entry below; same PR 2, same branch
@@ -47,6 +100,13 @@ Decisions made:
   reintroduce exactly the round-1 defect this review chain existed to remove, so
   the fence carries an explicit correction note stating what changed, which
   corrections are provably output-neutral, and which are not.
+  **Correction (round 7, PR-review P2):** the corrections were applied *inside*
+  the captured fence, which left a command that provably could not produce the
+  output beneath it — an honest note does not repair that, and the evidence
+  file's own contract says its fences are verbatim command/output pairs. The
+  captured fence has since been restored to exactly what ran, and the
+  corrections moved into a separate "Corrected derivation procedure" subsection
+  carrying no claimed output. See the 2026-09-12 entry above.
 - The crafted correction **is** provably output-neutral: the original would have
   raised on any empty `Crafted Level` and did not, so the measured export had
   none, on which input both expressions agree. The recorded 41 stands.
