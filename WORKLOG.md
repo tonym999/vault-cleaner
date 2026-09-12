@@ -37,8 +37,9 @@ Surprises for the next agent:
 
 Verification: `.venv/bin/ruff check src tests scripts` passed;
 `.venv/bin/pytest -q` passed with 967 passed; `git diff --check` clean;
-`git ls-files data/` empty. Playwright browser suite is not applicable as no
-UI, JavaScript, CSS, or server file changed.
+`git ls-files data/` empty. Playwright browser suite was not run locally
+(no UI, JavaScript, CSS, or server files changed) and passed in GitHub
+Actions CI (`browser` job).
 
 ## 2026-09-12 — #142 crafted-equivalence qualification (PR 2 continued)
 

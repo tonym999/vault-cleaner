@@ -161,9 +161,9 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   synthetic.
 - Measurement evidence lives in `docs/evidence/issue-N/README.md`: verbatim
   command transcripts backing a report's claims, plain text only, each fence
-  reproducible on its own. Real-export evidence follows the hard rule above —
-  aggregates and item names yes, rows, instance ids and `Notes` no. A capture
-  edited to redact a barred field is no longer verbatim; say so above it.
+  reproducible on its own. Real-export evidence follows the hard rule above.
+  A capture edited to redact a barred field is no longer verbatim; say so
+  above it.
 - Rule thresholds live in `config.toml`, not in code.
 - Add every new rule-consumed config key to `report_run._decision_config` so
   snapshots and fingerprints cover it. The recursive DEFAULTS coverage test
