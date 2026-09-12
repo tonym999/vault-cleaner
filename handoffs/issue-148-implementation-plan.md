@@ -4,193 +4,92 @@
 
 **Repository:** `tonym999/vault-cleaner`
 
-**Issue:** `#148 — Child 2a: hard weapon loadout protection rail and Loadouts schema enforcement`
+**Issue:** `#148 — Child 2a: make weapon loadout membership clear in review, and require the Loadouts column`
 
 **Milestone:** none — deliberate. [#140](https://github.com/tonym999/vault-cleaner/issues/140)'s tracking section records that no existing milestone covers this initiative and that a one-off milestone must not be created without a planning decision.
 
 **Implementation topology:** `planner → orchestrator → implementer → orchestrator-managed review (standard or independent adversarial) → PR`
 
-**Implementation model selected:** `claude-sonnet-5` with native effort `xhigh` (justified below)
+**Implementation model selected:** `claude-sonnet-5` with native effort `high` (justified below)
 
 **Plan baseline:** `main` at `381e8de938f3cd63b20db029376514ab3ac2a998` (2026-09-12)
 
-**Allocated implementation branch:** `feat/issue-148-weapon-loadout-rail`
+**Allocated implementation branch:** `feat/issue-148-loadout-visibility`
 
 The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
 
 This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
 
+> **Premise reversal, 2026-09-12.** This plan originally specified a HARD rail suppressing every weapon in a saved DIM loadout, per [docs/aggressive-clearout-measurement.md](../docs/aggressive-clearout-measurement.md) §8 item 4. The owner reversed that decision during planning: **a weapon in a loadout may be recommended**; the requirement is that membership is *clear*. §8 item 4 is superseded. The superseded analysis is preserved at the end of this document so the next agent does not re-derive it.
+
 ## Objective
 
-Give weapons the hard safety rail that armor and ghosts already have in some form: a weapon referenced by a saved DIM loadout is never proposed for removal, and a weapons export that does not carry the `Loadouts` header fails to load instead of silently protecting nothing.
+Two things, neither of which changes a single decision:
 
-DIM loadouts pin *instance ids*. Removing a loadout member breaks the owner's saved loadout, which is why [PLAN.md:49](../PLAN.md) already spells out that reasoning for armor. The weapon passes never implemented the equivalent. On the owner-authorized real export measured under [#142](https://github.com/tonym999/vault-cleaner/issues/142), the rail moves **113 weapons** from unprotected/soft-protected to hard-protected — the largest single safety improvement identified in that measurement, and the reason Child 2a is scheduled first.
-
-The requirements source of truth is [docs/aggressive-clearout-measurement.md](../docs/aggressive-clearout-measurement.md): §2 (schema and protection-dimension comparison), §3 (rail precedence), §8 item 4 (the settled owner decision that `Loadouts != ''` is a HARD rail), §11 (real-export aggregates), §12 (child map row 2a), §13 question 1 (schema enforcement, recommendation accepted).
+1. **Tell the truth loudly.** `Loadouts` is not in the weapons required schema, and the one place that reads it for weapons uses `.get("Loadouts", "")`. An export missing the header therefore loads cleanly and renders *every* weapon as not-in-a-loadout. That is the actual defect.
+2. **Put the fact where the decision is made.** The in-loadout flag already exists end to end, but it renders only inside a per-item detail row you must expand, as one comma-joined entry in a `flags` line. Promote it to a row badge and a filter facet, and hand the owner DIM's own cross-check queries as copyable text.
 
 ## Context & Measurement
 
-All references below were measured on the plan baseline.
+All references measured on the plan baseline.
 
-### There is no weapon loadout rail today
+### The flag is already plumbed end to end
 
-```bash
-grep -rn "loadout-protected" src/ tests/     # no output
-```
+| Stage | Location | State |
+|---|---|---|
+| Field | [report_run.py:101](../src/vault_cleaner/report_run.py#L101) | `in_loadout: bool` on `ReportDecision` |
+| Populate | [report_run.py:317](../src/vault_cleaner/report_run.py#L317) | `bool(str(row.get("Loadouts", "")).strip())` |
+| Snapshot | [report_run.py:422](../src/vault_cleaner/report_run.py#L422) | `[asdict(decision) for decision in section.decisions]` — carried automatically |
+| Read | [review_ui.js:111](../src/vault_cleaner/ui/review_ui.js#L111) | `inLoadout: decision.in_loadout === true` |
+| Render | [review_ui.js:874](../src/vault_cleaner/ui/review_ui.js#L874) | `item.inLoadout ? "in a loadout" : null`, joined into the detail row's `flags` line |
 
-[`rails.protection`](../src/vault_cleaner/rules/rails.py#L30-L56) evaluates, in strict order: `Tag in HARD_PROTECT_TAGS` → `Equipped` → `crafted-lvunknown` → `crafted-lv{level}` → `exotic` (SOFT) → `locked` (SOFT) → `(None, "")`. It never reads `Loadouts`.
+So no new field, no snapshot schema change, and no `SNAPSHOT_SCHEMA_VERSION` bump. The work is presentation plus one schema constant.
 
-`Loadouts` is read in exactly three places in `src/`:
+### The schema gap
 
-| Location | Purpose |
+[parse.py:42-44](../src/vault_cleaner/parse.py#L42-L44) omits `Loadouts`, while [`REQUIRED_GHOST_COLUMNS`](../src/vault_cleaner/parse.py#L47) and [`REQUIRED_ARMOR_COLUMNS`](../src/vault_cleaner/parse.py#L71-L76) both require it. Weapons are the outlier. Both weapon entry points — [`load_weapons`](../src/vault_cleaner/parse.py#L192-L203) and [`load_weapons_bytes`](../src/vault_cleaner/parse.py#L206-L215), the latter being the review server's upload path — share the frozenset, so one edit covers both.
+
+### The UI surface is two modules, one page
+
+[review_server.html:76-77](../src/vault_cleaner/ui/review_server.html#L76-L77) loads both scripts; [review_ui.js:1-12](../src/vault_cleaner/ui/review_ui.js#L1-L12) is the shared pure-presentation module and [review_server.js:1-12](../src/vault_cleaner/ui/review_server.js#L1-L12) the server shell that consumes it. This is one surface split by responsibility, not two surfaces to keep in sync.
+
+Filter facets are an established pattern, and the new one slots into it exactly:
+
+| Concern | Location |
 |---|---|
-| [ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36) | ghost protection reason `loadout` |
-| [armor_dupes.py:99-100](../src/vault_cleaner/rules/armor_dupes.py#L99-L100) | `in_loadout`, used for survivor ranking ([armor_dupes.py:103-112](../src/vault_cleaner/rules/armor_dupes.py#L103-L112)) and the complete-exotic-class-item carve-out ([armor_dupes.py:194-213](../src/vault_cleaner/rules/armor_dupes.py#L194-L213)) |
-| [report_run.py:317](../src/vault_cleaner/report_run.py#L317) | `ReportDecision.in_loadout`, presentation only |
+| Predicate | [review_ui.js:201-217](../src/vault_cleaner/ui/review_ui.js#L201-L217) (`filterItems`) |
+| Helper precedent | [review_ui.js:194-199](../src/vault_cleaner/ui/review_ui.js#L194-L199) (`matchesProtection`) |
+| Query defaults | [review_server.js:76-77](../src/vault_cleaner/ui/review_server.js#L76-L77) |
+| Facet enumeration | [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324) |
+| Control construction | [review_server.js:1011-1018](../src/vault_cleaner/ui/review_server.js#L1011-L1018) |
 
-### Both weapon seams call the shared rail
+There is **no** clipboard helper anywhere in `src/vault_cleaner/ui/` (`grep -rn "clipboard\|execCommand" src/vault_cleaner/ui/*.js` returns nothing), so copy support is new code — see the decision under *Static DIM query panel*.
 
-- [weapons.py:82](../src/vault_cleaner/rules/weapons.py#L82) — the wishlist-trash pass. `HARD` → `continue` (no decision at all); `SOFT` → `#vc-review: wishlist-trash {kind} ({reason})`.
-- [dupes.py:243](../src/vault_cleaner/rules/dupes.py#L243) — the exact-dupe pass, over `keyed[1:]` (losers only; the survivor is never visited). `HARD` → `continue`; `SOFT` → `#vc-review: {rel} ({reason})`.
+### DIM's filters, verified from source
 
-Both weapon entry points reach these: [pipeline.py:141](../src/vault_cleaner/pipeline.py#L141) calls `dupes.resolve` directly on the no-wishlists path, and [pipeline.py:151](../src/vault_cleaner/pipeline.py#L151) calls `weapons_rules.run` (which itself calls `dupes.resolve` at [weapons.py:107](../src/vault_cleaner/rules/weapons.py#L107)) on the wishlist path. Changing only one of `weapons.py` / `dupes.py` leaves the dominant path unprotected. This is the `AGENTS.md` sibling-path rule in its most literal form.
+Not from the wiki, which fails to render. From [loadouts.ts](https://github.com/DestinyItemManager/DIM/blob/master/src/app/search/items/search-filters/loadouts.ts), [item-infos.ts](https://github.com/DestinyItemManager/DIM/blob/master/src/app/search/items/search-filters/item-infos.ts) and [freeform.ts](https://github.com/DestinyItemManager/DIM/blob/master/src/app/search/items/search-filters/freeform.ts):
 
-### `rails.protection` is shared with armor
-
-```bash
-grep -rn "rails.protection" src/
-```
-
-Eight call sites, listed here by path and line:
-
-| Call site | Kind |
-|---|---|
-| [armor.py:155](../src/vault_cleaner/rules/armor.py#L155) | armor |
-| [armor_close.py:138](../src/vault_cleaner/rules/armor_close.py#L138) | armor |
-| [armor_close.py:302](../src/vault_cleaner/rules/armor_close.py#L302) | armor |
-| [armor_dupes.py:107](../src/vault_cleaner/rules/armor_dupes.py#L107) | armor |
-| [armor_dupes.py:204](../src/vault_cleaner/rules/armor_dupes.py#L204) | armor |
-| [weapons.py:82](../src/vault_cleaner/rules/weapons.py#L82) | weapons |
-| [dupes.py:243](../src/vault_cleaner/rules/dupes.py#L243) | weapons |
-| [report_run.py:295](../src/vault_cleaner/report_run.py#L295) | all kinds, projection only |
-
-Five of the eight call sites are armor. **Adding the loadout check inside `protection` itself would change armor decisions**, which is out of scope and would regress the deliberate armor design in which loadout membership is a survivor-ranking input and a review-only rail, not a hard rail.
-
-### Schema state
-
-[parse.py:42-44](../src/vault_cleaner/parse.py#L42-L44):
-
-```python
-REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {
-    "Type", "Ammo", "Crafted", "Crafted Level", "Perks 0",
-}
-```
-
-`Loadouts` is absent, while [`REQUIRED_GHOST_COLUMNS`](../src/vault_cleaner/parse.py#L47) and [`REQUIRED_ARMOR_COLUMNS`](../src/vault_cleaner/parse.py#L71-L76) both require it. Both weapon entry points — [`load_weapons`](../src/vault_cleaner/parse.py#L192-L203) and [`load_weapons_bytes`](../src/vault_cleaner/parse.py#L206-L215), the latter being the review server's upload path — share the same frozenset, so one edit covers both.
-
-### Fixture state
-
-All four committed weapon fixtures carry a `Loadouts` header, and **every one of their 36 rows has an empty `Loadouts` cell** (measured in §2 of the design document). No existing test exercises weapon loadout membership:
-
-```bash
-for f in tests/fixtures/weapons*.csv; do echo -n "$f: "; head -1 "$f" | tr ',' '\n' | grep -c '^Loadouts$'; done
-```
-
-```text
-tests/fixtures/weapons.csv: 1
-tests/fixtures/weapons_dupes.csv: 1
-tests/fixtures/weapons_hostile.csv: 1
-tests/fixtures/weapons_slammer_like.csv: 1
-```
-
-`tests/fixtures/weapons_dupes.csv` has 74 columns and 18 rows over hashes `500` (×5), `600` (×2), `700`, `800` (×4), `900` (×2), `950` (×2), `960` (×2).
+- `is:inloadout` / `not:inloadout` — boolean membership.
+- `inloadout:>=2` — range over how many loadouts contain the item.
+- `inloadout:"raid"` — substring match on loadout name; a `#tag` value also matches hashtags in the loadout's notes.
+- `is:indimloadout` / `is:iningameloadout` — DIM versus in-game loadouts.
+- `tag:junk` — `format: 'query'`, suggestions drawn from `itemTagSelectorList`.
+- `notes:` — freeform substring over item notes, with autocomplete fed by known notes-hashtags, so vault-cleaner's `#vc-` markers already appear there.
 
 ### Real-export aggregates (design document §11)
 
-| Rule world | Hard-protected | Soft-protected | Completely unprotected |
-|---|---|---|---|
-| Current rules | 56 | 323 | 285 |
-| With the hard loadout rail | 169 (136 in loadouts) | 223 | 272 |
-
-113 weapons are protected that are not protected today.
-
-### Versioning surfaces
-
-- [`RULESET_VERSION = 4`](../src/vault_cleaner/report_run.py#L44) is baked into [`compute_fingerprint`](../src/vault_cleaner/report_run.py#L241-L257) and into [`snapshot_dict`](../src/vault_cleaner/report_run.py#L415-L468). This change alters decision semantics, so `AGENTS.md` requires the bump; the bump correctly invalidates every persisted review manifest.
-- `SNAPSHOT_SCHEMA_VERSION` stays at `2`. No snapshot field is added or removed.
-- The golden [tests/fixtures/report_snapshot_v2.json](../tests/fixtures/report_snapshot_v2.json) is built from `weapons_dupes.csv` + `armor.csv` + `ghosts_cleanup.csv` ([scripts/regenerate_report_snapshot.py:36-38](../scripts/regenerate_report_snapshot.py#L36-L38)). Because the loadout fixture is **new** rather than an edit to `weapons_dupes.csv`, the golden's only changes must be `ruleset_version` and `fingerprint`.
+136 weapons in loadouts, 113 of them otherwise unprotected. Those 113 are exactly the proposals this ticket makes legible rather than suppresses.
 
 ## Dependencies and assumptions
 
-1. **#142 is closed and merged.** Its design document is on `main` at the baseline SHA. No open blocker.
-2. **No staleness found.** Every line reference in issue #148 was re-measured against the baseline and matches.
-3. **#145 (open, in progress at planning time)** governs owner-authorized real-export measurement in committed docs. This ticket does **not** depend on it: all committed evidence here is fake-fixture evidence. If #145 has landed by dispatch, an aggregate-only confirmation that the rail hard-protects the measured 136 loadout weapons is a welcome addition to the implementer's report, but it is optional, must be run outside the working tree, and must never commit real rows, `Hash` values, or instance `Id`s. If #145 has not landed, skip it silently — do not ask for an export.
-4. **No armor or ghost behaviour changes.** The armor exact pass's loadout handling and the ghost `loadout` protection reason are deliberate and stay exactly as they are.
-5. **Unconditional rail, no config key.** The rail is not gated behind a policy flag or a `config.toml` key. Rationale: (a) it can only ever protect *more* items, so it is safe in the default maintenance policy; (b) the design document's §12 makes Child 2a an early deliverable that Child 5 (policy selection) depends on, not the reverse; (c) it is a rail, not a threshold, so `AGENTS.md`'s "thresholds live in `config.toml`" rule does not apply; (d) adding no config key means `report_run._decision_config` needs no new projection and its recursive DEFAULTS coverage test is unaffected.
-6. **Weapons are deliberately stricter than armor here.** Design document §8 item 4 settles `Loadouts != ''` as HARD for weapons, while the armor exact pass treats a loadout-referenced loser as review-only. That divergence is an owner decision, not an inconsistency to "fix".
-7. **No emitter-contract change.** A hard rail emits no `Decision` and therefore no `Notes` clause. `AGENTS.md`'s generated-clause / `note_history` recognizer requirement is not triggered. If the implementer finds itself writing a new `#vc-` clause, a stop condition has been hit.
-8. **No UI change.** `ReportDecision.in_loadout` is already surfaced. The new reason string `loadout-protected` can never reach a rendered decision, because hard-protected rows produce no decision.
+1. **#142 is closed and merged**; its §8 item 4 is superseded by the owner reversal recorded above. The implementer must not restore a rail on the strength of that section.
+2. **No staleness otherwise.** Every reference above was re-measured against the baseline.
+3. **#145 (open)** governs owner-authorized real-export measurement in committed docs. Not a blocker: all evidence here is fake-fixture evidence. Do not request an export.
+4. **Boolean only.** Loadout *names* are deliberately excluded. The real export's `Loadouts` cell format is unmeasured and the fixtures disagree — `PvE Build` and `Raid` in `armor_dupes.csv`, `Raid Titan` in `armor_same_stat_four_ui.csv`, but `00001:PvP Build` in `ghosts_cleanup.csv`. `AGENTS.md` requires measuring the real export before designing a rule, so name parsing waits for a measured format.
+5. **No generated queries.** Per-selection `id:` generation belongs to [#117](https://github.com/tonym999/vault-cleaner/issues/117), and #140 forbids repurposing it for weapons. Static strings only.
+6. **Decisions must not move.** This ticket changes no rule. Every committed fixture's decisions, notes, tags and golden bytes stay identical, and `RULESET_VERSION` stays `4`.
 
 ## Proposed Plan & Scope
-
-### Rails
-
-#### [MODIFY] [rails.py](../src/vault_cleaner/rules/rails.py#L30-L56)
-
-Add a weapons-only wrapper beside `protection`. Do **not** modify `protection` itself.
-
-```python
-def weapon_protection(row, crafted_level_protect: int) -> tuple[str | None, str]:
-    """Weapon rails: the shared rails plus the saved-loadout hard rail.
-
-    DIM loadouts pin instance ids, so proposing a loadout member for removal
-    breaks the owner's saved loadout (PLAN.md rule 1). Weapons-only on
-    purpose: the armor exact pass deliberately treats loadout membership as
-    a ranking input and a review rail, not a hard one.
-    """
-    level, reason = protection(row, crafted_level_protect)
-    if level == HARD:
-        return level, reason
-    if str(row["Loadouts"]).strip():
-        return HARD, "loadout-protected"
-    return level, reason
-```
-
-Required properties, each of which has a named test below:
-
-- Existing `HARD` reasons are returned unchanged, so no existing decision or note changes.
-- A `SOFT` row (`exotic`, `locked`) in a loadout is promoted to `HARD`, not left soft.
-- An unprotected row in a loadout becomes `HARD, "loadout-protected"`.
-- Whitespace-only `Loadouts` (`"   "`) is *not* membership, matching [ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36) and [armor_dupes.py:100](../src/vault_cleaner/rules/armor_dupes.py#L100).
-- `row["Loadouts"]` uses **strict** indexing, not `.get(..., "")`. A frame that lost the column must fail loudly rather than silently unprotect every weapon; this matches the existing `armor_dupes.in_loadout` precedent. The loader guarantees the column after the schema change below.
-- `protection`'s eager crafted-token validation still propagates `SchemaError` (the wrapper calls it first and unconditionally).
-
-### Weapon rules
-
-#### [MODIFY] [weapons.py:82](../src/vault_cleaner/rules/weapons.py#L82)
-
-`rails.protection(row, crafted_level_protect)` → `rails.weapon_protection(row, crafted_level_protect)`. No other change in this file. The existing `HARD → continue` branch already delivers the required behaviour.
-
-#### [MODIFY] [dupes.py:243](../src/vault_cleaner/rules/dupes.py#L243)
-
-`rails.protection(row, crafted_level_protect)` → `rails.weapon_protection(row, crafted_level_protect)`. No other change in this file.
-
-`rank_key` ([dupes.py:200-203](../src/vault_cleaner/rules/dupes.py#L200-L203)) is **not** touched — see the mechanical inclusion test.
-
-### Report projection
-
-#### [MODIFY] [report_run.py:284-297](../src/vault_cleaner/report_run.py#L284-L297)
-
-Add a weapons branch after the existing `decision.effective_protection` branch so the armor carve-out keeps priority:
-
-```python
-elif kind == "weapons":
-    level, protection_reason = rails.weapon_protection(
-        row, crafted_level_protect
-    )
-```
-
-This is consistency insurance rather than a behaviour change: a loadout-protected weapon never produces a `Decision`, so the projected value cannot differ today. The invariant is pinned by a test.
 
 ### Schema
 
@@ -202,117 +101,150 @@ REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {
 }
 ```
 
-Extend the adjacent comment to record *why* `Loadouts` is safety-critical for weapons (a missing header would silently disable the hard rail), in the same voice as the existing `Crafted` sentence. Both `load_weapons` and `load_weapons_bytes` inherit this.
+Extend the adjacent comment in the existing voice: `Loadouts` is required because the review surface presents loadout membership as fact, and a missing column would render every weapon as not-in-a-loadout rather than as unknown.
 
-### Versioning and golden
+Known consequence, stated in the issue: a weapons export predating DIM's `Loadouts` column is now rejected. Intended — `AGENTS.md` requires schema checks to fail loudly — and already true of the ghost and armor schemas.
 
-#### [MODIFY] [report_run.py:41-44](../src/vault_cleaner/report_run.py#L41-L44)
+### Review UI — row badge
 
-`RULESET_VERSION = 4` → `5`, and update the adjacent comment so it records what v5 captures (the weapon saved-loadout hard rail) in the same style as the existing v4 sentence.
+#### [MODIFY] [review_ui.js:940-950](../src/vault_cleaner/ui/review_ui.js#L940-L950)
 
-#### [MODIFY] [tests/fixtures/report_snapshot_v2.json](../tests/fixtures/report_snapshot_v2.json)
+Add a badge to the proposal row when `item.inLoadout` is true, **inside the existing action cell** beside the `junk` / `review` badge ([review_ui.js:944-947](../src/vault_cleaner/ui/review_ui.js#L944-L947)).
 
-Regenerate with:
+Verbatim copy: **`in loadout`**.
 
-```bash
-.venv/bin/python scripts/regenerate_report_snapshot.py
+Deliberately *not* a new column. The proposal row is a fixed cell sequence (name, id, kind, class, location, action, reason, tuning slot, protection), and `detailRow(item, detailId, columns)` spans the detail row with `colspan: String(columns)` ([review_ui.js:876-879](../src/vault_cleaner/ui/review_ui.js#L876-L879)). Adding a column means updating the header, every row, and that count in step — disproportionate for one flag, and an easy way to produce a misaligned detail row.
+
+Leave the detail-row `flags` line at [review_ui.js:874](../src/vault_cleaner/ui/review_ui.js#L874) exactly as it is. It is not wrong, it is just insufficient, and removing it would lose the grouping with `locked` / `equipped`.
+
+#### [MODIFY] [review.css:163-168](../src/vault_cleaner/ui/review.css#L163-L168)
+
+Add a modifier class beside `.badge.junk` / `.badge.review` ([review.css:163-168](../src/vault_cleaner/ui/review.css#L163-L168)). The bare `.badge` rule is already a neutral outline, so the new class should stay close to it. Do **not** reuse `.badge.junk`'s `--junk` colour: loadout membership is context, not severity. Note that [docs/evidence/issue-113/count-label-inventory.md](../docs/evidence/issue-113/count-label-inventory.md) already records "same fact reads as different severity on the two surfaces" as a known UI defect class — do not add another instance of it.
+
+### Review UI — filter facet
+
+#### [MODIFY] [review_ui.js:194-217](../src/vault_cleaner/ui/review_ui.js#L194-L217)
+
+Add a `matchesLoadout(item, mode)` helper modelled on `matchesProtection`, and one clause in `filterItems`:
+
+```javascript
+if (!matchesLoadout(item, q.loadout)) return false;
 ```
 
-Never by shell redirection (#45). The resulting diff must contain **only** `ruleset_version` and `fingerprint`. Any change to a decision, note, or section is a stop condition.
+Modes: `""` (no filter), `"in"` (`item.inLoadout === true`), `"out"` (`item.inLoadout !== true`).
+
+#### [MODIFY] [review_server.js](../src/vault_cleaner/ui/review_server.js#L76-L77)
+
+Three coordinated edits:
+
+- add `loadout: ""` to the query defaults at [review_server.js:76-77](../src/vault_cleaner/ui/review_server.js#L76-L77);
+- add `"loadout"` to the facet list at [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324);
+- add the select control next to the existing protection select at [review_server.js:1014-1018](../src/vault_cleaner/ui/review_server.js#L1014-L1018).
+
+Verbatim control copy — label **`Loadout`**, options **`any loadout state`** (default), **`in a loadout`**, **`not in a loadout`**.
+
+Missing any one of these three leaves a facet that filters but cannot be set, or a control whose value is dropped on reset. Check all three in review.
+
+### Review UI — static DIM query panel
+
+#### [MODIFY] [review_server.js](../src/vault_cleaner/ui/review_server.js) and [review.css](../src/vault_cleaner/ui/review.css)
+
+Render these three queries verbatim, as literal constants — no interpolation, no per-item generation:
+
+```text
+tag:junk is:inloadout
+notes:#vc-junk is:inloadout
+notes:#vc-review is:inloadout
+```
+
+Verbatim labels, in this order:
+
+- **`Cross-check in DIM`** — panel heading.
+- **`Junk-tagged items in a loadout (after importing the CSV)`** → `tag:junk is:inloadout`
+- **`Proposed junk in a loadout (before accepting tags)`** → `notes:#vc-junk is:inloadout`
+- **`Review-only proposals in a loadout`** → `notes:#vc-review is:inloadout`
+
+Each query goes in a **read-only `<input>`** (or an equivalent natively selectable control), so select-all-and-copy works with no scripting. A copy button is optional; if one is added it must use `navigator.clipboard.writeText` guarded by a feature check and fall back to selecting the input's text, never failing silently. A button that silently does nothing is worse than no button — this is a stop condition if it cannot be done cleanly.
+
+Rationale to preserve in a comment: these are DIM's own filters, so DIM stays the source of truth for loadout state. Vault-cleaner deliberately does not write loadout membership into generated `Notes` — the CSV is a snapshot and would assert stale membership after a loadout is edited.
 
 ### Documentation
 
-#### [MODIFY] [PLAN.md:46](../PLAN.md)
-
-Extend the rails rule so the hard tier names saved-loadout membership for weapons, and say why (DIM loadouts pin instance ids). Keep it one clause; do not restructure the rule.
-
 #### [MODIFY] [WORKLOG.md](../WORKLOG.md)
 
-One dated entry at the top: what changed, the decisions listed under *Dependencies and assumptions* (weapons-only wrapper rather than editing the shared rail; unconditional rather than policy-gated; strict `Loadouts` indexing), and anything surprising.
+One dated entry: the premise reversal and why, the "no rail / no note / no version bump" boundary, the DIM-query approach, and the deferral of loadout names and generated queries.
+
+`PLAN.md` needs **no** change: no rail is added, so its rails rule at line 46 remains accurate.
 
 ### Tests
 
-#### [NEW] [tests/fixtures/weapons_loadouts.csv](../tests/fixtures/weapons_loadouts.csv)
+#### [MODIFY] [tests/test_parse.py:185-190](../tests/test_parse.py#L185-L190)
 
-Fake rows only, pinned to the real DIM header. Build it by copying the 74-column header of `tests/fixtures/weapons_dupes.csv` verbatim and writing rows with Python's `csv` module using `lineterminator="\n"` (CRLF is the default and `git diff --check` will flag it). Never paste real rows.
+Add a `_drop_column("Loadouts")` entry to `INVALID_EXPORT_CASES`, which exercises both `load_weapons` and `load_weapons_bytes` through the existing parametrization.
 
-Required scenarios, all on invented hashes and ids that do not collide with `weapons_dupes.csv`:
+#### [MODIFY] [tests/test_review_ui_js.py](../tests/test_review_ui_js.py)
 
-| Group | Rows | Expectation |
-|---|---|---|
-| Loser in a loadout | two identical exact rolls, same `Hash`; the lower-ranked copy has `Loadouts` non-empty | no decision for the loadout copy; no decision for the survivor either |
-| Winner in a loadout | two identical exact rolls; the higher-ranked copy has `Loadouts` non-empty | loser is still `junk`, and the note names the loadout copy as the retained survivor |
-| Locked **and** in a loadout | a losing copy with `Locked=true` and `Loadouts` non-empty | hard-protected: **no** `#vc-review: dupe-lower (locked)` decision |
-| Exotic **and** in a loadout | a losing copy with `Rarity=Exotic` and `Loadouts` non-empty | hard-protected: no review decision |
-| Whitespace-only `Loadouts` | a losing copy with `Loadouts` = `"   "` | unprotected by this dimension; behaves exactly as today |
+- `filterItems` with `loadout: "in"` returns only in-loadout items; with `"out"`, only the rest; with `""`, everything.
+- The proposal row renders the `in loadout` badge when `inLoadout` is true and omits it otherwise.
+- The detail-row `flags` line is unchanged.
 
-#### [MODIFY] [tests/test_rails.py](../tests/test_rails.py)
+#### [MODIFY] [tests/test_server_ui_js.py](../tests/test_server_ui_js.py)
 
-Add `weapon_protection` unit tests covering every property listed under *Rails*. The module-local `item()` helper ([tests/test_rails.py:8-13](../tests/test_rails.py#L8-L13)) has no `Loadouts` key — add a separate weapon-row helper (or extend `item()`) rather than making the existing `protection` tests depend on the new column. Include a test that `weapon_protection` raises on a row with no `Loadouts` key, pinning the strict-indexing decision.
+- The `Loadout` select exists with the three verbatim option labels.
+- Its value round-trips into `state.query.loadout` and is cleared by whatever reset path the existing facets use.
+- The three DIM query strings render **verbatim**, asserted as exact string equality — a stray space or a smart quote makes them silently wrong in DIM.
 
-#### [MODIFY] [tests/test_dupes.py](../tests/test_dupes.py)
+#### [MODIFY] [tests/test_server_browser.py](../tests/test_server_browser.py)
 
-Add exact-dupe cases over the new fixture for each scenario in the table above.
+One Playwright case: load a report containing at least one in-loadout weapon proposal, assert the badge is visible without expanding the row, set the `Loadout` filter to `in a loadout`, assert the shown count drops to the in-loadout subset, and assert a DIM query input's value equals the expected string.
 
-#### [MODIFY] [tests/test_weapons_rules.py](../tests/test_weapons_rules.py)
+#### [MODIFY] test fixture for the browser/UI case
 
-Add `"Loadouts": ""` to the `weapon()` helper's base dict ([tests/test_weapons_rules.py:30-44](../tests/test_weapons_rules.py#L30-L44)), then add cases proving that a wishlist whole-item-trash match and a wishlist roll-trash match on a loadout row produce **no** decision — neither `junk` nor `review`.
+No weapon fixture has a non-empty `Loadouts` cell (all 36 rows across four fixtures are empty). The UI cases need one. Prefer extending an existing UI-oriented fixture if one already drives the review-server tests; otherwise add a small new fixture. **Do not edit `weapons_dupes.csv`** — it builds the golden ([scripts/regenerate_report_snapshot.py:36-38](../scripts/regenerate_report_snapshot.py#L36-L38)), and changing it would move the golden for a presentation-only ticket.
 
-#### [MODIFY] [tests/test_parse.py](../tests/test_parse.py)
-
-Add a `_drop_column("Loadouts")` entry to `INVALID_EXPORT_CASES` ([tests/test_parse.py:185-190](../tests/test_parse.py#L185-L190)), which exercises both `load_weapons` and `load_weapons_bytes` through the existing parametrization.
-
-#### [MODIFY] [tests/test_report_run.py](../tests/test_report_run.py)
-
-Two additions:
-
-1. An invariant test: for a run over `weapons_loadouts.csv`, every weapon `ReportDecision` has `in_loadout is False`.
-2. A test that armor and ghost decisions are unchanged — the simplest honest form is asserting the regenerated golden's `sections` for `armor` and `ghosts` are byte-identical to the baseline's. If the existing golden test already covers this by construction, say so in the worklog instead of adding a redundant test.
+Generate any new CSV with Python's `csv` module using `lineterminator="\n"` (CRLF is the default and `git diff --check` gates CI), with a header copied verbatim from an existing weapon fixture, and fake rows only.
 
 ## Mechanical inclusion test
 
 A proposed change is **in scope** if and only if it is one of:
 
-- the new `rails.weapon_protection` function and its docstring;
-- switching `weapons.py:82` and `dupes.py:243` to call it;
-- the `kind == "weapons"` branch in `report_run._decision_records`;
 - adding `"Loadouts"` to `REQUIRED_WEAPON_COLUMNS` and its adjacent comment;
-- the `RULESET_VERSION` bump and its adjacent comment;
-- the regenerated snapshot golden;
-- the new `weapons_loadouts.csv` fixture and the test additions listed above;
-- the `PLAN.md:46` rails clause and the `WORKLOG.md` entry.
+- the `in loadout` row badge and its CSS;
+- the `matchesLoadout` helper, its `filterItems` clause, and the three coordinated `review_server.js` facet edits;
+- the static DIM query panel and its CSS;
+- the test additions and at most one new/extended fixture listed above;
+- the `WORKLOG.md` entry.
 
 Worked examples:
 
-- **IN SCOPE:** promoting a `locked` weapon in a loadout from `SOFT` to `HARD` inside `weapon_protection`.
-- **IN SCOPE:** adding `"Loadouts": ""` to `tests/test_weapons_rules.py`'s `weapon()` base dict, because the strict indexing requires it.
-- **OUT OF SCOPE:** adding the `Loadouts` check to `rails.protection` itself. It is shared with five armor call sites and would change armor decisions.
-- **OUT OF SCOPE:** adding loadout membership to `dupes.rank_key`. Under a hard rail the loadout copy is already safe; ranking only changes which copy is *named* as the survivor, which would alter existing notes and the golden's decision content. If this looks worth doing, report it as a finding for a follow-up ticket.
-- **OUT OF SCOPE:** the "column present but empty on every row" advisory notice from design document §2 finding 2. It is a report-summary/snapshot presentation change, it is not among Child 2a's seams in §12, and issue #148 defers it explicitly.
-- **OUT OF SCOPE:** any `--policy` flag, `config.toml` key, or `_decision_config` projection. Child 5 owns policy selection.
-- **OUT OF SCOPE:** editing `weapons_dupes.csv`, `weapons.csv`, `weapons_hostile.csv` or `weapons_slammer_like.csv`. New coverage goes in the new fixture so the golden's decision content stays stable.
-- **OUT OF SCOPE:** any change to `review_ui.js`, `review.css`, or `server/app.py`.
+- **IN SCOPE:** a `matchesLoadout` helper beside `matchesProtection`.
+- **IN SCOPE:** a read-only input holding `tag:junk is:inloadout`.
+- **OUT OF SCOPE:** any rail. `rails.py`, `weapons.py` and `dupes.py` must not appear in the diff at all. If a rail seems necessary, the premise reversal has been misread.
+- **OUT OF SCOPE:** appending loadout state to a `#vc-junk:` or `#vc-review:` clause. Deliberately rejected: DIM already knows, and a CSV snapshot would assert stale membership forever.
+- **OUT OF SCOPE:** carrying loadout *names* anywhere. The cell format is unmeasured.
+- **OUT OF SCOPE:** generating `id:`-based queries from the current selection — that is #117's mechanism.
+- **OUT OF SCOPE:** `RULESET_VERSION`, `SNAPSHOT_SCHEMA_VERSION`, or regenerating `report_snapshot_v2.json`.
+- **OUT OF SCOPE:** editing `weapons_dupes.csv`, or any armor/ghost rule or fixture.
 
 ### Stop conditions
 
 Stop implementation and return to the orchestrator if:
 
-- the regenerated golden diff contains anything other than `ruleset_version` and `fingerprint`;
-- any armor or ghost test changes behaviour, or any armor/ghost assertion needs editing;
-- a `#vc-junk:` or `#vc-review:` clause format would have to change, or a `note_history` recognizer would have to learn a new clause;
-- making the weapons tests pass appears to require a `config.toml` key, a policy flag, or a `_decision_config` projection;
-- `REQUIRED_WEAPON_COLUMNS` gaining `Loadouts` breaks a test that cannot be fixed by adding the column to an in-test row (that would mean a real export path constructs weapon frames without it);
-- an existing weapon decision's note text changes.
+- any committed fixture's decisions, notes, tags, or the golden's bytes change;
+- `rails.py`, `weapons.py`, `dupes.py`, `report_run.py`'s decision logic, or any armor/ghost module needs editing;
+- the badge or facet appears to need a new field on `ReportDecision` or in the snapshot;
+- a copy button cannot be made to degrade gracefully without the clipboard API;
+- the browser suite cannot be run in the implementer's environment — report it rather than skipping it silently.
 
 Escalation route: `implementer → orchestrator → planner`.
 
 ## Likely findings
 
-1. **The rail lands in the shared `protection` instead of a weapons-only wrapper.** It is the shortest diff and it silently changes five armor call sites. Check `git diff` for any edit inside `protection` itself, and confirm the armor sections of the golden are untouched.
-2. **Only one of the two weapon seams is converted.** `weapons.py:82` is the one you notice reading the wishlist pass; `dupes.py:243` is the one that matters most on the real export, where duplicates dominate. Grep the final diff for both.
-3. **The fixture regresses whitespace or line endings.** Python's `csv` module writes CRLF by default, and `git diff --check` gates CI. Also verify the new fixture's header is byte-identical to `weapons_dupes.csv`'s.
-4. **`RULESET_VERSION` is left at 4, or the golden is regenerated by shell redirection.** Both are silent: the suite can pass with a stale ruleset version if the golden was regenerated from the same stale constant. Verify `report_snapshot_v2.json` contains `"ruleset_version": 5` *and* that the fingerprint changed.
-5. **Soft-protected loadout members stay soft.** A `locked` or `exotic` loadout member that still emits `#vc-review: dupe-lower (locked)` means the wrapper returned before checking `Loadouts`. This is the single most likely behavioural bug, and it is exactly the case the real export is full of (198 locked legendaries under current rules).
+1. **A rail creeps back in.** #142 §8 item 4 still says `Loadouts != '' -> HARD` in the repository, and an implementer reading the design document rather than this plan will implement it. Any hunk in `rails.py` / `weapons.py` / `dupes.py` is a finding.
+2. **The facet is wired in two places out of three.** The predicate, the query default, the facet enumeration and the control are four edits across two files; missing the default or the enumeration yields a filter that appears to work until reset or URL state is exercised. Exercise the reset path, not just the happy path.
+3. **The DIM query strings drift.** A trailing space, a curly quote from an editor, or a helpfully "corrected" `is:inLoadout` makes the string useless in DIM while every test that merely checks for a substring still passes. Assert exact equality.
+4. **Badge colour implies severity.** Reusing the red `junk` badge class makes loadout membership read as a warning. `docs/evidence/issue-113/count-label-inventory.md` already documents this exact defect class in this UI.
+5. **A new fixture lands with CRLF, or `weapons_dupes.csv` gets edited** and quietly moves the golden in a ticket that must not move it.
 
 # Reusable implementer execution prompt
 
@@ -322,61 +254,79 @@ Implement issue #148 in `tonym999/vault-cleaner` using the committed handoff on 
 handoffs/issue-148-implementation-plan.md
 ```
 
-Read the entire handoff, issue #148, issue #140, `docs/aggressive-clearout-measurement.md` (§2, §3, §8, §11, §12, §13), `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and the current relevant code before editing.
+Read the entire handoff, issue #148, and `AGENTS.md`, `PLAN.md` and recent `WORKLOG.md` before editing.
+
+**Read the premise-reversal note at the top of the handoff first.** `docs/aggressive-clearout-measurement.md` §8 item 4 specifies a hard loadout rail; that decision was reversed by the owner and this ticket adds **no rail**. If you find yourself editing `rails.py`, `weapons.py` or `dupes.py`, stop.
 
 Rules:
-- work on `feat/issue-148-weapon-loadout-rail`; branch from latest `main` and record the base SHA;
+- work on `feat/issue-148-loadout-visibility`; branch from latest `main` and record the base SHA;
 - apply the plan's mechanical inclusion test to every production hunk;
-- generate the new CSV fixture with `lineterminator="\n"`, fake rows only, header copied verbatim from `tests/fixtures/weapons_dupes.csv`;
-- regenerate the golden with `.venv/bin/python scripts/regenerate_report_snapshot.py`, never by shell redirection;
-- update `PLAN.md` and add a dated `WORKLOG.md` entry;
-- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, and `git status` plus `git ls-files data/` to confirm nothing under `data/` or `build/` is staged. The Playwright browser suite is **not applicable** — no UI, JavaScript, CSS, or server file is in scope; state that explicitly rather than skipping silently;
+- reproduce every verbatim string in the plan exactly — the three DIM queries especially, which must be asserted by exact equality;
+- generate any new CSV fixture with `lineterminator="\n"`, fake rows only, header copied verbatim from an existing weapon fixture, and do not edit `weapons_dupes.csv`;
+- update `WORKLOG.md` with a dated entry;
+- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`, `git diff --check origin/main...HEAD`, and `git status` plus `git ls-files data/`;
+- confirm `git diff origin/main...HEAD -- tests/fixtures/report_snapshot_v2.json` is **empty**;
 - commit and push the implementation branch; and
 - **do not open a pull request.**
 
 If any stop condition is reached, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope.
 
-When complete, report: base and head SHAs, changed files, the full output of each verification command, the exact golden diff, any deviation from the plan, and confirmation that `grep -rn "rails.protection" src/` still shows the five armor call sites unchanged.
+When complete, report base and head SHAs, changed files, the full output of each verification command, and confirmation that `rails.py`, `weapons.py`, `dupes.py` and the golden are untouched.
 
 # Ticket-specific review decision
 
-**Review path:** `independent adversarial review`
+**Review path:** `standard orchestrator review`
 
 **Reason:**
-This change adds a delete rail and alters the weapons export parser's required schema — two of the categories `handoffs/README.md` names explicitly. Its blast radius reaches a shared rails helper used by five armor call sites, both weapon rule passes, the report projection, the ruleset version baked into every persisted review manifest's fingerprint, and the committed golden. The failure modes are quiet ones: a rail that returns soft instead of hard, or one seam converted and the other missed, both leave a green suite while leaving real weapons exposed. The design document also assigns Child 2a `Independent adversarial review` in its §12 child map.
+The earlier revision of this plan specified `independent adversarial review` because it added a delete rail. With the rail dropped, no decision logic changes: the diff is one schema constant plus presentation, and the strongest correctness claim — "no decision moved" — is mechanically checkable from an empty golden diff and an unchanged `rails.py` / `weapons.py` / `dupes.py`.
+
+Two things would flip this to adversarial, and the orchestrator should treat them as triggers when it inspects the real diff: any hunk in a rules module, or any change to `ReportDecision` / the snapshot. The schema constant does change parser behaviour by rejecting older exports, but it is one line with a parametrized test over both entry points.
 
 The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
 ## Implementer model justification
 
-`claude-sonnet-5` at native effort `xhigh`.
+`claude-sonnet-5` at native effort `high` — deliberately lower than the `xhigh` the rail version of this plan specified, because the risk profile changed rather than the volume. There is no rail, no ranking, no versioning and no golden: the remaining work is a badge, a four-edit filter facet across two modules, three literal strings, and tests.
 
-The individual edits are small and fully specified, which argues against the top tier. What argues for `xhigh` rather than `high` is that correctness here is about *placement* rather than volume: the wrapper must sit beside the shared rail rather than inside it, both weapon seams must move together, and the soft-to-hard promotion ordering inside the wrapper is the one line a careful-but-quick implementer gets wrong. The fixture and golden work also demands byte-level discipline.
+What still needs care is breadth rather than depth — the facet's four coordinated edits and the exact-string discipline on the DIM queries — which is well within `high`, and the plan names both as review checks rather than relying on the model to notice them.
 
-Model IDs and effort values are taken from the catalog in [handoffs/README.md](README.md#model-family--provider-native-reasoning-effort-matrix) (marked verified 2026-09-03) and are consistent with this session's environment statement of current Claude model IDs. That catalog was **not** independently re-verified against live provider documentation during this planning session; per the template's rule the orchestrator must re-verify availability of `claude-sonnet-5` and `xhigh` at dispatch time and record any fallback.
+Model IDs and effort values come from the catalog in [handoffs/README.md](README.md#model-family--provider-native-reasoning-effort-matrix) (marked verified 2026-09-03), consistent with this session's environment statement of current Claude model IDs. That catalog was **not** independently re-verified against live provider documentation during this planning session; the orchestrator must re-verify availability at dispatch and record any fallback.
 
 # Review checklist
 
-- [ ] `git diff` shows **no** edit inside `rails.protection`; the loadout check lives only in a new weapons-only function.
-- [ ] Both `weapons.py:82` and `dupes.py:243` call the weapons-only rail; `grep -rn "rails.protection" src/` still shows the five armor call sites and `report_run`'s non-weapon fallback.
-- [ ] A loadout member that is also `locked` or `exotic` is `HARD`, not `SOFT` — pinned by a named test, not by inspection.
-- [ ] Whitespace-only `Loadouts` is not treated as membership.
-- [ ] `weapon_protection` uses strict `row["Loadouts"]` indexing and a test pins the failure on a missing column.
-- [ ] `REQUIRED_WEAPON_COLUMNS` includes `Loadouts`, and `tests/test_parse.py`'s `INVALID_EXPORT_CASES` covers dropping it through both `load_weapons` and `load_weapons_bytes`.
-- [ ] `RULESET_VERSION` is `5`, its comment is updated, and the golden carries `"ruleset_version": 5` with a changed fingerprint.
-- [ ] The golden diff contains **only** `ruleset_version` and `fingerprint`.
-- [ ] The new fixture has LF endings, a header byte-identical to `weapons_dupes.csv`, fake rows only, and no `Hash`/`Id` values colliding with existing fixtures.
-- [ ] A loadout-protected weapon can still be named as the retained survivor of a duplicate group.
-- [ ] No weapon `ReportDecision` has `in_loadout is True`.
-- [ ] No `config.toml` key, policy flag, `_decision_config` projection, `rank_key` change, UI change, or advisory-notice work appears in the diff.
-- [ ] `PLAN.md:46` names the weapon loadout hard rail; `WORKLOG.md` has a dated entry recording the weapons-only-wrapper and unconditional-rail decisions.
-- [ ] `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q` and `git diff --check` pass; `git ls-files data/` is empty; the browser suite is explicitly recorded as not applicable.
+- [ ] `rails.py`, `weapons.py`, `dupes.py` do not appear in the diff.
+- [ ] `git diff origin/main...HEAD -- tests/fixtures/report_snapshot_v2.json` is empty; `RULESET_VERSION` is still `4` and `SNAPSHOT_SCHEMA_VERSION` still `2`.
+- [ ] No generated `Notes` clause changed, and no `note_history` recognizer was touched.
+- [ ] `REQUIRED_WEAPON_COLUMNS` includes `Loadouts`, with `INVALID_EXPORT_CASES` covering its removal through both `load_weapons` and `load_weapons_bytes`.
+- [ ] The `in loadout` badge renders on the proposal row without expanding the detail row, and does not reuse the red `junk` badge colour.
+- [ ] The detail-row `flags` line at `review_ui.js:874` is unchanged.
+- [ ] All four facet edits are present: `matchesLoadout`, the `filterItems` clause, the `loadout: ""` query default, the facet enumeration entry, and the select control — and the reset path clears it.
+- [ ] The three DIM query strings are asserted by **exact equality**, not substring, and read `tag:junk is:inloadout`, `notes:#vc-junk is:inloadout`, `notes:#vc-review is:inloadout`.
+- [ ] Each query sits in a natively selectable control; any copy button feature-checks `navigator.clipboard` and falls back to selecting the text.
+- [ ] No loadout name is parsed or displayed anywhere.
+- [ ] `weapons_dupes.csv` is unedited; any new fixture has LF endings, a verbatim header, and fake rows only.
+- [ ] Lint, `pytest`, the Playwright browser suite and `git diff --check` all pass; `git ls-files data/` is empty. The browser suite is **required** here, not optional — a skipped run is not a pass.
 
 # Dispatch comment draft
 
 Planned #148 in [handoffs/issue-148-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-148-implementation-plan.md) on `main`.
 
-- **Implementer tier & effort:** `claude-sonnet-5` (`xhigh`) — re-verify availability at dispatch
-- **Implementation branch:** `feat/issue-148-weapon-loadout-rail`
-- **Review path:** independent adversarial review (delete rail + export schema)
-- **Likely findings:** the rail landing inside the shared `rails.protection` and changing armor; only one of the two weapon seams converted; soft-protected loadout members not promoted to hard; CRLF or a non-identical header in the new fixture; `RULESET_VERSION` left at 4 or the golden regenerated by shell redirection.
+- **Implementer tier & effort:** `claude-sonnet-5` (`high`) — re-verify availability at dispatch
+- **Implementation branch:** `feat/issue-148-loadout-visibility`
+- **Review path:** standard orchestrator review; escalate to adversarial if any rules module or `ReportDecision`/snapshot change appears in the diff
+- **Likely findings:** a hard rail creeping back in from the superseded #142 §8 item 4; the filter facet wired in three of four places; the DIM query strings drifting from verbatim; the badge reusing the red `junk` colour; a new fixture landing with CRLF or `weapons_dupes.csv` being edited and moving the golden.
+
+---
+
+# Superseded design — hard loadout rail
+
+Retained so the next agent does not re-derive it. **Do not implement.**
+
+The original plan added `rails.weapon_protection` — a weapons-only wrapper around `rails.protection` returning `(HARD, "loadout-protected")` for a non-empty `Loadouts` cell — called from `weapons.py:82` and `dupes.py:243`, with `Loadouts` added to the weapons schema, `RULESET_VERSION` bumped 4 → 5, and the golden regenerated.
+
+Two findings from that analysis remain useful:
+
+1. **The rail's real effect was hiding, not protecting.** Of the 113 weapons it would have newly hard-protected (design document §11), only **13** were auto-junk candidates. The other **100** were already soft-protected — 43 exotic, 57 locked legendary — and therefore already review-only. Deltas: hard `56 → 169` (+113), soft `323 → 223` (−100), unprotected `285 → 272` (−13). The rail would have removed 100 items from the review surface to prevent 13 automatic decisions.
+2. **Any future weapon rail must be a weapons-only wrapper.** `grep -rn "rails.protection" src/` finds eight call sites and five are armor (`armor.py:155`, `armor_close.py:138`, `armor_close.py:302`, `armor_dupes.py:107`, `armor_dupes.py:204`). Editing the shared helper would silently change armor decisions, where loadout membership is deliberately a survivor-ranking input and a review-only rail ([armor_dupes.py:103-112](../src/vault_cleaner/rules/armor_dupes.py#L103-L112), [armor_dupes.py:194-213](../src/vault_cleaner/rules/armor_dupes.py#L194-L213)).
+
+The reversal rationale: a hard rail suppresses the proposal entirely — hard-protected rows `continue` before a `Decision` is constructed ([weapons.py:83-84](../src/vault_cleaner/rules/weapons.py#L83-L84), [dupes.py:244-245](../src/vault_cleaner/rules/dupes.py#L244-L245)) — so a weapon pinned by a throwaway test loadout would vanish from review with no signal, recoverable only by editing the loadout in DIM and re-exporting. Against a 190-removal target drawn from a 272-item unprotected pool, hiding 113 items to prevent 13 automatic decisions was the wrong trade.
