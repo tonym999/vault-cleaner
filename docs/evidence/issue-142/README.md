@@ -487,9 +487,25 @@ is hours before this evidence was committed later the same session. Had this
 capture's `vault-cleaner wishlists` invocation downloaded fresh content for any of
 the three sources, that source's file would carry a write time at (or after) the
 moment the command ran, not an already-current timestamp from hours earlier. The
-unchanged, already-hours-old mtime is therefore the basis for concluding the
-command **served all three sources from cache**, not by downloading, in this
-session — not a separate uncommitted `ls -la` run.
+unchanged, already-hours-old mtime is therefore the basis for concluding that no
+download **replaced** any of the three files in this session — not a separate
+uncommitted `ls -la` run.
+
+An unchanged mtime on its own would establish only that much: `fetch` falls back
+to the stale cache when a download **fails**, leaving the file untouched
+([wishlist.py:148-154](../../../src/vault_cleaner/wishlist.py#L148-L154)), so an
+unchanged mtime alone cannot distinguish "no download attempted" from "download
+attempted and failed". The two signals together do settle it. `fetch` has exactly
+three terminal paths: the freshness short-circuit returns the cached path before
+any network call ([wishlist.py:145-146](../../../src/vault_cleaner/wishlist.py#L145-L146));
+a successful download rewrites the file, updating its mtime
+([wishlist.py:156](../../../src/vault_cleaner/wishlist.py#L156)); and a failed
+download either prints the `download failed` warning or raises `WishlistError`.
+The capture shows an unchanged mtime **and** no warning **and** no error, which
+excludes the second and third paths and leaves only the short-circuit. All three
+files were roughly a day old against `config.toml`'s `max_age_days = 7`, which is
+what makes that short-circuit fire. The command therefore **served all three
+sources from cache and attempted no download**.
 
 ---
 
@@ -527,6 +543,7 @@ EXPORT="${EXPORT:-C:/Users/raver/Downloads/destiny-weapon (12).csv}"
 
 .venv/bin/python - "$EXPORT" <<'PY' > "$OUT/real_export_summary.txt" 2>&1
 import hashlib
+import os
 import pandas as pd
 import csv
 import sys
@@ -542,7 +559,7 @@ data_rows = csv_rows[1:]
 df = pd.read_csv(path, dtype=str, keep_default_na=False)
 
 print("=== 1. Export identity & integrity ===")
-print("Export file: destiny-weapon (12).csv")
+print(f"Export file: {os.path.basename(path)}")
 print(f"File size: {len(content)} bytes")
 print(f"SHA-256: {sha256}")
 print(f"Header columns: {len(header)}")
@@ -559,11 +576,24 @@ total_char = sum(v for k, v in owner_counts.items() if k != "Vault")
 print(f"Total on characters: {total_char}")
 eq_count = (df["Equipped"] == "true").sum()
 print(f"Equipped (true): {eq_count}")
-print(f"Unequipped on characters (C = total_char - equipped): {total_char - eq_count}")
+on_character = df["Owner"] != "Vault"
+equipped = df["Equipped"] == "true"
+c_rows = (on_character & ~equipped).sum()
+print(f"Unequipped on characters (C, counted directly): {c_rows}")
+print(f"Inconsistent rows (Owner == 'Vault' and Equipped == 'true'): {(~on_character & equipped).sum()}")
 
 tag_prot = df["Tag"].isin(["favorite", "keep", "archive"])
 eq_prot = df["Equipped"] == "true"
-crafted_prot = (df["Crafted"] == "crafted") & ((df["Crafted Level"] == "") | (df["Crafted Level"].astype(int) >= 10))
+from vault_cleaner.parse import is_crafted, parse_crafted_level
+
+def _crafted_hard(row):
+    crafted = is_crafted(row.get("Crafted", ""))
+    if not crafted:
+        return False
+    level = parse_crafted_level(row.get("Crafted Level", ""), crafted)
+    return level is None or level >= 10   # empty level is unknown -> hard-protected
+
+crafted_prot = df.apply(_crafted_hard, axis=1)
 loadout_prot = df["Loadouts"].str.strip().ne("")
 
 exotic = df["Rarity"] == "Exotic"
@@ -606,7 +636,7 @@ print(f"  - Unprotected on characters (unequipped): {(unprot_prop & on_char_uneq
 
 print("\n=== 5. Capacity model calculation ===")
 f_est = 10
-c_val = total_char - eq_count
+c_val = c_rows
 print(f"Estimated baseline free vault spaces (F): {f_est}")
 print(f"Unequipped character items to clear (C): {c_val}")
 print(f"Net vault capacity before removals (F - C): {f_est - c_val} (shortfall of {abs(f_est - c_val)} spaces)")
@@ -618,7 +648,44 @@ PY
 cat "$OUT/real_export_summary.txt"
 ```
 
-Output:
+> **This fence was corrected after capture (review round 7) and has not been
+> re-executed.** The export is on another machine and unavailable to this
+> session, so the output below is what the **pre-correction** fence printed on
+> 2026-09-06. Three derivations were corrected; the block below is therefore not
+> a byte-for-byte transcript of the fence as it now reads. Each correction and
+> its effect on the recorded figures:
+>
+> 1. **Export label.** `print("Export file: destiny-weapon (12).csv")` was a
+>    hardcoded string while the fence accepts an arbitrary `$EXPORT`, so
+>    measuring any other file would still have printed the authorized export's
+>    name. Now `os.path.basename(path)`. **Output-identical** for the authorized
+>    export, which is the file that produced the block below.
+> 2. **Crafted protection.** The original
+>    `(df["Crafted"] == "crafted") & ((df["Crafted Level"] == "") | (df["Crafted Level"].astype(int) >= 10))`
+>    hand-reimplemented a hard rail and diverged from it twice: pandas evaluates
+>    `astype(int)` over the whole column before the `|` short-circuits, so any
+>    empty `Crafted Level` raises `ValueError` instead of being hard-protected;
+>    and raw `== "crafted"` treats an unknown non-empty crafted token as
+>    ordinary, where `AGENTS.md` requires schema validation to fail. Now routed
+>    through `is_crafted` / `parse_crafted_level`, the same helpers
+>    `rails.protection` uses. **Provably output-neutral here:** the original
+>    would have raised on any empty `Crafted Level`, and it did not raise, so the
+>    measured export had none — on which input the two expressions agree. The
+>    recorded `41` stands.
+> 3. **Unequipped character count (`C`).** The original `total_char - eq_count`
+>    subtracted *every* equipped row from the character rows, which undercounts
+>    `C` if any row carries `Owner == "Vault"` with `Equipped == "true"`. Now
+>    counted directly with a row-level predicate, plus a line reporting any such
+>    inconsistent rows. **Not provably output-neutral:** the two agree only if no
+>    vault-equipped row exists, which cannot be checked without the export. The
+>    recorded `C = 100` — and the `190` removal projection that depends on it —
+>    therefore rests on an assumption that is now stated rather than hidden. See
+>    §14 item 10 of the measurement document.
+>
+> The pre-correction output is retained verbatim rather than regenerated: it is
+> the record of what actually produced the figures §11 quotes.
+
+Output (pre-correction fence, 2026-09-06):
 
 ```text
 === 1. Export identity & integrity ===

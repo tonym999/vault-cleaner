@@ -3,6 +3,88 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-12 — #142 PR review corrections (PR 2 continued)
+
+Continues the round 6 entry below; same PR 2, same branch
+`feat/issue-142-clearout-measurement`. Two reviews landed on the open PR: an
+automated CodeRabbit pass (6 comments, 2026-09-07) and the owner's read-only
+review (8 findings, 2026-09-12). Ten distinct findings after de-duplication; all
+verified against source before acting, all accepted, none rejected.
+
+The findings fell into three groups, and the first is the one worth carrying
+forward:
+
+- **The report mis-described current code behaviour in sections that are
+  specifications for #140 children 2a-8.** §4 claimed `review` decisions are
+  excluded from the CSV unless approved (they are included — `apply_vetoes` is
+  subtractive) and that protected items emit a `keep` action (they emit no
+  decision at all: hard-protected rows `continue` at `weapons.py:83-84` and
+  `dupes.py:244-245`, and the dupe survivor is never visited because
+  `dupes.resolve` iterates `keyed[1:]`; there is no `keep` action anywhere).
+  §2 said a durable veto holds "unless stale or re-reviewed" — re-reviewing does
+  not clear it, `merge_manifest` is additive by design. §2 called
+  `instance_id_order` lexical; it is magnitude order for decimal ids, with the
+  raw string only as final tie-break.
+- **The evidence fence hand-reimplemented production rails and diverged from
+  them.** Crafted protection is now routed through `is_crafted` /
+  `parse_crafted_level` rather than a raw `== "crafted"` plus `astype(int)`
+  expression that would raise on an empty level the rail hard-protects, and
+  would read an unknown crafted token as ordinary where schema validation must
+  fail. `C` is now counted with a row-level predicate instead of
+  `total_char - eq_count`, which undercounts if any row is vault-owned and
+  equipped.
+- **Overclaimed evidence.** §6 said both Aegis spreadsheet citations were
+  "re-fetched this session" when `wishlists/aegis.txt` was cache-served; §5
+  claimed Choosy Voltron covers "all Destiny history", which was never measured;
+  and the round-6 WORKLOG note called an `ls -l` comparison "byte-identical"
+  when `ls -l` compares metadata only.
+
+Decisions made:
+
+- **The corrected real-export fence is NOT re-executed, and the pre-correction
+  output is retained verbatim.** The export is on another machine. Silently
+  rewriting the fence so it no longer matches the output it produced would
+  reintroduce exactly the round-1 defect this review chain existed to remove, so
+  the fence carries an explicit correction note stating what changed, which
+  corrections are provably output-neutral, and which are not.
+- The crafted correction **is** provably output-neutral: the original would have
+  raised on any empty `Crafted Level` and did not, so the measured export had
+  none, on which input both expressions agree. The recorded 41 stands.
+- The `C` correction is **not** provably output-neutral. `C = 100` and the
+  `Dv + Dc >= 190` projection assume no vault-owned equipped row exists. That
+  assumption is now stated at §11, at the projection, and as §14 item 10 —
+  previously it was hidden inside an arithmetic shortcut.
+- The cache-freshness argument was strengthened rather than merely hedged.
+  CodeRabbit was right that an unchanged mtime alone cannot distinguish "no
+  download attempted" from "attempted and failed", but `fetch` has exactly three
+  terminal paths (`wishlist.py:145-146`, `:156`, `:148-154`), and unchanged mtime
+  **plus** no warning **plus** no error excludes two of them. The evidence now
+  states that argument instead of the weaker mtime-only one.
+- CodeRabbit's committable suggestion for the export-label finding was **not
+  applied**: it adds `raise SystemExit` on SHA mismatch, which contradicts its
+  own comment text and would hard-fail the fence for any reader running it
+  against their own export — the opposite of round 4's parameterisation. Only
+  the label was changed, to `os.path.basename(path)`.
+
+Surprises for the next agent:
+
+- Six rounds of adversarial review missed the entire first group above. The
+  reviewer remit asked whether citations resolve and whether numbers reproduce;
+  nobody was asked whether a sentence describes what the code does. All three
+  defects had correct citations and no numbers. If a future ticket ships a
+  specification document, put "does this sentence describe current behaviour"
+  in the review remit explicitly.
+- Real DIM exports carry `0`, not empty, in `Crafted Level` for non-crafted
+  rows — verified against both snapshots in `data/in/`. That is why the original
+  `astype(int)` expression ran at all. Fixtures do carry empty levels, so the
+  same expression would have crashed on fixture data.
+
+Verification: `.venv/bin/ruff check src tests scripts` passed;
+`.venv/bin/pytest -q` 967 passed; `git diff --check origin/main...HEAD` clean;
+`git status --porcelain` empty; `git ls-files data/` and `git ls-files
+wishlists/` both empty. The Playwright browser suite is not applicable — no UI,
+JS, CSS or server file changed.
+
 ## 2026-09-07 — #142 review round 6 corrections (PR 2 continued, closing pass)
 
 Continues the round 5 entry below; same PR 2, same branch
@@ -263,7 +345,8 @@ Findings and how each was addressed:
   `vault-cleaner wishlists` capture recorded no cache-state of its own, though
   it is the plan's one environment-dependent C4 capture. Added an `ls -l
   wishlists/` fence run this session, confirming the cache mtimes and file sizes
-  are byte-identical to evidence §7's `Sep 6 14:23` record one day later —
+  match evidence §7's `Sep 6 14:23` record one day later — `ls -l` compares
+  metadata, not contents, so this is a size-and-mtime match, not byte identity —
   meaning this round's invocation also served from cache, by evidence §7's own
   argument (a fresh download would leave a newer write time). Grep:
   `grep -n "2026-09-07" docs/aggressive-clearout-measurement.md
