@@ -3,6 +3,74 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-12 — #148 planning: weapon loadout visibility (PR 1)
+
+Created #148 as Child 2a of umbrella #140 and planned it. The ticket was planned
+twice in one session: the premise reversed mid-planning, and the reversal is the
+most important thing here for the next agent.
+
+**Round 1 — hard rail (superseded).** #142 §8 item 4 records a settled owner
+decision that `Loadouts != ''` is a HARD rail for weapons, protecting 113
+additional weapons on the real export. The first plan implemented exactly that:
+a weapons-only `rails.weapon_protection` wrapper, both weapon seams converted,
+`Loadouts` required, `RULESET_VERSION` 4 -> 5, golden regenerated.
+
+**Round 2 — the owner reversed it.** A weapon in a loadout may be recommended;
+the requirement is that membership is *clear*. #142 §8 item 4 is superseded on
+this point. What tipped it: a hard rail emits no `Decision` at all
+(`weapons.py:83-84`, `dupes.py:244-245`), so a weapon pinned by a throwaway test
+loadout vanishes from review with no signal, recoverable only by editing the
+loadout in DIM and re-exporting.
+
+Measurements that informed the reversal, both worth keeping:
+
+- **The rail hid far more than it protected.** Of the 113 weapons it would have
+  newly hard-protected, only **13** were auto-junk candidates; the other **100**
+  were already soft-protected (43 exotic, 57 locked legendary) and therefore
+  already review-only. Deltas: hard 56 -> 169, soft 323 -> 223, unprotected
+  285 -> 272. Against a 190-removal target drawn from a 272-item pool, hiding 113
+  items to prevent 13 automatic decisions was the wrong trade.
+- **`rails.protection` has eight call sites and five are armor.** Any future
+  weapon rail must be a weapons-only wrapper, never an edit to the shared helper.
+
+**Final shape.** No rail. Require `Loadouts` in `REQUIRED_WEAPON_COLUMNS`,
+promote the already-plumbed `in_loadout` flag from the collapsed detail-row flags
+line to a row badge plus a filter facet, and show static DIM cross-check queries
+for copy/paste. No `RULESET_VERSION` bump, no golden change, no rules module
+touched. Branch `feat/issue-148-loadout-visibility`, implementer
+`claude-sonnet-5` (`high`), standard orchestrator review — all three downgraded
+from round 1 because the risk profile collapsed with the rail.
+
+Surprises worth recording:
+
+- **The flag was already plumbed end to end and still invisible.** `in_loadout`
+  reaches the UI and renders at `review_ui.js:874` — as one entry in a
+  comma-joined `flags` line inside a detail row you expand per item. The ticket
+  is presentation, not plumbing.
+- **`report_run.py:317` reads `.get("Loadouts", "")`.** With no rail, that is the
+  actual safety defect: an export missing the header renders every weapon as
+  not-in-a-loadout rather than as unknown. It is why the schema half survived the
+  reversal with a better rationale than it started with.
+- **Loadout state deliberately does not go into generated `Notes`.** DIM already
+  knows, and the CSV is a snapshot — a note would assert stale membership forever
+  after a loadout is edited. This also keeps the ticket out of the emitter-contract
+  obligations in `AGENTS.md`.
+- **DIM's filters were verified from source, not the wiki** (the wiki pages fail
+  to render): `is:inloadout`, `inloadout:>=2`, `inloadout:"name"`,
+  `is:indimloadout` / `is:iningameloadout`, `tag:`, and freeform `notes:`. DIM's
+  `notes:` autocomplete is fed by known notes-hashtags, so vault-cleaner's `#vc-`
+  markers already surface there — the hashtag convention in `AGENTS.md` is paying
+  for itself.
+- **Loadout names are deferred** because the real `Loadouts` cell format is
+  unmeasured and the fixtures disagree: `PvE Build` and `Raid` in
+  `armor_dupes.csv`, but `00001:PvP Build` in `ghosts_cleanup.csv`.
+- **Generated `id:` queries are #117's mechanism**, which #140 forbids
+  repurposing for weapons, so they are a separate follow-up rather than part of
+  this child.
+
+Verification: planning-only change. No source file was modified, so `pytest` and
+`ruff` have nothing new to cover; `git diff --check` is clean.
+
 ## 2026-09-12 — #142 crafted-equivalence qualification (PR 2 continued)
 
 Continues the entry below on the same PR 2 branch. The latest re-review found
