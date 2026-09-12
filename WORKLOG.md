@@ -3,6 +3,65 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-12 — #148 planning: hard weapon loadout protection rail (PR 1)
+
+Created #148 as Child 2a of umbrella #140 and planned it. #142's measurement
+ranks this the highest-priority safety gate: on the owner-authorized real
+export, the rail moves 113 weapons from unprotected/soft-protected to
+hard-protected. #148 is linked as a GitHub sub-issue of #140, labelled
+`enhancement`, deliberately without a milestone (per #140's tracking note), and
+on the project board with Status `Todo`.
+
+Plan: `handoffs/issue-148-implementation-plan.md`. Allocated implementation
+branch `feat/issue-148-weapon-loadout-rail`; implementer `claude-sonnet-5`
+(`xhigh`); review path independent adversarial review.
+
+Decisions made while planning, each recorded in the plan with its rationale:
+
+- **Weapons-only wrapper, not an edit to `rails.protection`.** The shared rail
+  has eight call sites and five of them are armor (`armor.py:155`,
+  `armor_close.py:138,302`, `armor_dupes.py:107,204`). Adding the `Loadouts`
+  check inside `protection` would silently change armor decisions, so the plan
+  prescribes a new `rails.weapon_protection` wrapper and makes editing
+  `protection` itself an explicit out-of-scope example.
+- **Both weapon seams move together.** `weapons.py:82` (wishlist-trash) and
+  `dupes.py:243` (exact-dupe losers) are the two places a weapon meets the
+  rail, and `pipeline.py:141`/`:151` reach both. Converting only one leaves the
+  dominant real-export path unprotected.
+- **Unconditional rail, no config key, no policy flag.** It can only ever
+  protect more items, Child 5 owns policy selection, and a rail is not a
+  threshold — so `_decision_config` needs no new projection and the recursive
+  DEFAULTS coverage test is unaffected.
+- **Strict `row["Loadouts"]` indexing**, matching `armor_dupes.in_loadout`, so a
+  frame that lost the column fails loudly instead of silently unprotecting
+  every weapon. This requires adding `"Loadouts": ""` to the `weapon()` helper
+  in `tests/test_weapons_rules.py`.
+- **New `weapons_loadouts.csv` fixture rather than editing `weapons_dupes.csv`**,
+  so the regenerated golden's only changes are `ruleset_version` and
+  `fingerprint`. `RULESET_VERSION` bumps 4 → 5 (decision semantics change);
+  `SNAPSHOT_SCHEMA_VERSION` stays at 2.
+
+Surprises worth recording:
+
+- Weapons end up deliberately **stricter** than armor. #142 §8 item 4 settles
+  `Loadouts != ''` as a HARD rail for weapons, while the armor exact pass keeps
+  loadout membership as a survivor-ranking input and a review-only rail. That
+  divergence is an owner decision, not an inconsistency to reconcile.
+- The `Loadouts` header is present in all four weapon fixtures but empty on all
+  36 rows, so nothing in the suite exercises weapon loadout membership today —
+  the rail could have been written and tested green while protecting nothing.
+- The "column present but empty on every row" advisory from #142 §2 is
+  deferred out of #148. It is a report-summary/snapshot presentation change, it
+  is not among Child 2a's seams in the §12 child map, and it protects nothing on
+  its own; it belongs with Child 5/6 or its own ticket.
+- #145 (owner-authorized real-export measurement in committed docs) is in
+  progress. #148 does not depend on it; the plan makes an aggregate-only
+  real-export confirmation optional and explicitly bans committing real rows,
+  `Hash` values, or instance `Id`s either way.
+
+Verification: planning-only change. No source file was modified, so `pytest`
+and `ruff` have nothing new to cover; `git diff --check` is clean.
+
 ## 2026-09-12 — #142 crafted-equivalence qualification (PR 2 continued)
 
 Continues the entry below on the same PR 2 branch. The latest re-review found
