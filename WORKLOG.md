@@ -3,6 +3,39 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-13 — #148 implementation: loadout visibility and required Loadouts column (PR 2)
+
+Branched from `origin/main` at `649bc30d9c1f2e290ae15e710abc20e5f0806fcb` on branch `feat/issue-148-loadout-visibility`.
+Refs #148.
+
+- **Premise reversal respected (no rail):**
+  - Following the owner's reversal of docs/aggressive-clearout-measurement.md §8 item 4, no loadout rail was added. Weapons in saved loadouts may be recommended for cleanup; the requirement is that membership is clear and legible.
+  - `rails.py`, `weapons.py`, and `dupes.py` remain untouched.
+  - `RULESET_VERSION` remains 4, `SNAPSHOT_SCHEMA_VERSION` remains 2, no notes clauses or recognizers were added or modified, and no golden regeneration was required (`tests/fixtures/report_snapshot_v2.json` has an empty diff).
+- **Schema enforcement (`parse.py`):**
+  - Added `"Loadouts"` to `REQUIRED_WEAPON_COLUMNS` with an explanatory comment: exports missing the header fail loudly instead of silently rendering weapons as not-in-a-loadout.
+  - Added `("weapons-loadouts", ...)` drop-column case to `INVALID_EXPORT_CASES` in `tests/test_parse.py`, verifying rejection across both `load_weapons` and `load_weapons_bytes`.
+- **Review UI presentation (`review_ui.js`, `review.css`):**
+  - Added `"in loadout"` neutral badge (`.badge.loadout`) to the proposal row inside the action cell beside the junk/review badge when `item.inLoadout === true`. The badge is visible without expanding the row and uses neutral muted/line colors rather than junk red. The detail row flags line is preserved intact.
+  - Added `matchesLoadout(item, mode)` helper and filter clause in `filterItems`: supports `""` (no filter), `"in"` (in loadout), and `"out"` (not in loadout). Exported `matchesLoadout` on the UI module.
+- **Review server adaptation (`review_server.js`):**
+  - Added `loadout: ""` to query defaults in `createState`.
+  - Added `"loadout"` to the report-refresh invalidation list in `applySessionEnvelope` so stale loadout filters are cleared when matching items no longer exist.
+  - Added `Loadout` select filter control in `renderControls` with verbatim options: `"any loadout state"` (`""`), `"in a loadout"` (`"in"`), and `"not in a loadout"` (`"out"`).
+  - Added static DIM query cross-check panel (`#vc-crosscheck`) with heading `"Cross-check in DIM"` and three verbatim queries in read-only text inputs with copy buttons:
+    1. `tag:junk is:inloadout` (`Junk-tagged items in a loadout (after importing the CSV)`)
+    2. `notes:#vc-junk is:inloadout` (`Proposed junk in a loadout (before accepting tags)`)
+    3. `notes:#vc-review is:inloadout` (`Review-only proposals in a loadout`)
+  - Copy buttons feature-check `navigator.clipboard.writeText` and fall back to selecting the input text. DOM creation safely guards `setAttribute`, `select`, and `focus` calls for test harnesses.
+  - Preserved architectural boundary: DIM remains the source of truth for loadout membership; vault-cleaner does not persist loadout state into Notes or generate per-selection queries (deferred to #117).
+- **Synthetic fixture update:**
+  - Added `Loadouts` cell value `PvE Build` to row `7004` of `tests/fixtures/weapons_hostile.csv` (a proposal row, the loser in a duplicate pair). No new fixture files created; `weapons_dupes.csv` untouched.
+- **Verification:**
+  - `tests/test_parse.py`: verified schema rejection of weapons export missing `Loadouts`.
+  - `tests/test_review_ui_js.py`: verified filter selection, badge rendering, and detail line preservation.
+  - `tests/test_server_ui_js.py`: verified select control options, round-trip to `state.query.loadout`, two-way refresh reconciliation (preserve and clear), and verbatim DIM query strings and labels.
+  - `tests/test_server_browser.py`: verified Playwright browser acceptance for row badge visibility, filter behavior, and DIM query inputs.
+
 ## 2026-09-13 — #117 implementation: per-group DIM search queries (PR 2)
 
 Branched from `origin/main` at `66b121aee1247d9823e783646f73d470359bb79d` (newer than

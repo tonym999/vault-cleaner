@@ -187,6 +187,7 @@ INVALID_EXPORT_CASES = [
     ("weapons-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted")),
     ("weapons-crafted-level", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Crafted Level")),
     ("weapons-roll-start", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Perks 0")),
+    ("weapons-loadouts", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _drop_column("Loadouts")),
     ("weapons-unknown-crafted", FIXTURE, load_weapons, load_weapons_bytes, "weapons export", _set_first_value("Crafted", "true")),
     (
         "weapons-level-decimal",

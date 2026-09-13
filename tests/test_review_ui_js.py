@@ -101,6 +101,9 @@ var out = {
     unprotectedOnly: ids(api.filterItems(items, { protection: "unprotected" })),
     soft: ids(api.filterItems(items, { protection: "soft" })),
     hard: ids(api.filterItems(items, { protection: "hard" })),
+    loadoutIn: ids(api.filterItems(items, { loadout: "in" })),
+    loadoutOut: ids(api.filterItems(items, { loadout: "out" })),
+    loadoutAll: ids(api.filterItems(items, { loadout: "" })),
     searchById: ids(api.filterItems(items, { text: first.id })),
     searchByNameLower: ids(api.filterItems(items, {
       text: first.name.toLowerCase()
@@ -387,6 +390,36 @@ if (readOnlyState.rows[items[0].id].approve !== null ||
     readOnlyState.rows[items[0].id].veto !== null) {
   fail("read-only rows must expose null verdict button handles");
 }
+var loadoutItem = {
+  id: "7004", hash: "902", name: "Loadout piece", kind: "weapons",
+  location: "Vault", guardianClass: "", classFacet: "weapons",
+  action: "junk", reason: "dupe-lower", protectionLevel: "",
+  protectionReason: "", tag: "junk", note: "#vc-junk", keptId: "7003",
+  originalTag: "", originalNotes: "", locked: false, equipped: false,
+  inLoadout: true, armor: null
+};
+var testLoadoutState = {
+  sort: { field: "name", direction: "asc" },
+  expanded: { "7004": true },
+  rows: Object.create(null),
+  verdicts: Object.create(null)
+};
+var loadoutView = api.createView({
+  document: document,
+  state: testLoadoutState,
+  items: [loadoutItem, items[0]],
+  columns: api.COLUMNS
+});
+var loadoutRows = loadoutView.itemRows(loadoutItem, api.COLUMNS.length + 2);
+var nonLoadoutRows = loadoutView.itemRows(items[0], api.COLUMNS.length + 2);
+var loadoutBadge = find(loadoutRows[0], function (node) {
+  return node.className && node.className.indexOf("badge loadout") !== -1 && node.textContent === "in loadout";
+});
+var nonLoadoutBadge = find(nonLoadoutRows[0], function (node) {
+  return node.className && node.className.indexOf("badge loadout") !== -1;
+});
+var loadoutDetail = loadoutView.detailRow(loadoutItem, "vc-detail-7004", api.COLUMNS.length + 2);
+
 var output = {
   hasHeader: header.textContent.indexOf("Verdict") !== -1,
   hasClassAndLocation: header.textContent.indexOf("Class") !== -1 &&
@@ -401,7 +434,10 @@ var output = {
   selected: select.value,
   optionCount: oldStyle.length,
   readOnlyNullHandles: readOnlyState.rows[items[0].id].approve === null &&
-    readOnlyState.rows[items[0].id].veto === null
+    readOnlyState.rows[items[0].id].veto === null,
+  inLoadoutBadgeRendered: loadoutBadge !== null,
+  nonLoadoutBadgeOmitted: nonLoadoutBadge === null,
+  detailFlagsLineUnchanged: loadoutDetail.textContent.indexOf("in a loadout") !== -1
 };
 if (unicodeTable) {
   output.unicodeNameRendered = unicodeTable.textContent.indexOf("\u202e") !== -1;
@@ -485,6 +521,9 @@ def test_create_view_contract_under_a_small_node_dom_stub(tmp_path):
         "optionCount": 2,
         "readOnlyNullHandles": True,
         "paintedInPlace": True,
+        "inLoadoutBadgeRendered": True,
+        "nonLoadoutBadgeOmitted": True,
+        "detailFlagsLineUnchanged": True,
     }
 
 
@@ -1199,7 +1238,26 @@ def test_filters_select_the_same_items_the_run_would(plain):
         if decision.protection_level == "soft"
     }
     assert not set(filters["protectedOnly"]) & set(filters["unprotectedOnly"])
+    assert set(filters["loadoutIn"]) == {
+        item_id for item_id, decision in decisions.items() if decision.in_loadout
+    }
+    assert set(filters["loadoutOut"]) == {
+        item_id for item_id, decision in decisions.items() if not decision.in_loadout
+    }
+    assert not set(filters["loadoutIn"]) & set(filters["loadoutOut"])
+    assert set(filters["loadoutAll"]) == set(decisions.keys())
     assert filters["emptyQueryKeepsAll"] == len(decisions)
+
+
+def test_loadout_filters_select_in_loadout_hostile_proposals(hostile):
+    decisions = {decision.id: decision for decision in proposals(hostile.run)}
+    filters = hostile.results["filters"]
+    assert filters["loadoutIn"] == ["7004"]
+    assert set(filters["loadoutOut"]) == {
+        item_id for item_id in decisions if item_id != "7004"
+    }
+    assert not set(filters["loadoutIn"]) & set(filters["loadoutOut"])
+    assert set(filters["loadoutAll"]) == set(decisions.keys())
 
 
 def test_search_matches_name_case_insensitively_and_id_exactly(plain):

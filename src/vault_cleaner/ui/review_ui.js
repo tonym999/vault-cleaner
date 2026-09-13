@@ -198,6 +198,13 @@
     return item.protectionLevel === mode;
   }
 
+  function matchesLoadout(item, mode) {
+    if (!mode) return true;
+    if (mode === "in") return item.inLoadout === true;
+    if (mode === "out") return item.inLoadout !== true;
+    return true;
+  }
+
   function filterItems(items, query, verdicts) {
     var q = query || {};
     return items.filter(function (item) {
@@ -206,6 +213,7 @@
       if (q.reason && item.reason !== q.reason) return false;
       if (q.classFacet && item.classFacet !== q.classFacet) return false;
       if (!matchesProtection(item, q.protection)) return false;
+      if (!matchesLoadout(item, q.loadout)) return false;
       if (q.verdict) {
         var verdict = verdictOf(verdicts, item.id);
         if (q.verdict === "unreviewed" ? verdict !== "" : verdict !== q.verdict) {
@@ -1026,10 +1034,16 @@
         el("td", { text: item.kind }),
         el("td", { text: item.classFacet }),
         el("td", { text: item.location }),
-        el("td", null, [el("span", {
-          class: "badge " + (item.action === "junk" ? "junk" : "review"),
-          text: item.action
-        })]),
+        el("td", null, [
+          el("span", {
+            class: "badge " + (item.action === "junk" ? "junk" : "review"),
+            text: item.action
+          }),
+          item.inLoadout ? el("span", {
+            class: "badge loadout",
+            text: "in loadout"
+          }) : null
+        ]),
         el("td", { text: item.reason }),
         el("td", { text: item.tuningModSlot }),
         el("td", { text: item.protectionLevel || "—" }),
@@ -1721,7 +1735,7 @@
     actionCounts: actionCounts, compareIds: compareIds, compareText: compareText,
     countBy: countBy, filterItems: filterItems, groupItems: groupItems, groupLabel: groupLabel,
     isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, keptItems: keptItems,
-    matchesProtection: matchesProtection, matchesText: matchesText, requireIdString: requireIdString,
+    matchesProtection: matchesProtection, matchesLoadout: matchesLoadout, matchesText: matchesText, requireIdString: requireIdString,
     reviewCounts: reviewCounts, sortItems: sortItems, str: str, verdictOf: verdictOf,
     emptyMap: emptyMap, createView: createView,
     exactDuplicateGroupsFromSnapshot: exactDuplicateGroupsFromSnapshot,
