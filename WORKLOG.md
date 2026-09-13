@@ -3,6 +3,59 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
+
+Created and planned Child 2b of #140 from `main` at
+`f75175dac66072a662d7129b49921a757af6aafd`. Refs #155.
+
+- **Issue and tracking:** created #155 as an `enhancement`, deliberately left it
+  unmilestoned, added it to vault-cleaner project 3, and verified Status `Todo`.
+  Linked it as a GitHub sub-issue of #140. #142 is the landed
+  requirements/measurement source; #148 is closed and landed.
+- **Exact output rule:** one shared selector must emit a current proposal only
+  when its fresh session/manifest verdict is `approved` and no active persisted
+  veto suppresses it. Vetoed and unreviewed rows are absent. Approved rows retain
+  report order. Zero eligible rows intentionally render the existing valid
+  header-only CSV.
+- **Sibling paths:** the plan changes both measured finalization callers—CLI
+  `review` and server `POST /api/finalize`—plus the browser's currently
+  subtractive `keptItems`/`after vetoes` mirror. Raw `report --write` and
+  single-pass proposal exports remain unchanged.
+- **Durable-veto boundary:** a fresh approval does not remove or bypass an active
+  saved veto. Existing conflict diagnostics remain. `review --write` without a
+  manifest has no fresh approvals, so it writes a header-only reviewed CSV after
+  the existing explicit `--write` action while still reporting override status.
+- **UI decision:** the summary tile becomes `approved output`. Finalization
+  confirms the post-active-veto output count with separate exact zero, singular,
+  and plural copy; the false warning that unreviewed proposals will remain is
+  removed. The finalized state explicitly says the CSV contains only eligible
+  explicit approvals.
+- **Compatibility:** no rule, rank, rail, tag, Notes, config, input/snapshot/
+  manifest schema, fingerprint, runtime dependency, fixture schema, ruleset
+  version, or report golden change. Server rendering, override-digest guard,
+  atomic save, byte cache, retry, reset, `--once`, auth, and cleanup boundaries
+  remain intact.
+- **Overlap warning:** #150's plan is merged but its implementation is not yet on
+  `main`; it may touch the same UI/test/docs files. #155 must branch from latest
+  `main` and preserve any landed #150 shared-summary/query behavior.
+- **Implementer selection:** Google `gemini-3.8-flash` with native
+  `thinking_level = high`. Official Google documentation rechecked 2026-09-13
+  identifies the exact model as stable and supports `low`, `medium`, and `high`
+  (not `minimal`). Flash is suitable because the settled truth table and seams
+  make this bounded implementation work; high is warranted by persistent-veto,
+  partial-manifest, empty-output, transaction, parity, and browser obligations.
+- **Review path:** independent adversarial review. Likely defects are a remaining
+  subtractive sibling, false-green parity on empty files, lifecycle coverage that
+  no longer exercises an emitted row, or UI count/copy based on raw approvals
+  rather than post-active-veto output.
+- Planning branch: `handoff/issue-155-implementation-plan`; allocated
+  implementation branch: `feat/issue-155-approval-only-finalization`. This
+  planning phase does not authorize implementation or either PR's merge.
+- **Planning verification:** `.venv/bin/ruff check src tests scripts` passed;
+  `.venv/bin/pytest -q` passed (`975 passed`); the explicit required-browser run
+  passed (`16 passed, 3 deselected`); `git diff --check` passed; and no file under
+  `data/` is tracked.
+
 ## 2026-09-13 — #150 planning: shown weapon proposals as DIM queries (PR 1)
 
 Planned the weapon-proposal extension of #117 after both dependencies landed on
