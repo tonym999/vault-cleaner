@@ -1075,18 +1075,19 @@
       var chunks = null;
       var queryFailed = false;
       try {
-        ids = (ui && typeof ui.weaponProposalIdsForDimQuery === "function")
-          ? ui.weaponProposalIdsForDimQuery(filteredItems)
-          : [];
-        chunks = (ids.length && ui && typeof ui.dimIdQueryChunks === "function")
-          ? ui.dimIdQueryChunks(ids, ui.DIM_QUERY_SAVEABLE_MAX)
-          : [];
+        if (!ui || typeof ui.weaponProposalIdsForDimQuery !== "function" ||
+            typeof ui.dimIdQueryChunks !== "function") {
+          throw new Error("DIM query helpers are unavailable");
+        }
+        ids = ui.weaponProposalIdsForDimQuery(filteredItems);
+        chunks = ids.length ? ui.dimIdQueryChunks(ids, ui.DIM_QUERY_SAVEABLE_MAX) : [];
       } catch (err) {
         queryFailed = true;
       }
 
       var weaponCount = ids ? ids.length : 0;
       if (queryFailed) {
+        weaponCount = 0;
         for (var w = 0; w < filteredItems.length; w++) {
           if (filteredItems[w] && filteredItems[w].kind === "weapons") {
             weaponCount++;

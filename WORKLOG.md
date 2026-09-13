@@ -58,14 +58,24 @@ the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
     verified that adapter state fields (`verdicts`, `report_revision`,
     `verdict_revision`, `mutationInFlight`, `persistedVetoIds`, `rows`, and
     `duplicateRows`) remain unchanged across filter cycles and resets; proved
-    `renderList` independence by verifying that sorting and grouping invoke
-    `renderList` without touching or re-rendering the DIM query DOM; exercised
-    all 8 filter axes (`action`, `kind`, `reason`, `classFacet`, `protection`,
-    `verdict`, `loadout`, `search`) against a mixed report containing an
-    authoritative vetoed proposal; tested real verdict acknowledgement via
-    row Approve click and `/api/verdicts` POST rather than simulated `start()`;
-    and added distinct checks for disconnected frozen reports (`connected: false`)
-    and finalized reports (`state: "finalized"`).
+    `renderList` independence by flipping `state.grouped` via change event on
+    `#vc-f-group` `<select>` and clicking flat table header sort button (`th > button`),
+    verifying both handlers execute, mutate state, call `renderList()`, and make zero
+    writes to `countNode` (`renderListCallsRenderer === false`, verified against a probe
+    that injected the renderer into `renderList`); exercised all 8 filter axes
+    (`action`, `kind`, `reason`, `classFacet`, `protection`, `verdict`, `loadout`, `search`)
+    against a mixed report containing an authoritative vetoed proposal; tested real verdict
+    acknowledgement via row Approve click and `/api/verdicts` POST rather than simulated `start()`;
+    and added distinct checks for disconnected frozen reports (`connected: false`) and
+    finalized reports (`state: "finalized"`).
+  - *P3 (failure handling & double counting in `review_server.js`):* in
+    `renderShownWeaponDimQuery`, reset `weaponCount = 0` at the start of `if (queryFailed)`
+    to prevent count doubling if the selector succeeded before the chunker threw,
+    and added an assertion verifying malformed weapon reports do not double the count;
+    checked helper availability inside the `try` block, throwing immediately if
+    `ui.weaponProposalIdsForDimQuery` or `ui.dimIdQueryChunks` is missing so missing
+    helpers fail closed to the error message rather than showing empty matches,
+    backed by an adapter test proof.
   - *P3 (accessibility / live region):* removed `role="status"` from query error
     paragraph so error text is not an unexpected live region alongside the count node.
   - *P3 (code cleanup):* removed shadowed declaration of `weaponQuerySection` in boot;

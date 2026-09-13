@@ -4793,16 +4793,57 @@ setTimeout(function () {
     // renderList / sort / group independence: calling renderList does not touch outputNode
     var detailsBeforeList = outputNode.querySelector("details");
     var textareaBeforeList = outputNode.querySelector("textarea");
-    liveState.sort = { field: "action", direction: "desc" };
-    var groupingEl = doc.getElementById("vc-f-group");
-    var groupingSelect = groupingEl ? groupingEl.querySelector("select") : null;
+    var countTextBeforeList = countNode.textContent;
+
+    var countWrites = 0;
+    var origCountSet = Object.getOwnPropertyDescriptor(Node.prototype, "textContent").set;
+    var origCountGet = Object.getOwnPropertyDescriptor(Node.prototype, "textContent").get;
+    Object.defineProperty(countNode, "textContent", {
+      get: function () { return origCountGet.call(this); },
+      set: function (val) {
+        countWrites++;
+        origCountSet.call(this, val);
+      },
+      configurable: true
+    });
+    countNode.textContent = "";
+    countWrites = 0;
+
+    // 1. Grouping change: flip state.grouped from true to false
+    var groupingSelect = doc.getElementById("vc-f-group");
+    var groupedBefore = liveState.grouped;
     if (groupingSelect) {
       groupingSelect.value = "flat";
       groupingSelect.dispatch("change", { target: { value: "flat" } });
     }
+    var groupedAfter = liveState.grouped;
+    var groupedFlipped = (groupedBefore === true) && (groupedAfter === false);
+
+    // 2. Sort change: in flat mode, table headers exist with sort buttons
+    var listHost = doc.getElementById("vc-list");
+    var th = listHost ? listHost.querySelector("th") : null;
+    var sortBtn = th ? th.querySelector("button") : null;
+    var sortBefore = JSON.stringify(liveState.sort);
+    if (sortBtn) {
+      sortBtn.dispatch("click");
+    }
+    var sortAfter = JSON.stringify(liveState.sort);
+    var sortChanged = (sortBefore !== sortAfter);
+
     var detailsAfterList = outputNode.querySelector("details");
     var textareaAfterList = outputNode.querySelector("textarea");
-    var renderListDidNotTouchQuery = (detailsBeforeList === detailsAfterList) && (textareaBeforeList === textareaAfterList);
+    var renderListCallsRenderer = (countWrites > 0);
+    var renderListDidNotTouchQuery = (detailsBeforeList === detailsAfterList) &&
+                                     (textareaBeforeList === textareaAfterList) &&
+                                     (countWrites === 0) &&
+                                     (countNode.textContent === "");
+
+    delete countNode.textContent;
+    countNode.textContent = countTextBeforeList;
+    if (groupingSelect) {
+      groupingSelect.value = "grouped";
+      groupingSelect.dispatch("change", { target: { value: "grouped" } });
+    }
 
     // 4. Exercise ALL filter axes and prove zero side-effects on adapter state/fetch/clipboard
     var fetchCallsBeforeFilters = fetchCalls;
@@ -4947,9 +4988,22 @@ setTimeout(function () {
       liveServer.start();
 
       setTimeout(function () {
+        var malformedCount = countNode.textContent;
         var errorEl = outputNode.querySelector(".dim-query-error");
+        var origSelector = context.VaultCleanerReviewUI.weaponProposalIdsForDimQuery;
+        delete context.VaultCleanerReviewUI.weaponProposalIdsForDimQuery;
+        var searchEl = doc.getElementById("vc-search");
+        if (searchEl) searchEl.dispatch("input", { target: { value: "Bad" } });
+        var missingHelperErrorEl = outputNode.querySelector(".dim-query-error");
+        var missingHelperEmptyHint = outputNode.querySelector(".dim-query-empty-hint");
+        var missingHelperHasError = !!missingHelperErrorEl && !missingHelperEmptyHint;
+        context.VaultCleanerReviewUI.weaponProposalIdsForDimQuery = origSelector;
+        if (searchEl) searchEl.dispatch("input", { target: { value: "" } });
+
         var errorHandling = {
           hasError: !!errorEl,
+          malformedCount: malformedCount,
+          missingHelperHasError: missingHelperHasError,
           errorRole: errorEl ? errorEl.getAttribute("role") : null,
           errorText: errorEl ? errorEl.textContent : null,
           noTextarea: outputNode.querySelectorAll("textarea").length === 0,
@@ -5012,6 +5066,9 @@ setTimeout(function () {
                 focusPreservedAfterVerdict: focusPreservedAfterVerdict,
                 selectionPreserved: selectionPreserved,
                 identityPreservedAfterSearch: identityPreservedAfterSearch,
+                groupedFlipped: groupedFlipped,
+                sortChanged: sortChanged,
+                renderListCallsRenderer: renderListCallsRenderer,
                 renderListDidNotTouchQuery: renderListDidNotTouchQuery
               },
               filters: {
@@ -5126,6 +5183,9 @@ setTimeout(function () {
     assert result["reconciliation"]["focusPreservedAfterVerdict"] is True
     assert result["reconciliation"]["selectionPreserved"] is True
     assert result["reconciliation"]["identityPreservedAfterSearch"] is True
+    assert result["reconciliation"]["groupedFlipped"] is True
+    assert result["reconciliation"]["sortChanged"] is True
+    assert result["reconciliation"]["renderListCallsRenderer"] is False
     assert result["reconciliation"]["renderListDidNotTouchQuery"] is True
 
     # 4. Filters & side-effect verification across all axes
@@ -5182,6 +5242,11 @@ setTimeout(function () {
 
     # 6. Malformed weapon ID fails closed (P3: error is NOT a live region)
     assert result["errorHandling"]["hasError"] is True
+    assert (
+        result["errorHandling"]["malformedCount"]
+        == "1 weapon proposal currently shown."
+    )
+    assert result["errorHandling"]["missingHelperHasError"] is True
     assert result["errorHandling"]["errorRole"] is None
     assert (
         result["errorHandling"]["errorText"]
