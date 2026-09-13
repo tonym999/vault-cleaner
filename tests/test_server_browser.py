@@ -1237,3 +1237,113 @@ def test_weapon_loadout_visibility_and_crosscheck_panel(
     proposed_review_query = page.locator("#vc-dim-query-review-proposals")
     expect(proposed_review_query).to_have_value("notes:#vc-review is:inloadout")
     assert proposed_review_query.is_editable() is False
+
+    # 1. Assert unfiltered shown-weapons query literal and stable targets
+    expect(page.locator("#vc-weapon-dim-query")).to_be_visible()
+    expect(page.locator("#vc-weapon-dim-query-title")).to_have_text("Shown weapon proposals")
+    expect(page.locator("#vc-weapon-dim-query-explanation")).to_have_text(
+        "This DIM search updates from the weapon proposals matching the current Proposals filters. "
+        "For an approved-only query, set Session verdict to approved first."
+    )
+    expect(page.locator("#vc-weapon-dim-query-count")).to_have_text("5 weapon proposals currently shown.")
+
+    weapon_query_textarea = page.locator("#vc-weapon-dim-query-output textarea").first
+    expect(weapon_query_textarea).to_have_value(
+        "id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010"
+    )
+
+    # 2. Verify warning copy does not describe result as approved junk, and textarea properties
+    warning = page.locator("#vc-weapon-dim-query-output .dim-query-warning")
+    expect(warning).to_contain_text("Do not treat it as an approved-junk list.")
+    expect(warning).not_to_contain_text("approved junk list")
+    assert weapon_query_textarea.is_editable() is False
+    expect(weapon_query_textarea).to_have_attribute("spellcheck", "false")
+
+    # 3. Apply in-loadout filter: updates live to id:7004 with 0 requests and no state change
+    requests: list[str] = []
+    page.on("request", lambda req: requests.append(req.url))
+
+    state_before = page.evaluate("""() => {
+        const s = window.VaultCleanerServerUI.state;
+        return {
+            verdicts: JSON.stringify(s.verdicts),
+            report_revision: s.report_revision,
+            verdict_revision: s.verdict_revision,
+            server_state: s.server_state,
+        };
+    }""")
+
+    loadout_select.select_option("in")
+    expect(weapon_query_textarea).to_have_value("id:7004")
+    expect(page.locator("#vc-weapon-dim-query-count")).to_have_text("1 weapon proposal currently shown.")
+    assert len(requests) == 0, f"unexpected network requests during filter: {requests}"
+
+    state_after = page.evaluate("""() => {
+        const s = window.VaultCleanerServerUI.state;
+        return {
+            verdicts: JSON.stringify(s.verdicts),
+            report_revision: s.report_revision,
+            verdict_revision: s.verdict_revision,
+            server_state: s.server_state,
+        };
+    }""")
+    assert state_after == state_before
+
+    # 4. Reset loadout filter; check 390px viewport containment and keyboard focus
+    loadout_select.select_option("")
+    expect(weapon_query_textarea).to_have_value(
+        "id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010"
+    )
+
+    details_el = page.locator("#vc-weapon-dim-query-output details")
+    summary_el = details_el.locator("summary")
+    if not details_el.evaluate("el => el.open"):
+        summary_el.click()
+    expect(details_el).to_have_attribute("open", "")
+    expect(weapon_query_textarea).to_be_visible()
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    scroll_width = page.evaluate("document.documentElement.scrollWidth")
+    assert scroll_width <= 390, f"horizontal overflow at 390px: scrollWidth={scroll_width}"
+
+    summary_el.focus()
+    assert summary_el.evaluate("el => document.activeElement === el") is True
+    page.keyboard.press("Tab")
+    assert weapon_query_textarea.evaluate("el => document.activeElement === el") is True
+
+    page.set_viewport_size({"width": 1440, "height": 900})
+
+    # 5. Deterministic empty state with text search "no such weapon"
+    page.locator("#vc-search").fill("no such weapon")
+    expect(page.locator("#vc-weapon-dim-query-count")).to_have_text("0 weapon proposals currently shown.")
+    expect(page.locator("#vc-weapon-dim-query-output .dim-query-empty-hint")).to_have_text(
+        "No weapon proposals match the current filters."
+    )
+    expect(page.locator("#vc-weapon-dim-query-output details")).to_have_count(0)
+    expect(page.locator("#vc-weapon-dim-query-output textarea")).to_have_count(0)
+
+    # 6. Reset filters: five-id query returns
+    page.locator("#vc-controls").get_by_role("button", name="Reset filters").click()
+    expect(page.locator("#vc-weapon-dim-query-count")).to_have_text("5 weapon proposals currently shown.")
+    expect(page.locator("#vc-weapon-dim-query-output textarea").first).to_have_value(
+        "id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010"
+    )
+
+    # 7. Upload armor_close.csv, switch to Armor duplicates (hidden), return to Proposals (visible)
+    page.locator("#vc-upload-armor").set_input_files(ARMOR_CLOSE_EXPORT)
+    expect(page.locator("#vc-upload-status-armor")).to_have_text("Accepted")
+    expect(page.locator("#vc-view-duplicates")).to_be_enabled()
+    page.locator("#vc-view-duplicates").click()
+
+    expect(page.locator("#vc-weapon-dim-query")).to_be_hidden()
+
+    page.locator("#vc-view-proposals").click()
+    expect(page.locator("#vc-weapon-dim-query")).to_be_visible()
+    expect(page.locator("#vc-weapon-dim-query-output textarea").first).to_have_value(
+        "id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010"
+    )
+
+    # 8. Verify pre-existing three static #148 queries remain unchanged
+    expect(page.locator("#vc-dim-query-junk")).to_have_value("tag:junk is:inloadout")
+    expect(page.locator("#vc-dim-query-proposed-junk")).to_have_value("notes:#vc-junk is:inloadout")
+    expect(page.locator("#vc-dim-query-review-proposals")).to_have_value("notes:#vc-review is:inloadout")

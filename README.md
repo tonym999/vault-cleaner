@@ -232,6 +232,16 @@ can be inspected side-by-side in DIM. Generating a query changes nothing in
 vault-cleaner or DIM, performs no network requests, and does not alter review
 verdicts; you manually select and copy any chunks you want into DIM's search bar.
 
+The **Cross-check in DIM** panel also provides live search text for currently
+shown weapon proposals (`id:<id> or ...`). Active filters define the query's
+membership, including setting the Session verdict filter to approved for an
+approved-only weapon query. The query is a locating aid rather than an
+approved-junk list — it includes every matching weapon proposal (junk and review,
+any session verdict, and items still suppressed by an active saved veto unless
+filters exclude them). Rendering or selecting query text changes nothing in
+vault-cleaner or DIM, makes no network requests, and leaves review verdicts and
+session state untouched; manually copy every complete chunk you need into DIM.
+
 > **Privacy:** vault exports, report data, verdicts, and generated CSV bytes
 > remain on your machine. The server has no Bungie credentials, account login,
 > API key, or authenticated account access. Optional wishlist and public Bungie

@@ -625,6 +625,7 @@
     var duplicatePanel = document.getElementById("vc-duplicates");
     var selectorPanel = document.getElementById("vc-view-selector");
     var crosscheckPanel = document.getElementById("vc-crosscheck");
+    var weaponQuerySection = document.getElementById("vc-weapon-dim-query");
     if (!crosscheckPanel && typeof document.createElement === "function") {
       crosscheckPanel = document.createElement("section");
       crosscheckPanel.id = "vc-crosscheck";
@@ -638,6 +639,44 @@
       safeSetAttribute(crosscheckTitle, "id", "vc-crosscheck-title");
       crosscheckTitle.textContent = "Cross-check in DIM";
       crosscheckPanel.appendChild(crosscheckTitle);
+
+      weaponQuerySection = document.createElement("section");
+      weaponQuerySection.id = "vc-weapon-dim-query";
+      safeSetAttribute(weaponQuerySection, "id", "vc-weapon-dim-query");
+      weaponQuerySection.className = "weapon-dim-query";
+      safeSetAttribute(weaponQuerySection, "aria-labelledby", "vc-weapon-dim-query-title");
+      weaponQuerySection.hidden = true;
+
+      var weaponQueryHeading = document.createElement("h3");
+      weaponQueryHeading.id = "vc-weapon-dim-query-title";
+      safeSetAttribute(weaponQueryHeading, "id", "vc-weapon-dim-query-title");
+      weaponQueryHeading.className = "weapon-dim-query-heading";
+      weaponQueryHeading.textContent = "Shown weapon proposals";
+      weaponQuerySection.appendChild(weaponQueryHeading);
+
+      var weaponQueryExplanation = document.createElement("p");
+      weaponQueryExplanation.id = "vc-weapon-dim-query-explanation";
+      safeSetAttribute(weaponQueryExplanation, "id", "vc-weapon-dim-query-explanation");
+      weaponQueryExplanation.className = "hint dim-query-explanation weapon-dim-query-explanation";
+      weaponQueryExplanation.textContent = "This DIM search updates from the weapon proposals matching the current Proposals filters. For an approved-only query, set Session verdict to approved first.";
+      weaponQuerySection.appendChild(weaponQueryExplanation);
+
+      var weaponQueryCount = document.createElement("p");
+      weaponQueryCount.id = "vc-weapon-dim-query-count";
+      safeSetAttribute(weaponQueryCount, "id", "vc-weapon-dim-query-count");
+      weaponQueryCount.className = "weapon-dim-query-count";
+      safeSetAttribute(weaponQueryCount, "role", "status");
+      safeSetAttribute(weaponQueryCount, "aria-live", "polite");
+      weaponQueryCount.textContent = "";
+      weaponQuerySection.appendChild(weaponQueryCount);
+
+      var weaponQueryOutput = document.createElement("div");
+      weaponQueryOutput.id = "vc-weapon-dim-query-output";
+      safeSetAttribute(weaponQueryOutput, "id", "vc-weapon-dim-query-output");
+      weaponQueryOutput.className = "dim-query-output weapon-dim-query-output";
+      weaponQuerySection.appendChild(weaponQueryOutput);
+
+      crosscheckPanel.appendChild(weaponQuerySection);
 
       var crosscheckControls = document.createElement("div");
       crosscheckControls.className = "controls dim-crosscheck-controls";
@@ -992,14 +1031,188 @@
       }
       host.appendChild(view.tile("unreviewed", String(reviewed.unreviewed), "without a current-session verdict"));
       var overrideHost = byId("vc-overrides");
-      if (!overrideHost) return;
-      view.clear(overrideHost);
-      if (state.override_status.length) {
-        overrideHost.appendChild(view.el("p", { class: "hint", text: state.override_status.length + " persisted override status(es), shown separately from session verdicts:" }));
-        overrideHost.appendChild(view.el("ul", null, state.override_status.map(function (entry) {
-          return view.el("li", { text: String(entry.status || "unknown") + ": " + String(entry.id || "") + (entry.detail ? " — " + String(entry.detail) : "") });
-        })));
+      if (overrideHost) {
+        view.clear(overrideHost);
+        if (state.override_status.length) {
+          overrideHost.appendChild(view.el("p", { class: "hint", text: state.override_status.length + " persisted override status(es), shown separately from session verdicts:" }));
+          overrideHost.appendChild(view.el("ul", null, state.override_status.map(function (entry) {
+            return view.el("li", { text: String(entry.status || "unknown") + ": " + String(entry.id || "") + (entry.detail ? " — " + String(entry.detail) : "") });
+          })));
+        }
       }
+      renderShownWeaponDimQuery();
+    }
+    var lastDetailsOpen = null;
+    var lastRenderKey = null;
+
+    function renderShownWeaponDimQuery() {
+      var sectionNode = byId("vc-weapon-dim-query");
+      if (!sectionNode) return;
+      var isVisible = state.server_state !== "idle" && state.surface === "proposals";
+      sectionNode.hidden = !isVisible;
+      if (!isVisible) {
+        return;
+      }
+      var countNode = byId("vc-weapon-dim-query-count");
+      var outputNode = byId("vc-weapon-dim-query-output");
+      if (!countNode || !outputNode) return;
+
+      var filteredItems = (ui && typeof ui.filterItems === "function")
+        ? ui.filterItems(state.items, state.query, state.verdicts)
+        : [];
+      var weaponCount = 0;
+      for (var w = 0; w < filteredItems.length; w++) {
+        if (filteredItems[w] && filteredItems[w].kind === "weapons") {
+          weaponCount++;
+        }
+      }
+
+      var countText = weaponCount === 1
+        ? "1 weapon proposal currently shown."
+        : weaponCount + " weapon proposals currently shown.";
+      if (countNode.textContent !== countText) {
+        countNode.textContent = countText;
+      }
+
+      if (weaponCount === 0) {
+        var emptyKey = "empty";
+        if (lastRenderKey === emptyKey) return;
+        var existingDetailsEmpty = outputNode.querySelector("details");
+        if (existingDetailsEmpty) {
+          lastDetailsOpen = !!existingDetailsEmpty.open;
+        }
+        lastRenderKey = emptyKey;
+        if (view && typeof view.clear === "function") {
+          view.clear(outputNode);
+        } else {
+          while (outputNode.firstChild && typeof outputNode.removeChild === "function") {
+            outputNode.removeChild(outputNode.firstChild);
+          }
+        }
+        outputNode.textContent = "";
+        var emptyHint = document.createElement("p");
+        emptyHint.className = "dim-query-empty-hint hint";
+        emptyHint.textContent = "No weapon proposals match the current filters.";
+        outputNode.appendChild(emptyHint);
+        return;
+      }
+
+      var ids = null;
+      var chunks = null;
+      var queryFailed = false;
+      try {
+        ids = ui.weaponProposalIdsForDimQuery(filteredItems);
+        chunks = ui.dimIdQueryChunks(ids, ui.DIM_QUERY_SAVEABLE_MAX);
+      } catch (err) {
+        queryFailed = true;
+      }
+
+      if (queryFailed || !chunks || !chunks.length) {
+        var errorKey = "error";
+        if (lastRenderKey === errorKey) return;
+        var existingDetailsError = outputNode.querySelector("details");
+        if (existingDetailsError) {
+          lastDetailsOpen = !!existingDetailsError.open;
+        }
+        lastRenderKey = errorKey;
+        if (view && typeof view.clear === "function") {
+          view.clear(outputNode);
+        } else {
+          while (outputNode.firstChild && typeof outputNode.removeChild === "function") {
+            outputNode.removeChild(outputNode.firstChild);
+          }
+        }
+        outputNode.textContent = "";
+        var errorEl = document.createElement("p");
+        errorEl.className = "dim-query-error";
+        safeSetAttribute(errorEl, "role", "status");
+        errorEl.textContent = "Could not generate a safe DIM query for the shown weapons.";
+        outputNode.appendChild(errorEl);
+        return;
+      }
+
+      var labelText = "DIM query for " + weaponCount + (weaponCount === 1 ? " shown weapon proposal" : " shown weapon proposals");
+      var warningText = "This locating query includes every matching weapon proposal \u2014 junk and review, any session verdict, and items still suppressed by an active saved veto unless the current filters exclude them. Do not treat it as an approved-junk list.";
+      var sideEffectText = "Rendering or selecting this text changes no vault-cleaner verdict, tag, note, item, or DIM state.";
+      var splitNoticeText = chunks.length > 1
+        ? "Split into " + chunks.length + " complete queries at DIM's current 2048-character saveability boundary. Use every query to cover the shown proposals."
+        : "";
+
+      var renderKey = JSON.stringify({ label: labelText, warning: warningText, chunks: chunks });
+      if (lastRenderKey === renderKey) return;
+
+      var existingDetails = outputNode.querySelector("details");
+      if (existingDetails) {
+        lastDetailsOpen = !!existingDetails.open;
+      }
+      lastRenderKey = renderKey;
+
+      if (view && typeof view.clear === "function") {
+        view.clear(outputNode);
+      } else {
+        while (outputNode.firstChild && typeof outputNode.removeChild === "function") {
+          outputNode.removeChild(outputNode.firstChild);
+        }
+      }
+      outputNode.textContent = "";
+
+      var details = document.createElement("details");
+      details.className = "weapon-dim-query-details";
+      details.open = lastDetailsOpen !== null ? lastDetailsOpen : false;
+      details.addEventListener("toggle", function () {
+        lastDetailsOpen = details.open;
+      });
+
+      var summary = document.createElement("summary");
+      summary.className = "dim-query-label weapon-dim-query-summary";
+      summary.textContent = labelText;
+      details.appendChild(summary);
+
+      var warningEl = document.createElement("p");
+      warningEl.className = "dim-query-warning";
+      warningEl.textContent = warningText;
+      details.appendChild(warningEl);
+
+      var sideEffectEl = document.createElement("p");
+      sideEffectEl.className = "dim-query-explanation weapon-dim-query-explanation";
+      sideEffectEl.textContent = sideEffectText;
+      details.appendChild(sideEffectEl);
+
+      if (chunks.length > 1) {
+        var splitNoticeEl = document.createElement("p");
+        splitNoticeEl.className = "dim-query-split-notice";
+        splitNoticeEl.textContent = splitNoticeText;
+        details.appendChild(splitNoticeEl);
+      }
+
+      for (var c = 0; c < chunks.length; c++) {
+        var chunkIndex = c + 1;
+        var chunkWrap = document.createElement("div");
+        chunkWrap.className = "dim-query-chunk";
+
+        var chunkLabel = document.createElement("label");
+        chunkLabel.className = "dim-query-chunk-label";
+        var textareaId = "vc-weapon-dim-query-" + chunkIndex;
+        chunkLabel.htmlFor = textareaId;
+        safeSetAttribute(chunkLabel, "for", textareaId);
+        chunkLabel.textContent = "DIM query " + chunkIndex + " of " + chunks.length;
+        chunkWrap.appendChild(chunkLabel);
+
+        var chunkTextarea = document.createElement("textarea");
+        chunkTextarea.id = textareaId;
+        safeSetAttribute(chunkTextarea, "id", textareaId);
+        chunkTextarea.className = "dim-query-textarea mono";
+        chunkTextarea.readOnly = true;
+        safeSetAttribute(chunkTextarea, "readonly", "");
+        chunkTextarea.rows = 3;
+        safeSetAttribute(chunkTextarea, "spellcheck", "false");
+        chunkTextarea.value = chunks[c];
+        chunkWrap.appendChild(chunkTextarea);
+
+        details.appendChild(chunkWrap);
+      }
+
+      outputNode.appendChild(details);
     }
     function queryChange(field) {
       return function (event) {

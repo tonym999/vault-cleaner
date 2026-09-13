@@ -3,6 +3,65 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-13 — #150 implementation: shown weapon proposals as DIM queries (PR 2)
+
+Implemented the shown-weapon DIM query extension in the local review server per
+the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
+
+- **Role and model tier:** Implementer using Google `gemini-3.8-flash` with
+  native `thinking_level = high`.
+- **Pure selector helper:** added and exported `weaponProposalIdsForDimQuery(items)`
+  in `src/vault_cleaner/ui/review_ui.js`. Requires array input of objects,
+  filters strictly to `kind === "weapons"`, rejects non-string or malformed IDs
+  not matching `DIM_ID_PATTERN` (`/^[0-9]{1,20}$/`), ignores id fields on
+  non-weapon objects, and preserves ID strings unchanged in input order without
+  numeric coercion. Reuses exported `dimIdQueryChunks` and `DIM_QUERY_SAVEABLE_MAX`
+  unchanged; no duplicate builder or length constant introduced.
+- **Stable DOM targets and live refresh:** in `src/vault_cleaner/ui/review_server.js`,
+  boot constructs stable DOM skeleton (`#vc-weapon-dim-query`, heading,
+  explanation, `#vc-weapon-dim-query-count` with `role="status"` and
+  `aria-live="polite"`, and `#vc-weapon-dim-query-output`) inside `#vc-crosscheck`
+  before `.dim-crosscheck-controls`. Connected `renderShownWeaponDimQuery()`
+  exclusively to `renderSummary()`, executing on filter/search updates,
+  Reset filters, `adopt()` verdict/report synchronizations, and `setSurface()`.
+- **Renderer reconciliation and state preservation:** `renderShownWeaponDimQuery`
+  recomputes `ui.filterItems(state.items, state.query, state.verdicts)` narrowed
+  by `weaponProposalIdsForDimQuery`, produces chunks via `dimIdQueryChunks`,
+  and derives an ephemeral render key. Unchanged key leaves the output DOM
+  untouched, preserving `<details>` open state, textarea node identity, active
+  focus, and text selection range across search keystrokes and verdict
+  toggles. When key changes, latest open state is preserved across re-renders.
+  Surface switching hides the subsection on `armor-duplicates` and re-renders
+  it when returning to `proposals`.
+- **Zero side effects and safety copy:** verified that query rendering makes
+  zero fetch/API calls, no clipboard invocations, and leaves verdicts,
+  revisions, and server state untouched. Implemented exact warning copy
+  clarifying that all matching proposals (junk/review, any session verdict,
+  and active saved vetoes) are included and not to treat the locating query
+  as an approved-junk list.
+- **Automated proofs:**
+  - `tests/test_review_ui_js.py`: added pure unit tests for
+    `weaponProposalIdsForDimQuery` covering mixed items, 20-digit/leading-zero
+    IDs, non-weapon object tolerance, non-array/non-object/invalid-ID rejection,
+    and chunker integration (41 passed).
+  - `tests/test_server_ui_js.py`: added comprehensive integration test
+    `test_shown_weapon_dim_query_adapter_integration` verifying boot DOM,
+    mixed-kind reports with active saved vetoes, node identity/focus preservation,
+    all filter axes, 77-ID chunking into 2 queries, malformed ID safe error,
+    surface switching, and finalized reports (95 passed).
+  - `tests/test_server_browser.py`: extended `test_weapon_loadout_visibility_and_crosscheck_panel`
+    with full Playwright Chromium coverage verifying literal 5-id query,
+    read-only/spellcheck="false" properties, live filter to `id:7004` with 0 requests
+    and zero state changes, 390px horizontal containment and Tab keyboard focus,
+    deterministic text search empty state, Reset filters recovery, and Armor
+    duplicates surface toggling with static #148 query preservation (16 passed).
+- **Documentation:** updated `docs/browser-verification.md` with Issue #150
+  focused checklist and 2026-09-13 execution record; updated `README.md`
+  browser-review guidance.
+- **Constraints verified:** zero Python runtime changes, zero rule or snapshot
+  schema changes, `RULESET_VERSION` untouched, zero dependency changes, no
+  `data/` changes. Implementation branch pushed without opening a PR.
+
 ## 2026-09-13 — #150 planning: shown weapon proposals as DIM queries (PR 1)
 
 Planned the weapon-proposal extension of #117 after both dependencies landed on

@@ -633,6 +633,27 @@
     return ids;
   }
 
+  function weaponProposalIdsForDimQuery(items) {
+    if (!Array.isArray(items)) {
+      throw new Error("items must be an array");
+    }
+    var ids = [];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!isObject(item)) {
+        throw new Error("item must be an object");
+      }
+      if (item.kind === "weapons") {
+        var id = item.id;
+        if (typeof id !== "string" || !DIM_ID_PATTERN.test(id)) {
+          throw new Error("invalid DIM instance id");
+        }
+        ids.push(id);
+      }
+    }
+    return ids;
+  }
+
   function dimIdQueryChunks(ids, maxLength) {
     var limit = maxLength === undefined ? DIM_QUERY_SAVEABLE_MAX : maxLength;
     var isSafeInt = typeof limit === "number" &&
@@ -1745,6 +1766,7 @@
     countArmorGroups: countArmorGroups, armorStatDisplay: armorStatDisplay,
     normalizeCategoricalValue: normalizeCategoricalValue,
     armorGroupIdsForDimQuery: armorGroupIdsForDimQuery,
+    weaponProposalIdsForDimQuery: weaponProposalIdsForDimQuery,
     dimIdQueryChunks: dimIdQueryChunks
   };
 });
