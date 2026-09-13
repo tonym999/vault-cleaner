@@ -338,6 +338,7 @@ process.stdout.write(JSON.stringify({
             "reason": "armor-score",
             "classFacet": "Hunter",
             "protection": "",
+            "loadout": "",
             "verdict": "",
         },
         "expanded": True,
@@ -4110,3 +4111,337 @@ setTimeout(function () {
         "exactWholeFinalizedDisconnected": "id:1001 or id:1002",
         "exactJunkFinalizedDisconnected": "id:1002",
     }
+
+
+def test_loadout_facet_and_dim_crosscheck_panel(tmp_path: Path):
+    harness = tmp_path / "server-ui-loadout-crosscheck-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs");
+var vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase();
+  this.ownerDocument = document;
+  this.children = [];
+  this.parentNode = null;
+  this.attributes = Object.create(null);
+  this.listeners = Object.create(null);
+  this._text = "";
+  this.disabled = false;
+  this.hidden = false;
+  this.value = "";
+  this.className = "";
+  this.type = "";
+  this.readOnly = false;
+  this.selectedText = false;
+}
+Object.defineProperty(Node.prototype, "id", {
+  get: function () { return this.attributes["id"] || ""; },
+  set: function (val) {
+    this.attributes["id"] = String(val);
+    if (this.ownerDocument && this.ownerDocument.nodes) {
+      this.ownerDocument.nodes[String(val)] = this;
+    }
+  }
+});
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () {
+    return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+  },
+  set: function (value) { this._text = String(value); this.children = []; }
+});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this;
+  this.children.push(child);
+  return child;
+};
+Node.prototype.insertBefore = function (newNode, refNode) {
+  var index = this.children.indexOf(refNode);
+  if (index >= 0) {
+    this.children.splice(index, 0, newNode);
+  } else {
+    this.children.push(newNode);
+  }
+  newNode.parentNode = this;
+  return newNode;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") {
+    this.id = String(value);
+    this.ownerDocument.nodes[String(value)] = this;
+  }
+  if (name === "value") {
+    this.value = String(value);
+  }
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] !== undefined ? this.attributes[name] : null;
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || { target: this, preventDefault: function () {} };
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.select = function () {
+  this.selectedText = true;
+};
+Node.prototype.focus = function () {
+  this.ownerDocument.activeElement = this;
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null;
+  var wanted = selector.toLowerCase();
+  function visit(node) {
+    if (found) return;
+    (node.children || []).forEach(function (child) {
+      if (found) return;
+      if (child.tagName && child.tagName.toLowerCase() === wanted) found = child;
+      else visit(child);
+    });
+  }
+  visit(this);
+  return found;
+};
+Node.prototype.querySelectorAll = function (selector) {
+  var found = [];
+  var wanted = selector.toLowerCase();
+  function visit(node) {
+    (node.children || []).forEach(function (child) {
+      if (child.tagName && child.tagName.toLowerCase() === wanted) found.push(child);
+      visit(child);
+    });
+  }
+  visit(this);
+  return found;
+};
+
+function Document() {
+  this.nodes = Object.create(null);
+  this.listeners = Object.create(null);
+  this.activeElement = null;
+  this.body = new Node("body", this);
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
+    var n = new Node("div", this);
+    n.id = id;
+    this.nodes[id] = n;
+    this.body.appendChild(n);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) {
+  return new Node(tag, this);
+};
+Document.prototype.createTextNode = function (text) {
+  var n = new Node("#text", this);
+  n.textContent = text;
+  return n;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+
+// 1. Direct unit test of applySessionEnvelope for loadout refresh reconciliation
+var server = require(process.argv[2]);
+var stateInPreserve = server.createState();
+stateInPreserve.query.loadout = "in";
+
+var envWithLoadout = {
+  schema_version: 1, state: "reviewing", report_revision: 1,
+  verdict_revision: 0, fingerprint: "fp-1",
+  snapshot: { sections: [{ kind: "weapons", decisions: [
+    { id: "7004", hash: "100", name: "Loadout Gun", in_loadout: true, action: "junk", reason: "dupe-exact" },
+    { id: "7006", hash: "101", name: "Plain Gun", in_loadout: false, action: "junk", reason: "dupe-exact" }
+  ] }] },
+  verdicts: [], override_status: []
+};
+server.applySessionEnvelope(envWithLoadout, stateInPreserve);
+
+var stateInClear = server.createState();
+stateInClear.query.loadout = "in";
+var envWithoutLoadout = {
+  schema_version: 1, state: "reviewing", report_revision: 2,
+  verdict_revision: 0, fingerprint: "fp-2",
+  snapshot: { sections: [{ kind: "weapons", decisions: [
+    { id: "7006", hash: "101", name: "Plain Gun", in_loadout: false, action: "junk", reason: "dupe-exact" }
+  ] }] },
+  verdicts: [], override_status: []
+};
+server.applySessionEnvelope(envWithoutLoadout, stateInClear);
+
+var stateOutPreserve = server.createState();
+stateOutPreserve.query.loadout = "out";
+server.applySessionEnvelope(envWithLoadout, stateOutPreserve);
+
+var stateOutClear = server.createState();
+stateOutClear.query.loadout = "out";
+var envAllInLoadout = {
+  schema_version: 1, state: "reviewing", report_revision: 3,
+  verdict_revision: 0, fingerprint: "fp-3",
+  snapshot: { sections: [{ kind: "weapons", decisions: [
+    { id: "7004", hash: "100", name: "Loadout Gun", in_loadout: true, action: "junk", reason: "dupe-exact" }
+  ] }] },
+  verdicts: [], override_status: []
+};
+server.applySessionEnvelope(envAllInLoadout, stateOutClear);
+
+// 2. DOM integration test: boot server UI in context
+var doc = new Document();
+var clipboardText = null;
+var context = {
+  document: doc,
+  VaultCleanerReviewUI: shared,
+  Promise: Promise,
+  Set: Set,
+  navigator: {
+    clipboard: {
+      writeText: function (txt) {
+        clipboardText = txt;
+        return Promise.resolve();
+      }
+    }
+  },
+  fetch: function () {
+    return Promise.resolve({
+      ok: true, status: 200,
+      json: function () { return Promise.resolve(envWithLoadout); }
+    });
+  }
+};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+
+setTimeout(function () {
+  var liveServer = context.VaultCleanerServerUI;
+  var liveState = liveServer.state;
+
+  // Verify Select Control
+  var loadoutSelect = doc.nodes["vc-f-loadout"];
+  var options = (loadoutSelect ? loadoutSelect.children : []).map(function (opt) {
+    return { value: opt.value, text: opt.textContent };
+  });
+
+  // Verify Round-trip
+  loadoutSelect.value = "in";
+  loadoutSelect.dispatch("change", { target: loadoutSelect });
+  var queryAfterChange = liveState.query.loadout;
+
+  // Verify Crosscheck Panel
+  var crosscheckPanel = doc.nodes["vc-crosscheck"] || doc.getElementById("vc-crosscheck");
+  var crosscheckTitle = doc.getElementById("vc-crosscheck-title");
+
+  var junkInput = doc.getElementById("vc-dim-query-junk");
+  var proposedJunkInput = doc.getElementById("vc-dim-query-proposed-junk");
+  var proposedReviewInput = doc.getElementById("vc-dim-query-review-proposals");
+
+  // Copy button test
+  var copyBtns = crosscheckPanel ? crosscheckPanel.querySelectorAll("button") : [];
+  if (copyBtns.length > 0) {
+    copyBtns[0].dispatch("click");
+  }
+
+  process.stdout.write(JSON.stringify({
+    staticQueries: liveServer.STATIC_DIM_QUERIES,
+    reconciliation: {
+      inPreserved: stateInPreserve.query.loadout,
+      inPreservedInvalidated: stateInPreserve.reconciliation.invalidated,
+      inCleared: stateInClear.query.loadout,
+      inClearedInvalidated: stateInClear.reconciliation.invalidated,
+      outPreserved: stateOutPreserve.query.loadout,
+      outPreservedInvalidated: stateOutPreserve.reconciliation.invalidated,
+      outCleared: stateOutClear.query.loadout,
+      outClearedInvalidated: stateOutClear.reconciliation.invalidated
+    },
+    select: {
+      exists: !!loadoutSelect,
+      options: options,
+      roundTrip: queryAfterChange
+    },
+    crosscheck: {
+      exists: !!crosscheckPanel,
+      title: crosscheckTitle ? crosscheckTitle.textContent : null,
+      junkQuery: junkInput ? junkInput.value : null,
+      junkReadOnly: junkInput ? junkInput.readOnly : null,
+      proposedJunkQuery: proposedJunkInput ? proposedJunkInput.value : null,
+      proposedJunkReadOnly: proposedJunkInput ? proposedJunkInput.readOnly : null,
+      proposedReviewQuery: proposedReviewInput ? proposedReviewInput.value : null,
+      proposedReviewReadOnly: proposedReviewInput ? proposedReviewInput.readOnly : null,
+      clipboardCopied: clipboardText
+    }
+  }));
+}, 20);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+
+    # 1. Option labels and values
+    assert result["select"]["exists"] is True
+    assert result["select"]["options"] == [
+        {"value": "", "text": "any loadout state"},
+        {"value": "in", "text": "in a loadout"},
+        {"value": "out", "text": "not in a loadout"},
+    ]
+
+    # 2. Round-trip to state.query.loadout
+    assert result["select"]["roundTrip"] == "in"
+
+    # 3. Refresh reconciliation: both directions (preserve and clear)
+    assert result["reconciliation"]["inPreserved"] == "in"
+    assert result["reconciliation"]["inPreservedInvalidated"] == []
+    assert result["reconciliation"]["inCleared"] == ""
+    assert result["reconciliation"]["inClearedInvalidated"] == ["filter loadout in"]
+    assert result["reconciliation"]["outPreserved"] == "out"
+    assert result["reconciliation"]["outPreservedInvalidated"] == []
+    assert result["reconciliation"]["outCleared"] == ""
+    assert result["reconciliation"]["outClearedInvalidated"] == ["filter loadout out"]
+
+    # 4. DIM cross-check panel, queries and labels verbatim
+    assert result["crosscheck"]["exists"] is True
+    assert result["crosscheck"]["title"] == "Cross-check in DIM"
+    assert result["crosscheck"]["junkQuery"] == "tag:junk is:inloadout"
+    assert result["crosscheck"]["junkReadOnly"] is True
+    assert result["crosscheck"]["proposedJunkQuery"] == "notes:#vc-junk is:inloadout"
+    assert result["crosscheck"]["proposedJunkReadOnly"] is True
+    assert result["crosscheck"]["proposedReviewQuery"] == "notes:#vc-review is:inloadout"
+    assert result["crosscheck"]["proposedReviewReadOnly"] is True
+    assert result["crosscheck"]["clipboardCopied"] == "tag:junk is:inloadout"
+
+    # Static query definitions exported on server UI
+    assert result["staticQueries"] == [
+        {
+            "id": "vc-dim-query-junk",
+            "label": "Junk-tagged items in a loadout (after importing the CSV)",
+            "query": "tag:junk is:inloadout",
+        },
+        {
+            "id": "vc-dim-query-proposed-junk",
+            "label": "Proposed junk in a loadout (before accepting tags)",
+            "query": "notes:#vc-junk is:inloadout",
+        },
+        {
+            "id": "vc-dim-query-review-proposals",
+            "label": "Review-only proposals in a loadout",
+            "query": "notes:#vc-review is:inloadout",
+        },
+    ]

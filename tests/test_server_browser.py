@@ -1177,3 +1177,63 @@ def test_dim_query_generation_and_contained_presentation(
     expect(exact_group).to_be_visible()
     expect(textarea).to_be_visible()
     page.emulate_media(color_scheme="light")
+
+
+@pytest.mark.browser
+def test_weapon_loadout_visibility_and_crosscheck_panel(
+    page: Page, live_server: LiveServer
+) -> None:
+    authenticate(page, live_server)
+    page.locator("#vc-upload-weapons").set_input_files(HOSTILE_EXPORT)
+
+    expect(page.locator("#vc-upload-status-weapons")).to_have_text("Accepted")
+    expect(page.locator("#vc-report")).to_be_visible()
+
+    # In-loadout proposal 7004 shows the badge without expanding the detail row
+    row_7004 = page.locator('tr[data-id="7004"]')
+    expect(row_7004).to_be_visible()
+    badge_7004 = row_7004.locator(".badge.loadout")
+    expect(badge_7004).to_be_visible()
+    expect(badge_7004).to_have_text("in loadout")
+
+    # Proposal not in a loadout (7006) does not show the badge
+    row_7006 = page.locator('tr[data-id="7006"]')
+    expect(row_7006).to_be_visible()
+    expect(row_7006.locator(".badge.loadout")).to_have_count(0)
+
+    # All 5 proposals visible initially
+    proposal_rows = page.locator("#vc-list tbody tr[data-id]")
+    expect(proposal_rows).to_have_count(5)
+
+    # Filter to in a loadout: drops to exactly the 1 in-loadout proposal (7004)
+    loadout_select = page.locator("#vc-f-loadout")
+    loadout_select.select_option("in")
+    expect(proposal_rows).to_have_count(1)
+    expect(row_7004).to_be_visible()
+    expect(row_7006).to_have_count(0)
+
+    # Filter to not in a loadout: drops to 4 proposals
+    loadout_select.select_option("out")
+    expect(proposal_rows).to_have_count(4)
+    expect(row_7004).to_have_count(0)
+    expect(row_7006).to_be_visible()
+
+    # Reset filter: back to 5 proposals
+    loadout_select.select_option("")
+    expect(proposal_rows).to_have_count(5)
+
+    # Verify static DIM cross-check panel and queries
+    expect(page.locator("#vc-crosscheck")).to_be_visible()
+    expect(page.locator("#vc-crosscheck-title")).to_have_text("Cross-check in DIM")
+
+    junk_query = page.locator("#vc-dim-query-junk")
+    expect(junk_query).to_have_value("tag:junk is:inloadout")
+    assert junk_query.is_editable() is False
+
+    proposed_junk_query = page.locator("#vc-dim-query-proposed-junk")
+    expect(proposed_junk_query).to_have_value("notes:#vc-junk is:inloadout")
+    assert proposed_junk_query.is_editable() is False
+
+    proposed_review_query = page.locator("#vc-dim-query-review-proposals")
+    expect(proposed_review_query).to_have_value("notes:#vc-review is:inloadout")
+    assert proposed_review_query.is_editable() is False

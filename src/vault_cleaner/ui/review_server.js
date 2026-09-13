@@ -28,6 +28,27 @@
   var FINALIZED_CSV_ENDPOINT = "/api/finalized.csv";
   var RESET_ENDPOINT = "/api/reset";
   var SHUTDOWN_ENDPOINT = "/api/shutdown";
+  // DIM stays the source of truth for loadout state. Vault-cleaner
+  // deliberately does not write loadout membership into generated Notes --
+  // the CSV is a snapshot and would assert stale membership after a
+  // loadout is edited.
+  var STATIC_DIM_QUERIES = [
+    {
+      id: "vc-dim-query-junk",
+      label: "Junk-tagged items in a loadout (after importing the CSV)",
+      query: "tag:junk is:inloadout"
+    },
+    {
+      id: "vc-dim-query-proposed-junk",
+      label: "Proposed junk in a loadout (before accepting tags)",
+      query: "notes:#vc-junk is:inloadout"
+    },
+    {
+      id: "vc-dim-query-review-proposals",
+      label: "Review-only proposals in a loadout",
+      query: "notes:#vc-review is:inloadout"
+    }
+  ];
   var liveStart = null;
   var liveState = null;
   var booted = false;
@@ -74,7 +95,7 @@
       expanded: emptyMap(),
       query: {
         text: "", action: "", kind: "", reason: "", classFacet: "",
-        protection: "", verdict: ""
+        protection: "", loadout: "", verdict: ""
       },
       // Armor duplicate presentation state is deliberately separate from the
       // proposal query and carries no server/session semantics.
@@ -321,7 +342,7 @@
         invalidated.push("expanded item " + id);
       }
     });
-    ["action", "kind", "reason", "classFacet", "protection", "verdict"].forEach(
+    ["action", "kind", "reason", "classFacet", "protection", "loadout", "verdict"].forEach(
       function (field) {
         if (state.query[field] &&
             !valueStillExists(nextItems, nextVerdicts, field, state.query[field])) {
@@ -588,6 +609,12 @@
     host.appendChild(button);
   }
 
+  function safeSetAttribute(node, name, value) {
+    if (node && typeof node.setAttribute === "function") {
+      node.setAttribute(name, value);
+    }
+  }
+
   function boot(document) {
     if (booted || !ui || !root.fetch) return;
     booted = true;
@@ -597,6 +624,88 @@
     var proposalsPanel = document.getElementById("vc-proposals");
     var duplicatePanel = document.getElementById("vc-duplicates");
     var selectorPanel = document.getElementById("vc-view-selector");
+    var crosscheckPanel = document.getElementById("vc-crosscheck");
+    if (!crosscheckPanel && typeof document.createElement === "function") {
+      crosscheckPanel = document.createElement("section");
+      crosscheckPanel.id = "vc-crosscheck";
+      safeSetAttribute(crosscheckPanel, "id", "vc-crosscheck");
+      crosscheckPanel.className = "panel";
+      safeSetAttribute(crosscheckPanel, "aria-labelledby", "vc-crosscheck-title");
+      crosscheckPanel.hidden = true;
+
+      var crosscheckTitle = document.createElement("h2");
+      crosscheckTitle.id = "vc-crosscheck-title";
+      safeSetAttribute(crosscheckTitle, "id", "vc-crosscheck-title");
+      crosscheckTitle.textContent = "Cross-check in DIM";
+      crosscheckPanel.appendChild(crosscheckTitle);
+
+      var crosscheckControls = document.createElement("div");
+      crosscheckControls.className = "controls dim-crosscheck-controls";
+      crosscheckPanel.appendChild(crosscheckControls);
+
+      STATIC_DIM_QUERIES.forEach(function (spec) {
+        var field = document.createElement("div");
+        field.className = "field dim-crosscheck-field";
+
+        var label = document.createElement("label");
+        label.htmlFor = spec.id;
+        safeSetAttribute(label, "for", spec.id);
+        var span = document.createElement("span");
+        span.textContent = spec.label;
+        label.appendChild(span);
+        field.appendChild(label);
+
+        var inputWrap = document.createElement("div");
+        inputWrap.className = "dim-crosscheck-input-wrap";
+
+        var input = document.createElement("input");
+        input.id = spec.id;
+        safeSetAttribute(input, "id", spec.id);
+        input.type = "text";
+        input.className = "mono dim-crosscheck-input";
+        input.readOnly = true;
+        input.value = spec.query;
+        safeSetAttribute(input, "readonly", "");
+        safeSetAttribute(input, "spellcheck", "false");
+        input.addEventListener("focus", function () {
+          if (typeof input.select === "function") input.select();
+        });
+        input.addEventListener("click", function () {
+          if (typeof input.select === "function") input.select();
+        });
+        inputWrap.appendChild(input);
+
+        var copyButton = document.createElement("button");
+        copyButton.type = "button";
+        copyButton.className = "dim-copy-btn";
+        copyButton.textContent = "Copy";
+        safeSetAttribute(copyButton, "aria-label", "copy " + spec.label);
+        copyButton.addEventListener("click", function () {
+          if (root.navigator && root.navigator.clipboard && typeof root.navigator.clipboard.writeText === "function") {
+            root.navigator.clipboard.writeText(spec.query).catch(function () {
+              if (typeof input.focus === "function") input.focus();
+              if (typeof input.select === "function") input.select();
+            });
+          } else {
+            if (typeof input.focus === "function") input.focus();
+            if (typeof input.select === "function") input.select();
+          }
+        });
+        inputWrap.appendChild(copyButton);
+
+        field.appendChild(inputWrap);
+        crosscheckControls.appendChild(field);
+      });
+
+      var parent = (filtersPanel && filtersPanel.parentNode) ||
+                   (proposalsPanel && proposalsPanel.parentNode) ||
+                   (document && document.body);
+      if (filtersPanel && filtersPanel.parentNode && typeof filtersPanel.parentNode.insertBefore === "function") {
+        filtersPanel.parentNode.insertBefore(crosscheckPanel, filtersPanel.nextSibling);
+      } else if (parent && typeof parent.appendChild === "function") {
+        parent.appendChild(crosscheckPanel);
+      }
+    }
     var state = createState();
     var view = null;
 
@@ -852,6 +961,7 @@
       renderSummary();
       if (reportPanel) reportPanel.hidden = envelope.state === "idle";
       if (filtersPanel) filtersPanel.hidden = envelope.state === "idle";
+      if (crosscheckPanel) crosscheckPanel.hidden = envelope.state === "idle";
       if (proposalsPanel) proposalsPanel.hidden = envelope.state === "idle" || state.surface !== "proposals";
       if (duplicatePanel) duplicatePanel.hidden = envelope.state === "idle" || state.surface !== "armor-duplicates" || !state.armorGroups.length;
       var fingerprintNode = byId("vc-fingerprint");
@@ -1016,6 +1126,11 @@
         view.el("option", { value: "unprotected", text: "unprotected" }), view.el("option", { value: "soft", text: "soft only" }),
         view.el("option", { value: "hard", text: "hard only" })
       ], "protection", state.query.protection, queryChange);
+      view.addSelect(host, "vc-f-loadout", "Loadout", [
+        view.el("option", { value: "", text: "any loadout state" }),
+        view.el("option", { value: "in", text: "in a loadout" }),
+        view.el("option", { value: "out", text: "not in a loadout" })
+      ], "loadout", state.query.loadout, queryChange);
       view.addSelect(host, "vc-f-verdict", "Session verdict", [
         view.el("option", { value: "", text: "any" }), view.el("option", { value: "unreviewed", text: "unreviewed" }),
         view.el("option", { value: "approved", text: "approved" }), view.el("option", { value: "vetoed", text: "vetoed" })
@@ -1449,6 +1564,7 @@
     showReconnect: showReconnect, responseError: responseError, fetchEnvelope: fetchEnvelope,
     makeVerdictPayload: makeVerdictPayload, makeFinalizePayload: makeFinalizePayload,
     makeResetPayload: makeResetPayload, makeShutdownOptions: makeShutdownOptions,
+    STATIC_DIM_QUERIES: STATIC_DIM_QUERIES,
     start: function () { if (liveStart) return liveStart.apply(null, arguments); }
   };
   Object.defineProperty(api, "state", { enumerable: true, get: function () { return liveState; } });

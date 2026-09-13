@@ -39,8 +39,11 @@ REQUIRED_BASE_COLUMNS = frozenset(
 # the first named perk field as the minimal invariant; the extractor validates
 # the contiguous header range and identity boundary per row so narrower and
 # wider DIM exports can load without creating partial duplicate keys.
+# Loadouts is required because the review surface presents loadout membership
+# as fact, and a missing column would render every weapon as not-in-a-loadout
+# rather than as unknown.
 REQUIRED_WEAPON_COLUMNS = REQUIRED_BASE_COLUMNS | {
-    "Type", "Ammo", "Crafted", "Crafted Level", "Perks 0",
+    "Type", "Ammo", "Crafted", "Crafted Level", "Perks 0", "Loadouts",
 }
 # Ghost exports have no Type column. Loadouts is required because loadout
 # membership is a keep signal in the ghost cleanup pass.
