@@ -3,6 +3,44 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-12 — #145 permit owner-authorized real-export measurements in docs
+
+Direct maintenance implementation on branch `fix/issue-145-real-export-policy`.
+Amends `AGENTS.md` to resolve ambiguity where planners read the hard rule as a
+blanket bar on any real-export-derived content in documentation:
+
+- **Hard rule amendment:** Clarified that measuring a real export is expected,
+  not a deviation. Committing findings derived from a real export (aggregate
+  counts, distributions, and item names) to `docs/` is permitted when the owner
+  has explicitly authorized that measurement for that ticket. Committing the
+  export file itself, a reconstruction of it, verbatim CSV rows, instance `Id`
+  values, and `Notes` cell contents remains strictly barred.
+- **Evidence convention:** Formally documented the established
+  `docs/evidence/issue-N/README.md` convention for plain-text reproducible
+  command transcripts backing reports.
+- **Fixture protection:** Explicitly fenced `tests/fixtures/` against drift:
+  test fixtures remain strictly synthetic and are not reached by the real-export
+  allowance.
+
+Decisions made:
+- Applied the four settled owner decisions (2026-09-06):
+  1. Instance `Id` values stay barred.
+  2. `Notes` cell contents stay barred.
+  3. Authorization is per-ticket, not standing.
+  4. Ticket classified and handled under `maintenance`.
+- Direct single-PR maintenance route followed under AGENTS.md with explicit
+  user authorization.
+
+Surprises for the next agent:
+- The permitted/barred boundary is stated once in the first hard rule of
+  `AGENTS.md` and referenced from conventions, not restated elsewhere.
+
+Verification: `.venv/bin/ruff check src tests scripts` passed;
+`.venv/bin/pytest -q` passed with 967 passed; `git diff --check` clean;
+`git ls-files data/` empty. Playwright browser suite was not run locally
+(no UI, JavaScript, CSS, or server files changed) and passed in GitHub
+Actions CI (`browser` job).
+
 ## 2026-09-12 — #142 crafted-equivalence qualification (PR 2 continued)
 
 Continues the entry below on the same PR 2 branch. The latest re-review found
