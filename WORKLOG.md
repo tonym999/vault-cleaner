@@ -75,6 +75,36 @@ run. It was first misread as an Actions-side delay. The plan's and issue's
 test, script or handoff file changed on `main`, so every plan line reference
 still holds.
 
+**Owner re-review at `aa51694`.** Confirmed the three first-round findings
+fixed, and raised one P2 and one P3; CodeRabbit raised two further findings.
+
+- **P2 — real-export figures republished without #148 authorization.**
+  Accepted. The plan, and this worklog's 2026-09-12 #148 entry, reproduced exact
+  #142 §11 aggregates while the plan stated #148 had no real-export
+  authorization. Under `AGENTS.md`'s per-ticket rule (#145), that authorization
+  was recorded for #142, not #148. Both now cite #142 qualitatively and point to
+  §11 for figures; the provenance sentence says no real-export figure is
+  republished. The same figures were removed from the #148 issue body and the
+  PR #149 body. CodeRabbit raised the same point. The planner had first proposed
+  keeping the figures with a provenance label, reading the rule as governing new
+  measurements rather than citations — the owner, whose rule it is, read it as
+  covering republication, and that reading governs.
+- **CodeRabbit: add a test for an omitted `loadout` key.** Declined on the
+  owner's contrary evidence: the `test_review_ui_js.py` harness already runs
+  `filterItems` with action-only and empty queries (`:96`, `:109`) and asserts
+  them against sets computed from the Python run (`:1186`, `:1202`), so treating
+  a missing key as an active filter fails existing coverage. Verifying that
+  exposed a real plan error: the evidence only holds if the in-loadout row is a
+  **proposal**, and the plan said one member of a same-`Hash` pair would yield
+  "one in-loadout and one not-in-loadout proposal". False — each pair yields
+  exactly one proposal (the loser). Measured: 5 decisions (`7004`, `7006`,
+  `7008`, `7010`, `18446744073709551615`), survivors none. The plan now names
+  row `7004`, explains why, and records that this placement is what makes the
+  existing coverage apply.
+- **P3 — five likely findings where the template permits 2–4.** Accepted.
+  Dropped the badge-colour prediction (still a review-checklist item) and merged
+  the fixture finding into a sharper one: the cell landing on a survivor row.
+
 Verification: planning-only change. No source file was modified, so `pytest` and
 `ruff` have nothing new to cover; `git diff --check` is clean.
 
@@ -85,8 +115,9 @@ twice in one session: the premise reversed mid-planning, and the reversal is the
 most important thing here for the next agent.
 
 **Round 1 — hard rail (superseded).** #142 §8 item 4 records a settled owner
-decision that `Loadouts != ''` is a HARD rail for weapons, protecting 113
-additional weapons on the real export. The first plan implemented exactly that:
+decision that `Loadouts != ''` is a HARD rail for weapons, which #142's
+real-export measurement found would newly protect a substantial number of
+weapons (figures in #142 §11). The first plan implemented exactly that:
 a weapons-only `rails.weapon_protection` wrapper, both weapon seams converted,
 `Loadouts` required, `RULESET_VERSION` 4 -> 5, golden regenerated.
 
@@ -97,14 +128,16 @@ this point. What tipped it: a hard rail emits no `Decision` at all
 loadout vanishes from review with no signal, recoverable only by editing the
 loadout in DIM and re-exporting.
 
-Measurements that informed the reversal, both worth keeping:
+Findings that informed the reversal, both worth keeping:
 
-- **The rail hid far more than it protected.** Of the 113 weapons it would have
-  newly hard-protected, only **13** were auto-junk candidates; the other **100**
-  were already soft-protected (43 exotic, 57 locked legendary) and therefore
-  already review-only. Deltas: hard 56 -> 169, soft 323 -> 223, unprotected
-  285 -> 272. Against a 190-removal target drawn from a 272-item pool, hiding 113
-  items to prevent 13 automatic decisions was the wrong trade.
+- **The rail hid far more than it protected.** Comparing #142 §11's
+  current-rules and loadout-rail protection breakdowns, most weapons the rail
+  would have newly hard-protected were already soft-protected (exotic or locked)
+  and therefore already review-only; only a small minority were automatic-junk
+  candidates. #142 also found its removal target cannot be reached from exact
+  duplicates alone, so hiding reviewable items to prevent a handful of automatic
+  decisions was the wrong trade. Exact figures stay in #142 §11 — see the
+  2026-09-13 entry for why they are not reproduced here.
 - **`rails.protection` has eight call sites and five are armor.** Any future
   weapon rail must be a weapons-only wrapper, never an edit to the shared helper.
 
