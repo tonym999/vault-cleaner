@@ -5,9 +5,17 @@ surprises the next agent should know about.
 
 ## 2026-09-13 — #117 implementation: per-group DIM search queries (PR 2)
 
+Branched from `origin/main` at `66b121aee1247d9823e783646f73d470359bb79d` (newer than
+planning baseline `3cc6fa3`); merged `origin/main` at `dab81e6` (#149) to resolve a
+WORKLOG-only conflict — no source or test changes came from the merge.
+
 - Implemented Issue #117 on branch `feat/issue-117-dim-search-query` following
-  `handoffs/issue-117-implementation-plan.md` exactly. Implementer tier:
-  Google `gemini-3.8-flash`, native `thinking_level = high`.
+  `handoffs/issue-117-implementation-plan.md` exactly.
+- Implementer tier & native effort: Google `gemini-3.8-flash`, native `thinking_level = high`.
+- Independent adversarial review: Anthropic `claude-opus-5`, native effort `output_config.effort = high`
+  conducted the independent adversarial review behind commits `1c8e000` / `f925b35`, verifying pure
+  candidate extraction, strict card scoping, 76/77 DIM chunking boundary proof, and zero side effects
+  on verdicts or mutation state.
 - Added two group-level generation-only controls to each rendered armor duplicate
   card (`article.armor-group`): "Generate whole-group query" and "Generate
   junk-candidates query", positioned between the group header and member
@@ -44,21 +52,32 @@ surprises the next agent should know about.
     `state.verdicts`, revisions, and `mutationInFlight` unchanged, does not
     touch the Clipboard API, and does not navigate.
   - Generation functions identically in offline or finalised/frozen sessions.
-- Handled PR 2 review round findings (owner review by tonym999 + CodeRabbit):
-  - P2 browser verification evidence: aligned `docs/browser-verification.md`
-    to separate browser checks from Node adapter state-snapshot assertions;
-    strengthened `test_server_browser.py` with dark mode emulation, keyboard Tab
-    navigation reaching both buttons and the textarea, and strict-safe locators.
-  - P2 review recording: captured implementer model and native effort, review
-    record, and finding dispositions.
-  - P3 spellcheck forwarding: changed `spellcheck: false` to `spellcheck: "false"`
-    in `review_ui.js` so `el()` forwards `spellcheck="false"` to `<textarea>`.
-  - P3 clear() scope: reverted redundant `node.textContent = ""` in shared `clear()`
-    helper back to original child-removal loop.
-  - P3 malformed group query controls: documented that `malformedReadOnly` ignores
-    `.dim-query-btn` because query generation buttons render on all group cards,
-    while generation safely fails closed with "Could not generate a safe DIM query".
-  - P3 WORKLOG ordering: re-dated entry to 2026-09-13, preserving newest-first order.
+- Review rounds & findings disposition:
+  - Independent adversarial review (round 1, `claude-opus-5` `output_config.effort = high`):
+    - Added lifecycle state and duplicateRows registry assertions to adapter test (`f925b35`).
+    - Exercised finalized and disconnected states with complete state snapshot comparisons (`1c8e000`).
+    - Aligned exact-group warning in test and evidence to verbatim emitted string (`1c8e000`).
+  - Owner review by tonym999 + CodeRabbit (head `35b9315` and re-review):
+    - P2 browser verification evidence: aligned `docs/browser-verification.md`
+      to separate browser checks from Node adapter state-snapshot assertions;
+      strengthened `test_server_browser.py` with dark mode emulation, keyboard Tab
+      navigation reaching both buttons and the textarea, and strict-safe locators.
+    - P2 review recording: captured implementer model and native effort, independent
+      adversarial reviewer provider / model / effort, and finding dispositions.
+    - P3 spellcheck forwarding: changed `spellcheck: false` to `spellcheck: "false"`
+      in `review_ui.js` so `el()` forwards `spellcheck="false"` to `<textarea>`.
+    - P3 clear() scope: reverted redundant `node.textContent = ""` in shared `clear()`
+      helper back to original child-removal loop.
+    - P3 malformed group query controls: documented that `malformedReadOnly` ignores
+      `.dim-query-btn` because query generation buttons render on all group cards,
+      while generation safely fails closed with "Could not generate a safe DIM query".
+    - P3 test fixture update: documented that the empty-junk DOM test in
+      `test_review_ui_js.py` changed from an exact-duplicate group to a same-stat group
+      with `currentProposalAction: "review"`, providing a sharper negative test for
+      junk candidate filtering while exact empty-junk remains covered in adapter tests.
+    - P3 WORKLOG ordering & base SHA: re-dated entry to 2026-09-13 to sit on top of
+      `main`'s #148 entries, restored the base SHA line, and recorded the merge from `main`.
+    - Acceptance-criteria dispatch comment posted to Issue #117.
 - Tested:
   - Node unit tests in `tests/test_review_ui_js.py`: pure helper validation, 76/77
     boundary proof, invalid ID/mode rejection, DOM card isolation, empty candidate
@@ -78,6 +97,182 @@ surprises the next agent should know about.
     and dark mode emulation. All 15 browser tests passed.
 - Maintained clean boundaries: no backend schema, snapshot, rule ordering,
   `RULESET_VERSION`, or dependency changes.
+
+## 2026-09-13 — #148 plan review round (PR 1 continued)
+
+Same PR 1, same branch. The owner's review raised two P2s and one P3, and
+CodeRabbit independently reported the same defect as the first P2. All four were
+verified against source before being accepted; none was rejected.
+
+- **`review_server.js:324` was described wrongly, in two ways.** The plan called
+  it the facet enumeration and claimed that omitting `loadout` from it would drop
+  the value on reset. It is neither: line 324 is the report-refresh invalidation
+  list inside `applySessionEnvelope` (`review_server.js:291`), clearing a
+  selected filter whose value no longer matches any item in a refreshed report,
+  after which `adopt` (`review_server.js:797-805`) resynchronises the control.
+  Reset is separate and generic — `Reset filters` (`review_server.js:1039-1042`)
+  clears every `state.query` key, so `loadout` resets for free once the default
+  exists. The wrong rationale sat on top of a right edit because
+  `valueStillExists` (`review_server.js:193-198`) builds a single-facet query and
+  delegates to `ui.filterItems`, so it needs no per-facet special-casing — which
+  is also how `protection`'s non-field-shaped modes already work.
+- **The real gap behind that defect was a missing test.** Nothing in the plan
+  covered `applySessionEnvelope` for the new facet. The plan now requires a
+  paired test: preserved when a refreshed envelope still has matching items,
+  cleared when it does not. A clear-only test would pass against a facet that
+  always clears.
+- **Review path corrected to independent adversarial review.** The
+  implementation modifies `parse.py` and deliberately changes accepted-input
+  behaviour, and parser changes are a categorical trigger in the planner
+  template, `handoffs/README.md` and #140. The earlier selection of standard
+  review argued from implementation effort ("one line with a parametrized
+  test"), which is the wrong axis: the category follows what the change can
+  break. The implementer tier stays `claude-sonnet-5` (`high`) — review rigour
+  and implementation difficulty track different things, and the plan now says so
+  explicitly so it does not read as an oversight.
+- **Provider verification performed and recorded.** The plan previously admitted
+  skipping the re-verification that the planner template marks MUST. Verified
+  against Anthropic's effort documentation: `claude-sonnet-5` is in the
+  supported-models list, the levels are `low`/`medium`/`high`/`xhigh`/`max` with
+  Sonnet 5 listed under both `xhigh` and `max`, the API default is `high`, and
+  the page's Sonnet 5 guidance for `high` matches this task's profile. Selection
+  unchanged; the process defect is closed.
+
+One further change the review did not ask for:
+
+- **No new fixture.** The plan hedged between extending a UI fixture and adding
+  one. `weapons_hostile.csv` settles it: its only consumers are exactly the four
+  modules needing this coverage (`test_report_run.py`, `test_review_ui_js.py`,
+  `test_server_browser.py`, `test_server_uploads.py`), it is not the golden's
+  weapons fixture, and it holds five same-`Hash` pairs with every `Loadouts`
+  cell empty. Setting the cell on one member of one pair gives the filter both
+  sides to discriminate. Worth recording *why* editing a shared fixture is safe
+  here: with no rail, a `Loadouts` cell is decision-neutral by construction — it
+  can move `in_loadout` and nothing else — so no decision, note, tag or golden
+  byte can change. That would not have been true in the rail version of this
+  plan. This drops a file-generation step, the CRLF likely-finding and one stop
+  condition.
+
+Incidental, deliberately not actioned here: the model catalog in
+`handoffs/README.md` is accurate for what it lists but not exhaustive — the
+official supported list also includes `claude-mythos-5-1`, `claude-fable-5`,
+`claude-mythos-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`,
+`claude-opus-4-5-20251101` and `claude-sonnet-4-6`. That belongs to #144.
+
+**Merge with `main`.** #145 merged (PR #147) while this PR was open and
+conflicted in `WORKLOG.md` only — both sides added a top entry at the same
+position. Resolved by merging `origin/main` rather than rebasing, so the pushed
+commits the review threads reference stay intact; all three entries kept in
+full. The conflict is also why CI never dispatched on `792919f`: GitHub builds no
+merge ref for a conflicting PR, so the `pull_request` workflow had nothing to
+run. It was first misread as an Actions-side delay. The plan's and issue's
+"#145 (open)" wording was updated to merged; no scope change, and no source,
+test, script or handoff file changed on `main`, so every plan line reference
+still holds.
+
+**Owner re-review at `aa51694`.** Confirmed the three first-round findings
+fixed, and raised one P2 and one P3; CodeRabbit raised two further findings.
+
+- **P2 — real-export figures republished without #148 authorization.**
+  Accepted. The plan, and this worklog's 2026-09-12 #148 entry, reproduced exact
+  #142 §11 aggregates while the plan stated #148 had no real-export
+  authorization. Under `AGENTS.md`'s per-ticket rule (#145), that authorization
+  was recorded for #142, not #148. Both now cite #142 qualitatively and point to
+  §11 for figures; the provenance sentence says no real-export figure is
+  republished. The same figures were removed from the #148 issue body and the
+  PR #149 body. CodeRabbit raised the same point. The planner had first proposed
+  keeping the figures with a provenance label, reading the rule as governing new
+  measurements rather than citations — the owner, whose rule it is, read it as
+  covering republication, and that reading governs.
+- **CodeRabbit: add a test for an omitted `loadout` key.** Declined on the
+  owner's contrary evidence: the `test_review_ui_js.py` harness already runs
+  `filterItems` with action-only and empty queries (`:96`, `:109`) and asserts
+  them against sets computed from the Python run (`:1186`, `:1202`), so treating
+  a missing key as an active filter fails existing coverage. Verifying that
+  exposed a real plan error: the evidence only holds if the in-loadout row is a
+  **proposal**, and the plan said one member of a same-`Hash` pair would yield
+  "one in-loadout and one not-in-loadout proposal". False — each pair yields
+  exactly one proposal (the loser). Measured: 5 decisions (`7004`, `7006`,
+  `7008`, `7010`, `18446744073709551615`), survivors none. The plan now names
+  row `7004`, explains why, and records that this placement is what makes the
+  existing coverage apply.
+- **P3 — five likely findings where the template permits 2–4.** Accepted.
+  Dropped the badge-colour prediction (still a review-checklist item) and merged
+  the fixture finding into a sharper one: the cell landing on a survivor row.
+
+Verification: planning-only change. No source file was modified, so `pytest` and
+`ruff` have nothing new to cover; `git diff --check` is clean.
+
+## 2026-09-12 — #148 planning: weapon loadout visibility (PR 1)
+
+Created #148 as Child 2a of umbrella #140 and planned it. The ticket was planned
+twice in one session: the premise reversed mid-planning, and the reversal is the
+most important thing here for the next agent.
+
+**Round 1 — hard rail (superseded).** #142 §8 item 4 records a settled owner
+decision that `Loadouts != ''` is a HARD rail for weapons, which #142's
+real-export measurement found would newly protect a substantial number of
+weapons (figures in #142 §11). The first plan implemented exactly that:
+a weapons-only `rails.weapon_protection` wrapper, both weapon seams converted,
+`Loadouts` required, `RULESET_VERSION` 4 -> 5, golden regenerated.
+
+**Round 2 — the owner reversed it.** A weapon in a loadout may be recommended;
+the requirement is that membership is *clear*. #142 §8 item 4 is superseded on
+this point. What tipped it: a hard rail emits no `Decision` at all
+(`weapons.py:83-84`, `dupes.py:244-245`), so a weapon pinned by a throwaway test
+loadout vanishes from review with no signal, recoverable only by editing the
+loadout in DIM and re-exporting.
+
+Findings that informed the reversal, both worth keeping:
+
+- **The rail hid far more than it protected.** Comparing #142 §11's
+  current-rules and loadout-rail protection breakdowns, most weapons the rail
+  would have newly hard-protected were already soft-protected (exotic or locked)
+  and therefore already review-only; only a small minority were automatic-junk
+  candidates. #142 also found its removal target cannot be reached from exact
+  duplicates alone, so hiding reviewable items to prevent a handful of automatic
+  decisions was the wrong trade. Exact figures stay in #142 §11 — see the
+  2026-09-13 entry for why they are not reproduced here.
+- **`rails.protection` has eight call sites and five are armor.** Any future
+  weapon rail must be a weapons-only wrapper, never an edit to the shared helper.
+
+**Final shape.** No rail. Require `Loadouts` in `REQUIRED_WEAPON_COLUMNS`,
+promote the already-plumbed `in_loadout` flag from the collapsed detail-row flags
+line to a row badge plus a filter facet, and show static DIM cross-check queries
+for copy/paste. No `RULESET_VERSION` bump, no golden change, no rules module
+touched. Branch `feat/issue-148-loadout-visibility`, implementer
+`claude-sonnet-5` (`high`), standard orchestrator review — all three downgraded
+from round 1 because the risk profile collapsed with the rail.
+
+Surprises worth recording:
+
+- **The flag was already plumbed end to end and still invisible.** `in_loadout`
+  reaches the UI and renders at `review_ui.js:874` — as one entry in a
+  comma-joined `flags` line inside a detail row you expand per item. The ticket
+  is presentation, not plumbing.
+- **`report_run.py:317` reads `.get("Loadouts", "")`.** With no rail, that is the
+  actual safety defect: an export missing the header renders every weapon as
+  not-in-a-loadout rather than as unknown. It is why the schema half survived the
+  reversal with a better rationale than it started with.
+- **Loadout state deliberately does not go into generated `Notes`.** DIM already
+  knows, and the CSV is a snapshot — a note would assert stale membership forever
+  after a loadout is edited. This also keeps the ticket out of the emitter-contract
+  obligations in `AGENTS.md`.
+- **DIM's filters were verified from source, not the wiki** (the wiki pages fail
+  to render): `is:inloadout`, `inloadout:>=2`, `inloadout:"name"`,
+  `is:indimloadout` / `is:iningameloadout`, `tag:`, and freeform `notes:`. DIM's
+  `notes:` autocomplete is fed by known notes-hashtags, so vault-cleaner's `#vc-`
+  markers already surface there — the hashtag convention in `AGENTS.md` is paying
+  for itself.
+- **Loadout names are deferred** because the real `Loadouts` cell format is
+  unmeasured and the fixtures disagree: `PvE Build` and `Raid` in
+  `armor_dupes.csv`, but `00001:PvP Build` in `ghosts_cleanup.csv`.
+- **Generated `id:` queries are #117's mechanism**, which #140 forbids
+  repurposing for weapons, so they are a separate follow-up rather than part of
+  this child.
+
+Verification: planning-only change. No source file was modified, so `pytest` and
+`ruff` have nothing new to cover; `git diff --check` is clean.
 
 ## 2026-09-12 — #145 permit owner-authorized real-export measurements in docs
 
