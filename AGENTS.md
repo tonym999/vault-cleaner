@@ -36,9 +36,16 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 
 ## Hard rules
 
-- **Never commit anything under `data/`** or any real vault export. This repo
-  is public; `data/` holds personal Bungie account data. `.gitignore` covers
-  it — do not weaken that, and check `git status` before committing.
+- **Never commit anything under `data/`** or any real vault export file. This
+  repo is public; `data/` holds personal Bungie account data. `.gitignore`
+  covers it — do not weaken that, and check `git status` before committing.
+  Measuring a real export is expected, not a deviation (see *Measure the real
+  export before designing a rule*); what is barred is committing the export or
+  a reconstruction of it. **Findings derived from a real export may be
+  committed** to `docs/` when the owner has authorized that measurement for
+  that ticket: aggregate counts, distributions, and item names are permitted;
+  verbatim CSV rows, instance `Id` values, and `Notes` cell contents are not.
+  Authorization is per ticket — record it in the ticket and in `WORKLOG.md`.
 - **Access CSV columns by header name, never by position.** DIM's export
   format drifts between releases. Schema checks in `parse.py` must fail
   loudly, not silently coerce.
@@ -149,7 +156,14 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 
 - Test fixtures in `tests/fixtures/` are pinned to real export headers but
   contain only fake items. Regenerate the header from a fresh export if DIM's
-  format changes; never paste real rows.
+  format changes; never paste real rows. The real-export allowance above does
+  not reach fixtures: they are committed test data at scale, and they stay
+  synthetic.
+- Measurement evidence lives in `docs/evidence/issue-N/README.md`: verbatim
+  command transcripts backing a report's claims, plain text only, each fence
+  reproducible on its own. Real-export evidence follows the hard rule above.
+  A capture edited to redact a barred field is no longer verbatim; say so
+  above it.
 - Rule thresholds live in `config.toml`, not in code.
 - Add every new rule-consumed config key to `report_run._decision_config` so
   snapshots and fingerprints cover it. The recursive DEFAULTS coverage test
