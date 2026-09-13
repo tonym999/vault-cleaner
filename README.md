@@ -224,6 +224,14 @@ review** clears the live report and session verdicts without deleting exports
 or durable overrides. **Shutdown** terminates the server session; <kbd>Ctrl-C</kbd>
 in its terminal is also available.
 
+Each armor duplicate group card can also generate visible DIM search text
+(`id:<id> or ...`) for either the whole group or that group's existing junk
+candidates. Whole-group query text intentionally includes the preferred
+survivor (with a warning not to bulk-tag the result as junk) so the full group
+can be inspected side-by-side in DIM. Generating a query changes nothing in
+vault-cleaner or DIM, performs no network requests, and does not alter review
+verdicts; you manually select and copy any chunks you want into DIM's search bar.
+
 > **Privacy:** vault exports, report data, verdicts, and generated CSV bytes
 > remain on your machine. The server has no Bungie credentials, account login,
 > API key, or authenticated account access. Optional wishlist and public Bungie

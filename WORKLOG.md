@@ -3,6 +3,101 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-13 — #117 implementation: per-group DIM search queries (PR 2)
+
+Branched from `origin/main` at `66b121aee1247d9823e783646f73d470359bb79d` (newer than
+planning baseline `3cc6fa3`); merged `origin/main` at `dab81e6` (#149) to resolve a
+WORKLOG-only conflict — no source or test changes came from the merge.
+
+- Implemented Issue #117 on branch `feat/issue-117-dim-search-query` following
+  `handoffs/issue-117-implementation-plan.md` exactly.
+- Implementer tier & native effort: Google `gemini-3.8-flash`, native `thinking_level = high`.
+- Independent adversarial review: Anthropic `claude-opus-5`, native effort `output_config.effort = high`
+  conducted the independent adversarial review behind commits `1c8e000` / `f925b35`, verifying pure
+  candidate extraction, strict card scoping, 76/77 DIM chunking boundary proof, and zero side effects
+  on verdicts or mutation state.
+- Added two group-level generation-only controls to each rendered armor duplicate
+  card (`article.armor-group`): "Generate whole-group query" and "Generate
+  junk-candidates query", positioned between the group header and member
+  comparison matrices.
+- Scoped candidate selection strictly to the activated card's `group.members`:
+  neighboring cards, other groups of the same kind, and other items sharing the
+  same name cannot contribute ids.
+- Implemented pure candidate extraction `armorGroupIdsForDimQuery(group, mode)`:
+  - `whole_group`: returns every member id in group order. For exact groups,
+    displays warning: `Whole group selected — includes the preferred survivor and
+    every retained or protected piece. Use this to locate or compare the group;
+    do not bulk-tag the result as junk.`. For same-stat groups (which have no
+    preferred survivor), displays warning: `Whole group selected — includes every
+    piece in this same-stat comparison. This group has no preferred survivor.`.
+  - `junk_candidates`: returns only members whose candidate proposal action is
+    `junk`. Exact duplicate groups use `member.proposalAction === "junk"` (excluding
+    survivor and retained pieces even if flagged by later passes); same-stat
+    groups use correlated authoritative `member.currentProposalAction === "junk"`
+    (excluding review-only pieces and uncorrelated close-pass metadata). If no
+    members qualify, the button is disabled with `This group has no junk
+    candidates.` without emitting a query.
+  - Review verdicts (`approved`/`vetoed`/`unset`) have zero effect on query
+    membership.
+- Implemented pure bounded chunking `dimIdQueryChunks(ids, maxLength)`:
+  - Validates every id against safe DIM decimal pattern `/^[0-9]{1,20}$/`.
+    Rejects malformed ids or invalid parameters atomically.
+  - Generates standard DIM query syntax `id:<id> or id:<id>`.
+  - Enforces DIM's canonical saveability boundary `DIM_QUERY_SAVEABLE_MAX = 2048`.
+    76 max-length (20-digit) ids fit within 2048 characters; 77 ids split into
+    two bounded chunks without losing, reordering, or truncating ids.
+- Preserved strict local generation semantics:
+  - Output is rendered into a read-only `<textarea>` inside `.dim-query-output`.
+  - Generation performs 0 network/fetch requests, triggers no mutations, leaves
+    `state.verdicts`, revisions, and `mutationInFlight` unchanged, does not
+    touch the Clipboard API, and does not navigate.
+  - Generation functions identically in offline or finalised/frozen sessions.
+- Review rounds & findings disposition:
+  - Independent adversarial review (round 1, `claude-opus-5` `output_config.effort = high`):
+    - Added lifecycle state and duplicateRows registry assertions to adapter test (`f925b35`).
+    - Exercised finalized and disconnected states with complete state snapshot comparisons (`1c8e000`).
+    - Aligned exact-group warning in test and evidence to verbatim emitted string (`1c8e000`).
+  - Owner review by tonym999 + CodeRabbit (head `35b9315` and re-review):
+    - P2 browser verification evidence: aligned `docs/browser-verification.md`
+      to separate browser checks from Node adapter state-snapshot assertions;
+      strengthened `test_server_browser.py` with dark mode emulation, keyboard Tab
+      navigation reaching both buttons and the textarea, and strict-safe locators.
+    - P2 review recording: captured implementer model and native effort, independent
+      adversarial reviewer provider / model / effort, and finding dispositions.
+    - P3 spellcheck forwarding: changed `spellcheck: false` to `spellcheck: "false"`
+      in `review_ui.js` so `el()` forwards `spellcheck="false"` to `<textarea>`.
+    - P3 clear() scope: reverted redundant `node.textContent = ""` in shared `clear()`
+      helper back to original child-removal loop.
+    - P3 malformed group query controls: documented that `malformedReadOnly` ignores
+      `.dim-query-btn` because query generation buttons render on all group cards,
+      while generation safely fails closed with "Could not generate a safe DIM query".
+    - P3 test fixture update: documented that the empty-junk DOM test in
+      `test_review_ui_js.py` changed from an exact-duplicate group to a same-stat group
+      with `currentProposalAction: "review"`, providing a sharper negative test for
+      junk candidate filtering while exact empty-junk remains covered in adapter tests.
+    - P3 WORKLOG ordering & base SHA: re-dated entry to 2026-09-13 to sit on top of
+      `main`'s #148 entries, restored the base SHA line, and recorded the merge from `main`.
+    - Acceptance-criteria dispatch comment posted to Issue #117.
+- Tested:
+  - Node unit tests in `tests/test_review_ui_js.py`: pure helper validation, 76/77
+    boundary proof, invalid ID/mode rejection, DOM card isolation, empty candidate
+    disabled state, hostile field inertness, spellcheck attribute forwarding,
+    zero side effects on verdicts.
+  - Adapter integration in `tests/test_server_ui_js.py`: card rendering, preferred
+    survivor inclusion, junk candidate filtering, zero fetch calls during
+    generation, full state snapshot comparison (connected, server_state,
+    verdicts, report/verdict revisions, mutationInFlight, and structural
+    duplicateRows registry handles) across reviewing/connected,
+    reviewing/disconnected, finalized/connected, and finalized/disconnected
+    states.
+  - Playwright browser test in `tests/test_server_browser.py`: whole-group and junk
+    query generation, preferred survivor warning, same-stat warning, empty junk
+    state, zero network requests, finalised session generation, 390px horizontal
+    containment (`scrollWidth <= 390`), keyboard Tab navigation, spellcheck="false",
+    and dark mode emulation. All 15 browser tests passed.
+- Maintained clean boundaries: no backend schema, snapshot, rule ordering,
+  `RULESET_VERSION`, or dependency changes.
+
 ## 2026-09-13 — #148 plan review round (PR 1 continued)
 
 Same PR 1, same branch. The owner's review raised two P2s and one P3, and
