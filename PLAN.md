@@ -155,12 +155,13 @@ vault action; whole exact-group output includes the preferred survivor and must
 say so.
 As the companion weapons interop aid defined by
 [#150](https://github.com/tonym999/vault-cleaner/issues/150), the Proposals view
-may generate complete DIM `id:` search text for the weapon proposals matching
+exposes live, complete DIM `id:` search text for the weapon proposals matching
 its current filters. Existing filters—including Session verdict—define the set;
-there is no separate checkbox-selection state. The output is a locating query,
-not an approved-junk list, reuses #117's opaque-id validation and bounded
-chunking, and is cleared when its report identity or shown membership changes.
-Generation remains local and changes no review, item, DIM, or server state.
+there is no separate checkbox-selection state. Active saved vetoes do not hide
+otherwise matching proposals, so the locating-only warning names their possible
+inclusion. The query reuses #117's opaque-id validation and bounded chunking,
+refreshes through the shared shown-summary render path, and changes no review,
+item, DIM, or server state.
 
 ## Risks & mitigations
 

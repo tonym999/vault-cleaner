@@ -19,25 +19,33 @@ Planned the weapon-proposal extension of #117 after both dependencies landed on
   Cross-check in DIM panel. The three static #148 queries and the two armor-group
   modes remain unchanged.
 - **Safety/presentation contract:** output is explicitly a locating query that
-  can include junk/review and any verdict state admitted by the filters. It is
-  visible read-only text, not an automatic Clipboard/network/DIM action. The
-  generated chunks are cleared when report identity or shown weapon membership
-  changes so old ids cannot sit under a new filtered view.
+  can include junk/review, any verdict state admitted by the filters, and shown
+  proposals still suppressed by active saved vetoes. It is visible read-only
+  text, not an automatic Clipboard/network/DIM action.
+- **Review-driven simplification:** after Claude's review, the plan replaces
+  the Generate button, cached membership signature, and clear lifecycle with a
+  live query rendered from the single `renderSummary()` hook. The boot path
+  creates stable empty targets—including an `aria-live="polite"` count region
+  before text assignment—while `renderSummary()` handles query changes, Reset,
+  `adopt`, and `setSurface`. The subsection hides on Armor duplicates and must
+  reappear on Proposals; `renderList()` is explicitly excluded.
 - **No real-data measurement:** current synthetic browser coverage already
   measures five proposals from `weapons_hostile.csv`, including the #148 loadout
-  case. No export, instance id, private aggregate, new fixture, or golden is
-  needed.
+  case. Its authoritative backend order is pinned literally as
+  `id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010`; the
+  empty-set browser check uses the text filter `no such weapon`. No export,
+  private aggregate, new fixture, or golden is needed.
 - **Implementer selection:** Google `gemini-3.8-flash` with native
   `thinking_level = high`. Official Google documentation rechecked 2026-09-13
   identifies that exact model as stable/GA and supports `low`, `medium`, and
   `high` (not `minimal`). Flash is sufficient because this is a bounded browser
   extension over merged seams; high thinking is appropriate for mixed-kind,
-  filter-membership, stale-output, and side-effect proofs.
+  filter-membership, persisted-veto, live-refresh, and side-effect proofs.
 - **Review path:** independent adversarial review. The production diff is
-  presentation-only, but a hidden/mixed-kind/stale membership bug is directly
-  actionable in DIM. A fresh reviewer should focus on exact filter membership,
-  reuse of #117 rather than a second builder, honest non-junk copy, and zero
-  mutation/network/clipboard effects.
+  presentation-only, but a hidden/mixed-kind/out-of-date membership bug is
+  directly actionable in DIM. A fresh reviewer should focus on exact filter
+  membership, reuse of #117 rather than a second builder, honest non-junk copy,
+  and zero mutation/network/clipboard effects.
 - Planning branch: `handoff/issue-150-implementation-plan`; allocated
   implementation branch: `feat/issue-150-shown-weapon-dim-query`. No
   implementation or merge is authorized by this planning session.
