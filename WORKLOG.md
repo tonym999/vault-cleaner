@@ -3,6 +3,70 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-13 — #148 plan review round (PR 1 continued)
+
+Same PR 1, same branch. The owner's review raised two P2s and one P3, and
+CodeRabbit independently reported the same defect as the first P2. All four were
+verified against source before being accepted; none was rejected.
+
+- **`review_server.js:324` was described wrongly, in two ways.** The plan called
+  it the facet enumeration and claimed that omitting `loadout` from it would drop
+  the value on reset. It is neither: line 324 is the report-refresh invalidation
+  list inside `applySessionEnvelope` (`review_server.js:291`), clearing a
+  selected filter whose value no longer matches any item in a refreshed report,
+  after which `adopt` (`review_server.js:797-805`) resynchronises the control.
+  Reset is separate and generic — `Reset filters` (`review_server.js:1039-1042`)
+  clears every `state.query` key, so `loadout` resets for free once the default
+  exists. The wrong rationale sat on top of a right edit because
+  `valueStillExists` (`review_server.js:193-198`) builds a single-facet query and
+  delegates to `ui.filterItems`, so it needs no per-facet special-casing — which
+  is also how `protection`'s non-field-shaped modes already work.
+- **The real gap behind that defect was a missing test.** Nothing in the plan
+  covered `applySessionEnvelope` for the new facet. The plan now requires a
+  paired test: preserved when a refreshed envelope still has matching items,
+  cleared when it does not. A clear-only test would pass against a facet that
+  always clears.
+- **Review path corrected to independent adversarial review.** The
+  implementation modifies `parse.py` and deliberately changes accepted-input
+  behaviour, and parser changes are a categorical trigger in the planner
+  template, `handoffs/README.md` and #140. The earlier selection of standard
+  review argued from implementation effort ("one line with a parametrized
+  test"), which is the wrong axis: the category follows what the change can
+  break. The implementer tier stays `claude-sonnet-5` (`high`) — review rigour
+  and implementation difficulty track different things, and the plan now says so
+  explicitly so it does not read as an oversight.
+- **Provider verification performed and recorded.** The plan previously admitted
+  skipping the re-verification that the planner template marks MUST. Verified
+  against Anthropic's effort documentation: `claude-sonnet-5` is in the
+  supported-models list, the levels are `low`/`medium`/`high`/`xhigh`/`max` with
+  Sonnet 5 listed under both `xhigh` and `max`, the API default is `high`, and
+  the page's Sonnet 5 guidance for `high` matches this task's profile. Selection
+  unchanged; the process defect is closed.
+
+One further change the review did not ask for:
+
+- **No new fixture.** The plan hedged between extending a UI fixture and adding
+  one. `weapons_hostile.csv` settles it: its only consumers are exactly the four
+  modules needing this coverage (`test_report_run.py`, `test_review_ui_js.py`,
+  `test_server_browser.py`, `test_server_uploads.py`), it is not the golden's
+  weapons fixture, and it holds five same-`Hash` pairs with every `Loadouts`
+  cell empty. Setting the cell on one member of one pair gives the filter both
+  sides to discriminate. Worth recording *why* editing a shared fixture is safe
+  here: with no rail, a `Loadouts` cell is decision-neutral by construction — it
+  can move `in_loadout` and nothing else — so no decision, note, tag or golden
+  byte can change. That would not have been true in the rail version of this
+  plan. This drops a file-generation step, the CRLF likely-finding and one stop
+  condition.
+
+Incidental, deliberately not actioned here: the model catalog in
+`handoffs/README.md` is accurate for what it lists but not exhaustive — the
+official supported list also includes `claude-mythos-5-1`, `claude-fable-5`,
+`claude-mythos-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`,
+`claude-opus-4-5-20251101` and `claude-sonnet-4-6`. That belongs to #144.
+
+Verification: planning-only change. No source file was modified, so `pytest` and
+`ruff` have nothing new to cover; `git diff --check` is clean.
+
 ## 2026-09-12 — #148 planning: weapon loadout visibility (PR 1)
 
 Created #148 as Child 2a of umbrella #140 and planned it. The ticket was planned

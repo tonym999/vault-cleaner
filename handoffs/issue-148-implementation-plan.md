@@ -60,8 +60,10 @@ Filter facets are an established pattern, and the new one slots into it exactly:
 | Predicate | [review_ui.js:201-217](../src/vault_cleaner/ui/review_ui.js#L201-L217) (`filterItems`) |
 | Helper precedent | [review_ui.js:194-199](../src/vault_cleaner/ui/review_ui.js#L194-L199) (`matchesProtection`) |
 | Query defaults | [review_server.js:76-77](../src/vault_cleaner/ui/review_server.js#L76-L77) |
-| Facet enumeration | [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324) |
-| Control construction | [review_server.js:1011-1018](../src/vault_cleaner/ui/review_server.js#L1011-L1018) |
+| Refresh reconciliation | [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324), inside `applySessionEnvelope` ([review_server.js:291](../src/vault_cleaner/ui/review_server.js#L291)) |
+| Staleness predicate | [review_server.js:193-198](../src/vault_cleaner/ui/review_server.js#L193-L198) (`valueStillExists`) |
+| Control construction | [review_server.js:1011-1018](../src/vault_cleaner/ui/review_server.js#L1011-L1018), inside `renderControls` ([review_server.js:901](../src/vault_cleaner/ui/review_server.js#L901)) |
+| Reset | [review_server.js:1039-1042](../src/vault_cleaner/ui/review_server.js#L1039-L1042) — clears **every** `state.query` key generically; needs no per-facet edit |
 
 There is **no** clipboard helper anywhere in `src/vault_cleaner/ui/` (`grep -rn "clipboard\|execCommand" src/vault_cleaner/ui/*.js` returns nothing), so copy support is new code — see the decision under *Static DIM query panel*.
 
@@ -138,12 +140,18 @@ Modes: `""` (no filter), `"in"` (`item.inLoadout === true`), `"out"` (`item.inLo
 Three coordinated edits:
 
 - add `loadout: ""` to the query defaults at [review_server.js:76-77](../src/vault_cleaner/ui/review_server.js#L76-L77);
-- add `"loadout"` to the facet list at [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324);
-- add the select control next to the existing protection select at [review_server.js:1014-1018](../src/vault_cleaner/ui/review_server.js#L1014-L1018).
+- add `"loadout"` to the **report-refresh invalidation list** at [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324);
+- add the select control next to the existing protection select at [review_server.js:1014-1018](../src/vault_cleaner/ui/review_server.js#L1014-L1018), inside `renderControls`.
 
 Verbatim control copy — label **`Loadout`**, options **`any loadout state`** (default), **`in a loadout`**, **`not in a loadout`**.
 
-Missing any one of these three leaves a facet that filters but cannot be set, or a control whose value is dropped on reset. Check all three in review.
+**What the invalidation list actually does.** [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324) is not a facet registry and has nothing to do with the reset button. It lives inside `applySessionEnvelope` ([review_server.js:291](../src/vault_cleaner/ui/review_server.js#L291)): when a refreshed report arrives, each listed facet whose selected value no longer matches any item is cleared and recorded in `invalidated`, and `adopt` ([review_server.js:797-805](../src/vault_cleaner/ui/review_server.js#L797-L805)) then resynchronises the live control. Omitting `loadout` leaves a stale selection filtering against items that no longer exist.
+
+The staleness check needs no special-casing: `valueStillExists` ([review_server.js:193-198](../src/vault_cleaner/ui/review_server.js#L193-L198)) builds a single-facet query and delegates to `ui.filterItems`, so it works for any facet `filterItems` understands — exactly as it already does for `protection`, whose `"protected"` / `"unprotected"` modes are no more item-field-shaped than `loadout`'s.
+
+**Reset needs no edit.** The `Reset filters` handler ([review_server.js:1039-1042](../src/vault_cleaner/ui/review_server.js#L1039-L1042)) clears every key in `state.query` generically, so `loadout` is reset for free once the default exists.
+
+Missing the query default leaves a control whose value never initialises; missing the invalidation entry leaves a filter that silently survives a report refresh it should not. Check all four edits in review, and cover the refresh case with the test named below — it is the one behaviour here that no other test would catch.
 
 ### Review UI — static DIM query panel
 
@@ -191,7 +199,8 @@ Add a `_drop_column("Loadouts")` entry to `INVALID_EXPORT_CASES`, which exercise
 #### [MODIFY] [tests/test_server_ui_js.py](../tests/test_server_ui_js.py)
 
 - The `Loadout` select exists with the three verbatim option labels.
-- Its value round-trips into `state.query.loadout` and is cleared by whatever reset path the existing facets use.
+- Its value round-trips into `state.query.loadout`.
+- **Refresh reconciliation** through `applySessionEnvelope`: with `loadout` selected, applying an envelope whose items still include a matching item **preserves** the selection; applying one whose items no longer include any matching item **clears** it to `""` and records it in `invalidated`. Both directions — a test that only asserts clearing would pass against a facet that always clears.
 - The three DIM query strings render **verbatim**, asserted as exact string equality — a stray space or a smart quote makes them silently wrong in DIM.
 
 #### [MODIFY] [tests/test_server_browser.py](../tests/test_server_browser.py)
@@ -200,9 +209,13 @@ One Playwright case: load a report containing at least one in-loadout weapon pro
 
 #### [MODIFY] test fixture for the browser/UI case
 
-No weapon fixture has a non-empty `Loadouts` cell (all 36 rows across four fixtures are empty). The UI cases need one. Prefer extending an existing UI-oriented fixture if one already drives the review-server tests; otherwise add a small new fixture. **Do not edit `weapons_dupes.csv`** — it builds the golden ([scripts/regenerate_report_snapshot.py:36-38](../scripts/regenerate_report_snapshot.py#L36-L38)), and changing it would move the golden for a presentation-only ticket.
+No weapon fixture has a non-empty `Loadouts` cell (all 36 rows across four fixtures are empty), so the UI cases need one. **Set `Loadouts` on one row of [tests/fixtures/weapons_hostile.csv](../tests/fixtures/weapons_hostile.csv). Do not create a new fixture.**
 
-Generate any new CSV with Python's `csv` module using `lineterminator="\n"` (CRLF is the default and `git diff --check` gates CI), with a header copied verbatim from an existing weapon fixture, and fake rows only.
+That file is already the weapons export driving every module that needs this coverage — `test_report_run.py`, `test_review_ui_js.py`, `test_server_browser.py` and `test_server_uploads.py` are its only consumers — and it is **not** the golden's weapons fixture. It holds 10 rows in five same-`Hash` pairs, every `Loadouts` cell empty. Set the cell on exactly one member of one pair, so the same pair yields one in-loadout and one not-in-loadout proposal and the filter has both sides to discriminate.
+
+Because this ticket adds no rail, a `Loadouts` cell is **decision-neutral by construction**: it can move `in_loadout` and nothing else. No decision, note, tag or golden byte can change as a result, which is why editing a shared fixture in place is safe here and would not be in the rail version of this plan.
+
+**Do not edit `weapons_dupes.csv`** — it builds the golden ([scripts/regenerate_report_snapshot.py:36-38](../scripts/regenerate_report_snapshot.py#L36-L38)), and while a `Loadouts` cell there would not move a decision, it would move the golden's `in_loadout` value in a ticket whose contract is an empty golden diff.
 
 ## Mechanical inclusion test
 
@@ -212,7 +225,7 @@ A proposed change is **in scope** if and only if it is one of:
 - the `in loadout` row badge and its CSS;
 - the `matchesLoadout` helper, its `filterItems` clause, and the three coordinated `review_server.js` facet edits;
 - the static DIM query panel and its CSS;
-- the test additions and at most one new/extended fixture listed above;
+- the test additions listed above, plus the single `Loadouts` cell set in `weapons_hostile.csv`;
 - the `WORKLOG.md` entry.
 
 Worked examples:
@@ -224,7 +237,7 @@ Worked examples:
 - **OUT OF SCOPE:** carrying loadout *names* anywhere. The cell format is unmeasured.
 - **OUT OF SCOPE:** generating `id:`-based queries from the current selection — that is #117's mechanism.
 - **OUT OF SCOPE:** `RULESET_VERSION`, `SNAPSHOT_SCHEMA_VERSION`, or regenerating `report_snapshot_v2.json`.
-- **OUT OF SCOPE:** editing `weapons_dupes.csv`, or any armor/ghost rule or fixture.
+- **OUT OF SCOPE:** creating a new fixture file, editing `weapons_dupes.csv`, or touching any armor/ghost rule or fixture.
 
 ### Stop conditions
 
@@ -241,10 +254,10 @@ Escalation route: `implementer → orchestrator → planner`.
 ## Likely findings
 
 1. **A rail creeps back in.** #142 §8 item 4 still says `Loadouts != '' -> HARD` in the repository, and an implementer reading the design document rather than this plan will implement it. Any hunk in `rails.py` / `weapons.py` / `dupes.py` is a finding.
-2. **The facet is wired in two places out of three.** The predicate, the query default, the facet enumeration and the control are four edits across two files; missing the default or the enumeration yields a filter that appears to work until reset or URL state is exercised. Exercise the reset path, not just the happy path.
+2. **The facet is wired in three places out of four.** The predicate, the query default, the refresh-invalidation entry and the control are four edits across two files. The invalidation entry is the one that gets missed, because everything looks correct until a report is refreshed — and no existing test refreshes a report with a filter set. Check for the `"loadout"` string at [review_server.js:324](../src/vault_cleaner/ui/review_server.js#L324) specifically, and for the paired preserve/clear test.
 3. **The DIM query strings drift.** A trailing space, a curly quote from an editor, or a helpfully "corrected" `is:inLoadout` makes the string useless in DIM while every test that merely checks for a substring still passes. Assert exact equality.
 4. **Badge colour implies severity.** Reusing the red `junk` badge class makes loadout membership read as a warning. `docs/evidence/issue-113/count-label-inventory.md` already documents this exact defect class in this UI.
-5. **A new fixture lands with CRLF, or `weapons_dupes.csv` gets edited** and quietly moves the golden in a ticket that must not move it.
+5. **A new fixture appears anyway, or `weapons_dupes.csv` gets edited.** The plan requires editing one cell of `weapons_hostile.csv` and creating no file; a new CSV is scope leakage and brings a CRLF risk this ticket no longer needs to carry, while touching `weapons_dupes.csv` moves the golden in a ticket whose contract is an empty golden diff.
 
 # Reusable implementer execution prompt
 
@@ -262,7 +275,7 @@ Rules:
 - work on `feat/issue-148-loadout-visibility`; branch from latest `main` and record the base SHA;
 - apply the plan's mechanical inclusion test to every production hunk;
 - reproduce every verbatim string in the plan exactly — the three DIM queries especially, which must be asserted by exact equality;
-- generate any new CSV fixture with `lineterminator="\n"`, fake rows only, header copied verbatim from an existing weapon fixture, and do not edit `weapons_dupes.csv`;
+- set `Loadouts` on exactly one row of `tests/fixtures/weapons_hostile.csv` rather than creating any new fixture, and do not edit `weapons_dupes.csv`;
 - update `WORKLOG.md` with a dated entry;
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`, `git diff --check origin/main...HEAD`, and `git status` plus `git ls-files data/`;
 - confirm `git diff origin/main...HEAD -- tests/fixtures/report_snapshot_v2.json` is **empty**;
@@ -275,12 +288,14 @@ When complete, report base and head SHAs, changed files, the full output of each
 
 # Ticket-specific review decision
 
-**Review path:** `standard orchestrator review`
+**Review path:** `independent adversarial review`
 
 **Reason:**
-The earlier revision of this plan specified `independent adversarial review` because it added a delete rail. With the rail dropped, no decision logic changes: the diff is one schema constant plus presentation, and the strongest correctness claim — "no decision moved" — is mechanically checkable from an empty golden diff and an unchanged `rails.py` / `weapons.py` / `dupes.py`.
+This plan's required implementation modifies `parse.py` and deliberately changes accepted-input behaviour: a weapons export that loads today is rejected afterwards. Parser changes are a categorical trigger, not a judgement call weighed against diff size — step 7 of [handoffs/templates/planner.md](templates/planner.md) names "core parsers", [handoffs/README.md](README.md#review-path-standard-vs-independent-adversarial-review) names parsers among the critical invariants, and [#140](https://github.com/tonym999/vault-cleaner/issues/140) instructs recommending adversarial review for parser changes, reserving standard review for "demonstrably bounded low-risk slices". An input-contract change that rejects previously-valid exports is not such a slice.
 
-Two things would flip this to adversarial, and the orchestrator should treat them as triggers when it inspects the real diff: any hunk in a rules module, or any change to `ReportDecision` / the snapshot. The schema constant does change parser behaviour by rejecting older exports, but it is one line with a parametrized test over both entry points.
+An earlier revision of this plan selected standard review, reasoning that the schema edit is one line with a parametrized test. That argued from implementation effort, which is the wrong axis: the category is set by what the change can break, not by how much code it takes. Corrected here after review.
+
+The presentation half of the diff is genuinely low-risk, and the reviewer should spend its attention on the parser boundary, on the "no decision moved" claim (an empty golden diff plus untouched `rails.py` / `weapons.py` / `dupes.py`), and on the refresh-reconciliation behaviour.
 
 The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
@@ -290,7 +305,20 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 
 What still needs care is breadth rather than depth — the facet's four coordinated edits and the exact-string discipline on the DIM queries — which is well within `high`, and the plan names both as review checks rather than relying on the model to notice them.
 
-Model IDs and effort values come from the catalog in [handoffs/README.md](README.md#model-family--provider-native-reasoning-effort-matrix) (marked verified 2026-09-03), consistent with this session's environment statement of current Claude model IDs. That catalog was **not** independently re-verified against live provider documentation during this planning session; the orchestrator must re-verify availability at dispatch and record any fallback.
+**The tier stays `high` even though the review path was raised to adversarial.** The two track different things: review rigour follows what the change can break (a parser boundary), while the tier follows how hard the change is to write correctly, and that did not change.
+
+**Provider verification (performed 2026-09-13).** Re-verified against Anthropic's official documentation at [platform.claude.com/docs/en/build-with-claude/effort](https://platform.claude.com/docs/en/build-with-claude/effort), as step 4 of the planner template and the rule in [handoffs/README.md](README.md#model-family--provider-native-reasoning-effort-matrix) require:
+
+- `claude-sonnet-5` appears in that page's supported-models list for `output_config.effort`.
+- The documented effort levels are `low`, `medium`, `high`, `xhigh` and `max`; Claude Sonnet 5 is listed under both `xhigh` and `max`, so all five are available to it.
+- The API default is `high`, and `"Setting effort to \"high\" produces exactly the same behavior as omitting the effort parameter entirely."`
+- The page's Sonnet 5 guidance for this level reads: `"High effort (default): Suitable for complex reasoning, coding, and agentic tasks where quality matters more than speed or cost."`
+
+The selection therefore stands as documented. An earlier revision of this plan recorded that this verification had **not** been done, which was a process defect against the template's explicit MUST; it is closed here.
+
+Incidental, and deliberately **not** actioned in this PR: the repository catalog is accurate for the models it lists but is not exhaustive — the official supported-models list also includes `claude-mythos-5-1`, `claude-fable-5`, `claude-mythos-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5-20251101` and `claude-sonnet-4-6`. Amending that table belongs to [#144](https://github.com/tonym999/vault-cleaner/issues/144), not to this ticket.
+
+The orchestrator must still re-verify availability in its own runtime at dispatch and record any fallback; documented support is not the same as an instantiable target.
 
 # Review checklist
 
@@ -300,11 +328,12 @@ Model IDs and effort values come from the catalog in [handoffs/README.md](README
 - [ ] `REQUIRED_WEAPON_COLUMNS` includes `Loadouts`, with `INVALID_EXPORT_CASES` covering its removal through both `load_weapons` and `load_weapons_bytes`.
 - [ ] The `in loadout` badge renders on the proposal row without expanding the detail row, and does not reuse the red `junk` badge colour.
 - [ ] The detail-row `flags` line at `review_ui.js:874` is unchanged.
-- [ ] All four facet edits are present: `matchesLoadout`, the `filterItems` clause, the `loadout: ""` query default, the facet enumeration entry, and the select control — and the reset path clears it.
+- [ ] All four facet edits are present: `matchesLoadout`, the `filterItems` clause, the `loadout: ""` query default, the `"loadout"` entry in the refresh-invalidation list at `review_server.js:324`, and the select control in `renderControls`.
+- [ ] A paired test covers refresh reconciliation: the loadout selection is **preserved** when a refreshed envelope still has matching items and **cleared** when it does not. A clear-only test is insufficient.
 - [ ] The three DIM query strings are asserted by **exact equality**, not substring, and read `tag:junk is:inloadout`, `notes:#vc-junk is:inloadout`, `notes:#vc-review is:inloadout`.
 - [ ] Each query sits in a natively selectable control; any copy button feature-checks `navigator.clipboard` and falls back to selecting the text.
 - [ ] No loadout name is parsed or displayed anywhere.
-- [ ] `weapons_dupes.csv` is unedited; any new fixture has LF endings, a verbatim header, and fake rows only.
+- [ ] No new fixture file was created; `weapons_hostile.csv` gained a `Loadouts` value on one row of one same-`Hash` pair; `weapons_dupes.csv` is unedited.
 - [ ] Lint, `pytest`, the Playwright browser suite and `git diff --check` all pass; `git ls-files data/` is empty. The browser suite is **required** here, not optional — a skipped run is not a pass.
 
 # Dispatch comment draft
@@ -313,8 +342,8 @@ Planned #148 in [handoffs/issue-148-implementation-plan.md](https://github.com/t
 
 - **Implementer tier & effort:** `claude-sonnet-5` (`high`) — re-verify availability at dispatch
 - **Implementation branch:** `feat/issue-148-loadout-visibility`
-- **Review path:** standard orchestrator review; escalate to adversarial if any rules module or `ReportDecision`/snapshot change appears in the diff
-- **Likely findings:** a hard rail creeping back in from the superseded #142 §8 item 4; the filter facet wired in three of four places; the DIM query strings drifting from verbatim; the badge reusing the red `junk` colour; a new fixture landing with CRLF or `weapons_dupes.csv` being edited and moving the golden.
+- **Review path:** independent adversarial review — the implementation changes `parse.py`'s accepted-input contract, which is a categorical trigger
+- **Likely findings:** a hard rail creeping back in from the superseded #142 §8 item 4; the filter facet wired in three of four places, missing the refresh-invalidation entry; the DIM query strings drifting from verbatim; the badge reusing the red `junk` colour; a new fixture being created instead of one cell of `weapons_hostile.csv` being set.
 
 ---
 
