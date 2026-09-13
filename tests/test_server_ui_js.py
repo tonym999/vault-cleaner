@@ -4604,6 +4604,7 @@ Document.prototype.querySelectorAll = function (selector) { return this.body.que
 
 var doc = new Document();
 var fetchCalls = 0;
+var clipboardCalls = 0;
 var currentFetchEnvelope = null;
 
 var context = {
@@ -4611,8 +4612,39 @@ var context = {
   VaultCleanerReviewUI: shared,
   Promise: Promise,
   Set: Set,
-  fetch: function () {
+  navigator: {
+    clipboard: {
+      writeText: function () { clipboardCalls++; return Promise.resolve(); }
+    }
+  },
+  fetch: function (url, options) {
     fetchCalls += 1;
+    if (url === "/api/verdicts" && options && options.body) {
+      var body = JSON.parse(options.body);
+      var currentVerdicts = JSON.parse(JSON.stringify(currentFetchEnvelope.verdicts || []));
+      var incoming = body.decisions || body.verdicts || [];
+      incoming.forEach(function (m) {
+        var found = false;
+        for (var i = 0; i < currentVerdicts.length; i++) {
+          if (currentVerdicts[i].id === m.id) {
+            if (m.verdict === null) currentVerdicts.splice(i, 1);
+            else currentVerdicts[i].verdict = m.verdict;
+            found = true; break;
+          }
+        }
+        if (!found && m.verdict !== null) {
+          currentVerdicts.push({ id: m.id, verdict: m.verdict });
+        }
+      });
+      var updatedEnvelope = JSON.parse(JSON.stringify(currentFetchEnvelope));
+      updatedEnvelope.verdict_revision += 1;
+      updatedEnvelope.verdicts = currentVerdicts;
+      currentFetchEnvelope = updatedEnvelope;
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: function () { return Promise.resolve(updatedEnvelope); }
+      });
+    }
     return Promise.resolve({
       ok: true, status: 200,
       json: function () { return Promise.resolve(currentFetchEnvelope); }
@@ -4647,7 +4679,7 @@ var bootOk = {
   hiddenAtBoot: weaponSection ? weaponSection.hidden : null
 };
 
-// 2. Adopt mixed-kind report with active persisted veto
+// 2. Adopt mixed-kind report with active persisted veto and an authoritative vetoed verdict
 var mixedEnvelope = {
   schema_version: 1, state: "reviewing", report_revision: 1,
   verdict_revision: 0, fingerprint: "fp-mixed",
@@ -4656,15 +4688,16 @@ var mixedEnvelope = {
       {
         kind: "weapons",
         decisions: [
-          { id: "7001", hash: "100", name: "Gun Alpha", in_loadout: true, action: "junk", reason: "dupe-exact" },
-          { id: "7002", hash: "101", name: "Gun Beta", in_loadout: false, action: "junk", reason: "dupe-exact" },
-          { id: "7003", hash: "102", name: "Gun Gamma", in_loadout: false, action: "review", reason: "dupe-exact" }
+          { id: "7001", hash: "100", name: "Gun Alpha", kind: "weapons", in_loadout: true, action: "junk", reason: "dupe-exact", guardian_class: "Titan", protection_level: "" },
+          { id: "7002", hash: "101", name: "Gun Beta", kind: "weapons", in_loadout: false, action: "junk", reason: "dupe-exact", guardian_class: "Hunter", protection_level: "soft" },
+          { id: "7003", hash: "102", name: "Gun Gamma", kind: "weapons", in_loadout: false, action: "review", reason: "wishlist-trash", guardian_class: "Warlock", protection_level: "" },
+          { id: "7004", hash: "103", name: "Gun Delta", kind: "weapons", in_loadout: false, action: "junk", reason: "dupe-lower", guardian_class: "Titan", protection_level: "hard" }
         ]
       },
       {
         kind: "armor",
         decisions: [
-          { id: "8001", hash: "201", name: "Plate", in_loadout: false, action: "junk", reason: "armor-score" }
+          { id: "8001", hash: "201", name: "Plate", kind: "armor", in_loadout: false, action: "junk", reason: "armor-score", guardian_class: "Titan", protection_level: "" }
         ],
         armor: {
           exact_duplicate_groups: [
@@ -4683,12 +4716,12 @@ var mixedEnvelope = {
       {
         kind: "ghosts",
         decisions: [
-          { id: "9001", hash: "301", name: "Shell", in_loadout: false, action: "junk", reason: "ghost-rail" }
+          { id: "9001", hash: "301", name: "Shell", kind: "ghosts", in_loadout: false, action: "junk", reason: "ghost-rail", classFacet: "any", protection: "unprotected" }
         ]
       }
     ]
   },
-  verdicts: [],
+  verdicts: [{ id: "7004", verdict: "vetoed" }],
   override_status: [{ id: "7001", status: "active", detail: "persisted veto" }]
 };
 
@@ -4727,14 +4760,15 @@ setTimeout(function () {
     textarea.selectionEnd = 8;
   }
 
-  // Acknowledge a verdict for 7001 under default Session verdict filter
-  var envApproved = JSON.parse(JSON.stringify(mixedEnvelope));
-  envApproved.verdict_revision = 1;
-  envApproved.verdicts = [{ id: "7001", verdict: "approved" }];
-  currentFetchEnvelope = envApproved;
-  liveServer.start();
+  // Real verdict acknowledgement via row Approve button dispatch
+  var fetchCallsBeforeVerdict = fetchCalls;
+  var row7001 = liveState.rows["7001"];
+  if (row7001 && row7001.approve) {
+    row7001.approve.dispatch("click");
+  }
 
   setTimeout(function () {
+    var verdictFetched = fetchCalls === fetchCallsBeforeVerdict + 1;
     var detailsAfterVerdict = outputNode.querySelector("details");
     var textareaAfterVerdict = outputNode.querySelector("textarea");
     var identityPreservedAfterVerdict = (detailsAfterVerdict === detailsRef) && (textareaAfterVerdict === textareaRef);
@@ -4751,30 +4785,98 @@ setTimeout(function () {
     var detailsAfterSearch = outputNode.querySelector("details");
     var textareaAfterSearch = outputNode.querySelector("textarea");
     var identityPreservedAfterSearch = (detailsAfterSearch === detailsRef) && (textareaAfterSearch === textareaRef);
-
-    // 4. Filters: Session verdict to approved
-    var verdictSelect = doc.getElementById("vc-f-verdict");
-    if (verdictSelect) {
-      verdictSelect.value = "approved";
-      verdictSelect.dispatch("change", { target: { value: "approved" } });
+    if (searchInput) {
+      searchInput.value = "";
+      searchInput.dispatch("input", { target: { value: "" } });
     }
+
+    // renderList / sort / group independence: calling renderList does not touch outputNode
+    var detailsBeforeList = outputNode.querySelector("details");
+    var textareaBeforeList = outputNode.querySelector("textarea");
+    liveState.sort = { field: "action", direction: "desc" };
+    var groupingEl = doc.getElementById("vc-f-group");
+    var groupingSelect = groupingEl ? groupingEl.querySelector("select") : null;
+    if (groupingSelect) {
+      groupingSelect.value = "flat";
+      groupingSelect.dispatch("change", { target: { value: "flat" } });
+    }
+    var detailsAfterList = outputNode.querySelector("details");
+    var textareaAfterList = outputNode.querySelector("textarea");
+    var renderListDidNotTouchQuery = (detailsBeforeList === detailsAfterList) && (textareaBeforeList === textareaAfterList);
+
+    // 4. Exercise ALL filter axes and prove zero side-effects on adapter state/fetch/clipboard
+    var fetchCallsBeforeFilters = fetchCalls;
+    var clipboardBeforeFilters = clipboardCalls;
+    var stateBeforeFilters = {
+      report_revision: liveState.report_revision,
+      verdict_revision: liveState.verdict_revision,
+      mutationInFlight: liveState.mutationInFlight,
+      persistedVetoIds: Array.from(liveState.persistedVetoIds).sort(),
+      verdicts: JSON.stringify(liveState.verdicts),
+      rowsKeys: Object.keys(liveState.rows).sort(),
+      dupRowsKeys: Object.keys(liveState.duplicateRows).sort()
+    };
+
+    function setFilter(id, value) {
+      var el = doc.getElementById(id);
+      if (el) {
+        el.value = value;
+        el.dispatch(id === "vc-search" ? "input" : "change", { target: { value: value } });
+      }
+    }
+
+    // Action filter: review -> 7003
+    setFilter("vc-f-action", "review");
+    var actionReviewQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-action", "");
+
+    // Reason filter: dupe-lower -> 7004
+    setFilter("vc-f-reason", "dupe-lower");
+    var reasonDupeLowerQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-reason", "");
+
+    // Class facet filter: Hunter -> 7002
+    setFilter("vc-f-classFacet", "Hunter");
+    var classHunterQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-classFacet", "");
+
+    // Protection filter: soft -> 7002
+    setFilter("vc-f-protection", "soft");
+    var protectionSoftQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-protection", "");
+
+    // Kind filter: armor -> 0 weapons (empty state)
+    setFilter("vc-f-kind", "armor");
+    var kindArmorEmptyCount = countNode.textContent;
+    var kindArmorEmptyHint = outputNode.querySelector(".dim-query-empty-hint") ? outputNode.querySelector(".dim-query-empty-hint").textContent : null;
+    setFilter("vc-f-kind", "");
+
+    // Verdict filter: vetoed -> 7004
+    setFilter("vc-f-verdict", "vetoed");
+    var verdictVetoedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-verdict", "");
+
+    // Verdict filter: approved -> 7001 (was acknowledged approved above)
+    setFilter("vc-f-verdict", "approved");
     var approvedCount = countNode.textContent;
     var approvedSummary = outputNode.querySelector("summary") ? outputNode.querySelector("summary").textContent : null;
     var approvedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
     var approvedDetailsOpen = outputNode.querySelector("details") ? outputNode.querySelector("details").open : null;
 
-    // Filter Loadout to out (not in loadout): 0 matching weapons (7001 is in loadout)
-    var loadoutSelect = doc.getElementById("vc-f-loadout");
-    if (loadoutSelect) {
-      loadoutSelect.value = "out";
-      loadoutSelect.dispatch("change", { target: { value: "out" } });
-    }
+    // Loadout filter: out (not in loadout) -> 0 matching (7001 is in loadout)
+    setFilter("vc-f-loadout", "out");
     var emptyCount = countNode.textContent;
     var emptyHint = outputNode.querySelector(".dim-query-empty-hint") ? outputNode.querySelector(".dim-query-empty-hint").textContent : null;
     var emptyDetails = outputNode.querySelector("details");
     var emptyTextarea = outputNode.querySelector("textarea");
 
-    // Reset filters
+    // Search filter: Gun Beta -> 7002
+    setFilter("vc-f-verdict", "");
+    setFilter("vc-f-loadout", "");
+    setFilter("vc-search", "Gun Beta");
+    var searchGunBetaQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+
+    // Reset filters via Reset filters button
     var controlsHost = doc.getElementById("vc-controls");
     var resetBtn = controlsHost ? controlsHost.querySelectorAll("button").filter(function (b) { return b.textContent === "Reset filters"; })[0] : null;
     if (resetBtn) {
@@ -4783,6 +4885,20 @@ setTimeout(function () {
     var resetCount = countNode.textContent;
     var resetQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
     var resetDetailsOpen = outputNode.querySelector("details") ? outputNode.querySelector("details").open : null;
+
+    // Check side effects after all filter changes and resets
+    var zeroFetchesDuringFilters = (fetchCalls === fetchCallsBeforeFilters);
+    var zeroClipboardCalls = (clipboardCalls === clipboardBeforeFilters);
+    var stateAfterFilters = {
+      report_revision: liveState.report_revision,
+      verdict_revision: liveState.verdict_revision,
+      mutationInFlight: liveState.mutationInFlight,
+      persistedVetoIds: Array.from(liveState.persistedVetoIds).sort(),
+      verdicts: JSON.stringify(liveState.verdicts),
+      rowsKeys: Object.keys(liveState.rows).sort(),
+      dupRowsKeys: Object.keys(liveState.duplicateRows).sort()
+    };
+    var stateUnchangedDuringFilters = JSON.stringify(stateBeforeFilters) === JSON.stringify(stateAfterFilters);
 
     // 5. 77 maximum-width IDs chunking
     function make20DigitId(n) {
@@ -4820,7 +4936,7 @@ setTimeout(function () {
       });
       var chunkingCorrect = (textareas77.length === 2) && (JSON.stringify(extracted77) === JSON.stringify(expectedIds77));
 
-      // 6. Malformed weapon id fails closed
+      // 6. Malformed weapon id fails closed (role is NOT status)
       var envMalformed = {
         schema_version: 1, state: "reviewing", report_revision: 11,
         verdict_revision: 0, fingerprint: "fp-malformed",
@@ -4855,27 +4971,58 @@ setTimeout(function () {
           var visibleOnProp = !weaponSection.hidden;
           var queryOnReturn = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
 
-          // 8. Finalized and disconnected reports
-          var envFinalized = JSON.parse(JSON.stringify(mixedEnvelope));
-          envFinalized.state = "finalized";
+          // 8. Disconnected and Finalized frozen reports
+          liveState.connected = false;
+          setFilter("vc-f-loadout", "in");
+          var disconnectedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+          var disconnectedCount = countNode.textContent;
+          setFilter("vc-f-loadout", "");
+          liveState.connected = true;
+
+          // Finalized report with distinct weapon proposals
+          var envFinalized = {
+            schema_version: 1, state: "finalized", report_revision: 20,
+            verdict_revision: 5, fingerprint: "fp-finalized",
+            snapshot: {
+              sections: [{
+                kind: "weapons",
+                decisions: [
+                  { id: "7001", hash: "100", name: "Gun Alpha", kind: "weapons", action: "junk", reason: "dupe" },
+                  { id: "7002", hash: "101", name: "Gun Beta", kind: "weapons", action: "junk", reason: "dupe" }
+                ]
+              }]
+            },
+            verdicts: [], override_status: []
+          };
           currentFetchEnvelope = envFinalized;
           liveServer.start();
 
           setTimeout(function () {
             var finalizedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+            var finalizedCount = countNode.textContent;
             var finalizedVisible = !weaponSection.hidden;
 
             process.stdout.write(JSON.stringify({
               boot: bootOk,
               mixedReport: mixedReportOk,
               reconciliation: {
+                verdictFetched: verdictFetched,
                 identityPreservedAfterVerdict: identityPreservedAfterVerdict,
                 openPreservedAfterVerdict: openPreservedAfterVerdict,
                 focusPreservedAfterVerdict: focusPreservedAfterVerdict,
                 selectionPreserved: selectionPreserved,
-                identityPreservedAfterSearch: identityPreservedAfterSearch
+                identityPreservedAfterSearch: identityPreservedAfterSearch,
+                renderListDidNotTouchQuery: renderListDidNotTouchQuery
               },
               filters: {
+                actionReviewQuery: actionReviewQuery,
+                reasonDupeLowerQuery: reasonDupeLowerQuery,
+                classHunterQuery: classHunterQuery,
+                protectionSoftQuery: protectionSoftQuery,
+                kindArmorEmptyCount: kindArmorEmptyCount,
+                kindArmorEmptyHint: kindArmorEmptyHint,
+                verdictVetoedQuery: verdictVetoedQuery,
+                searchGunBetaQuery: searchGunBetaQuery,
                 approvedCount: approvedCount,
                 approvedSummary: approvedSummary,
                 approvedQuery: approvedQuery,
@@ -4886,7 +5033,10 @@ setTimeout(function () {
                 emptyHasTextarea: !!emptyTextarea,
                 resetCount: resetCount,
                 resetQuery: resetQuery,
-                resetDetailsOpen: resetDetailsOpen
+                resetDetailsOpen: resetDetailsOpen,
+                zeroFetchesDuringFilters: zeroFetchesDuringFilters,
+                zeroClipboardCalls: zeroClipboardCalls,
+                stateUnchangedDuringFilters: stateUnchangedDuringFilters
               },
               chunking: {
                 count77: count77,
@@ -4902,8 +5052,13 @@ setTimeout(function () {
                 visibleOnProp: visibleOnProp,
                 queryOnReturn: queryOnReturn
               },
+              disconnected: {
+                query: disconnectedQuery,
+                count: disconnectedCount
+              },
               finalized: {
                 finalizedVisible: finalizedVisible,
+                finalizedCount: finalizedCount,
                 finalizedQuery: finalizedQuery
               }
             }));
@@ -4941,17 +5096,17 @@ setTimeout(function () {
     assert result["boot"]["outputEmptyAtBoot"] is True
     assert result["boot"]["hiddenAtBoot"] is True
 
-    # 2. Mixed report with active persisted veto
+    # 2. Mixed report with active persisted veto and authoritative vetoed verdict
     assert result["mixedReport"]["sectionVisible"] is True
-    assert result["mixedReport"]["countText"] == "3 weapon proposals currently shown."
+    assert result["mixedReport"]["countText"] == "4 weapon proposals currently shown."
     assert (
         result["mixedReport"]["summaryText"]
-        == "DIM query for 3 shown weapon proposals"
+        == "DIM query for 4 shown weapon proposals"
     )
     assert result["mixedReport"]["detailsInitiallyCollapsed"] is True
     assert (
         result["mixedReport"]["queryValue"]
-        == "id:7001 or id:7002 or id:7003"
+        == "id:7001 or id:7002 or id:7003 or id:7004"
     )
     assert result["mixedReport"]["readOnly"] is True
     assert result["mixedReport"]["spellcheck"] == "false"
@@ -4964,14 +5119,27 @@ setTimeout(function () {
         == "Rendering or selecting this text changes no vault-cleaner verdict, tag, note, item, or DIM state."
     )
 
-    # 3. Node identity and open-state preservation
+    # 3. Node identity, real verdict acknowledgement, and renderList independence
+    assert result["reconciliation"]["verdictFetched"] is True
     assert result["reconciliation"]["identityPreservedAfterVerdict"] is True
     assert result["reconciliation"]["openPreservedAfterVerdict"] is True
     assert result["reconciliation"]["focusPreservedAfterVerdict"] is True
     assert result["reconciliation"]["selectionPreserved"] is True
     assert result["reconciliation"]["identityPreservedAfterSearch"] is True
+    assert result["reconciliation"]["renderListDidNotTouchQuery"] is True
 
-    # 4. Filters & empty & reset
+    # 4. Filters & side-effect verification across all axes
+    assert result["filters"]["actionReviewQuery"] == "id:7003"
+    assert result["filters"]["reasonDupeLowerQuery"] == "id:7004"
+    assert result["filters"]["classHunterQuery"] == "id:7002"
+    assert result["filters"]["protectionSoftQuery"] == "id:7002"
+    assert result["filters"]["kindArmorEmptyCount"] == "0 weapon proposals currently shown."
+    assert (
+        result["filters"]["kindArmorEmptyHint"]
+        == "No weapon proposals match the current filters."
+    )
+    assert result["filters"]["verdictVetoedQuery"] == "id:7004"
+    assert result["filters"]["searchGunBetaQuery"] == "id:7002"
     assert result["filters"]["approvedCount"] == "1 weapon proposal currently shown."
     assert (
         result["filters"]["approvedSummary"]
@@ -4986,12 +5154,15 @@ setTimeout(function () {
     )
     assert result["filters"]["emptyHasDetails"] is False
     assert result["filters"]["emptyHasTextarea"] is False
-    assert result["filters"]["resetCount"] == "3 weapon proposals currently shown."
+    assert result["filters"]["resetCount"] == "4 weapon proposals currently shown."
     assert (
         result["filters"]["resetQuery"]
-        == "id:7001 or id:7002 or id:7003"
+        == "id:7001 or id:7002 or id:7003 or id:7004"
     )
     assert result["filters"]["resetDetailsOpen"] is True
+    assert result["filters"]["zeroFetchesDuringFilters"] is True
+    assert result["filters"]["zeroClipboardCalls"] is True
+    assert result["filters"]["stateUnchangedDuringFilters"] is True
 
     # 5. 77 maximum-width IDs chunking
     assert result["chunking"]["count77"] == "77 weapon proposals currently shown."
@@ -5009,9 +5180,9 @@ setTimeout(function () {
     ]
     assert result["chunking"]["chunkingCorrect"] is True
 
-    # 6. Malformed weapon ID fails closed
+    # 6. Malformed weapon ID fails closed (P3: error is NOT a live region)
     assert result["errorHandling"]["hasError"] is True
-    assert result["errorHandling"]["errorRole"] == "status"
+    assert result["errorHandling"]["errorRole"] is None
     assert (
         result["errorHandling"]["errorText"]
         == "Could not generate a safe DIM query for the shown weapons."
@@ -5025,12 +5196,12 @@ setTimeout(function () {
     assert result["surfaceSwitch"]["visibleOnProp"] is True
     assert (
         result["surfaceSwitch"]["queryOnReturn"]
-        == "id:7001 or id:7002 or id:7003"
+        == "id:7001 or id:7002 or id:7003 or id:7004"
     )
 
-    # 8. Finalized report
+    # 8. Disconnected and Finalized frozen reports
+    assert result["disconnected"]["count"] == "1 weapon proposal currently shown."
+    assert result["disconnected"]["query"] == "id:7001"
     assert result["finalized"]["finalizedVisible"] is True
-    assert (
-        result["finalized"]["finalizedQuery"]
-        == "id:7001 or id:7002 or id:7003"
-    )
+    assert result["finalized"]["finalizedCount"] == "2 weapon proposals currently shown."
+    assert result["finalized"]["finalizedQuery"] == "id:7001 or id:7002"

@@ -625,7 +625,6 @@
     var duplicatePanel = document.getElementById("vc-duplicates");
     var selectorPanel = document.getElementById("vc-view-selector");
     var crosscheckPanel = document.getElementById("vc-crosscheck");
-    var weaponQuerySection = document.getElementById("vc-weapon-dim-query");
     if (!crosscheckPanel && typeof document.createElement === "function") {
       crosscheckPanel = document.createElement("section");
       crosscheckPanel.id = "vc-crosscheck";
@@ -640,7 +639,7 @@
       crosscheckTitle.textContent = "Cross-check in DIM";
       crosscheckPanel.appendChild(crosscheckTitle);
 
-      weaponQuerySection = document.createElement("section");
+      var weaponQuerySection = document.createElement("section");
       weaponQuerySection.id = "vc-weapon-dim-query";
       safeSetAttribute(weaponQuerySection, "id", "vc-weapon-dim-query");
       weaponQuerySection.className = "weapon-dim-query";
@@ -1045,6 +1044,17 @@
     var lastDetailsOpen = null;
     var lastRenderKey = null;
 
+    function clearOutput(node) {
+      if (view && typeof view.clear === "function") {
+        view.clear(node);
+      } else {
+        while (node.firstChild && typeof node.removeChild === "function") {
+          node.removeChild(node.firstChild);
+        }
+        node.textContent = "";
+      }
+    }
+
     function renderShownWeaponDimQuery() {
       var sectionNode = byId("vc-weapon-dim-query");
       if (!sectionNode) return;
@@ -1060,10 +1070,27 @@
       var filteredItems = (ui && typeof ui.filterItems === "function")
         ? ui.filterItems(state.items, state.query, state.verdicts)
         : [];
-      var weaponCount = 0;
-      for (var w = 0; w < filteredItems.length; w++) {
-        if (filteredItems[w] && filteredItems[w].kind === "weapons") {
-          weaponCount++;
+
+      var ids = null;
+      var chunks = null;
+      var queryFailed = false;
+      try {
+        ids = (ui && typeof ui.weaponProposalIdsForDimQuery === "function")
+          ? ui.weaponProposalIdsForDimQuery(filteredItems)
+          : [];
+        chunks = (ids.length && ui && typeof ui.dimIdQueryChunks === "function")
+          ? ui.dimIdQueryChunks(ids, ui.DIM_QUERY_SAVEABLE_MAX)
+          : [];
+      } catch (err) {
+        queryFailed = true;
+      }
+
+      var weaponCount = ids ? ids.length : 0;
+      if (queryFailed) {
+        for (var w = 0; w < filteredItems.length; w++) {
+          if (filteredItems[w] && filteredItems[w].kind === "weapons") {
+            weaponCount++;
+          }
         }
       }
 
@@ -1074,7 +1101,7 @@
         countNode.textContent = countText;
       }
 
-      if (weaponCount === 0) {
+      if (!queryFailed && weaponCount === 0) {
         var emptyKey = "empty";
         if (lastRenderKey === emptyKey) return;
         var existingDetailsEmpty = outputNode.querySelector("details");
@@ -1082,29 +1109,12 @@
           lastDetailsOpen = !!existingDetailsEmpty.open;
         }
         lastRenderKey = emptyKey;
-        if (view && typeof view.clear === "function") {
-          view.clear(outputNode);
-        } else {
-          while (outputNode.firstChild && typeof outputNode.removeChild === "function") {
-            outputNode.removeChild(outputNode.firstChild);
-          }
-        }
-        outputNode.textContent = "";
+        clearOutput(outputNode);
         var emptyHint = document.createElement("p");
         emptyHint.className = "dim-query-empty-hint hint";
         emptyHint.textContent = "No weapon proposals match the current filters.";
         outputNode.appendChild(emptyHint);
         return;
-      }
-
-      var ids = null;
-      var chunks = null;
-      var queryFailed = false;
-      try {
-        ids = ui.weaponProposalIdsForDimQuery(filteredItems);
-        chunks = ui.dimIdQueryChunks(ids, ui.DIM_QUERY_SAVEABLE_MAX);
-      } catch (err) {
-        queryFailed = true;
       }
 
       if (queryFailed || !chunks || !chunks.length) {
@@ -1115,17 +1125,9 @@
           lastDetailsOpen = !!existingDetailsError.open;
         }
         lastRenderKey = errorKey;
-        if (view && typeof view.clear === "function") {
-          view.clear(outputNode);
-        } else {
-          while (outputNode.firstChild && typeof outputNode.removeChild === "function") {
-            outputNode.removeChild(outputNode.firstChild);
-          }
-        }
-        outputNode.textContent = "";
+        clearOutput(outputNode);
         var errorEl = document.createElement("p");
         errorEl.className = "dim-query-error";
-        safeSetAttribute(errorEl, "role", "status");
         errorEl.textContent = "Could not generate a safe DIM query for the shown weapons.";
         outputNode.appendChild(errorEl);
         return;
@@ -1146,15 +1148,7 @@
         lastDetailsOpen = !!existingDetails.open;
       }
       lastRenderKey = renderKey;
-
-      if (view && typeof view.clear === "function") {
-        view.clear(outputNode);
-      } else {
-        while (outputNode.firstChild && typeof outputNode.removeChild === "function") {
-          outputNode.removeChild(outputNode.firstChild);
-        }
-      }
-      outputNode.textContent = "";
+      clearOutput(outputNode);
 
       var details = document.createElement("details");
       details.className = "weapon-dim-query-details";

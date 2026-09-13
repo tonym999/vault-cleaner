@@ -10,6 +10,16 @@ the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
 
 - **Role and model tier:** Implementer using Google `gemini-3.8-flash` with
   native `thinking_level = high`.
+- **Architectural decisions & rejected alternatives:**
+  - *Live shown-set query vs. independent selection model:* explicitly rejected
+    adding row selection checkboxes, selection-id state arrays, cached membership
+    signatures, clear lifecycles, or manual "Generate" buttons. The Proposals
+    surface already provides robust filtering across eight axes and session verdicts.
+    Mapping query membership directly to `filterItems(state.items, state.query, state.verdicts)`
+    narrowed to weapons keeps the UI reactive and predictable, eliminates selection
+    invalidation and synchronization bugs across report updates, and allows users
+    to inspect any subset (such as approved-only proposals) simply by setting the
+    existing Session verdict filter.
 - **Pure selector helper:** added and exported `weaponProposalIdsForDimQuery(items)`
   in `src/vault_cleaner/ui/review_ui.js`. Requires array input of objects,
   filters strictly to `kind === "weapons"`, rejects non-string or malformed IDs
@@ -24,6 +34,8 @@ the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
   before `.dim-crosscheck-controls`. Connected `renderShownWeaponDimQuery()`
   exclusively to `renderSummary()`, executing on filter/search updates,
   Reset filters, `adopt()` verdict/report synchronizations, and `setSurface()`.
+  Extracted repeated DOM clearing to a clean `clearOutput` helper and unified
+  weapon filtering to avoid duplicate loops.
 - **Renderer reconciliation and state preservation:** `renderShownWeaponDimQuery`
   recomputes `ui.filterItems(state.items, state.query, state.verdicts)` narrowed
   by `weaponProposalIdsForDimQuery`, produces chunks via `dimIdQueryChunks`,
@@ -38,7 +50,27 @@ the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
   revisions, and server state untouched. Implemented exact warning copy
   clarifying that all matching proposals (junk/review, any session verdict,
   and active saved vetoes) are included and not to treat the locating query
-  as an approved-junk list.
+  as an approved-junk list. Removed redundant `role="status"` on error message
+  per plan line 276 so only the count status node announces.
+- **Adversarial review findings & resolution:**
+  - *P2 (adapter test proofs in `tests/test_server_ui_js.py`):* added explicit
+    proofs for zero fetch calls and zero clipboard calls during filter changes;
+    verified that adapter state fields (`verdicts`, `report_revision`,
+    `verdict_revision`, `mutationInFlight`, `persistedVetoIds`, `rows`, and
+    `duplicateRows`) remain unchanged across filter cycles and resets; proved
+    `renderList` independence by verifying that sorting and grouping invoke
+    `renderList` without touching or re-rendering the DIM query DOM; exercised
+    all 8 filter axes (`action`, `kind`, `reason`, `classFacet`, `protection`,
+    `verdict`, `loadout`, `search`) against a mixed report containing an
+    authoritative vetoed proposal; tested real verdict acknowledgement via
+    row Approve click and `/api/verdicts` POST rather than simulated `start()`;
+    and added distinct checks for disconnected frozen reports (`connected: false`)
+    and finalized reports (`state: "finalized"`).
+  - *P3 (accessibility / live region):* removed `role="status"` from query error
+    paragraph so error text is not an unexpected live region alongside the count node.
+  - *P3 (code cleanup):* removed shadowed declaration of `weaponQuerySection` in boot;
+    extracted duplicate DOM clearing into `clearOutput(node)`; and unified weapon
+    proposal filtering to invoke `ui.weaponProposalIdsForDimQuery` upfront.
 - **Automated proofs:**
   - `tests/test_review_ui_js.py`: added pure unit tests for
     `weaponProposalIdsForDimQuery` covering mixed items, 20-digit/leading-zero
@@ -46,9 +78,11 @@ the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
     and chunker integration (41 passed).
   - `tests/test_server_ui_js.py`: added comprehensive integration test
     `test_shown_weapon_dim_query_adapter_integration` verifying boot DOM,
-    mixed-kind reports with active saved vetoes, node identity/focus preservation,
-    all filter axes, 77-ID chunking into 2 queries, malformed ID safe error,
-    surface switching, and finalized reports (95 passed).
+    mixed-kind reports with active saved vetoes and authoritative vetoed verdicts,
+    real row verdict acknowledgement, node identity/focus preservation,
+    all 8 filter axes, renderList/sort/group independence, 77-ID chunking into 2 queries,
+    malformed ID safe error (without `role="status"`), surface switching, disconnected
+    frozen reports, and finalized reports (95 passed).
   - `tests/test_server_browser.py`: extended `test_weapon_loadout_visibility_and_crosscheck_panel`
     with full Playwright Chromium coverage verifying literal 5-id query,
     read-only/spellcheck="false" properties, live filter to `id:7004` with 0 requests
