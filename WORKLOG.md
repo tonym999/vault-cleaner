@@ -35,6 +35,9 @@ Refs #148.
   - `tests/test_review_ui_js.py`: verified filter selection, badge rendering, and detail line preservation.
   - `tests/test_server_ui_js.py`: verified select control options, round-trip to `state.query.loadout`, two-way refresh reconciliation (preserve and clear), and verbatim DIM query strings and labels.
   - `tests/test_server_browser.py`: verified Playwright browser acceptance for row badge visibility, filter behavior, and DIM query inputs.
+- **PR #153 review refinement:**
+  - Owner review by tonym999 identified that `.badge + .badge { margin-left: .25rem; }` was overly broad and applied extra margin to adjacent `.stats` badges and `.armor-member-heading` badges inside flex containers.
+  - Scoped the margin directly to `.badge.loadout { margin-left: .25rem; }` in `review.css`, ensuring adjacent stat badges rely exclusively on their flex gap.
 
 ## 2026-09-13 — #117 implementation: per-group DIM search queries (PR 2)
 

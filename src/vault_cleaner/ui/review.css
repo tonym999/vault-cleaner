@@ -166,8 +166,7 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 }
 .badge.junk { color: var(--junk); border-color: var(--junk); }
 .badge.review { color: var(--review); border-color: var(--review); }
-.badge.loadout { color: var(--muted); border-color: var(--line); }
-.badge + .badge { margin-left: .25rem; }
+.badge.loadout { color: var(--muted); border-color: var(--line); margin-left: .25rem; }
 .namecell button { background: none; border: 0; padding: 0; }
 .group { margin-bottom: .75rem; }
 .group > summary { cursor: pointer; font-weight: 600; padding: .3rem 0; }
