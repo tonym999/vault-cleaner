@@ -3,6 +3,69 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-13 — #150 planning: shown weapon proposals as DIM queries (PR 1)
+
+Planned the weapon-proposal extension of #117 after both dependencies landed on
+`main`: #117 via PR #151 (`649bc30`) and #148 via PR #153 (`caea748`). Refs #150.
+
+- **Scope decision — shown, not a new selection model.** The Proposals surface
+  has verdicts and eight filter axes but no independent row selection. The plan
+  therefore generates for `filterItems(state.items, state.query,
+  state.verdicts)`, narrowed to weapons. Approved-only, vetoed-only,
+  unreviewed-only, junk-only and other subsets use the existing filters first;
+  no checkbox registry, persistence or reconciliation contract is invented.
+- **Existing seams, no fork:** shown membership feeds #117's exported
+  `dimIdQueryChunks` / 2048-character boundary and renders in #148's existing
+  Cross-check in DIM panel. The three static #148 queries and the two armor-group
+  modes remain unchanged.
+- **Safety/presentation contract:** output is explicitly a locating query that
+  can include junk/review, any verdict state admitted by the filters, and shown
+  proposals still suppressed by active saved vetoes. It is visible read-only
+  text, not an automatic Clipboard/network/DIM action.
+- **Review-driven simplification:** after Claude's review, the plan replaces
+  the Generate button, cached membership signature, and clear lifecycle with a
+  live query rendered from the single `renderSummary()` hook. The boot path
+  creates stable empty targets—including an `aria-live="polite"` count region
+  before text assignment—while `renderSummary()` handles query changes, Reset,
+  `adopt`, and `setSurface`. The subsection hides on Armor duplicates and must
+  reappear on Proposals; `renderList()` is explicitly excluded.
+- **PR review amendments:** accepted all three inline findings. The split notice
+  now says “shown proposals,” and an ephemeral display key may skip unchanged
+  DOM replacement only after authoritative membership/chunk recomputation;
+  identical output preserves node identity, focus, selection, and `<details>`
+  state, while changed output preserves the established open/closed choice. The
+  browser plan completes weapon-only assertions first, resets after its empty
+  state, uploads `armor_close.csv` afterward, requires an enabled duplicates
+  control, and switches surfaces unconditionally. Also corrected the duplicated
+  “query” wording and replaced residual “selected weapon id” phrasing.
+- **No real-data measurement:** current synthetic browser coverage already
+  measures five proposals from `weapons_hostile.csv`, including the #148 loadout
+  case. Its authoritative backend order is pinned literally as
+  `id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010`; the
+  empty-set browser check uses the text filter `no such weapon`. No export,
+  private aggregate, new fixture, or golden is needed.
+- **Implementer selection:** Google `gemini-3.8-flash` with native
+  `thinking_level = high`. Official Google documentation rechecked 2026-09-13
+  identifies that exact model as stable/GA and supports `low`, `medium`, and
+  `high` (not `minimal`). Flash is sufficient because this is a bounded browser
+  extension over merged seams; high thinking is appropriate for mixed-kind,
+  filter-membership, persisted-veto, live-refresh, and side-effect proofs.
+- **Review path:** independent adversarial review. The production diff is
+  presentation-only, but a hidden/mixed-kind/out-of-date membership bug is
+  directly actionable in DIM. A fresh reviewer should focus on exact filter
+  membership, reuse of #117 rather than a second builder, honest non-junk copy,
+  and zero mutation/network/clipboard effects.
+- Planning branch: `handoff/issue-150-implementation-plan`; allocated
+  implementation branch: `feat/issue-150-shown-weapon-dim-query`. No
+  implementation or merge is authorized by this planning session.
+- **Planning verification:** `.venv/bin/ruff check src tests scripts` passed;
+  `.venv/bin/pytest -q` passed when rerun with the loopback/browser permissions
+  required by the existing server suite; and the explicit required-browser run
+  passed (`16 passed, 3 deselected`). The first sandboxed full-suite attempt was
+  invalid environmental evidence—loopback sockets and Chromium process startup
+  were denied—rather than a repository failure. `git diff --check` passed and
+  `git ls-files data/` remained empty.
+
 ## 2026-09-13 — #148 implementation: loadout visibility and required Loadouts column (PR 2)
 
 Branched from `origin/main` at `649bc30d9c1f2e290ae15e710abc20e5f0806fcb` on branch `feat/issue-148-loadout-visibility`.
