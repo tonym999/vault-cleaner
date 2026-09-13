@@ -64,6 +64,17 @@ official supported list also includes `claude-mythos-5-1`, `claude-fable-5`,
 `claude-mythos-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`,
 `claude-opus-4-5-20251101` and `claude-sonnet-4-6`. That belongs to #144.
 
+**Merge with `main`.** #145 merged (PR #147) while this PR was open and
+conflicted in `WORKLOG.md` only — both sides added a top entry at the same
+position. Resolved by merging `origin/main` rather than rebasing, so the pushed
+commits the review threads reference stay intact; all three entries kept in
+full. The conflict is also why CI never dispatched on `792919f`: GitHub builds no
+merge ref for a conflicting PR, so the `pull_request` workflow had nothing to
+run. It was first misread as an Actions-side delay. The plan's and issue's
+"#145 (open)" wording was updated to merged; no scope change, and no source,
+test, script or handoff file changed on `main`, so every plan line reference
+still holds.
+
 Verification: planning-only change. No source file was modified, so `pytest` and
 `ruff` have nothing new to cover; `git diff --check` is clean.
 
