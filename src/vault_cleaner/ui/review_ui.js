@@ -852,7 +852,6 @@
     }
     function byId(id) { return document.getElementById(id); }
     function clear(node) {
-      node.textContent = "";
       while (node.firstChild) node.removeChild(node.firstChild);
     }
     function tile(kind, value, note) {
@@ -1590,7 +1589,7 @@
               class: "dim-query-textarea",
               readonly: true,
               rows: 3,
-              spellcheck: false,
+              spellcheck: "false",
               text: chunks[c]
             });
             chunkTextarea.readOnly = true;

@@ -1080,7 +1080,7 @@ def test_dim_query_generation_and_contained_presentation(
 
     # Generate whole-group query: includes preferred survivor and junk member
     whole_btn.click()
-    textarea = exact_group.locator(".dim-query-textarea")
+    textarea = exact_group.locator(".dim-query-textarea").first
     expect(textarea).to_be_visible()
     expect(textarea).to_have_value("id:6031 or id:6032")
     warning = exact_group.locator(".dim-query-warning")
@@ -1125,7 +1125,7 @@ def test_dim_query_generation_and_contained_presentation(
     )
 
     same_whole_btn.click()
-    same_textarea = same_group.locator(".dim-query-textarea")
+    same_textarea = same_group.locator(".dim-query-textarea").first
     expect(same_textarea).to_be_visible()
     expect(same_textarea).to_have_value("id:6081 or id:6082")
     expect(same_group.locator(".dim-query-warning")).to_have_text(
@@ -1145,7 +1145,7 @@ def test_dim_query_generation_and_contained_presentation(
     whole_btn = exact_group.get_by_role("button", name="Generate whole-group query")
     junk_btn = exact_group.get_by_role("button", name="Generate junk-candidates query")
     whole_btn.click()
-    textarea = exact_group.locator(".dim-query-textarea")
+    textarea = exact_group.locator(".dim-query-textarea").first
     expect(textarea).to_be_visible()
     expect(textarea).to_have_value("id:6031 or id:6032")
 
@@ -1153,20 +1153,27 @@ def test_dim_query_generation_and_contained_presentation(
     expect(same_group).to_be_visible()
     same_whole_btn = same_group.get_by_role("button", name="Generate whole-group query")
     same_whole_btn.click()
-    same_textarea = same_group.locator(".dim-query-textarea")
+    same_textarea = same_group.locator(".dim-query-textarea").first
     expect(same_textarea).to_have_value("id:6081 or id:6082")
 
-    # 9. At 390px, assert no document horizontal overflow and keyboard reachability
+    # 9. At 390px, assert no document horizontal overflow, keyboard reachability, spellcheck, and dark mode
     page.set_viewport_size({"width": 390, "height": 844})
     scroll_width = page.evaluate("document.documentElement.scrollWidth")
     assert scroll_width <= 390, f"horizontal overflow at 390px: scrollWidth={scroll_width}"
 
-    # Verify focus reaches whole_btn, junk_btn, and textarea
+    # Verify spellcheck="false" attribute is forwarded
+    expect(textarea).to_have_attribute("spellcheck", "false")
+
+    # Verify Tab navigation reaches whole_btn -> junk_btn -> textarea
     whole_btn.focus()
     assert whole_btn.evaluate("el => document.activeElement === el") is True
-
-    junk_btn.focus()
+    page.keyboard.press("Tab")
     assert junk_btn.evaluate("el => document.activeElement === el") is True
-
-    textarea.focus()
+    page.keyboard.press("Tab")
     assert textarea.evaluate("el => document.activeElement === el") is True
+
+    # Exercise dark color scheme appearance
+    page.emulate_media(color_scheme="dark")
+    expect(exact_group).to_be_visible()
+    expect(textarea).to_be_visible()
+    page.emulate_media(color_scheme="light")

@@ -3,12 +3,11 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
-## 2026-09-05 — #117 implementation: per-group DIM search queries (PR 2)
+## 2026-09-13 — #117 implementation: per-group DIM search queries (PR 2)
 
-- Implemented Issue #117 on branch `feat/issue-117-dim-search-query` branched from
-  `origin/main` at `66b121aee1247d9823e783646f73d470359bb79d` (newer than the
-  planning baseline `3cc6fa32530a0b1cd6366c4ccc109af20b2cf511`) following
-  `handoffs/issue-117-implementation-plan.md` exactly.
+- Implemented Issue #117 on branch `feat/issue-117-dim-search-query` following
+  `handoffs/issue-117-implementation-plan.md` exactly. Implementer tier:
+  Google `gemini-3.8-flash`, native `thinking_level = high`.
 - Added two group-level generation-only controls to each rendered armor duplicate
   card (`article.armor-group`): "Generate whole-group query" and "Generate
   junk-candidates query", positioned between the group header and member
@@ -45,10 +44,26 @@ surprises the next agent should know about.
     `state.verdicts`, revisions, and `mutationInFlight` unchanged, does not
     touch the Clipboard API, and does not navigate.
   - Generation functions identically in offline or finalised/frozen sessions.
+- Handled PR 2 review round findings (owner review by tonym999 + CodeRabbit):
+  - P2 browser verification evidence: aligned `docs/browser-verification.md`
+    to separate browser checks from Node adapter state-snapshot assertions;
+    strengthened `test_server_browser.py` with dark mode emulation, keyboard Tab
+    navigation reaching both buttons and the textarea, and strict-safe locators.
+  - P2 review recording: captured implementer model and native effort, review
+    record, and finding dispositions.
+  - P3 spellcheck forwarding: changed `spellcheck: false` to `spellcheck: "false"`
+    in `review_ui.js` so `el()` forwards `spellcheck="false"` to `<textarea>`.
+  - P3 clear() scope: reverted redundant `node.textContent = ""` in shared `clear()`
+    helper back to original child-removal loop.
+  - P3 malformed group query controls: documented that `malformedReadOnly` ignores
+    `.dim-query-btn` because query generation buttons render on all group cards,
+    while generation safely fails closed with "Could not generate a safe DIM query".
+  - P3 WORKLOG ordering: re-dated entry to 2026-09-13, preserving newest-first order.
 - Tested:
   - Node unit tests in `tests/test_review_ui_js.py`: pure helper validation, 76/77
     boundary proof, invalid ID/mode rejection, DOM card isolation, empty candidate
-    disabled state, hostile field inertness, zero side effects on verdicts.
+    disabled state, hostile field inertness, spellcheck attribute forwarding,
+    zero side effects on verdicts.
   - Adapter integration in `tests/test_server_ui_js.py`: card rendering, preferred
     survivor inclusion, junk candidate filtering, zero fetch calls during
     generation, full state snapshot comparison (connected, server_state,
@@ -59,8 +74,8 @@ surprises the next agent should know about.
   - Playwright browser test in `tests/test_server_browser.py`: whole-group and junk
     query generation, preferred survivor warning, same-stat warning, empty junk
     state, zero network requests, finalised session generation, 390px horizontal
-    containment (`scrollWidth <= 390`), keyboard tab accessibility across buttons
-    and textarea. All 15 browser tests passed.
+    containment (`scrollWidth <= 390`), keyboard Tab navigation, spellcheck="false",
+    and dark mode emulation. All 15 browser tests passed.
 - Maintained clean boundaries: no backend schema, snapshot, rule ordering,
   `RULESET_VERSION`, or dependency changes.
 

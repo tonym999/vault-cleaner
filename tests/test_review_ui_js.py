@@ -2502,6 +2502,7 @@ var card1Outputs = collect(card1, function (n) { return hasClass(n, "dim-query-o
 card1GenBtns[0].click();
 var card1TextareasAfterWhole = collect(card1Outputs[0], function (n) { return n.tagName === "TEXTAREA"; });
 var card1WholeText = card1TextareasAfterWhole[0].textContent;
+var card1Spellcheck = card1TextareasAfterWhole[0].getAttribute("spellcheck");
 var card1WarningAfterWhole = collect(card1Outputs[0], function (n) { return hasClass(n, "dim-query-warning"); })[0].textContent;
 
 card1GenBtns[1].click();
@@ -2518,11 +2519,11 @@ var card2TextareasAfter = collect(card2Outputs[0], function (n) { return n.tagNa
 var card2WholeText = card2TextareasAfter[0].textContent;
 
 var emptyJunkCard = view.armorGroup({
-  groupKind: "exact_duplicate",
-  groupId: "empty-junk",
+  groupKind: "same_stat",
+  groupId: "empty-junk-grp",
   name: "Empty Junk Plate",
   type: "Chest Armor",
-  guardianClass: "Hunter",
+  guardianClass: "Titan",
   itemArchetype: "Gunner",
   tier: 5,
   stats: {},
@@ -2530,10 +2531,10 @@ var emptyJunkCard = view.armorGroup({
   seasonalMod: "",
   holofoil: "",
   spiritSignature: [],
-  preferredSurvivorId: "3001",
+  preferredSurvivorId: null,
   members: [
-    {id: "3001", location: "Vault", disposition: "preferred_survivor", proposalAction: ""},
-    {id: "3002", location: "Vault", disposition: "retained_protected", proposalAction: ""}
+    {id: "3001", location: "Vault", currentProposalAction: ""},
+    {id: "3002", location: "Vault", currentProposalAction: "review"}
   ]
 });
 var emptyJunkBtns = collect(emptyJunkCard, function (n) { return hasClass(n, "dim-query-btn"); });
@@ -2544,7 +2545,7 @@ var emptyJunkTextareas = collect(emptyJunkOutput, function (n) { return n.tagNam
 
 var hostileCard = view.armorGroup({
   groupKind: "exact_duplicate",
-  groupId: "hostile-1",
+  groupId: "hostile-grp",
   name: "</script><img src=x onerror=alert(1)>",
   type: "<b>Chest</b>",
   guardianClass: "<script>alert(2)</script>",
@@ -2598,6 +2599,7 @@ process.stdout.write(JSON.stringify({
   card1PanelCount: card1Panels.length,
   card1OutputCount: card1Outputs.length,
   card1WholeText: card1WholeText,
+  card1Spellcheck: card1Spellcheck,
   card1WarningAfterWhole: card1WarningAfterWhole,
   card1JunkText: card1JunkText,
   card1WarningAfterJunk: card1WarningAfterJunk,
@@ -2633,6 +2635,7 @@ process.stdout.write(JSON.stringify({
         "card1PanelCount": 1,
         "card1OutputCount": 1,
         "card1WholeText": "id:1001 or id:1002",
+        "card1Spellcheck": "false",
         "card1WarningAfterWhole": "Whole group selected — includes every piece in this same-stat comparison. This group has no preferred survivor.",
         "card1JunkText": "id:1001",
         "card1WarningAfterJunk": "Junk candidates selected — includes only pieces this report currently proposes as junk, regardless of review verdict.",

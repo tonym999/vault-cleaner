@@ -423,8 +423,9 @@ terminal.
 
 - Environment: Windows 11 (pwsh), Chrome for Testing / Playwright managed
   Chromium, headless.
-- Viewports and appearances: 1440×900 desktop and 390×844 narrow; light and dark
-  media appearances exercised.
+- Viewports and appearances: 1440×900 desktop and 390×844 narrow; light
+  appearance tested across the full flow, and dark media appearance
+  (`color_scheme="dark"`) exercised at narrow viewport.
 - Fixtures: `tests/fixtures/armor_close.csv`; no real vault data, wishlists, or
   manifest network access. Contains exact-duplicate group `Exact Then Close`
   (survivor 6031, proposed junk 6032) and same-stat group `Tuning Twin` (6081,
@@ -443,17 +444,19 @@ terminal.
   junk-candidates button was rendered in disabled state and displayed `This group
   has no junk candidates.` without emitting query text.
 - No side effects: pass. Page request interception verified exactly 0 network
-  requests occurred during query generation. Approving, vetoing, or unsetting
-  proposals had zero effect on query membership (`id:6032` generated identically
-  after veto), and generating queries did not alter verdicts, revisions, or
-  mutation in-flight flags.
+  requests occurred during query generation. In the browser, changing proposal
+  verdict (veto) had zero effect on query membership (`id:6032` generated
+  identically); full state-snapshot integrity across approve/veto/unset
+  (verdicts, revisions, mutation in-flight flags, duplicateRows registry handles)
+  is verified in the Node adapter test suite (`tests/test_server_ui_js.py`).
 - Finalised/offline state: pass. After finalising review via `#vc-finalize` and
   freezing server mutation state, query generation buttons remained fully
   functional and generated queries locally with zero server requests.
 - Responsiveness and accessibility: pass. At 390×844 narrow viewport,
   `document.documentElement.scrollWidth` remained `<= 390` with no horizontal
-  page overflow. Keyboard focus reached both generation buttons and the visible
-  read-only query textarea with visible focus styling.
+  page overflow. Keyboard Tab navigation reached both generation buttons and the
+  visible read-only query textarea (`whole_btn` → `junk_btn` → `textarea`).
+  `spellcheck="false"` verified on the generated textarea.
 - Overall result: pass. Presentation and local query generation only; no backend
   schema, rules, or dependencies touched.
 
