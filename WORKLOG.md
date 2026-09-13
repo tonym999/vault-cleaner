@@ -14,7 +14,7 @@ Planned the weapon-proposal extension of #117 after both dependencies landed on
   state.verdicts)`, narrowed to weapons. Approved-only, vetoed-only,
   unreviewed-only, junk-only and other subsets use the existing filters first;
   no checkbox registry, persistence or reconciliation contract is invented.
-- **Existing seams, no fork:** selection feeds #117's exported
+- **Existing seams, no fork:** shown membership feeds #117's exported
   `dimIdQueryChunks` / 2048-character boundary and renders in #148's existing
   Cross-check in DIM panel. The three static #148 queries and the two armor-group
   modes remain unchanged.
@@ -29,6 +29,15 @@ Planned the weapon-proposal extension of #117 after both dependencies landed on
   before text assignment—while `renderSummary()` handles query changes, Reset,
   `adopt`, and `setSurface`. The subsection hides on Armor duplicates and must
   reappear on Proposals; `renderList()` is explicitly excluded.
+- **PR review amendments:** accepted all three inline findings. The split notice
+  now says “shown proposals,” and an ephemeral display key may skip unchanged
+  DOM replacement only after authoritative membership/chunk recomputation;
+  identical output preserves node identity, focus, selection, and `<details>`
+  state, while changed output preserves the established open/closed choice. The
+  browser plan completes weapon-only assertions first, resets after its empty
+  state, uploads `armor_close.csv` afterward, requires an enabled duplicates
+  control, and switches surfaces unconditionally. Also corrected the duplicated
+  “query” wording and replaced residual “selected weapon id” phrasing.
 - **No real-data measurement:** current synthetic browser coverage already
   measures five proposals from `weapons_hostile.csv`, including the #148 loadout
   case. Its authoritative backend order is pinned literally as

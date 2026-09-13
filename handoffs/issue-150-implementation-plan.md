@@ -61,8 +61,8 @@ text changes no verdict, tag, note, item, report, session, or DIM state.
   **`Veto all shown`**, and **`Unset all shown`** at
   [review_server.js](../src/vault_cleaner/ui/review_server.js#L1144). Their
   mutation path recomputes the same filtered set at
-  [review_server.js](../src/vault_cleaner/ui/review_server.js#L1349). The query
-  live query must use that same proposal membership, then narrow it to
+  [review_server.js](../src/vault_cleaner/ui/review_server.js#L1349). The live
+  query must use that same proposal membership, then narrow it to
   `item.kind === "weapons"`; it must not read rendered rows, grouped `<details>`,
   the current sort, or the bulk-control DOM.
 - There is no row checkbox or independent selected-id registry in `createState`
@@ -253,15 +253,27 @@ On every `renderSummary()` refresh while the subsection is visible:
 2. narrow through `ui.weaponProposalIdsForDimQuery`;
 3. call `ui.dimIdQueryChunks(ids, ui.DIM_QUERY_SAVEABLE_MAX)`;
 4. update the stable count node only when its text changes; and
-5. replace the output container with one collapsed-by-default `<details>` whose
-   summary is the query label, then render each complete chunk as a labelled
-   read-only textarea using the #117 classes and `spellcheck="false"`.
+5. derive an ephemeral render key from the complete renderer-owned display
+   model: empty, atomic error, or the exact non-empty label, warning, and chunks.
 
-There is no Generate button, generated-query signature, clear announcement,
-activation state, persistence decision, or output cache. The query is a pure
-render of current state, so it cannot remain stale after any path that reaches
-`renderSummary()`. Query text and chunk containers are not live regions; only
-the short, stable count status is announced as filters change.
+The render key is a DOM-reconciliation optimization only. Membership and chunks
+are always recomputed before comparing it; the key must never supply ids, bypass
+`filterItems`, suppress a renderer call or its recomputation, enter `state` or an
+envelope, or persist outside this boot instance. When the key is unchanged,
+leave the output subtree untouched so an expanded `<details>`, focused textarea,
+and its selection range survive verdict acknowledgements or search keystrokes
+that do not change the query. When the key changes, replace the output content
+immediately. Before replacement, capture any existing `<details>.open` value in
+a renderer-local nullable flag and reuse the latest captured choice across
+empty results and surface switches. Only a non-empty render while that flag is
+unset is collapsed by default. Render each complete chunk as a labelled
+read-only textarea using the #117 classes and `spellcheck="false"`.
+
+There is no Generate button, generated-query membership signature, clear
+announcement, activation state, persistence decision, or cached membership.
+The query is a pure render of current state, so it cannot remain stale after any
+path that reaches `renderSummary()`. Query text and chunk containers are not live
+regions; only the short, stable count status is announced as filters change.
 
 Generated output renders this exact copy:
 
@@ -270,8 +282,9 @@ Generated output renders this exact copy:
 - Warning: **`This locating query includes every matching weapon proposal — junk and review, any session verdict, and items still suppressed by an active saved veto unless the current filters exclude them. Do not treat it as an approved-junk list.`**
 - Side-effect explanation: **`Rendering or selecting this text changes no vault-cleaner verdict, tag, note, item, or DIM state.`**
 - Chunk labels: **`DIM query N of M`**, including `1 of 1`.
-- For multiple chunks, reuse #117's exact split notice:
-  **`Split into M complete queries at DIM's current 2048-character saveability boundary. Use every query to cover this selection.`**
+- For multiple chunks, reuse #117's split behavior, boundary, and first sentence,
+  but scope the second sentence to this shown-only feature:
+  **`Split into M complete queries at DIM's current 2048-character saveability boundary. Use every query to cover the shown proposals.`**
 - Atomic failure: **`Could not generate a safe DIM query for the shown weapons.`**
   Render no partial textarea and never echo the rejected id.
 
@@ -333,7 +346,7 @@ Extend the cross-check adapter harness or add a focused sibling harness proving:
 - 77 maximum-width synthetic weapon ids render two complete labelled chunks
   with every id once and in order, proving the adapter actually uses #117's
   builder rather than slicing or truncating output;
-- a malformed selected weapon id fails closed with the exact local error and no
+- a malformed included weapon id fails closed with the exact local error and no
   partial textarea;
 - query/search changes, Reset filters, `adopt`, and `setSurface` all reach the
   one `renderSummary` refresh hook; no query rendering is attached to
@@ -341,6 +354,14 @@ Extend the cross-check adapter harness or add a focused sibling harness proving:
 - changing shown membership, verdicts, report identity, or filters immediately
   rerenders exact current output; a sort/group-only change does not invoke the
   query renderer;
+- the first non-empty query is collapsed; after the user expands it, an
+  unchanged query survives both a verdict acknowledgement under the default
+  Session verdict filter and a search keystroke that leaves membership unchanged
+  without replacing the `<details>` or textarea node, losing focus/selection, or
+  collapsing;
+- a changed query is reconciled immediately while preserving the established
+  `<details>` open/closed state; the local render key is never used as membership
+  input and never prevents the authoritative filter/chunker calls;
 - switching away hides the subsection; returning to Proposals must show it with
   query text recomputed from current state;
 - finalised and disconnected frozen reports render identical local text;
@@ -355,29 +376,34 @@ their Clipboard fallback/copy behavior.
 #### [MODIFY] [test_server_browser.py](../tests/test_server_browser.py#L1182)
 
 Extend `test_weapon_loadout_visibility_and_crosscheck_panel` with packaged
-Chromium coverage using `weapons_hostile.csv` plus the existing synthetic
-`armor_close.csv` fixture needed to expose the Armor duplicates surface:
+Chromium coverage. Start with the existing `weapons_hostile.csv` upload only;
+do not upload `armor_close.csv` until the weapon-only assertions below have
+finished:
 
 1. assert the unfiltered textarea's literal value in authoritative backend
    order: **`id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010`**.
    Do not derive the expected ids from rendered rows, which would compare the
    output against another rendering of the same source;
-2. apply the in-loadout filter and assert the live textarea updates to
-   **`id:7004`** only;
-3. set the text search to **`no such weapon`** and assert the exact empty state
+2. verify the warning does not describe the result as approved junk and the
+   query textarea is read-only with `spellcheck="false"`;
+3. after the upload has completed, record requests and state, apply the
+   in-loadout filter, and assert the live textarea updates to **`id:7004`** with
+   zero new network calls and no verdict, revision, or server-state change;
+4. reset the loadout filter and, at 390px, prove no document-level horizontal
+   overflow and keyboard focus can reach the `<details>` summary and visible
+   read-only textarea;
+5. set the text search to **`no such weapon`** and assert the exact empty state
    with no `<details>` or textarea. Use this deterministic text filter instead
    of coupling the empty-set assertion to the Kind options available in a
    particular upload;
-4. verify the warning does not describe the result as approved junk and the
-   query textarea is read-only with `spellcheck="false"`;
-5. intercept requests and prove live query rendering performs zero network calls
-   and changes no verdict button, revision, or server state;
-6. at 390px, prove no document-level horizontal overflow and keyboard focus can
-   reach the `<details>` summary and visible read-only textarea;
-7. switch to Armor duplicates when available, assert the live subsection is
-   hidden, then return to Proposals and assert it must reappear with current
-   query text; and
-8. verify the pre-existing three static #148 queries remain unchanged.
+6. activate **`Reset filters`** and assert the five-id literal query returns;
+7. only now upload the existing synthetic `armor_close.csv`, wait for its
+   **`Accepted`** status, assert the Armor duplicates control is enabled, and
+   switch to it unconditionally. Assert the live subsection is hidden, then
+   return to Proposals and assert it is visible with the same five weapon ids;
+   and
+8. verify the pre-existing three static #148 queries remain unchanged after the
+   second upload and both surface switches.
 
 The 77-id integration stays deterministic in Node; do not manufacture a 77-row
 CSV or real browser fixture solely to reach the chunk boundary.
@@ -428,8 +454,11 @@ Worked examples:
   `Loadout = in a loadout`; the query includes only weapons matching all three
   existing filters.
 - **IN SCOPE:** a filter change from ids `[7004, 7006]` to `[7004]` immediately
-  rerenders the live textarea as `id:7004`, without cached output or a Generate
-  action.
+  rerenders the live textarea as `id:7004`, without a Generate action or cached
+  membership authority.
+- **IN SCOPE:** an ephemeral key made only from the freshly computed display
+  model prevents needless DOM replacement and preserves open/focus/selection
+  state; it never decides membership or suppresses recomputation.
 - **IN SCOPE:** 77 20-digit ids become two complete read-only query chunks
   through `dimIdQueryChunks`, with no term lost, duplicated, or truncated.
 - **OUT OF SCOPE:** adding selection checkboxes, a selected-id registry, a second
@@ -455,7 +484,7 @@ Stop implementation and return to orchestrator if:
 - query rendering requires any new backend/report/snapshot field, Python
   change, server endpoint, session/review schema, ruleset/schema version bump,
   or runtime dependency;
-- safe rendering cannot reject an invalid selected weapon id atomically, or
+- safe rendering cannot reject an invalid included weapon id atomically, or
   cannot remain synchronized through the one `renderSummary` hook;
 - upstream DIM or current #117 tests show that `id:<id> or id:<id>` or the 2048
   saveability boundary is no longer valid;
@@ -478,10 +507,15 @@ Escalation route: `implementer → orchestrator → planner`.
    sort/group changes. `renderSummary` is the single hook reached by query
    changes, reset, `adopt`, and `setSurface`; it must also own subsection
    visibility.
-3. **#117 is copied rather than reused:** A second regex, length constant, joiner,
+3. **Live reconciliation destroys user context:** Unconditionally replacing the
+   output on every `renderSummary` call collapses an expanded query and loses
+   textarea focus/selection even when its text is unchanged. Recompute every
+   time, skip unchanged DOM, and preserve the established open/closed state when
+   changed output is rendered.
+4. **#117 is copied rather than reused:** A second regex, length constant, joiner,
    or truncation path may drift from `dimIdQueryChunks`; the 77-id adapter proof
    should fail any locally rebuilt or sliced expression.
-4. **A locating aid becomes a hidden action:** Clipboard/network calls, mutation
+5. **A locating aid becomes a hidden action:** Clipboard/network calls, mutation
    coupling, misleading approved-junk copy, or keyboard-inaccessible overflow
    can make the dynamic output unsafe despite correct query syntax.
 
@@ -500,11 +534,16 @@ Rules:
 - work on `feat/issue-150-shown-weapon-dim-query`; branch from latest `main` and record the base SHA;
 - use Google `gemini-3.8-flash` with native `thinking_level = high`; if the runtime cannot instantiate it, stop for the repository's manual cross-provider launch rather than silently substituting;
 - implement one live shown-set query only; do not add a Generate button,
-  selection checkboxes, selected-id state, cached signature, or clear lifecycle;
+  selection checkboxes, selected-id state, cached membership signature, or clear
+  lifecycle;
 - compute membership through `filterItems(state.items, state.query, state.verdicts)`, then narrow to weapons; the Session verdict filter is how an approved-only subset is requested;
 - create stable empty query/count render targets while the Cross-check panel is
   built, then populate them only from a `renderShownWeaponDimQuery` call inside
   `renderSummary`; do not attach query rendering to `renderList`;
+- recompute membership and chunks on every call, but use a renderer-local display
+  key to leave identical output DOM untouched and preserve node identity,
+  focus/selection, and the user's `<details>` open/closed choice; that key is
+  never membership input or persisted state;
 - include shown weapons with active persisted vetoes and reproduce the plan's
   warning about that intentional membership exactly;
 - call the existing exported `dimIdQueryChunks` and `DIM_QUERY_SAVEABLE_MAX` unchanged; do not create another query builder, id grammar, or length constant;
@@ -532,10 +571,11 @@ justification.
 The implementation is presentation-only and does not warrant a larger
 implementer, but its output is immediately actionable in DIM. A membership bug
 can include a hidden weapon, a vetoed proposal, an armor/ghost item, or an
-out-of-date pre-filter set while the page appears to describe the current set. Independent
-review should therefore verify membership against all existing filter axes,
-atomic use of #117's query-safe builder, the single live-render hook, honest
-locating-only copy, and zero mutation/network/clipboard side effects.
+out-of-date pre-filter set while the page appears to describe the current set.
+Independent review should therefore verify membership against all existing
+filter axes, atomic use of #117's query-safe builder, the single live-render
+hook, non-destructive DOM reconciliation, honest locating-only copy, and zero
+mutation/network/clipboard side effects.
 
 The orchestrator confirms the path against the real diff and selects the
 reviewer's exact provider, model ID, and native effort only after inspection. A
@@ -559,7 +599,7 @@ does not alter the requested Gemini implementer.
   `DIM_QUERY_SAVEABLE_MAX` unchanged. No duplicate regex, builder, length
   constant, truncation, id parsing, numeric ordering, quoting, or labels enter
   the expression.
-- [ ] Invalid selected weapon ids fail atomically with exact local error copy;
+- [ ] Invalid included weapon ids fail atomically with exact local error copy;
   non-weapon items never enter the query; 77 maximum-width ids render two
   complete chunks with every source id once and in order.
 - [ ] The boot-time Cross-check path creates stable empty render targets and an
@@ -567,8 +607,12 @@ does not alter the requested Gemini implementer.
   text assignment. Query text is populated only after state/view exist.
 - [ ] `renderSummary` is the single live-query refresh hook reached by
   query/search changes, Reset filters, `adopt`, and `setSurface`; `renderList`
-  does not render the query. There is no Generate button, signature, cache,
+  does not render the query. There is no Generate button, membership signature,
   clear status, or activation/persistence state.
+- [ ] Membership and chunks are recomputed before every render-key comparison.
+  Identical output retains `<details>` and textarea node identity, open state,
+  focus, and selection; changed output appears immediately while retaining the
+  established open/closed choice. The first non-empty render is collapsed.
 - [ ] The query subsection is hidden on idle and Armor duplicates, while #148's
   static panel remains governed by its existing idle-only rule. Returning to
   Proposals must show a query recomputed from current state.
@@ -595,4 +639,4 @@ Planned #150 in [handoffs/issue-150-implementation-plan.md](https://github.com/t
 - **Implementer tier & effort:** Google `gemini-3.8-flash`, native `thinking_level = high`
 - **Implementation branch:** `feat/issue-150-shown-weapon-dim-query`
 - **Recommended review path:** independent adversarial review — the output is local/presentation-only but directly actionable in DIM, so hidden, mixed-kind, or out-of-date membership needs independent proof.
-- **Likely findings:** membership bypasses `filterItems`, `keptItems` silently removes saved vetoes, or non-weapons leak in; live rendering is attached to `renderList` instead of `renderSummary`; #117's builder is copied or truncated; locating-only output gains misleading copy or hidden clipboard/network/mutation effects.
+- **Likely findings:** membership bypasses `filterItems`, `keptItems` silently removes saved vetoes, or non-weapons leak in; live rendering is attached to `renderList` instead of `renderSummary` or needlessly replaces unchanged DOM; #117's builder is copied or truncated; locating-only output gains misleading copy or hidden clipboard/network/mutation effects.
