@@ -453,6 +453,31 @@ article.armor-group[data-member-count="6"] .armor-matrix-columns { min-width: 88
   color: var(--junk); background: var(--veto-bg);
   border: 1px solid var(--veto); border-radius: 4px;
 }
+.weapon-dim-query {
+  margin: .85rem 0 1.25rem; padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.weapon-dim-query-heading {
+  font-size: 1rem; margin: 0 0 .25rem;
+}
+.weapon-dim-query-explanation {
+  margin: 0 0 .5rem; font-size: .82rem; color: var(--muted);
+}
+.weapon-dim-query-count {
+  font-size: .84rem; font-weight: 600; margin: .35rem 0 .5rem; color: var(--ink);
+}
+.weapon-dim-query-output {
+  margin-top: .4rem;
+}
+.weapon-dim-query-details {
+  margin: .4rem 0;
+}
+.weapon-dim-query-details summary {
+  cursor: pointer; margin: .25rem 0 .5rem;
+}
+.weapon-dim-query-details .dim-query-textarea {
+  box-sizing: border-box; max-width: 100%;
+}
 .dim-crosscheck-controls { display: flex; flex-direction: column; gap: .75rem; }
 .dim-crosscheck-field { display: flex; flex-direction: column; gap: .25rem; width: 100%; max-width: 48rem; }
 .dim-crosscheck-input-wrap { display: flex; gap: .4rem; align-items: center; width: 100%; }

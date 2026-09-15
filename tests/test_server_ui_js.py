@@ -4445,3 +4445,828 @@ setTimeout(function () {
             "query": "notes:#vc-review is:inloadout",
         },
     ]
+
+
+def test_shown_weapon_dim_query_adapter_integration(tmp_path: Path):
+    harness = tmp_path / "server-ui-weapon-dim-query-harness.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase();
+  this.ownerDocument = document;
+  this.children = [];
+  this.parentNode = null;
+  this.attributes = Object.create(null);
+  this.listeners = Object.create(null);
+  this._text = "";
+  this.disabled = false;
+  this.hidden = false;
+  this.value = "";
+  this.className = "";
+  this.type = "";
+  this.readOnly = false;
+  this.open = false;
+  this.selectionStart = 0;
+  this.selectionEnd = 0;
+}
+Object.defineProperty(Node.prototype, "firstChild", {
+  get: function () { return this.children[0] || null; }
+});
+Object.defineProperty(Node.prototype, "id", {
+  get: function () { return this.attributes["id"] || ""; },
+  set: function (val) {
+    this.attributes["id"] = String(val);
+    if (this.ownerDocument && this.ownerDocument.nodes) {
+      this.ownerDocument.nodes[String(val)] = this;
+    }
+  }
+});
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () {
+    return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+  },
+  set: function (value) { this._text = String(value); this.children = []; }
+});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this;
+  this.children.push(child);
+  return child;
+};
+Node.prototype.insertBefore = function (newNode, refNode) {
+  var index = this.children.indexOf(refNode);
+  if (index >= 0) this.children.splice(index, 0, newNode);
+  else this.children.push(newNode);
+  newNode.parentNode = this;
+  return newNode;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null;
+  return child;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") {
+    this.id = String(value);
+    if (this.ownerDocument && this.ownerDocument.nodes) {
+      this.ownerDocument.nodes[String(value)] = this;
+    }
+  }
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] !== undefined ? this.attributes[name] : null;
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  event = event || { target: this, preventDefault: function () {} };
+  event.target = event.target || this;
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.focus = function () {
+  this.ownerDocument.activeElement = this;
+};
+Node.prototype.querySelector = function (selector) {
+  var found = null;
+  function matches(n) {
+    if (!n || !n.tagName) return false;
+    if (selector.charAt(0) === "#") return (n.attributes["id"] || n.id) === selector.slice(1);
+    if (selector.charAt(0) === ".") return (n.className || "").split(/\s+/).indexOf(selector.slice(1)) !== -1;
+    return n.tagName.toLowerCase() === selector.toLowerCase();
+  }
+  function visit(node) {
+    if (found) return;
+    var kids = node.children || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (found) return;
+      if (matches(kids[i])) { found = kids[i]; return; }
+      visit(kids[i]);
+    }
+  }
+  visit(this);
+  return found;
+};
+Node.prototype.querySelectorAll = function (selector) {
+  var results = [];
+  function matches(n) {
+    if (!n || !n.tagName) return false;
+    if (selector.charAt(0) === "#") return (n.attributes["id"] || n.id) === selector.slice(1);
+    if (selector.charAt(0) === ".") return (n.className || "").split(/\s+/).indexOf(selector.slice(1)) !== -1;
+    return n.tagName.toLowerCase() === selector.toLowerCase();
+  }
+  function visit(node) {
+    var kids = node.children || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (matches(kids[i])) results.push(kids[i]);
+      visit(kids[i]);
+    }
+  }
+  visit(this);
+  return results;
+};
+
+function Document() {
+  this.nodes = Object.create(null);
+  this.listeners = Object.create(null);
+  this.activeElement = null;
+  this.body = new Node("body", this);
+  ["vc-status", "vc-report", "vc-filters", "vc-proposals", "vc-fingerprint",
+   "vc-summary", "vc-overrides", "vc-reconciliation", "vc-session-note",
+   "vc-actions", "vc-controls", "vc-list", "vc-upload-weapons",
+   "vc-upload-armor", "vc-upload-ghosts", "vc-upload-status-weapons",
+   "vc-upload-status-armor", "vc-upload-status-ghosts", "vc-view-selector",
+   "vc-duplicates", "vc-duplicate-scope", "vc-duplicate-list"].forEach(function (id) {
+    var n = new Node("div", this);
+    n.id = id;
+    this.nodes[id] = n;
+    this.body.appendChild(n);
+  }, this);
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || this.querySelector("#" + id); };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var n = new Node("#text", this);
+  n.textContent = text;
+  return n;
+};
+Document.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Document.prototype.querySelector = function (selector) { return this.body.querySelector(selector); };
+Document.prototype.querySelectorAll = function (selector) { return this.body.querySelectorAll(selector); };
+
+var doc = new Document();
+var fetchCalls = 0;
+var clipboardCalls = 0;
+var currentFetchEnvelope = null;
+
+var context = {
+  document: doc,
+  VaultCleanerReviewUI: shared,
+  Promise: Promise,
+  Set: Set,
+  navigator: {
+    clipboard: {
+      writeText: function () { clipboardCalls++; return Promise.resolve(); }
+    }
+  },
+  fetch: function (url, options) {
+    fetchCalls += 1;
+    if (url === "/api/verdicts" && options && options.body) {
+      var body = JSON.parse(options.body);
+      var currentVerdicts = JSON.parse(JSON.stringify(currentFetchEnvelope.verdicts || []));
+      var incoming = body.decisions || body.verdicts || [];
+      incoming.forEach(function (m) {
+        var found = false;
+        for (var i = 0; i < currentVerdicts.length; i++) {
+          if (currentVerdicts[i].id === m.id) {
+            if (m.verdict === null) currentVerdicts.splice(i, 1);
+            else currentVerdicts[i].verdict = m.verdict;
+            found = true; break;
+          }
+        }
+        if (!found && m.verdict !== null) {
+          currentVerdicts.push({ id: m.id, verdict: m.verdict });
+        }
+      });
+      var updatedEnvelope = JSON.parse(JSON.stringify(currentFetchEnvelope));
+      updatedEnvelope.verdict_revision += 1;
+      updatedEnvelope.verdicts = currentVerdicts;
+      currentFetchEnvelope = updatedEnvelope;
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: function () { return Promise.resolve(updatedEnvelope); }
+      });
+    }
+    return Promise.resolve({
+      ok: true, status: 200,
+      json: function () { return Promise.resolve(currentFetchEnvelope); }
+    });
+  }
+};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+
+var liveServer = context.VaultCleanerServerUI;
+var liveState = liveServer.state;
+
+// 1. Boot check: stable render targets exist before state/envelope
+var crosscheckPanel = doc.getElementById("vc-crosscheck");
+var weaponSection = doc.getElementById("vc-weapon-dim-query");
+var weaponHeading = doc.getElementById("vc-weapon-dim-query-title");
+var weaponExplanation = doc.getElementById("vc-weapon-dim-query-explanation");
+var countNode = doc.getElementById("vc-weapon-dim-query-count");
+var outputNode = doc.getElementById("vc-weapon-dim-query-output");
+var staticControls = crosscheckPanel ? crosscheckPanel.querySelector(".dim-crosscheck-controls") : null;
+
+var bootOk = {
+  crosscheckExists: !!crosscheckPanel,
+  weaponSectionExists: !!weaponSection,
+  rendersBeforeStatic: crosscheckPanel.children.indexOf(weaponSection) < crosscheckPanel.children.indexOf(staticControls),
+  headingText: weaponHeading ? weaponHeading.textContent : null,
+  explanationText: weaponExplanation ? weaponExplanation.textContent : null,
+  countNodeRole: countNode ? countNode.getAttribute("role") : null,
+  countNodeLive: countNode ? countNode.getAttribute("aria-live") : null,
+  countNodeEmptyAtBoot: countNode ? countNode.textContent : null,
+  outputEmptyAtBoot: outputNode ? outputNode.children.length === 0 : false,
+  hiddenAtBoot: weaponSection ? weaponSection.hidden : null
+};
+
+// 2. Adopt mixed-kind report with active persisted veto and an authoritative vetoed verdict
+var mixedEnvelope = {
+  schema_version: 1, state: "reviewing", report_revision: 1,
+  verdict_revision: 0, fingerprint: "fp-mixed",
+  snapshot: {
+    sections: [
+      {
+        kind: "weapons",
+        decisions: [
+          { id: "7001", hash: "100", name: "Gun Alpha", kind: "weapons", in_loadout: true, action: "junk", reason: "dupe-exact", guardian_class: "Titan", protection_level: "" },
+          { id: "7002", hash: "101", name: "Gun Beta", kind: "weapons", in_loadout: false, action: "junk", reason: "dupe-exact", guardian_class: "Hunter", protection_level: "soft" },
+          { id: "7003", hash: "102", name: "Gun Gamma", kind: "weapons", in_loadout: false, action: "review", reason: "wishlist-trash", guardian_class: "Warlock", protection_level: "" },
+          { id: "7004", hash: "103", name: "Gun Delta", kind: "weapons", in_loadout: false, action: "junk", reason: "dupe-lower", guardian_class: "Titan", protection_level: "hard" }
+        ]
+      },
+      {
+        kind: "armor",
+        decisions: [
+          { id: "8001", hash: "201", name: "Plate", kind: "armor", in_loadout: false, action: "junk", reason: "armor-score", guardian_class: "Titan", protection_level: "" }
+        ],
+        armor: {
+          exact_duplicate_groups: [
+            {
+              group_kind: "exact_duplicate", group_id: "exact-armor-1", hash: "201", name: "Plate",
+              guardian_class: "Titan", type: "Chest Armor", item_archetype: "Gunner",
+              preferred_survivor_id: "8002",
+              tuning_stat: "Weapons", members: [
+                { id: "8001", proposal_action: "junk", disposition: "proposed_junk", tuning_mod_slot: "Weapons" },
+                { id: "8002", proposal_action: "", disposition: "preferred_survivor", tuning_mod_slot: "Weapons" }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        kind: "ghosts",
+        decisions: [
+          { id: "9001", hash: "301", name: "Shell", kind: "ghosts", in_loadout: false, action: "junk", reason: "ghost-rail", classFacet: "any", protection: "unprotected" }
+        ]
+      }
+    ]
+  },
+  verdicts: [{ id: "7004", verdict: "vetoed" }],
+  override_status: [{ id: "7001", status: "active", detail: "persisted veto" }]
+};
+
+currentFetchEnvelope = mixedEnvelope;
+liveServer.start();
+
+setTimeout(function () {
+  var details = outputNode.querySelector("details");
+  var summary = outputNode.querySelector("summary");
+  var textarea = outputNode.querySelector("textarea");
+  var warning = outputNode.querySelector(".dim-query-warning");
+  var sideEffect = outputNode.querySelector(".weapon-dim-query-explanation");
+
+  var mixedReportOk = {
+    sectionVisible: !weaponSection.hidden,
+    countText: countNode.textContent,
+    summaryText: summary ? summary.textContent : null,
+    detailsInitiallyCollapsed: details ? details.open === false : false,
+    queryValue: textarea ? textarea.value : null,
+    readOnly: textarea ? textarea.readOnly : null,
+    spellcheck: textarea ? textarea.getAttribute("spellcheck") : null,
+    warningText: warning ? warning.textContent : null,
+    sideEffectText: sideEffect ? sideEffect.textContent : null
+  };
+
+  // 3. User expands details, focuses textarea, selects substring
+  if (details) {
+    details.open = true;
+    details.dispatch("toggle");
+  }
+  var detailsRef = details;
+  var textareaRef = textarea;
+  if (textarea) {
+    textarea.focus();
+    textarea.selectionStart = 3;
+    textarea.selectionEnd = 8;
+  }
+
+  // Real verdict acknowledgement via row Approve button dispatch
+  var fetchCallsBeforeVerdict = fetchCalls;
+  var row7001 = liveState.rows["7001"];
+  if (row7001 && row7001.approve) {
+    row7001.approve.dispatch("click");
+  }
+
+  setTimeout(function () {
+    var verdictFetched = fetchCalls === fetchCallsBeforeVerdict + 1;
+    var detailsAfterVerdict = outputNode.querySelector("details");
+    var textareaAfterVerdict = outputNode.querySelector("textarea");
+    var identityPreservedAfterVerdict = (detailsAfterVerdict === detailsRef) && (textareaAfterVerdict === textareaRef);
+    var openPreservedAfterVerdict = detailsAfterVerdict ? detailsAfterVerdict.open : null;
+    var focusPreservedAfterVerdict = (doc.activeElement === textareaRef);
+    var selectionPreserved = textareaRef ? (textareaRef.selectionStart === 3 && textareaRef.selectionEnd === 8) : false;
+
+    // Search keystroke that leaves membership unchanged
+    var searchInput = doc.getElementById("vc-search");
+    if (searchInput) {
+      searchInput.value = "Gun";
+      searchInput.dispatch("input", { target: { value: "Gun" } });
+    }
+    var detailsAfterSearch = outputNode.querySelector("details");
+    var textareaAfterSearch = outputNode.querySelector("textarea");
+    var identityPreservedAfterSearch = (detailsAfterSearch === detailsRef) && (textareaAfterSearch === textareaRef);
+    if (searchInput) {
+      searchInput.value = "";
+      searchInput.dispatch("input", { target: { value: "" } });
+    }
+
+    // renderList / sort / group independence: calling renderList does not touch outputNode
+    var detailsBeforeList = outputNode.querySelector("details");
+    var textareaBeforeList = outputNode.querySelector("textarea");
+    var countTextBeforeList = countNode.textContent;
+
+    var countWrites = 0;
+    var origCountSet = Object.getOwnPropertyDescriptor(Node.prototype, "textContent").set;
+    var origCountGet = Object.getOwnPropertyDescriptor(Node.prototype, "textContent").get;
+    Object.defineProperty(countNode, "textContent", {
+      get: function () { return origCountGet.call(this); },
+      set: function (val) {
+        countWrites++;
+        origCountSet.call(this, val);
+      },
+      configurable: true
+    });
+    countNode.textContent = "";
+    countWrites = 0;
+
+    // 1. Grouping change: flip state.grouped from true to false
+    var groupingSelect = doc.getElementById("vc-f-group");
+    var groupedBefore = liveState.grouped;
+    if (groupingSelect) {
+      groupingSelect.value = "flat";
+      groupingSelect.dispatch("change", { target: { value: "flat" } });
+    }
+    var groupedAfter = liveState.grouped;
+    var groupedFlipped = (groupedBefore === true) && (groupedAfter === false);
+
+    // 2. Sort change: in flat mode, table headers exist with sort buttons
+    var listHost = doc.getElementById("vc-list");
+    var th = listHost ? listHost.querySelector("th") : null;
+    var sortBtn = th ? th.querySelector("button") : null;
+    var sortBefore = JSON.stringify(liveState.sort);
+    if (sortBtn) {
+      sortBtn.dispatch("click");
+    }
+    var sortAfter = JSON.stringify(liveState.sort);
+    var sortChanged = (sortBefore !== sortAfter);
+
+    var detailsAfterList = outputNode.querySelector("details");
+    var textareaAfterList = outputNode.querySelector("textarea");
+    var renderListCallsRenderer = (countWrites > 0);
+    var renderListDidNotTouchQuery = (detailsBeforeList === detailsAfterList) &&
+                                     (textareaBeforeList === textareaAfterList) &&
+                                     (countWrites === 0) &&
+                                     (countNode.textContent === "");
+
+    delete countNode.textContent;
+    countNode.textContent = countTextBeforeList;
+    if (groupingSelect) {
+      groupingSelect.value = "grouped";
+      groupingSelect.dispatch("change", { target: { value: "grouped" } });
+    }
+
+    // 4. Exercise ALL filter axes and prove zero side-effects on adapter state/fetch/clipboard
+    var fetchCallsBeforeFilters = fetchCalls;
+    var clipboardBeforeFilters = clipboardCalls;
+    var stateBeforeFilters = {
+      report_revision: liveState.report_revision,
+      verdict_revision: liveState.verdict_revision,
+      mutationInFlight: liveState.mutationInFlight,
+      persistedVetoIds: Array.from(liveState.persistedVetoIds).sort(),
+      verdicts: JSON.stringify(liveState.verdicts),
+      rowsKeys: Object.keys(liveState.rows).sort(),
+      dupRowsKeys: Object.keys(liveState.duplicateRows).sort()
+    };
+
+    function setFilter(id, value) {
+      var el = doc.getElementById(id);
+      if (el) {
+        el.value = value;
+        el.dispatch(id === "vc-search" ? "input" : "change", { target: { value: value } });
+      }
+    }
+
+    // Action filter: review -> 7003
+    setFilter("vc-f-action", "review");
+    var actionReviewQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-action", "");
+
+    // Reason filter: dupe-lower -> 7004
+    setFilter("vc-f-reason", "dupe-lower");
+    var reasonDupeLowerQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-reason", "");
+
+    // Class facet filter: Hunter -> 7002
+    setFilter("vc-f-classFacet", "Hunter");
+    var classHunterQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-classFacet", "");
+
+    // Protection filter: soft -> 7002
+    setFilter("vc-f-protection", "soft");
+    var protectionSoftQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-protection", "");
+
+    // Kind filter: armor -> 0 weapons (empty state)
+    setFilter("vc-f-kind", "armor");
+    var kindArmorEmptyCount = countNode.textContent;
+    var kindArmorEmptyHint = outputNode.querySelector(".dim-query-empty-hint") ? outputNode.querySelector(".dim-query-empty-hint").textContent : null;
+    setFilter("vc-f-kind", "");
+
+    // Verdict filter: vetoed -> 7004
+    setFilter("vc-f-verdict", "vetoed");
+    var verdictVetoedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    setFilter("vc-f-verdict", "");
+
+    // Verdict filter: approved -> 7001 (was acknowledged approved above)
+    setFilter("vc-f-verdict", "approved");
+    var approvedCount = countNode.textContent;
+    var approvedSummary = outputNode.querySelector("summary") ? outputNode.querySelector("summary").textContent : null;
+    var approvedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    var approvedDetailsOpen = outputNode.querySelector("details") ? outputNode.querySelector("details").open : null;
+
+    // Loadout filter: out (not in loadout) -> 0 matching (7001 is in loadout)
+    setFilter("vc-f-loadout", "out");
+    var emptyCount = countNode.textContent;
+    var emptyHint = outputNode.querySelector(".dim-query-empty-hint") ? outputNode.querySelector(".dim-query-empty-hint").textContent : null;
+    var emptyDetails = outputNode.querySelector("details");
+    var emptyTextarea = outputNode.querySelector("textarea");
+
+    // Search filter: Gun Beta -> 7002
+    setFilter("vc-f-verdict", "");
+    setFilter("vc-f-loadout", "");
+    setFilter("vc-search", "Gun Beta");
+    var searchGunBetaQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+
+    // Reset filters via Reset filters button
+    var controlsHost = doc.getElementById("vc-controls");
+    var resetBtn = controlsHost ? controlsHost.querySelectorAll("button").filter(function (b) { return b.textContent === "Reset filters"; })[0] : null;
+    if (resetBtn) {
+      resetBtn.dispatch("click");
+    }
+    var resetCount = countNode.textContent;
+    var resetQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+    var resetDetailsOpen = outputNode.querySelector("details") ? outputNode.querySelector("details").open : null;
+
+    // Check side effects after all filter changes and resets
+    var zeroFetchesDuringFilters = (fetchCalls === fetchCallsBeforeFilters);
+    var zeroClipboardCalls = (clipboardCalls === clipboardBeforeFilters);
+    var stateAfterFilters = {
+      report_revision: liveState.report_revision,
+      verdict_revision: liveState.verdict_revision,
+      mutationInFlight: liveState.mutationInFlight,
+      persistedVetoIds: Array.from(liveState.persistedVetoIds).sort(),
+      verdicts: JSON.stringify(liveState.verdicts),
+      rowsKeys: Object.keys(liveState.rows).sort(),
+      dupRowsKeys: Object.keys(liveState.duplicateRows).sort()
+    };
+    var stateUnchangedDuringFilters = JSON.stringify(stateBeforeFilters) === JSON.stringify(stateAfterFilters);
+
+    // 5. 77 maximum-width IDs chunking
+    function make20DigitId(n) {
+      var s = String(n);
+      while (s.length < 20) s = "0" + s;
+      return s;
+    }
+    var decisions77 = [];
+    var expectedIds77 = [];
+    for (var i = 1; i <= 77; i++) {
+      var idStr = make20DigitId(i);
+      expectedIds77.push(idStr);
+      decisions77.push({ id: idStr, hash: "999", name: "W" + i, in_loadout: false, action: "junk", reason: "dupe-exact" });
+    }
+    var env77 = {
+      schema_version: 1, state: "reviewing", report_revision: 10,
+      verdict_revision: 0, fingerprint: "fp-77",
+      snapshot: { sections: [{ kind: "weapons", decisions: decisions77 }] },
+      verdicts: [], override_status: []
+    };
+    currentFetchEnvelope = env77;
+    liveServer.start();
+
+    setTimeout(function () {
+      var count77 = countNode.textContent;
+      var summary77 = outputNode.querySelector("summary") ? outputNode.querySelector("summary").textContent : null;
+      var splitNotice77 = outputNode.querySelector(".dim-query-split-notice") ? outputNode.querySelector(".dim-query-split-notice").textContent : null;
+      var chunkLabels77 = outputNode.querySelectorAll(".dim-query-chunk-label").map(function (l) { return l.textContent; });
+      var textareas77 = outputNode.querySelectorAll("textarea").map(function (t) { return t.value; });
+      var extracted77 = [];
+      textareas77.forEach(function (val) {
+        val.split(" or ").forEach(function (t) {
+          if (t.indexOf("id:") === 0) extracted77.push(t.slice(3));
+        });
+      });
+      var chunkingCorrect = (textareas77.length === 2) && (JSON.stringify(extracted77) === JSON.stringify(expectedIds77));
+
+      // 6. Malformed weapon id fails closed (role is NOT status)
+      var envMalformed = {
+        schema_version: 1, state: "reviewing", report_revision: 11,
+        verdict_revision: 0, fingerprint: "fp-malformed",
+        snapshot: { sections: [{ kind: "weapons", decisions: [{ id: "bad_weapon_id!", hash: "1", name: "Bad", action: "junk", reason: "dupe" }] }] },
+        verdicts: [], override_status: []
+      };
+      currentFetchEnvelope = envMalformed;
+      liveServer.start();
+
+      setTimeout(function () {
+        var malformedCount = countNode.textContent;
+        var errorEl = outputNode.querySelector(".dim-query-error");
+        var origSelector = context.VaultCleanerReviewUI.weaponProposalIdsForDimQuery;
+        delete context.VaultCleanerReviewUI.weaponProposalIdsForDimQuery;
+        var searchEl = doc.getElementById("vc-search");
+        if (searchEl) searchEl.dispatch("input", { target: { value: "Bad" } });
+        var missingHelperErrorEl = outputNode.querySelector(".dim-query-error");
+        var missingHelperEmptyHint = outputNode.querySelector(".dim-query-empty-hint");
+        var missingHelperHasError = !!missingHelperErrorEl && !missingHelperEmptyHint;
+        context.VaultCleanerReviewUI.weaponProposalIdsForDimQuery = origSelector;
+        if (searchEl) searchEl.dispatch("input", { target: { value: "" } });
+
+        var errorHandling = {
+          hasError: !!errorEl,
+          malformedCount: malformedCount,
+          missingHelperHasError: missingHelperHasError,
+          errorRole: errorEl ? errorEl.getAttribute("role") : null,
+          errorText: errorEl ? errorEl.textContent : null,
+          noTextarea: outputNode.querySelectorAll("textarea").length === 0,
+          noEcho: errorEl ? errorEl.textContent.indexOf("bad_weapon_id!") === -1 : false
+        };
+
+        // 7. Surface switching
+        currentFetchEnvelope = mixedEnvelope;
+        liveServer.start();
+
+        setTimeout(function () {
+          var dupBtn = doc.getElementById("vc-view-duplicates");
+          if (dupBtn) dupBtn.dispatch("click");
+          var hiddenOnDup = weaponSection.hidden;
+          var staticCrosscheckVisibleOnDup = !crosscheckPanel.hidden;
+
+          var propBtn = doc.getElementById("vc-view-proposals");
+          if (propBtn) propBtn.dispatch("click");
+          var visibleOnProp = !weaponSection.hidden;
+          var queryOnReturn = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+
+          // 8. Disconnected and Finalized frozen reports
+          liveState.connected = false;
+          setFilter("vc-f-loadout", "in");
+          var disconnectedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+          var disconnectedCount = countNode.textContent;
+          setFilter("vc-f-loadout", "");
+          liveState.connected = true;
+
+          // Finalized report with distinct weapon proposals
+          var envFinalized = {
+            schema_version: 1, state: "finalized", report_revision: 20,
+            verdict_revision: 5, fingerprint: "fp-finalized",
+            snapshot: {
+              sections: [{
+                kind: "weapons",
+                decisions: [
+                  { id: "7001", hash: "100", name: "Gun Alpha", kind: "weapons", action: "junk", reason: "dupe" },
+                  { id: "7002", hash: "101", name: "Gun Beta", kind: "weapons", action: "junk", reason: "dupe" }
+                ]
+              }]
+            },
+            verdicts: [], override_status: []
+          };
+          currentFetchEnvelope = envFinalized;
+          liveServer.start();
+
+          setTimeout(function () {
+            var finalizedQuery = outputNode.querySelector("textarea") ? outputNode.querySelector("textarea").value : null;
+            var finalizedCount = countNode.textContent;
+            var finalizedVisible = !weaponSection.hidden;
+
+            process.stdout.write(JSON.stringify({
+              boot: bootOk,
+              mixedReport: mixedReportOk,
+              reconciliation: {
+                verdictFetched: verdictFetched,
+                identityPreservedAfterVerdict: identityPreservedAfterVerdict,
+                openPreservedAfterVerdict: openPreservedAfterVerdict,
+                focusPreservedAfterVerdict: focusPreservedAfterVerdict,
+                selectionPreserved: selectionPreserved,
+                identityPreservedAfterSearch: identityPreservedAfterSearch,
+                groupedFlipped: groupedFlipped,
+                sortChanged: sortChanged,
+                renderListCallsRenderer: renderListCallsRenderer,
+                renderListDidNotTouchQuery: renderListDidNotTouchQuery
+              },
+              filters: {
+                actionReviewQuery: actionReviewQuery,
+                reasonDupeLowerQuery: reasonDupeLowerQuery,
+                classHunterQuery: classHunterQuery,
+                protectionSoftQuery: protectionSoftQuery,
+                kindArmorEmptyCount: kindArmorEmptyCount,
+                kindArmorEmptyHint: kindArmorEmptyHint,
+                verdictVetoedQuery: verdictVetoedQuery,
+                searchGunBetaQuery: searchGunBetaQuery,
+                approvedCount: approvedCount,
+                approvedSummary: approvedSummary,
+                approvedQuery: approvedQuery,
+                approvedDetailsOpen: approvedDetailsOpen,
+                emptyCount: emptyCount,
+                emptyHint: emptyHint,
+                emptyHasDetails: !!emptyDetails,
+                emptyHasTextarea: !!emptyTextarea,
+                resetCount: resetCount,
+                resetQuery: resetQuery,
+                resetDetailsOpen: resetDetailsOpen,
+                zeroFetchesDuringFilters: zeroFetchesDuringFilters,
+                zeroClipboardCalls: zeroClipboardCalls,
+                stateUnchangedDuringFilters: stateUnchangedDuringFilters
+              },
+              chunking: {
+                count77: count77,
+                summary77: summary77,
+                splitNotice77: splitNotice77,
+                chunkLabels77: chunkLabels77,
+                chunkingCorrect: chunkingCorrect
+              },
+              errorHandling: errorHandling,
+              surfaceSwitch: {
+                hiddenOnDup: hiddenOnDup,
+                staticCrosscheckVisibleOnDup: staticCrosscheckVisibleOnDup,
+                visibleOnProp: visibleOnProp,
+                queryOnReturn: queryOnReturn
+              },
+              disconnected: {
+                query: disconnectedQuery,
+                count: disconnectedCount
+              },
+              finalized: {
+                finalizedVisible: finalizedVisible,
+                finalizedCount: finalizedCount,
+                finalizedQuery: finalizedQuery
+              }
+            }));
+          }, 30);
+        }, 30);
+      }, 30);
+    }, 30);
+  }, 30);
+}, 30);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared_resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared_resource) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True, encoding="utf-8", check=False, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+
+    # 1. Boot check
+    assert result["boot"]["crosscheckExists"] is True
+    assert result["boot"]["weaponSectionExists"] is True
+    assert result["boot"]["rendersBeforeStatic"] is True
+    assert result["boot"]["headingText"] == "Shown weapon proposals"
+    assert (
+        result["boot"]["explanationText"]
+        == "This DIM search updates from the weapon proposals matching the current Proposals filters. For an approved-only query, set Session verdict to approved first."
+    )
+    assert result["boot"]["countNodeRole"] == "status"
+    assert result["boot"]["countNodeLive"] == "polite"
+    assert result["boot"]["countNodeEmptyAtBoot"] == ""
+    assert result["boot"]["outputEmptyAtBoot"] is True
+    assert result["boot"]["hiddenAtBoot"] is True
+
+    # 2. Mixed report with active persisted veto and authoritative vetoed verdict
+    assert result["mixedReport"]["sectionVisible"] is True
+    assert result["mixedReport"]["countText"] == "4 weapon proposals currently shown."
+    assert (
+        result["mixedReport"]["summaryText"]
+        == "DIM query for 4 shown weapon proposals"
+    )
+    assert result["mixedReport"]["detailsInitiallyCollapsed"] is True
+    assert (
+        result["mixedReport"]["queryValue"]
+        == "id:7001 or id:7002 or id:7003 or id:7004"
+    )
+    assert result["mixedReport"]["readOnly"] is True
+    assert result["mixedReport"]["spellcheck"] == "false"
+    assert (
+        result["mixedReport"]["warningText"]
+        == "This locating query includes every matching weapon proposal — junk and review, any session verdict, and items still suppressed by an active saved veto unless the current filters exclude them. Do not treat it as an approved-junk list."
+    )
+    assert (
+        result["mixedReport"]["sideEffectText"]
+        == "Rendering or selecting this text changes no vault-cleaner verdict, tag, note, item, or DIM state."
+    )
+
+    # 3. Node identity, real verdict acknowledgement, and renderList independence
+    assert result["reconciliation"]["verdictFetched"] is True
+    assert result["reconciliation"]["identityPreservedAfterVerdict"] is True
+    assert result["reconciliation"]["openPreservedAfterVerdict"] is True
+    assert result["reconciliation"]["focusPreservedAfterVerdict"] is True
+    assert result["reconciliation"]["selectionPreserved"] is True
+    assert result["reconciliation"]["identityPreservedAfterSearch"] is True
+    assert result["reconciliation"]["groupedFlipped"] is True
+    assert result["reconciliation"]["sortChanged"] is True
+    assert result["reconciliation"]["renderListCallsRenderer"] is False
+    assert result["reconciliation"]["renderListDidNotTouchQuery"] is True
+
+    # 4. Filters & side-effect verification across all axes
+    assert result["filters"]["actionReviewQuery"] == "id:7003"
+    assert result["filters"]["reasonDupeLowerQuery"] == "id:7004"
+    assert result["filters"]["classHunterQuery"] == "id:7002"
+    assert result["filters"]["protectionSoftQuery"] == "id:7002"
+    assert result["filters"]["kindArmorEmptyCount"] == "0 weapon proposals currently shown."
+    assert (
+        result["filters"]["kindArmorEmptyHint"]
+        == "No weapon proposals match the current filters."
+    )
+    assert result["filters"]["verdictVetoedQuery"] == "id:7004"
+    assert result["filters"]["searchGunBetaQuery"] == "id:7002"
+    assert result["filters"]["approvedCount"] == "1 weapon proposal currently shown."
+    assert (
+        result["filters"]["approvedSummary"]
+        == "DIM query for 1 shown weapon proposal"
+    )
+    assert result["filters"]["approvedQuery"] == "id:7001"
+    assert result["filters"]["approvedDetailsOpen"] is True
+    assert result["filters"]["emptyCount"] == "0 weapon proposals currently shown."
+    assert (
+        result["filters"]["emptyHint"]
+        == "No weapon proposals match the current filters."
+    )
+    assert result["filters"]["emptyHasDetails"] is False
+    assert result["filters"]["emptyHasTextarea"] is False
+    assert result["filters"]["resetCount"] == "4 weapon proposals currently shown."
+    assert (
+        result["filters"]["resetQuery"]
+        == "id:7001 or id:7002 or id:7003 or id:7004"
+    )
+    assert result["filters"]["resetDetailsOpen"] is True
+    assert result["filters"]["zeroFetchesDuringFilters"] is True
+    assert result["filters"]["zeroClipboardCalls"] is True
+    assert result["filters"]["stateUnchangedDuringFilters"] is True
+
+    # 5. 77 maximum-width IDs chunking
+    assert result["chunking"]["count77"] == "77 weapon proposals currently shown."
+    assert (
+        result["chunking"]["summary77"]
+        == "DIM query for 77 shown weapon proposals"
+    )
+    assert (
+        result["chunking"]["splitNotice77"]
+        == "Split into 2 complete queries at DIM's current 2048-character saveability boundary. Use every query to cover the shown proposals."
+    )
+    assert result["chunking"]["chunkLabels77"] == [
+        "DIM query 1 of 2",
+        "DIM query 2 of 2",
+    ]
+    assert result["chunking"]["chunkingCorrect"] is True
+
+    # 6. Malformed weapon ID fails closed (P3: error is NOT a live region)
+    assert result["errorHandling"]["hasError"] is True
+    assert (
+        result["errorHandling"]["malformedCount"]
+        == "1 weapon proposal currently shown."
+    )
+    assert result["errorHandling"]["missingHelperHasError"] is True
+    assert result["errorHandling"]["errorRole"] is None
+    assert (
+        result["errorHandling"]["errorText"]
+        == "Could not generate a safe DIM query for the shown weapons."
+    )
+    assert result["errorHandling"]["noTextarea"] is True
+    assert result["errorHandling"]["noEcho"] is True
+
+    # 7. Surface switching
+    assert result["surfaceSwitch"]["hiddenOnDup"] is True
+    assert result["surfaceSwitch"]["staticCrosscheckVisibleOnDup"] is True
+    assert result["surfaceSwitch"]["visibleOnProp"] is True
+    assert (
+        result["surfaceSwitch"]["queryOnReturn"]
+        == "id:7001 or id:7002 or id:7003 or id:7004"
+    )
+
+    # 8. Disconnected and Finalized frozen reports
+    assert result["disconnected"]["count"] == "1 weapon proposal currently shown."
+    assert result["disconnected"]["query"] == "id:7001"
+    assert result["finalized"]["finalizedVisible"] is True
+    assert result["finalized"]["finalizedCount"] == "2 weapon proposals currently shown."
+    assert result["finalized"]["finalizedQuery"] == "id:7001 or id:7002"

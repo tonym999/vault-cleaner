@@ -164,6 +164,31 @@ Issue #117 focused check:
       (`scrollWidth <= 390`); keyboard focus reaches both buttons and the query
       textarea with visible focus rings.
 
+Issue #150 focused check:
+
+- [ ] The Cross-check in DIM panel renders the `Shown weapon proposals` subsection
+      before the static loadout-query controls.
+- [ ] The subsection is visible only when a report is loaded and the active surface
+      is Proposals; switching to Armor duplicates hides the subsection while leaving
+      the static controls visible; returning to Proposals unhides it.
+- [ ] The live count status node uses `role="status"` and `aria-live="polite"`,
+      reporting `N weapon proposal(s) currently shown.` (singular/plural correct).
+- [ ] Query membership strictly tracks weapon proposals matching the current
+      Proposals filters via `ui.filterItems` and `kind === "weapons"`.
+- [ ] The warning copy states explicitly: `This locating query includes every matching weapon proposal — junk and review, any session verdict, and items still suppressed by an active saved veto unless the current filters exclude them. Do not treat it as an approved-junk list.`
+- [ ] Setting the Session verdict filter to `approved` produces an approved-only
+      weapon query without a second generation mode.
+- [ ] Zero matching weapons renders the empty hint: `No weapon proposals match the current filters.`
+      with no `<details>` or textarea.
+- [ ] Rendered query text is displayed in a read-only `<textarea>` with `spellcheck="false"`.
+- [ ] Recomputing the query makes zero network requests and does not mutate
+      session verdicts, revisions, or server state.
+- [ ] Query remains available and functional in a finalised or disconnected frozen
+      session.
+- [ ] At 390×844 narrow viewport, output remains contained (`scrollWidth <= clientWidth`)
+      with no horizontal page overflow; keyboard focus reaches the `<details>`
+      summary and textarea.
+
 Required multi-tab check:
 
 1. Bootstrap and load a fake report in tab A.
@@ -418,6 +443,39 @@ terminal.
 - Overall result: pass. `RULESET_VERSION`, snapshot/server schema, grouping,
   ranking, and verdict validation were not touched; this run covered
   presentation and interaction only.
+
+## 2026-09-13 — issue #150 execution record
+
+- Environment: Windows 11 (pwsh), Chromium / Playwright managed Chromium,
+  headless.
+- Viewports: 1440×900 desktop and 390×844 narrow viewport.
+- Fixtures: `tests/fixtures/weapons_hostile.csv` and `tests/fixtures/armor_close.csv`;
+  no real vault data, wishlists, or Bungie manifest network access.
+- Method: automated `VAULT_CLEANER_BROWSER_REQUIRED=1 pytest -q -m browser tests/test_server_browser.py`
+  run (16 passed).
+- Shown-weapons query and stable targets: pass. Unfiltered query rendered
+  `id:18446744073709551615 or id:7004 or id:7006 or id:7008 or id:7010` in
+  authoritative backend order with 5-proposal polite count status and exact
+  warning copy. Read-only and `spellcheck="false"` verified.
+- Live filter updates and zero side effects: pass. Filtering to in-loadout
+  updated the query live to `id:7004` (1 weapon proposal) with 0 network
+  requests and no verdict, revision, or server-state changes.
+- Viewport containment and keyboard navigation: pass. At 390×844 narrow viewport,
+  `scrollWidth <= 390` with no horizontal overflow. Keyboard Tab navigation reached
+  the `<details>` summary and visible read-only textarea.
+- Deterministic empty state and reset: pass. Searching `no such weapon` showed
+  `0 weapon proposals currently shown.` and empty hint `No weapon proposals match
+  the current filters.` with no `<details>` or textarea. Activating **Reset filters**
+  restored the 5-id query.
+- Surface switching: pass. Uploading `armor_close.csv` and switching to Armor
+  duplicates hid the shown-weapons subsection while keeping `#vc-crosscheck`
+  visible; switching back to Proposals unhid the subsection with the recomputed
+  5-id query.
+- Static #148 queries: pass. All three static loadout queries (`tag:junk is:inloadout`,
+  `notes:#vc-junk is:inloadout`, `notes:#vc-review is:inloadout`) remained intact
+  and non-editable across all uploads and surface switches.
+- Overall result: pass. Presentation and local query rendering only; zero rules,
+  snapshots, schemas, or dependencies touched.
 
 ## 2026-09-05 — issue #117 focused check
 

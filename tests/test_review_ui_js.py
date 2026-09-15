@@ -2387,6 +2387,48 @@ var defensiveIdReject = rejectsChunks(["not-a-dim-id"], 2048) &&
 
 var emptyChunks = api.dimIdQueryChunks([], 2048);
 
+// weaponProposalIdsForDimQuery tests (#150)
+var mixedItems = [
+  { kind: "weapons", id: "00099" },
+  { kind: "armor", id: "bad id with spaces" },
+  { kind: "weapons", id: "10" },
+  { kind: "ghosts", id: 99999 },
+  { kind: "weapons", id: "18446744073709551615" },
+  { kind: "armor" }
+];
+var weaponIds = api.weaponProposalIdsForDimQuery(mixedItems);
+var weaponChunks = api.dimIdQueryChunks(weaponIds);
+
+function rejectsWeaponItems(items) {
+  try {
+    api.weaponProposalIdsForDimQuery(items);
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
+var weaponNonArrayReject = [null, undefined, 123, "string", {}].every(rejectsWeaponItems);
+var weaponNonObjectEntryReject = [
+  [{ kind: "weapons", id: "1001" }, null],
+  [{ kind: "weapons", id: "1001" }, "string"],
+  [{ kind: "weapons", id: "1001" }, 123],
+  [{ kind: "weapons", id: "1001" }, []]
+].every(rejectsWeaponItems);
+
+var weaponBadIdsReject = [
+  "", " ", "1001 ", " 1001", "10 01", "1001\n",
+  "1001 or id:1002", "1001,1002", "1001.0", "-1001",
+  "123456789012345678901",
+  "__proto__", "constructor", "toString", "NaN", "null"
+].every(function (bad) {
+  return rejectsWeaponItems([{ kind: "weapons", id: bad }]);
+});
+
+var weaponNumericIdReject = rejectsWeaponItems([{ kind: "weapons", id: 1001 }]);
+var weaponMissingIdReject = rejectsWeaponItems([{ kind: "weapons" }]);
+var emptyWeaponIds = api.weaponProposalIdsForDimQuery([]);
+
 process.stdout.write(JSON.stringify({
   exactWhole: exactWhole,
   exactJunk: exactJunk,
@@ -2407,7 +2449,15 @@ process.stdout.write(JSON.stringify({
   termExceeds: termExceeds,
   allBadLimitsReject: allBadLimitsReject,
   defensiveIdReject: defensiveIdReject,
-  emptyChunks: emptyChunks
+  emptyChunks: emptyChunks,
+  weaponIds: weaponIds,
+  weaponChunks: weaponChunks,
+  weaponNonArrayReject: weaponNonArrayReject,
+  weaponNonObjectEntryReject: weaponNonObjectEntryReject,
+  weaponBadIdsReject: weaponBadIdsReject,
+  weaponNumericIdReject: weaponNumericIdReject,
+  weaponMissingIdReject: weaponMissingIdReject,
+  emptyWeaponIds: emptyWeaponIds
 }));
 ''',
         encoding="utf-8",
@@ -2441,6 +2491,14 @@ process.stdout.write(JSON.stringify({
         "allBadLimitsReject": True,
         "defensiveIdReject": True,
         "emptyChunks": [],
+        "weaponIds": ["00099", "10", "18446744073709551615"],
+        "weaponChunks": ["id:00099 or id:10 or id:18446744073709551615"],
+        "weaponNonArrayReject": True,
+        "weaponNonObjectEntryReject": True,
+        "weaponBadIdsReject": True,
+        "weaponNumericIdReject": True,
+        "weaponMissingIdReject": True,
+        "emptyWeaponIds": [],
     }
 
 
