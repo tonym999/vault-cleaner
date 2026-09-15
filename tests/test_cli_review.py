@@ -52,7 +52,7 @@ def test_dry_run_reports_counts_and_writes_nothing(tmp_path, capsys):
     assert f"report: {total} decision(s)" in out
     assert "fingerprint matches" in out
     assert "overrides: would add 2, update 0, leave 0 unchanged" in out
-    assert f"after vetoes: {total - 2} decision(s)" in out
+    assert f"approved output: {total - 2} decision(s)" in out
     assert "would write" in out and "would update" in out
     assert "dry run — nothing written" in out
 
@@ -92,19 +92,92 @@ def test_reviewed_csv_is_byte_identical_to_the_python_writer(tmp_path):
     assert (tmp_path / "reviewed.csv").read_bytes() == expected.read_bytes()
 
 
-def test_persisted_vetoes_apply_without_a_manifest(tmp_path, capsys):
+def test_persisted_vetoes_reported_without_manifest_and_output_is_zero_approved(tmp_path, capsys):
     run = build_report()
     ids = two_vetoed_ids(run)
     manifest = write_manifest(tmp_path, manifest_payload(run, ids))
     assert run_review(tmp_path, "--manifest", str(manifest), "--write") == 0
+    (tmp_path / "reviewed.csv").unlink()
     capsys.readouterr()
 
+    # Dry run without manifest: reports active vetoes, 0 approved output, writes nothing
     assert run_review(tmp_path) == 0
     out = capsys.readouterr().out
     assert "2 active, 0 stale, 0 orphaned, 0 unchecked" in out
-    assert f"after vetoes: {len(proposals(run)) - 2} decision(s)" in out
+    assert "approved output: 0 decision(s) (0 junk, 0 review)" in out
     assert "manifest:" not in out
-    assert "would update" not in out  # nothing to persist without a manifest
+    assert "would update" not in out
+    assert "would write" in out
+    assert not (tmp_path / "reviewed.csv").exists()
+
+    # --write without manifest: produces valid header-only CSV with zero item rows
+    assert run_review(tmp_path, "--write") == 0
+    out = capsys.readouterr().out
+    assert "approved output: 0 decision(s) (0 junk, 0 review)" in out
+    assert "wrote 0 row(s) to" in out
+    assert (tmp_path / "reviewed.csv").read_bytes() == b"Id,Hash,Tag,Notes\r\n"
+
+
+def test_partial_manifest_emits_only_explicit_approvals(tmp_path, capsys):
+    run = build_report()
+    all_decisions = proposals(run)
+    assert len(all_decisions) >= 3
+
+    p_approved = all_decisions[0]
+    p_vetoed = all_decisions[1]
+    p_omitted = all_decisions[2]
+
+    # Partial manifest: only includes p_approved and p_vetoed, omits p_omitted
+    partial_payload = {
+        "schema_version": 1,
+        "generated_at": "2026-07-25T12:00:00Z",
+        "snapshot": {
+            "schema_version": 2,
+            "ruleset_version": 4,
+            "fingerprint": run.fingerprint,
+        },
+        "decisions": [
+            {
+                "id": p_approved.id,
+                "kind": p_approved.kind,
+                "hash": p_approved.hash,
+                "name": p_approved.name,
+                "action": p_approved.action,
+                "reason": p_approved.reason,
+                "verdict": "approved",
+            },
+            {
+                "id": p_vetoed.id,
+                "kind": p_vetoed.kind,
+                "hash": p_vetoed.hash,
+                "name": p_vetoed.name,
+                "action": p_vetoed.action,
+                "reason": p_vetoed.reason,
+                "verdict": "vetoed",
+            },
+        ],
+    }
+    manifest = write_manifest(tmp_path, partial_payload, "partial.json")
+
+    assert run_review(tmp_path, "--manifest", str(manifest), "--write") == 0
+    out = capsys.readouterr().out
+    assert "manifest: " in out
+    assert "2 verdict(s) (1 vetoed, 1 approved)" in out
+    assert "overrides: added 1, updated 0, 0 unchanged" in out
+    junk_count = 1 if p_approved.action == "junk" else 0
+    review_count = 1 if p_approved.action == "review" else 0
+    assert f"approved output: 1 decision(s) ({junk_count} junk, {review_count} review)" in out
+    assert "wrote 1 row(s) to" in out
+
+    # Verify CSV contains only the approved item
+    written_csv = (tmp_path / "reviewed.csv").read_text(encoding="utf-8")
+    assert f'"""{p_approved.id}"""' in written_csv
+    assert f'"""{p_vetoed.id}"""' not in written_csv
+    assert f'"""{p_omitted.id}"""' not in written_csv
+
+    # Verify overrides.json has the vetoed item
+    stored = load_overrides(tmp_path / "overrides.json")
+    assert [v.id for v in stored.vetoes] == [p_vetoed.id]
 
 
 def test_stale_fingerprint_refuses_and_changes_nothing(tmp_path, capsys):
@@ -283,7 +356,7 @@ def test_approved_id_that_is_already_vetoed_is_kept_and_explained(tmp_path, caps
     captured = capsys.readouterr()
     assert "applying a manifest never removes a veto" in captured.err
     assert load_overrides(tmp_path / "overrides.json").vetoes != ()
-    assert f"after vetoes: {len(proposals(run)) - 2} decision(s)" in captured.out
+    assert f"approved output: {len(proposals(run)) - 2} decision(s)" in captured.out
 
 
 def test_report_mentions_but_does_not_apply_overrides(tmp_path, capsys):

@@ -573,6 +573,10 @@ Each of these is cited to where it is already measured elsewhere in this documen
 
 ## 9. Approval-only finalization contract
 
+> [!NOTE]
+> **Implementation status (Child 2b, Issue #155):**
+> Landed in #155. `review.apply_vetoes` was replaced with `review.select_approved_proposals(run, approved_ids, active_veto_ids=())`. Both server finalization (`server/app.py`) and CLI review (`cli.py`) now emit only decisions satisfying `current proposal AND explicit fresh approval AND NOT active persisted veto`. When no proposals are approved, an exact header-only CSV is written.
+
 ### Authoritative seam and call sites
 
 The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](../src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). Both sibling call sites must be updated together:

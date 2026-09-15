@@ -28,7 +28,6 @@ from vault_cleaner.review import (
     DEFAULT_OVERRIDES_PATH,
     OverridesError,
     ReviewError,
-    apply_vetoes,
     check_manifest_matches,
     classify,
     imported_junk_tags,
@@ -36,6 +35,7 @@ from vault_cleaner.review import (
     merge_manifest,
     parse_manifest,
     save_overrides,
+    select_approved_proposals,
 )
 from vault_cleaner.rules import ghosts as ghost_rules
 from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
@@ -420,11 +420,14 @@ def _print_override_status(status, overrides_path: str) -> None:
 
 
 def _cmd_review(args: argparse.Namespace) -> int:
-    """Inspect/apply a review manifest and write the reviewed export (#36).
+    """Apply review manifest verdicts and write an approval-only reviewed CSV.
 
-    Without --manifest this only reports how persisted vetoes line up with a
-    fresh run. With one, the manifest is validated against that run's
-    fingerprint before a single veto is persisted.
+    Without --manifest there are no explicit approvals, so the reviewed CSV
+    contains no proposal rows (header only) while persisted override status is
+    reported. With a manifest, verdicts are validated against the run's
+    fingerprint, fresh vetoes are merged into the durable store, and only
+    explicitly approved proposals not suppressed by active persisted vetoes
+    are written to the reviewed export.
     """
     result, paths_cfg, rc = _build_report(args)
     if result is None or paths_cfg is None:
@@ -481,8 +484,11 @@ def _cmd_review(args: argparse.Namespace) -> int:
     status = classify(store, result)
     _print_override_status(status, args.overrides)
 
-    kept = apply_vetoes(result, status.active_ids)
-    print(f"\nafter vetoes: {_action_counts(kept)}")
+    approved_ids = {d.id for d in manifest.approved} if manifest is not None else set()
+    output_decisions = select_approved_proposals(
+        result, approved_ids, status.active_ids
+    )
+    print(f"\napproved output: {_action_counts(output_decisions)}")
 
     already_junk = imported_junk_tags(status)
     if already_junk:
@@ -517,7 +523,7 @@ def _cmd_review(args: argparse.Namespace) -> int:
         else f"nothing written — CSV not written to {output_path}"
     )
     written, n = _write_or_error(
-        lambda: write_import_csv([d.import_row() for d in kept], output_path),
+        lambda: write_import_csv([d.import_row() for d in output_decisions], output_path),
         csv_failure,
     )
     if not written:
@@ -658,9 +664,18 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("--write", action="store_true", help="write the combined import CSV (default is dry run)")
     rp.set_defaults(func=_cmd_report)
 
-    vp = sub.add_parser("review", help="apply a review manifest's vetoes and write the reviewed import CSV")
-    vp.add_argument("--manifest", default=None,
-                    help="review manifest JSON to validate and apply (omit to only report override status)")
+    vp = sub.add_parser(
+        "review",
+        help="apply a review manifest's verdicts and write an approval-only reviewed import CSV",
+    )
+    vp.add_argument(
+        "--manifest",
+        default=None,
+        help=(
+            "review manifest JSON to validate and apply (omit to only report override status; "
+            "no manifest means zero approved output rows)"
+        ),
+    )
     vp.add_argument("--overrides", default=DEFAULT_OVERRIDES_PATH,
                     help=f"persistent veto store (default {DEFAULT_OVERRIDES_PATH})")
     vp.add_argument("--weapons", default=None, help=WEAPONS_INPUT_HELP)
@@ -670,7 +685,7 @@ def main(argv: list[str] | None = None) -> int:
     vp.add_argument("--config", default="config.toml", help="config file (default config.toml)")
     vp.add_argument("--no-wishlists", action="store_true", help="skip the wishlist pass for weapons")
     vp.add_argument("--write", action="store_true",
-                    help="persist vetoes and write the reviewed CSV (default is dry run)")
+                    help="persist vetoes and write the approval-only reviewed CSV (default is dry run)")
     vp.set_defaults(func=_cmd_review)
 
     wp = sub.add_parser("wishlists", help="download/refresh wishlist caches and show parse stats")

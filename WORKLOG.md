@@ -3,6 +3,60 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-15 — #155 implementation: approval-only finalized CSVs (PR 2)
+
+Implemented Child 2b of #140 on branch `feat/issue-155-approval-only-finalization`
+from `main` at base SHA `032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #155.
+
+- **Inclusion rule:** Replaced subtractive `review.apply_vetoes` with pure
+  `review.select_approved_proposals(run, approved_ids, active_veto_ids=())`.
+  Output CSV includes only current proposals with an explicit fresh approval that
+  are not suppressed by an active persisted veto (`current proposal AND explicit fresh approval AND NOT active persisted veto`).
+  Unreviewed proposals and vetoed proposals are excluded. Preserves proposal report order.
+  Zero approved proposals produces an exact valid header-only CSV (`Id,Hash,Tag,Notes\r\n`).
+- **Sibling parity (CLI and Server):**
+  - CLI review (`src/vault_cleaner/cli.py`): updated `_cmd_review` and `vp` parser
+    options. Collects approved IDs from manifest (or empty set if no manifest),
+    passes to `select_approved_proposals`, and prints `approved output:` count.
+    `review --write` with 0 approved proposals writes a valid header-only CSV.
+  - Server finalization (`src/vault_cleaner/server/app.py`): updated `finalize()`
+    to extract approved IDs from `session.verdicts`, pass them to
+    `select_approved_proposals` with active persisted veto IDs from `session.override_status`,
+    and render the finalized CSV.
+- **UI adapter & copy:**
+  - `src/vault_cleaner/ui/review_ui.js`: replaced `keptItems` with
+    `approvedOutputItems(items, verdicts, activePersistedVetoIds)`.
+  - `src/vault_cleaner/ui/review_server.js`: summary tile renamed from `"after vetoes"`
+    to `"approved output"`. Finalization confirmation dialog uses post-veto output
+    count with exact copy for zero, singular, and plural counts:
+    - 0: `"No proposals are approved for output. Finalise a header-only CSV with no item rows?"`
+    - 1: `"Finalise 1 approved proposal into the CSV? Vetoed and unreviewed proposals, plus approvals blocked by active saved vetoes, will be excluded."`
+    - N: `"Finalise " + count + " approved proposals into the CSV? Vetoed and unreviewed proposals, plus approvals blocked by active saved vetoes, will be excluded."`
+    Canceling aborts without sending a finalize request. Successful finalization text
+    clarifies that the CSV contains only explicitly approved proposals not blocked by an active saved veto.
+- **Verification:**
+  - `tests/test_review.py`: 4-row truth table test, partial approval set & stable
+    report order, duplicate/unknown IDs, empty approvals, loser preservation.
+  - `tests/test_cli_review.py`: verified output label `approved output:`, partial
+    manifest filtering, and zero-approval header-only output.
+  - `tests/test_cli_serve.py`: updated loopback test with explicit approval before finalize.
+  - `tests/test_server_finalize.py`: verified 4-row truth table, partial verdicts +
+    saved veto parity with CLI review, zero-approval header-only bytes, clearing approval
+    to unreviewed, byte caching, and response contract.
+  - `tests/test_review_ui_js.py`: updated harness and tests for `approvedOutputItems` count (1),
+    mirrored `select_approved_proposals`, active veto exclusion (0), and Set-like input contract.
+  - `tests/test_server_ui_js.py`: updated tile label check, makeUi mock, actionsText assertions,
+    and added `test_finalize_confirmation_prompt_and_cancellation` testing zero, singular,
+    plural, post-veto count reduction, cancel abort, and ok continue.
+  - `tests/test_server_browser.py`: updated `test_review_smoke_downloads_server_finalized_bytes`
+    to test 3-state proposals (approved 9002, approve-clear-veto 9012, unreviewed weapon),
+    asserted exact confirmation dialog text, and verified downloaded CSV includes only 9002.
+  - Real browser suite: `16 passed, 3 deselected`.
+- **Docs:** updated `README.md` review workflow and server finalization sections;
+  added Child 2b landed-status note at section 9 in `docs/aggressive-clearout-measurement.md`.
+- **Pre-commit checks:** `ruff check src tests scripts` passed; `pytest -q` passed;
+  `git diff --check` passed; no tracked files under `data/`. No PR opened.
+
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 
 Created and planned Child 2b of #140 from `main` at
