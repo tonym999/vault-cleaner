@@ -633,6 +633,15 @@
     return ids;
   }
 
+  /**
+   * Extract DIM instance IDs from weapon proposals in input order.
+   * Non-weapon objects are ignored.
+   *
+   * @param {Array<Object>} items Proposal records to inspect.
+   * @returns {Array<string>} Valid weapon instance IDs in input order.
+   * @throws {Error} If items is not an array, an entry is not an object,
+   *   or a weapon record has an invalid DIM instance ID.
+   */
   function weaponProposalIdsForDimQuery(items) {
     if (!Array.isArray(items)) {
       throw new Error("items must be an array");

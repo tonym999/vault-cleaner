@@ -81,6 +81,10 @@ the merged handoff at `handoffs/issue-150-implementation-plan.md`. Refs #150.
   - *P3 (code cleanup):* removed shadowed declaration of `weaponQuerySection` in boot;
     extracted duplicate DOM clearing into `clearOutput(node)`; and unified weapon
     proposal filtering to invoke `ui.weaponProposalIdsForDimQuery` upfront.
+  - *Nitpick (API documentation in `review_ui.js`):* added JSDoc to
+    `weaponProposalIdsForDimQuery` documenting its input requirements, order
+    preservation, non-weapon object skipping, and fail-closed error behavior
+    on malformed inputs and invalid instance IDs.
 - **Automated proofs:**
   - `tests/test_review_ui_js.py`: added pure unit tests for
     `weaponProposalIdsForDimQuery` covering mixed items, 20-digit/leading-zero
