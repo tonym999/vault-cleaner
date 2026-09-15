@@ -50,6 +50,21 @@ Created and planned Child 3 of #140 from `main` at
 - **Planning verification:** `.venv/bin/ruff check src tests scripts` passed;
   `.venv/bin/pytest -q` passed (`976 passed`); `git diff --check` passed; no file
   under `data/` is tracked.
+- **Plan review round 1 (owner review + CodeRabbit on PR #159), all accepted:**
+  - [P2] The tag capture `^\s*tags:(.*)$` ran past the next `|`. The Voltron
+    cache has 8 note blocks (100 entries) with a second `|tags:` segment of perk
+    hashes. The plan now captures `([^|]*)` from the first segment only, counts
+    entries with ignored segments, and adds a repeated-segment fixture.
+  - [P2] The swap is not one-directional. Item-level upper bounds from public
+    list bytes: 157 trash items become exposed (34 with no remaining keep
+    entry). Exactly 1 item becomes more protected: it is on both Ciceron lists,
+    and 5 of its 9 Ciceron keep pairs are new, so a whole-item-trash copy
+    carrying one of them flips from junk to protected. The implementer
+    re-measures both directions and documents them. #155 stays the blocker for
+    the exposing direction.
+  - [P3] "Byte-identical" CLI lines now mean the same template and wording;
+    interpolated names and counts change with the configured sources.
+  - Issue #158 was updated to match.
 
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 
