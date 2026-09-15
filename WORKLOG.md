@@ -3,6 +3,54 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-15 — #158 planning: wishlist evidence model and Aegis source strategy (PR 1)
+
+Created and planned Child 3 of #140 from `main` at
+`032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #158.
+
+- **Issue and tracking:** created #158 as an `enhancement`, left it unmilestoned
+  like #148/#155, and added it to project 3 with Status `Todo` (verified). Linked
+  it as a sub-issue of #140 and recorded GitHub blocked-by links on #142 (closed)
+  and #155 (open). #155 blocks implementation because the source swap can surface
+  more wishlist-trash `junk` proposals, and those must require explicit approval.
+- **Surprise: the configured Aegis keep list protects its own family's trash.**
+  Nitaraku's `aegis` source lists every tier (S–F) as keep rolls. 164 of the 286
+  item hashes in Ciceron's trash list also appear there, 115 at D/E/F tier. The
+  keep-beats-trash check at `rules/weapons.py:79` therefore lets a D-tier
+  "recommended roll" suppress the D-tier trash verdict. Nitaraku is also stale
+  (last commit 2026-07-04). It disagrees with JxPv2's current conversion on 489
+  item tiers, while Ciceron's S/A set agrees closely (506 shared, 16/28 unique).
+- **Strategy decision (supersedes #142 §6 item 2):** use one converter for the
+  `aegis-endgame` family. Ciceron's `dim_aegis_endgame_major-perks.txt` (S/A
+  keep, traits only) replaces Nitaraku; Ciceron's trash list stays. JxPv2
+  (freshest, richest metadata, but no trash entries and 8-hourly churn) and
+  MrCharles (0.44–36.7 MB permutation files) were evaluated and rejected. The
+  real-vault decision delta is NOT MEASURED; no real export is authorized for
+  this ticket.
+- **DIM scoping measured from upstream `wishlist-file.ts`:** `//notes:` blocks
+  reset on blank or `//` lines but not on `title:`. A `#notes:` tail wins only
+  when longer than one character. Notes end at the first `|`, and `tags:`
+  follows it. Voltron: 175,332/255,426 entries carry `|tags:`. 980 Voltron
+  notes contain the word "tier" in prose, so tier parsing is opt-in per source
+  (`tier_format`); a heuristic would flood false uncertainty.
+- **Model boundary:** evidence is opt-in (Voltron parse already peaks at
+  ~144 MB), aligned index-for-index with the unchanged `keep`/`trash` lists,
+  and consumed by no rule. Decisions, snapshot, fingerprint, `RULESET_VERSION`
+  and the golden stay unchanged for identical bytes. `family`/`activity`/
+  `tier_format` stay out of the fingerprint until Child 5 first consumes them.
+- **Implementer selection:** Google `gemini-3.8-flash`, native
+  `thinking_level = high`. Official docs rechecked 2026-09-15 list it as Stable
+  with `low`/`medium`/`high`. It is suitable because every format, regex, data
+  shape and output string is pinned and nothing touches rules, server or UI.
+- **Review path:** independent adversarial review (parser, config validation,
+  input-source swap), following #140's rule; #142 §12's "standard" predates it.
+- Planning branch: `handoff/issue-158-implementation-plan`; allocated
+  implementation branch: `feat/issue-158-wishlist-evidence`. This phase does not
+  authorize implementation or either PR's merge.
+- **Planning verification:** `.venv/bin/ruff check src tests scripts` passed;
+  `.venv/bin/pytest -q` passed (`976 passed`); `git diff --check` passed; no file
+  under `data/` is tracked.
+
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 
 Created and planned Child 2b of #140 from `main` at
