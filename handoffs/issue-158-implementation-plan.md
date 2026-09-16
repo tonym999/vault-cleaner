@@ -172,10 +172,25 @@ the downloaded Ciceron keep file). They count item hashes, not vault rows:
 
 ```text
 trash items (Ciceron trash ∪ Voltron trash) with a Nitaraku keep roll:           164
-exposing:    ≥1 Nitaraku keep roll not subsumed by any remaining keep roll         157
-             of which no remaining keep entry at all (Ciceron keep or Voltron):     34
-suppressing: ≥1 new Ciceron keep roll not subsumed by any old keep roll              1
+exposing (E1): ≥1 Nitaraku roll not subsumed by any remaining keep roll           162
+exposing (E2): EVERY Nitaraku roll not subsumed by any remaining keep roll        157
+               mixed, i.e. in E1 but not E2                                         5
+exposing (E3): no remaining keep entry at all (Ciceron keep or Voltron)            34
+suppressing (S1): ≥1 new Ciceron keep roll not subsumed by any old keep roll        1
 ```
+
+The three exposing predicates answer different questions and must not be
+conflated (corrected in plan review round 2; round 1 printed E2's number
+against E1's wording):
+
+- **E1 = 162** — upper bound on "a `wishlist-trash` proposal can appear",
+  because at least one previously protecting roll loses coverage.
+- **E2 = 157** — any keep match on that item disappears, whichever roll the
+  weapon matched.
+- **E3 = 34** — no configured source keeps any entry for the item at all.
+
+`E1` is the predicate the implementer re-measures as the headline figure, and
+all three are recorded.
 
 - **Exposing:** for a weapon whose only keep match was a Nitaraku roll, a
   trash match stops being suppressed, so a `wishlist-trash` proposal can
@@ -359,6 +374,11 @@ exactly `(name, url, content)` and `(name, url, sha256)`.
    - `keep_evidence: dict[int, list[WishlistEntry]] | None = None`;
    - `trash_evidence: dict[int, list[WishlistEntry]] | None = None`;
    - `section_titles: int = 0`;
+   - `ignored_note_segments: int = 0` — entries whose effective notes carried an
+     ignored pipe segment. Populated only when `evidence=True` and left `0`
+     otherwise, so the evidence-off path does no segment work. `merge` sums it,
+     exactly as it sums `skipped` and `wildcards`. `WishlistSourceStatus` copies
+     it; it is never recomputed from raw text;
    - `declared_title: str | None = None` and
      `declared_description: str | None = None` (first `title:`/`description:`,
      DIM `info` semantics).
@@ -381,19 +401,31 @@ exactly `(name, url, content)` and `(name, url, sha256)`.
    - `title`: set by `^@?title:(.+)$`. The first match also sets
      `declared_title`, and every match increments `section_titles`. `^@?description:(.+)$`
      sets `declared_description` once. Neither resets `block_notes`.
-   - The effective raw notes for a matched `dimwishlist:` line come from the
-     tail if `m.group(3)` starts with `#notes:` and the text after `#notes:` is
-     longer than one character; otherwise from `block_notes`.
-   - Split the raw notes at the first `|`. The left part, stripped, is `notes`
-     (`None` if empty). Split the remainder at `|` into segments. If the
+   - **Choose the raw notes source, cutting at the first `|` before the length
+     test.** DIM captures `(?<wishListNotes>[^|]*)` and only then applies
+     `length > 1`, so the note text is cut at the pipe first
+     (`wishlist-file.ts`, retrieved 2026-09-15). Therefore: if `m.group(3)`
+     starts with `#notes:`, let `tail = m.group(3)[len("#notes:"):]` and
+     `tail_head = tail.split("|", 1)[0]`. The tail wins only if
+     `len(tail_head) > 1`; the raw notes source is then the **whole** `tail`.
+     Otherwise the source is the whole `block_notes` string, including its own
+     pipe segments. Worked case: for `#notes:x|tags:pve` under a block note,
+     `tail_head` is `x`, so the block note wins and its own segments supply the
+     tags — the discarded tail's `tags:pve` must not be read. (Corrected in plan
+     review round 2: testing the uncut tail would wrongly select it.)
+   - Split the chosen raw source at the first `|`. The left part, stripped, is
+     `notes` (`None` if empty). Split the remainder at `|` into segments. If the
      **first** segment matches `^\s*tags:([^|]*)$`, then
      `tags = unique(t.casefold() for t in re.split(r"[,\s]+", group) if t)`.
      Ignore every later segment. Measured: 8 Voltron note blocks (100 entries)
      carry a second `|tags:` segment of perk hashes, such as
      `…|tags: PvE, …|tags:1015611457 4082225868`, which must never become tag
-     tokens. Count entries whose effective notes had ignored segments (the
-     first segment when it isn't `tags:`, or any later segment) in
-     `WishlistSourceStatus.ignored_note_segment_entries`.
+     tokens. When the effective notes had an ignored segment (a first segment
+     that isn't `tags:`, or any later segment), increment
+     `Wishlist.ignored_note_segments` — see item 3. The count cannot live only
+     on `WishlistSourceStatus`: nothing downstream of `parse_wishlist` can
+     recompute it without duplicating this scoping logic (corrected in plan
+     review round 2).
    - Activities from tags: a token contributes `pve` if it is `pve`, starts
      with `pve-`, or is `god-pve`, and `pvp` by the same rules. If any
      activity is derived, `activity_basis = "tags"`. Otherwise, if
@@ -451,7 +483,7 @@ exactly `(name, url, content)` and `(name, url, sha256)`.
        tagged_entries: int
        tier_counts: tuple[tuple[str, int], ...]   # S,A,B,C,D,E,F order, zero counts omitted
        unrecognized_tier_entries: int
-       ignored_note_segment_entries: int
+       ignored_note_segment_entries: int  # copied from Wishlist.ignored_note_segments
        content_revision: None = None  # never declared by the selected files; always None in this ticket
 
    @dataclass(frozen=True)
@@ -535,13 +567,16 @@ sources (for example `aegis` becomes `aegis_keep`). Four indented lines follow
 the first line:
 
 ```text
-{name}: {keep} keep rolls across {n} items, {trash} trash entries across {m} items{suffix}
+{name}: {keep} keep rolls across {n} items, {trash} trash entries across {m} items{parse_suffix}
   family: {family}; activity: {activity}; tier format: {tier_format}
   fetch: {fetch_label}; cache written {when}
   declared title: {title}
   notes: {noted} of {entries} entries have notes, {tagged} have tags; tiers: {tiers}
 ```
 
+- `parse_suffix` is today's existing malformed/wildcard suffix, built exactly as
+  [cli.py:560-565](../src/vault_cleaner/cli.py#L560-L565) builds it now. It is
+  unrelated to the ignored-note-segment suffix on the `notes:` line below.
 - `fetch_label`: `served from cache` | `downloaded` |
   `stale cache used after failed download`.
 - `when`: `%Y-%m-%dT%H:%M:%SZ` (UTC) from `cache_written_at`, then
@@ -616,10 +651,11 @@ Cover:
   are **not declared** by the selected files;
 - the selected Aegis strategy and rejected alternatives, with the measured
   table from this plan;
-- the decision change from the swap in **both** directions, with the item-level
-  upper bounds from this plan's measurement table, re-measured by the
-  implementer, and the one suppressing item described as a same-family
-  conflict worked example (count only, no item name or hash);
+- the decision change from the swap in **both** directions, giving E1, E2, E3
+  and S1 with their exact predicates (never one number under another's
+  wording), re-measured by the implementer, and the one suppressing item
+  described as a same-family conflict worked example (count only, no item name
+  or hash);
 - that `wishlists/aegis.txt` may be removed by hand;
 - the Child 5 fingerprint handoff note;
 - that §6 item 2 of `aggressive-clearout-measurement.md` is superseded.
@@ -650,6 +686,11 @@ trailing whitespace. It must include:
 - a `// comment` reset;
 - a `#notes:` tail overriding a block note;
 - a `#notes:x` tail (one character, which falls back to block notes);
+- a `#notes:x|tags:pve` tail under a block note carrying its own `|tags:`: the
+  pre-pipe tail is one character, so the block note wins and the tail's
+  `tags:pve` must not appear in `tags`;
+- a `#notes:xy|tags:pvp` tail, whose pre-pipe text is two characters, so the
+  tail wins and supplies `pvp`;
 - `| tags: pvp god-pvp` with a space;
 - `(Foo version) - Aegis Endgame S Tier.` and `Aegis Endgame A Tier.` keep blocks;
 - `D Tier.` and `F Tier. Weak Combo: …` trash blocks;
@@ -659,7 +700,7 @@ trailing whitespace. It must include:
 - a wildcard entry and a malformed line;
 - a block note with two pipe segments, `|tags:PvE|tags:111 222`, whose second
   segment must not add tags `111`/`222`, and a note whose first segment after
-  `|` is not `tags:`.
+  `|` is not `tags:`. Both must increment `ignored_note_segments`.
 
 #### [MODIFY] [tests/test_wishlist.py](../tests/test_wishlist.py)
 
@@ -669,7 +710,10 @@ trailing whitespace. It must include:
   yielding `not-declared` on identical text.
 - **Invariance:** for every file in `tests/fixtures/*.txt`, and for each spec
   variant, `parse_wishlist(..., evidence=True)` has `keep`, `trash`, `skipped`
-  and `wildcards` equal to `evidence=False`.
+  and `wildcards` equal to `evidence=False`, and `evidence=False` leaves
+  `ignored_note_segments` at `0`.
+- `merge` sums `ignored_note_segments`, and the status copies the merged value
+  rather than rescanning text.
 - The alignment invariant holds, including the `is` identity of perks, after
   `merge`.
 - `merge` raises on mixed evidence presence.
@@ -792,9 +836,13 @@ Escalation route: `implementer → orchestrator → planner`.
    `#notes:x` one-character tail wins, the tag capture runs past the next `|`
    (for example `(.*)` swallowing a second `|tags:` segment of perk hashes), or a
    `//notes:` line with leading whitespace behaves inconsistently after strip.
-5. **Swap delta stated one-way:** docs or WORKLOG describe the source swap as
-   only surfacing proposals, and omit the measured suppressing case where a
-   Ciceron keep pair newly protects a Ciceron whole-item trash item.
+5. **Swap delta stated one-way or under the wrong predicate:** docs or WORKLOG
+   describe the source swap as only surfacing proposals, omit the measured
+   suppressing case, or print one exposing figure under another's wording (the
+   E1/E2 confusion this plan already made once).
+6. **Ignored-segment counter recomputed downstream:** the loader or the CLI
+   rescans raw text to derive `ignored_note_segment_entries` instead of reading
+   the parser's own counter, duplicating the scoping rules that produced it.
 4. **Config normalization leak:** `load_config` rewrites
    `cfg["wishlists"]["sources"]` to specs, which breaks string-URL tests and
    `WishlistSourceIdentity`. Alternatively, table-form URLs reach `fetch` as a
@@ -819,7 +867,7 @@ Rules:
 - apply the plan's mechanical inclusion test to every production hunk;
 - never commit third-party wishlist content, anything under `data/`, or `wishlists/`;
 - re-download both Ciceron files to a scratch directory outside the repo and confirm 100% tier recognition before changing `config.toml`;
-- re-measure the swap's item-level delta in both directions (exposing and suppressing, with this plan's "not subsumed" definition) from public list bytes only, and record the counts in `docs/wishlist-evidence.md` and the handoff;
+- re-measure the swap's item-level delta from public list bytes only, reporting all four figures the plan defines (E1 ≥1 roll uncovered, E2 every roll uncovered, E3 no keep entry left, S1 suppressing) with their predicates, and record them in `docs/wishlist-evidence.md` and the handoff;
 - update `WORKLOG.md` with a dated entry that includes the evidence-off and evidence-on time/memory measurements;
 - run focused tests (`tests/test_wishlist.py`, `tests/test_wishlist_evidence.py`, `tests/test_cli_wishlists.py`, `tests/test_pipeline.py`, `tests/test_config.py`, `tests/test_report_run.py`) before the full gates;
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, `test -z "$(git ls-files data/ wishlists/)"`, `git diff origin/main...HEAD --stat -- src/vault_cleaner/rules src/vault_cleaner/report_run.py src/vault_cleaner/report.py src/vault_cleaner/server src/vault_cleaner/ui src/vault_cleaner/pipeline.py tests/fixtures/report_snapshot_v2.json` (must be empty), and `git status --short`;
@@ -838,7 +886,7 @@ When complete, provide the orchestrator with:
 - alignment-invariant tests, including the hostile lines;
 - baseline and post-change parse time/memory numbers;
 - the Ciceron re-download recognition counts;
-- the re-measured exposing/suppressing swap delta;
+- the re-measured swap delta as all four figures (E1, E2, E3, S1) with their predicates;
 - the real `vault-cleaner wishlists` stdout;
 - complete command outputs;
 - the stop conditions considered, and all deviations.
@@ -868,14 +916,15 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] `WishlistSourceData`/`WishlistSourceIdentity` fields and `compute_fingerprint` payload are unchanged. The existing pipeline identity test passes unmodified.
 - [ ] `LINE_RE` still accepts/rejects exactly the same lines. `evidence=False` does no notes/tag/entry work, as confirmed by reading the loop and by the recorded time/memory numbers.
 - [ ] The alignment invariant (length and `perks is`) is tested after parse and after `merge`, including for malformed, wildcard, separator-only, and whole-item lines. Mixed-evidence `merge` raises.
-- [ ] DIM scoping matches the plan: blank and `//` lines reset block notes, `title:` does not, a tail wins only if longer than one character, notes end at the first `|`, tags come only from the first following segment captured with `([^|]*)`, later segments (including a second `tags:`) are ignored and counted, and `| tags:` with a space works.
+- [ ] `ignored_note_segments` is produced by `parse_wishlist`, summed by `merge`, copied (never recomputed) into the status, and stays `0` with `evidence=False`.
+- [ ] DIM scoping matches the plan: blank and `//` lines reset block notes, `title:` does not, a tail wins only if its text **before the first `|`** is longer than one character (`#notes:x|tags:pve` falls back to the block note, whose own segments then supply the tags), notes end at the first `|`, tags come only from the first following segment captured with `([^|]*)`, later segments (including a second `tags:`) are ignored and counted, and `| tags:` with a space works.
 - [ ] Tier regexes are exactly as specified and applied only under `tier_format = "ciceron-aegis"`. Voltron text containing "tier" yields `not-declared`, never `unrecognized`.
 - [ ] Activity basis follows the precedence `tags` → `source` → `unknown`. Nothing infers PvP value from PvE or from absence.
 - [ ] `item_evidence` matching is parity-tested against `weapons.keep_match_count`/`trash_match` on fixture rows. Families, not sources, are counted. All three conflict kinds and the uncovered, stale, and unknown-tier fields are tested.
 - [ ] `source_specs` rejects every listed invalid shape, and `load_config` surfaces a `ConfigError`. Raw `cfg["wishlists"]["sources"]` is not mutated. String-form legacy configs still load.
 - [ ] `vault-cleaner wishlists` output matches the specified copy exactly. Existing first lines and `total:` are unchanged. Titles are escaped and truncated.
 - [ ] `config.toml` holds exactly the three specified sources, and the Nitaraku entry is gone. The recorded Ciceron re-download shows 100% tier recognition.
-- [ ] `docs/wishlist-evidence.md` states the uncertainty invariants, the strategy with its measured rationale, the swap's decision change in both directions (exposing and the single suppressing same-family item) with re-measured counts, the Child 5 fingerprint handoff, and "not declared" revision dates. The §6 supersession note is the only edit to the #142 report.
+- [ ] `docs/wishlist-evidence.md` states the uncertainty invariants, the strategy with its measured rationale, the swap's decision change in both directions as E1/E2/E3/S1 with their predicates and re-measured counts, the Child 5 fingerprint handoff, and "not declared" revision dates. The §6 supersession note is the only edit to the #142 report.
 - [ ] No third-party wishlist bytes, `data/`, or `wishlists/` are tracked. Fixtures are synthetic with LF endings.
 - [ ] Ruff, full pytest, diff check, branch-only push, clean worktree, and WORKLOG entry (with the actual model/effort and measurements) are all present.
 
@@ -888,4 +937,4 @@ Planned #158 in [handoffs/issue-158-implementation-plan.md](https://github.com/t
 - **Implementer tier & effort:** Google `gemini-3.8-flash`, native `thinking_level = high`
 - **Implementation branch:** `feat/issue-158-wishlist-evidence`
 - **Recommended review path:** independent adversarial review (parser, config validation, input-source swap).
-- **Likely findings:** evidence-off path regresses performance; evidence/match list alignment drifts on hostile lines or `merge`; DIM note-scoping off-by-one (title reset, one-character tail, tag parsing running past the next `|`); swap described as one-directional; config normalization mutates raw sources or breaks legacy string form.
+- **Likely findings:** evidence-off path regresses performance; evidence/match list alignment drifts on hostile lines or `merge`; DIM note-scoping off-by-one (title reset, the one-character tail test applied before the pipe cut, tag parsing running past the next `|`); swap delta stated one-way or under the wrong predicate; config normalization mutates raw sources or breaks legacy string form.

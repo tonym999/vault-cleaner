@@ -65,6 +65,24 @@ Created and planned Child 3 of #140 from `main` at
   - [P3] "Byte-identical" CLI lines now mean the same template and wording;
     interpolated names and counts change with the configured sources.
   - Issue #158 was updated to match.
+- **Plan review round 2 (owner re-review + CodeRabbit on PR #159), all accepted:**
+  - [P2] Round 1 printed the wrong exposure predicate: 157 is "every Nitaraku
+    roll uncovered", not "≥1 uncovered". Recomputed on the same public files:
+    E1 (≥1 roll uncovered) 162, E2 (every roll uncovered) 157, mixed 5, E3 (no
+    keep entry left) 34, S1 (suppressing) 1. All four are now stated with their
+    predicates, and E1 is the headline figure to re-measure.
+  - [P2] `ignored_note_segment_entries` was unreachable: `parse_wishlist`
+    returns only `Wishlist`, so nothing downstream could derive it without
+    duplicating the scoping logic. The counter now lives on `Wishlist`
+    (`ignored_note_segments`), is summed by `merge`, stays `0` when
+    `evidence=False`, and the status copies it.
+  - [P2] The `#notes:` one-character rule must be applied to the tail text
+    **before** the first `|`, as DIM's `[^|]*` capture does. For
+    `#notes:x|tags:pve` the block note wins and supplies the tags. Testing the
+    uncut tail would wrongly select it. Two fixture cases added.
+  - [P3/CodeRabbit] The first-line `{suffix}` placeholder is renamed
+    `{parse_suffix}` (the existing malformed/wildcard suffix) so it cannot be
+    confused with the new ignored-note suffix on the `notes:` line.
 
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 
