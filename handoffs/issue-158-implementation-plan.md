@@ -376,9 +376,12 @@ exactly `(name, url, content)` and `(name, url, sha256)`.
    - `section_titles: int = 0`;
    - `ignored_note_segments: int = 0` — entries whose effective notes carried an
      ignored pipe segment. Populated only when `evidence=True` and left `0`
-     otherwise, so the evidence-off path does no segment work. `merge` sums it,
-     exactly as it sums `skipped` and `wildcards`. `WishlistSourceStatus` copies
-     it; it is never recomputed from raw text;
+     otherwise, so the evidence-off path does no segment work. Only the
+     **merged** `Wishlist` sums it, exactly as it sums `skipped` and
+     `wildcards`. Each `WishlistSourceStatus` copies the value from **its own
+     source's** parsed `Wishlist`, never from the merged one, so a per-source
+     CLI line never reports the aggregate. It is never recomputed from raw
+     text;
    - `declared_title: str | None = None` and
      `declared_description: str | None = None` (first `title:`/`description:`,
      DIM `info` semantics).
@@ -483,7 +486,7 @@ exactly `(name, url, content)` and `(name, url, sha256)`.
        tagged_entries: int
        tier_counts: tuple[tuple[str, int], ...]   # S,A,B,C,D,E,F order, zero counts omitted
        unrecognized_tier_entries: int
-       ignored_note_segment_entries: int  # copied from Wishlist.ignored_note_segments
+       ignored_note_segment_entries: int  # this source's own Wishlist.ignored_note_segments, never the merged sum
        content_revision: None = None  # never declared by the selected files; always None in this ticket
 
    @dataclass(frozen=True)
@@ -747,6 +750,8 @@ Use `tmp_path` caches with a fixed `os.utime` and a monkeypatched clock. Cover:
 - exact full stdout for a two-family config (string-form and table-form
   sources);
 - the stale fallback label (with `_download` raising) and its stderr warning;
+- two sources with different ignored-segment counts, proving each line prints
+  its own count rather than the merged total;
 - a non-printable/overlong title escaped and truncated;
 - `families:` line ordering;
 - first per-source lines and the `total:` line keep the pre-change template and
@@ -840,9 +845,10 @@ Escalation route: `implementer → orchestrator → planner`.
    describe the source swap as only surfacing proposals, omit the measured
    suppressing case, or print one exposing figure under another's wording (the
    E1/E2 confusion this plan already made once).
-6. **Ignored-segment counter recomputed downstream:** the loader or the CLI
+6. **Ignored-segment counter recomputed or aggregated:** the loader or the CLI
    rescans raw text to derive `ignored_note_segment_entries` instead of reading
-   the parser's own counter, duplicating the scoping rules that produced it.
+   the parser's own counter, or copies the merged sum so every per-source line
+   prints the same aggregate.
 4. **Config normalization leak:** `load_config` rewrites
    `cfg["wishlists"]["sources"]` to specs, which breaks string-URL tests and
    `WishlistSourceIdentity`. Alternatively, table-form URLs reach `fetch` as a
@@ -916,7 +922,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] `WishlistSourceData`/`WishlistSourceIdentity` fields and `compute_fingerprint` payload are unchanged. The existing pipeline identity test passes unmodified.
 - [ ] `LINE_RE` still accepts/rejects exactly the same lines. `evidence=False` does no notes/tag/entry work, as confirmed by reading the loop and by the recorded time/memory numbers.
 - [ ] The alignment invariant (length and `perks is`) is tested after parse and after `merge`, including for malformed, wildcard, separator-only, and whole-item lines. Mixed-evidence `merge` raises.
-- [ ] `ignored_note_segments` is produced by `parse_wishlist`, summed by `merge`, copied (never recomputed) into the status, and stays `0` with `evidence=False`.
+- [ ] `ignored_note_segments` is produced by `parse_wishlist`, summed only on the merged `Wishlist`, copied into each status from that source's own parsed result (never the merged sum, and never recomputed), and stays `0` with `evidence=False`.
 - [ ] DIM scoping matches the plan: blank and `//` lines reset block notes, `title:` does not, a tail wins only if its text **before the first `|`** is longer than one character (`#notes:x|tags:pve` falls back to the block note, whose own segments then supply the tags), notes end at the first `|`, tags come only from the first following segment captured with `([^|]*)`, later segments (including a second `tags:`) are ignored and counted, and `| tags:` with a space works.
 - [ ] Tier regexes are exactly as specified and applied only under `tier_format = "ciceron-aegis"`. Voltron text containing "tier" yields `not-declared`, never `unrecognized`.
 - [ ] Activity basis follows the precedence `tags` → `source` → `unknown`. Nothing infers PvP value from PvE or from absence.

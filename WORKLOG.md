@@ -83,6 +83,10 @@ Created and planned Child 3 of #140 from `main` at
   - [P3/CodeRabbit] The first-line `{suffix}` placeholder is renamed
     `{parse_suffix}` (the existing malformed/wildcard suffix) so it cannot be
     confused with the new ignored-note suffix on the `notes:` line.
+  - [CodeRabbit, round 3] The ignored-segment count is per source: each status
+    copies its own parsed `Wishlist` value, and only the merged `Wishlist` sums
+    them, so a per-source CLI line never prints the aggregate. A two-source CLI
+    test covers it.
 
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 
