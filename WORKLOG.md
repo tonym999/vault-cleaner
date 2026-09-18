@@ -110,6 +110,21 @@ Created and planned Child 3 of #140 from `main` at
     fixing the previous one (E1/E2 mixup; stale test bullet). Round 4 therefore
     ended with a grep sweep of every mention of the counter, the E/S figures and
     the tail rule, not a local patch.
+- **Plan review round 5 (owner review on PR #159 at `409cafa`), accepted:**
+  - [P2] The `config.toml` comment and the issue claimed `aegis_keep` and
+    `aegis_trash` share a spreadsheet revision. Neither file declares one, and
+    they are fetched and cached independently, so the claim was unverifiable.
+    Both now say same maintainer, converter and curation family, with revision
+    alignment **not verified**; the docs must say the same and point to the
+    separate `fetch:` lines.
+  - Found while verifying: the "Ciceron 2026-08-27" date was the repository's
+    latest commit (`f6dd04da04`), which touched only `README.md`. The selected
+    files were last changed 2026-08-23 in **different** commits: trash list
+    `2de3403c8f`, keep list `2d380bdd69` ("Filtered out Enhanced perks", a
+    converter change 40 minutes later). Dates are now per file. The conclusion
+    is unchanged: 2026-08-23 is after JxPv2's declared 2026-08-19 revision, and
+    the 506-item S/A agreement remains the evidence of currency. "Ciceron is
+    current" was softened to cite that evidence rather than assert it.
 
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 

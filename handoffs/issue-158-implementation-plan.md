@@ -135,10 +135,28 @@ $S/dim_aegis_endgame_major-perks.txt rolls 2610 block_only 2610 no_notes 0 items
 
 ### Aegis feed comparison (downloaded 2026-09-15)
 
-Upstream latest commits (`gh api repos/<r>/commits?per_page=1`):
-Nitaraku `2026-07-04` (`v26.7.4.1`); Ciceron `2026-08-27`; MrCharles
-`2026-08-15`; JxPv2 `2026-09-15` (automated every 8 h; header declares
-spreadsheet revision `2026-08-19`); Voltron `2026-08-03`.
+Upstream latest repository commits (`gh api repos/<r>/commits?per_page=1`):
+Nitaraku `2026-07-04` (`v26.7.4.1`); MrCharles `2026-08-15`; JxPv2
+`2026-09-15` (automated every 8 h; header declares spreadsheet revision
+`2026-08-19`); Voltron `2026-08-03`.
+
+Ciceron is dated **per file**, because its latest repository commit
+(`f6dd04da04`, 2026-08-27) touched only `README.md`. Measured 2026-09-18 with
+`gh api -X GET repos/Ciceron14/dim-extra-wishlists/commits -f path=<file>`:
+
+```text
+dim_aegis_endgame-trashlist.txt     2026-08-23T21:57:16Z  2de3403c8f  "Endgame Analysis wishlists now support Barrels & Mags, and MW in notes"
+dim_aegis_endgame_major-perks.txt   2026-08-23T22:36:58Z  2d380bdd69  "Filtered out Enhanced perks"
+```
+
+The two selected files were last changed in **different commits**. The keep
+list was regenerated 40 minutes after the trash list, by a commit whose message
+describes a converter change rather than a spreadsheet update. A shared
+spreadsheet revision is therefore plausible, but it is an inference from commit
+messages. It is **not verified**: neither file declares a revision, and nothing
+the loader reads records one. (Corrected in plan review round 5: rounds 1–4
+cited the README commit's 2026-08-27 as the files' date and claimed a shared
+revision.)
 
 Item-hash sets by parsed tier (coverage script over the downloaded files):
 
@@ -160,8 +178,11 @@ Interpretation:
   the same weapon ([weapons.py:79](../src/vault_cleaner/rules/weapons.py#L79)).
   115 trash-listed items carry a D/E/F Nitaraku keep entry, so a low-tier
   "recommended roll" is protecting the same family's own trash verdict.
-- Nitaraku is stale against the current spreadsheet revision. Ciceron is
-  current.
+- Nitaraku is stale against the current spreadsheet revision. Ciceron's files
+  (last changed 2026-08-23, after JxPv2's declared 2026-08-19 revision) agree
+  closely with that revision: 506 shared S/A items, 16 and 28 unique. That
+  agreement is the evidence Ciceron is current; no revision identity is
+  recorded or verified.
 - MrCharles: 28 permutation files of 443,282–36,724,539 bytes (#142 §5), with
   multi-perk permutation entries (the `MRS_PPC3` header shows 7–8 perk entries).
   Rejected on size and matching semantics.
@@ -639,7 +660,9 @@ activity = "any"
 
 [wishlists.sources.aegis_keep]
 # Aegis PvE Endgame Analysis, S/A tier, major (trait) perks only — Ciceron conversion.
-# One curation family with aegis_trash: same maintainer, same spreadsheet revision.
+# One curation family with aegis_trash: same maintainer and converter.
+# Revision alignment with aegis_trash is not verified: neither file declares a
+# revision, and the two are fetched and cached independently.
 url = "https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/dim_aegis_endgame_major-perks.txt"
 family = "aegis-endgame"
 activity = "pve"
@@ -678,6 +701,12 @@ Cover:
   described as possible rather than certain, re-measured by the implementer, and the one suppressing item
   described as a same-family conflict worked example (count only, no item name
   or hash);
+- the provenance of the two Ciceron sources, stated no more strongly than the
+  evidence: same maintainer, converter and curation family; **revision
+  alignment not verified**, because neither file declares a revision; the two
+  are fetched and cached independently, so one can be refreshed while the other
+  is stale, which their separate `fetch:` lines show; and the per-file upstream
+  dates from this plan (2026-08-23), not the repository's README commit date;
 - that `wishlists/aegis.txt` may be removed by hand;
 - the Child 5 fingerprint handoff note;
 - that §6 item 2 of `aggressive-clearout-measurement.md` is superseded.
@@ -955,7 +984,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] `source_specs` rejects every listed invalid shape, and `load_config` surfaces a `ConfigError`. Raw `cfg["wishlists"]["sources"]` is not mutated. String-form legacy configs still load.
 - [ ] `vault-cleaner wishlists` output matches the specified copy exactly. Existing first lines and `total:` are unchanged. Titles are escaped and truncated.
 - [ ] `config.toml` holds exactly the three specified sources, and the Nitaraku entry is gone. The recorded Ciceron re-download shows 100% tier recognition.
-- [ ] `docs/wishlist-evidence.md` states the uncertainty invariants, the strategy with its measured rationale, the swap's decision change in both directions as E1/E2/E3/S1 with their predicates and re-measured counts, framed as a range (E3 no keep protection remains, E1 possible loss) with no subsumption figure described as certain, the Child 5 fingerprint handoff, and "not declared" revision dates. The §6 supersession note is the only edit to the #142 report.
+- [ ] `docs/wishlist-evidence.md` states the uncertainty invariants, the strategy with its measured rationale, the swap's decision change in both directions as E1/E2/E3/S1 with their predicates and re-measured counts, framed as a range (E3 no keep protection remains, E1 possible loss) with no subsumption figure described as certain, the Child 5 fingerprint handoff, "not declared" revision dates, and Ciceron provenance as same maintainer/converter/family with revision alignment **not verified** (no "same revision" claim anywhere, in docs or `config.toml` comments). The §6 supersession note is the only edit to the #142 report.
 - [ ] No third-party wishlist bytes, `data/`, or `wishlists/` are tracked. Fixtures are synthetic with LF endings.
 - [ ] Ruff, full pytest, diff check, branch-only push, clean worktree, and WORKLOG entry (with the actual model/effort and measurements) are all present.
 
