@@ -87,6 +87,29 @@ Created and planned Child 3 of #140 from `main` at
     copies its own parsed `Wishlist` value, and only the merged `Wishlist` sums
     them, so a per-source CLI line never prints the aggregate. A two-source CLI
     test covers it.
+- **Plan review round 4 (owner review on PR #159 at `39e18a5`), both accepted,
+  plus a full-document consistency sweep:**
+  - [P2] A stale round-2 test bullet still said the status copies the *merged*
+    ignored-segment value, contradicting round 3's per-source model. It now
+    requires each status to copy its own source's count and asserts both the
+    merged sum and each per-source value.
+  - [P2] E2 was described as "any keep match disappears". Its predicate only
+    says no remaining roll is a subset of an individual Nitaraku roll, so a
+    weapon's other perks can still match a remaining roll. Reproduced: 123 of
+    the 157 E2 items still have keep entries (E3 = 34 ⊂ E2). The figures are now
+    a nested range: E1 = 162 upper bound, E2 = 157, E3 = 34 lower bound (the
+    only figure guaranteeing no keep protection remains).
+  - Sweep findings fixed in the same commit: the S1 suppressing bullet made the
+    same overstatement ("becomes keep-protected" → "can become"); a paragraph
+    still called both directions upper bounds although E3 is a lower bound; the
+    DIM contract summary still read as testing the uncut tail; and my first
+    draft of the E3 wording said it guarantees the item "loses" protection,
+    when it only guarantees none remains. Likely findings 3 and 5 now name the
+    uncut-tail and overstatement failure modes.
+  - Pattern worth recording: rounds 2 and 3 each introduced a defect while
+    fixing the previous one (E1/E2 mixup; stale test bullet). Round 4 therefore
+    ended with a grep sweep of every mention of the counter, the E/S figures and
+    the tail rule, not a local patch.
 
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 

@@ -90,8 +90,9 @@ Retrieved 2026-09-15 with
   `//` reset it.** `title:`/`description:` lines (optional leading `@`) do not
   reset it.
 - Block-note text is `^//notes:([^|]*)`, so it ends at the first `|`.
-- On a `dimwishlist:` line, a `#notes:` tail longer than one character wins over
-  block notes. The tail text is also `[^|]*`.
+- On a `dimwishlist:` line, the `#notes:` tail is captured as `[^|]*` — cut at
+  the first `|` — and only then wins over block notes if that cut text is longer
+  than one character. The cut happens **before** the length test.
 - The file's first `title:`/`description:` is the list info. Each roll also
   records the most recent `title`.
 
@@ -166,7 +167,7 @@ Interpretation:
   Rejected on size and matching semantics.
 
 **The swap changes decisions in both directions** (corrected in plan review
-round 1). The item-level upper bounds below come from the public list bytes
+round 1). The item-level bounds below come from the public list bytes
 (`parse_wishlist` over the cached Nitaraku, Voltron and Aegis trash files and
 the downloaded Ciceron keep file). They count item hashes, not vault rows:
 
@@ -183,14 +184,26 @@ The three exposing predicates answer different questions and must not be
 conflated (corrected in plan review round 2; round 1 printed E2's number
 against E1's wording):
 
-- **E1 = 162** — upper bound on "a `wishlist-trash` proposal can appear",
-  because at least one previously protecting roll loses coverage.
-- **E2 = 157** — any keep match on that item disappears, whichever roll the
-  weapon matched.
-- **E3 = 34** — no configured source keeps any entry for the item at all.
+- **E1 = 162** — at least one Nitaraku roll loses *guaranteed* coverage. This
+  is the **upper bound** on "a `wishlist-trash` proposal can appear".
+- **E2 = 157** — every Nitaraku roll loses *guaranteed* coverage. This does
+  **not** mean every weapon loses protection: the predicate only says no
+  remaining keep roll is a subset of an individual Nitaraku roll, and a
+  weapon's other perks can still satisfy a different remaining roll. For
+  example, old roll `{11,22}`, remaining roll `{11,33}` and weapon perks
+  `{11,22,33}` meet E2's predicate while both rolls match the weapon. 123 of
+  the 157 E2 items still have keep entries in some source.
+- **E3 = 34** — no configured source keeps any entry for the item at all. This
+  is the only predicate that **guarantees no keep protection remains** for any
+  copy of the item. It is the **lower bound**. (A copy only *loses* protection
+  if it matched a Nitaraku roll before the swap; a copy that never matched had
+  none to lose.)
 
-`E1` is the predicate the implementer re-measures as the headline figure, and
-all three are recorded.
+The figures nest: E3 ⊆ E2 ⊆ E1. Report them as a range — 34 trash items are
+left with no keep protection for any copy, and up to 162 can have copies whose
+protection is lost — never as a single figure. `E1` is the headline upper bound the implementer re-measures;
+all three are recorded with their predicates. (Corrected in plan review round
+4: round 3 described E2 as guaranteed loss.)
 
 - **Exposing:** for a weapon whose only keep match was a Nitaraku roll, a
   trash match stops being suppressed, so a `wishlist-trash` proposal can
@@ -198,13 +211,18 @@ all three are recorded.
 - **Suppressing:** exactly one item hash is on both Ciceron's keep and trash
   lists. On it, 5 of the 9 Ciceron keep perk pairs are not covered by any
   current Nitaraku or Voltron keep roll. A copy carrying one of those pairs
-  is `junk` today (whole-item trash) and becomes keep-protected after the swap.
+  that is `junk` today (whole-item trash) **can** become keep-protected after
+  the swap — only if no old keep roll already matched its other perks. Like E1
+  and E2, S1 is an upper bound, not a guaranteed flip. (Corrected in plan
+  review round 4, the same overstatement as E2.)
   No Voltron trash item overlaps Ciceron's keep list, so this is the only
   suppressing case. It is also a `keep-trash-same-family` conflict inside the
   chosen strategy, and the docs must use it as a worked example.
 - "Not subsumed" means no remaining roll is a subset of the roll in question.
-  That makes both directions upper bounds: a real weapon's other perks can
-  still match a different roll.
+  That makes every subsumption-based figure (E1, E2, S1) an **upper bound**: a
+  real weapon's other perks can still match a different roll. E3 does not use
+  subsumption — it asks whether any keep entry remains at all — so it is the
+  only guaranteed figure (no keep protection remains), a **lower bound**.
 
 **NOT MEASURED:** the decision delta on the owner's real vault. No real export
 accompanies this ticket and none is authorized.
@@ -656,7 +674,8 @@ Cover:
   table from this plan;
 - the decision change from the swap in **both** directions, giving E1, E2, E3
   and S1 with their exact predicates (never one number under another's
-  wording), re-measured by the implementer, and the one suppressing item
+  wording), stated as a range — E3 no keep protection remains, E1 possible loss — and with S1
+  described as possible rather than certain, re-measured by the implementer, and the one suppressing item
   described as a same-family conflict worked example (count only, no item name
   or hash);
 - that `wishlists/aegis.txt` may be removed by hand;
@@ -715,8 +734,11 @@ trailing whitespace. It must include:
   variant, `parse_wishlist(..., evidence=True)` has `keep`, `trash`, `skipped`
   and `wildcards` equal to `evidence=False`, and `evidence=False` leaves
   `ignored_note_segments` at `0`.
-- `merge` sums `ignored_note_segments`, and the status copies the merged value
-  rather than rescanning text.
+- Only the merged `Wishlist` sums `ignored_note_segments` across sources. Each
+  `WishlistSourceStatus` copies the value from its own source's parsed
+  `Wishlist` — never the merged sum, and never by rescanning text. Assert both:
+  the merged total equals the sum of two sources with different counts, and
+  each status holds its own source's count.
 - The alignment invariant holds, including the `is` identity of perks, after
   `merge`.
 - `merge` raises on mixed evidence presence.
@@ -838,13 +860,16 @@ Escalation route: `implementer → orchestrator → planner`.
    the evidence list, or the reverse. Lengths then match on the happy-path
    fixture but not on the hostile lines.
 3. **Scoping off-by-one with DIM:** `title:` wrongly resets block notes, a
-   `#notes:x` one-character tail wins, the tag capture runs past the next `|`
+   `#notes:x` one-character tail wins (or `#notes:x|tags:pve` wins because the
+   length test ran on the uncut tail), the tag capture runs past the next `|`
    (for example `(.*)` swallowing a second `|tags:` segment of perk hashes), or a
    `//notes:` line with leading whitespace behaves inconsistently after strip.
 5. **Swap delta stated one-way or under the wrong predicate:** docs or WORKLOG
    describe the source swap as only surfacing proposals, omit the measured
-   suppressing case, or print one exposing figure under another's wording (the
-   E1/E2 confusion this plan already made once).
+   suppressing case, print one exposing figure under another's wording (the
+   E1/E2 confusion this plan already made once), or describe a subsumption
+   figure (E1, E2, S1) as a certain loss or gain of protection (the
+   overstatement this plan made in round 3).
 6. **Ignored-segment counter recomputed or aggregated:** the loader or the CLI
    rescans raw text to derive `ignored_note_segment_entries` instead of reading
    the parser's own counter, or copies the merged sum so every per-source line
@@ -873,7 +898,7 @@ Rules:
 - apply the plan's mechanical inclusion test to every production hunk;
 - never commit third-party wishlist content, anything under `data/`, or `wishlists/`;
 - re-download both Ciceron files to a scratch directory outside the repo and confirm 100% tier recognition before changing `config.toml`;
-- re-measure the swap's item-level delta from public list bytes only, reporting all four figures the plan defines (E1 ≥1 roll uncovered, E2 every roll uncovered, E3 no keep entry left, S1 suppressing) with their predicates, and record them in `docs/wishlist-evidence.md` and the handoff;
+- re-measure the swap's item-level delta from public list bytes only, reporting all four figures the plan defines (E1 ≥1 roll loses guaranteed coverage — upper bound; E2 every roll loses guaranteed coverage; E3 no keep entry left — lower bound, no keep protection remains; S1 suppressing — upper bound) with their predicates, and record them in `docs/wishlist-evidence.md` and the handoff;
 - update `WORKLOG.md` with a dated entry that includes the evidence-off and evidence-on time/memory measurements;
 - run focused tests (`tests/test_wishlist.py`, `tests/test_wishlist_evidence.py`, `tests/test_cli_wishlists.py`, `tests/test_pipeline.py`, `tests/test_config.py`, `tests/test_report_run.py`) before the full gates;
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, `test -z "$(git ls-files data/ wishlists/)"`, `git diff origin/main...HEAD --stat -- src/vault_cleaner/rules src/vault_cleaner/report_run.py src/vault_cleaner/report.py src/vault_cleaner/server src/vault_cleaner/ui src/vault_cleaner/pipeline.py tests/fixtures/report_snapshot_v2.json` (must be empty), and `git status --short`;
@@ -930,7 +955,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] `source_specs` rejects every listed invalid shape, and `load_config` surfaces a `ConfigError`. Raw `cfg["wishlists"]["sources"]` is not mutated. String-form legacy configs still load.
 - [ ] `vault-cleaner wishlists` output matches the specified copy exactly. Existing first lines and `total:` are unchanged. Titles are escaped and truncated.
 - [ ] `config.toml` holds exactly the three specified sources, and the Nitaraku entry is gone. The recorded Ciceron re-download shows 100% tier recognition.
-- [ ] `docs/wishlist-evidence.md` states the uncertainty invariants, the strategy with its measured rationale, the swap's decision change in both directions as E1/E2/E3/S1 with their predicates and re-measured counts, the Child 5 fingerprint handoff, and "not declared" revision dates. The §6 supersession note is the only edit to the #142 report.
+- [ ] `docs/wishlist-evidence.md` states the uncertainty invariants, the strategy with its measured rationale, the swap's decision change in both directions as E1/E2/E3/S1 with their predicates and re-measured counts, framed as a range (E3 no keep protection remains, E1 possible loss) with no subsumption figure described as certain, the Child 5 fingerprint handoff, and "not declared" revision dates. The §6 supersession note is the only edit to the #142 report.
 - [ ] No third-party wishlist bytes, `data/`, or `wishlists/` are tracked. Fixtures are synthetic with LF endings.
 - [ ] Ruff, full pytest, diff check, branch-only push, clean worktree, and WORKLOG entry (with the actual model/effort and measurements) are all present.
 
