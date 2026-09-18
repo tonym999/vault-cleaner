@@ -8,6 +8,13 @@ surprises the next agent should know about.
 Implemented Child 2b of #140 on branch `feat/issue-155-approval-only-finalization`
 from `main` at base SHA `032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #155.
 
+- **Agent and model metadata:**
+  - Requested model: Google `gemini-3.8-flash` with native `thinking_level = high`.
+  - Actual provider/model/effort: Google `gemini-3.8-flash`, native `thinking_level = high`.
+  - Base SHA: `032d78ad7541bb517de9176f19cc6b15f7f516da`.
+- **Compatibility invariants:** `RULESET_VERSION`, `SNAPSHOT_SCHEMA_VERSION`,
+  fingerprint inputs, the report golden, config, fixtures, and runtime/dev
+  dependencies are unchanged.
 - **Inclusion rule:** Replaced subtractive `review.apply_vetoes` with pure
   `review.select_approved_proposals(run, approved_ids, active_veto_ids=())`.
   Output CSV includes only current proposals with an explicit fresh approval that
@@ -21,8 +28,8 @@ from `main` at base SHA `032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #155.
     `review --write` with 0 approved proposals writes a valid header-only CSV.
   - Server finalization (`src/vault_cleaner/server/app.py`): updated `finalize()`
     to extract approved IDs from `session.verdicts`, pass them to
-    `select_approved_proposals` with active persisted veto IDs from `session.override_status`,
-    and render the finalized CSV.
+    `select_approved_proposals` with active persisted veto IDs from post-merge classification
+    (`classify(merge.store, session.report).active_ids`), and render the finalized CSV.
 - **UI adapter & copy:**
   - `src/vault_cleaner/ui/review_ui.js`: replaced `keptItems` with
     `approvedOutputItems(items, verdicts, activePersistedVetoIds)`.
@@ -34,28 +41,147 @@ from `main` at base SHA `032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #155.
     - N: `"Finalise " + count + " approved proposals into the CSV? Vetoed and unreviewed proposals, plus approvals blocked by active saved vetoes, will be excluded."`
     Canceling aborts without sending a finalize request. Successful finalization text
     clarifies that the CSV contains only explicitly approved proposals not blocked by an active saved veto.
+- **Review round 1 findings and actions (F1–F8):**
+  - F1 (trailing blank line): removed extra blank line at EOF in `tests/test_server_ui_js.py`; verified `git diff --check` passes cleanly.
+  - F2 (browser test unreviewed assertion): updated `tests/test_server_browser.py::test_review_smoke_downloads_server_finalized_bytes` to select proposed weapon `7004`, assert visible and unreviewed (`aria-pressed="false"`) before finalization, assert `'"""7004"""'` absent from CSV, and removed vacuous `7001` check.
+  - F3 (worklog accuracy): corrected active veto derivation in server description to cite post-merge classification `classify(merge.store, session.report).active_ids`, added requested/actual model metadata, base SHA, compatibility confirmation, review findings, and verification counts.
+  - F4 (merge main): merged `origin/main` (`c622d7c`) into branch, resolved `WORKLOG.md` conflict keeping newest-first order without rebase or force-push; confirmed no conflicts in `src/` or `tests/`.
+  - F5 (server output order & multi-row parity): extended `tests/test_server_finalize.py::test_server_csv_matches_cli_review_manifest_write_byte_for_byte` to approve 3 proposals spanning weapons and armor, submitted in reverse of report order; verified parsed CSV rows match exact expected report order and match CLI review output byte-for-byte.
+  - F6 (hard-coded versions): replaced literal version numbers in `tests/test_cli_review.py::test_partial_manifest_emits_only_explicit_approvals` with imported `SNAPSHOT_SCHEMA_VERSION` and `RULESET_VERSION`.
+  - F7 (junk verdict tokens): added `test_approved_output_items_excludes_unrecognized_verdict_tokens` in `tests/test_review_ui_js.py` verifying `"APPROVED"`, `"yes"`, `true`, `""` are excluded while `"approved"` is included.
+  - F8 (stale `--manifest` help): updated `cli.py` `--manifest` help to state that without it there are no approvals, so `--write` produces a header-only reviewed CSV.
 - **Verification:**
-  - `tests/test_review.py`: 4-row truth table test, partial approval set & stable
-    report order, duplicate/unknown IDs, empty approvals, loser preservation.
-  - `tests/test_cli_review.py`: verified output label `approved output:`, partial
-    manifest filtering, and zero-approval header-only output.
-  - `tests/test_cli_serve.py`: updated loopback test with explicit approval before finalize.
-  - `tests/test_server_finalize.py`: verified 4-row truth table, partial verdicts +
-    saved veto parity with CLI review, zero-approval header-only bytes, clearing approval
-    to unreviewed, byte caching, and response contract.
-  - `tests/test_review_ui_js.py`: updated harness and tests for `approvedOutputItems` count (1),
-    mirrored `select_approved_proposals`, active veto exclusion (0), and Set-like input contract.
-  - `tests/test_server_ui_js.py`: updated tile label check, makeUi mock, actionsText assertions,
-    and added `test_finalize_confirmation_prompt_and_cancellation` testing zero, singular,
-    plural, post-veto count reduction, cancel abort, and ok continue.
-  - `tests/test_server_browser.py`: updated `test_review_smoke_downloads_server_finalized_bytes`
-    to test 3-state proposals (approved 9002, approve-clear-veto 9012, unreviewed weapon),
-    asserted exact confirmation dialog text, and verified downloaded CSV includes only 9002.
-  - Real browser suite: `16 passed, 3 deselected`.
+  - `ruff check src tests scripts` passed cleanly.
+  - Full test suite: `984 passed`.
+  - Browser test suite: `16 passed, 3 deselected` with `VAULT_CLEANER_BROWSER_REQUIRED=1` (0 skipped).
+  - `git diff --check origin/main...HEAD` passed with zero output.
+  - `git merge-tree --write-tree origin/main HEAD` exited 0.
+  - `git ls-files data/` empty.
 - **Docs:** updated `README.md` review workflow and server finalization sections;
   added Child 2b landed-status note at section 9 in `docs/aggressive-clearout-measurement.md`.
-- **Pre-commit checks:** `ruff check src tests scripts` passed; `pytest -q` passed;
-  `git diff --check` passed; no tracked files under `data/`. No PR opened.
+
+## 2026-09-15 — #158 planning: wishlist evidence model and Aegis source strategy (PR 1)
+
+Created and planned Child 3 of #140 from `main` at
+`032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #158.
+
+- **Issue and tracking:** created #158 as an `enhancement`, left it unmilestoned
+  like #148/#155, and added it to project 3 with Status `Todo` (verified). Linked
+  it as a sub-issue of #140 and recorded GitHub blocked-by links on #142 (closed)
+  and #155 (open). #155 blocks implementation because the source swap can surface
+  more wishlist-trash `junk` proposals, and those must require explicit approval.
+- **Surprise: the configured Aegis keep list protects its own family's trash.**
+  Nitaraku's `aegis` source lists every tier (S–F) as keep rolls. 164 of the 286
+  item hashes in Ciceron's trash list also appear there, 115 at D/E/F tier. The
+  keep-beats-trash check at `rules/weapons.py:79` therefore lets a D-tier
+  "recommended roll" suppress the D-tier trash verdict. Nitaraku is also stale
+  (last commit 2026-07-04). It disagrees with JxPv2's current conversion on 489
+  item tiers, while Ciceron's S/A set agrees closely (506 shared, 16/28 unique).
+- **Strategy decision (supersedes #142 §6 item 2):** use one converter for the
+  `aegis-endgame` family. Ciceron's `dim_aegis_endgame_major-perks.txt` (S/A
+  keep, traits only) replaces Nitaraku; Ciceron's trash list stays. JxPv2
+  (freshest, richest metadata, but no trash entries and 8-hourly churn) and
+  MrCharles (0.44–36.7 MB permutation files) were evaluated and rejected. The
+  real-vault decision delta is NOT MEASURED; no real export is authorized for
+  this ticket.
+- **DIM scoping measured from upstream `wishlist-file.ts`:** `//notes:` blocks
+  reset on blank or `//` lines but not on `title:`. A `#notes:` tail wins only
+  when longer than one character. Notes end at the first `|`, and `tags:`
+  follows it. Voltron: 175,332/255,426 entries carry `|tags:`. 980 Voltron
+  notes contain the word "tier" in prose, so tier parsing is opt-in per source
+  (`tier_format`); a heuristic would flood false uncertainty.
+- **Model boundary:** evidence is opt-in (Voltron parse already peaks at
+  ~144 MB), aligned index-for-index with the unchanged `keep`/`trash` lists,
+  and consumed by no rule. Decisions, snapshot, fingerprint, `RULESET_VERSION`
+  and the golden stay unchanged for identical bytes. `family`/`activity`/
+  `tier_format` stay out of the fingerprint until Child 5 first consumes them.
+- **Implementer selection:** Google `gemini-3.8-flash`, native
+  `thinking_level = high`. Official docs rechecked 2026-09-15 list it as Stable
+  with `low`/`medium`/`high`. It is suitable because every format, regex, data
+  shape and output string is pinned and nothing touches rules, server or UI.
+- **Review path:** independent adversarial review (parser, config validation,
+  input-source swap), following #140's rule; #142 §12's "standard" predates it.
+- Planning branch: `handoff/issue-158-implementation-plan`; allocated
+  implementation branch: `feat/issue-158-wishlist-evidence`. This phase does not
+  authorize implementation or either PR's merge.
+- **Planning verification:** `.venv/bin/ruff check src tests scripts` passed;
+  `.venv/bin/pytest -q` passed (`976 passed`); `git diff --check` passed; no file
+  under `data/` is tracked.
+- **Plan review round 1 (owner review + CodeRabbit on PR #159), all accepted:**
+  - [P2] The tag capture `^\s*tags:(.*)$` ran past the next `|`. The Voltron
+    cache has 8 note blocks (100 entries) with a second `|tags:` segment of perk
+    hashes. The plan now captures `([^|]*)` from the first segment only, counts
+    entries with ignored segments, and adds a repeated-segment fixture.
+  - [P2] The swap is not one-directional. Item-level upper bounds from public
+    list bytes: 157 trash items become exposed (34 with no remaining keep
+    entry). Exactly 1 item becomes more protected: it is on both Ciceron lists,
+    and 5 of its 9 Ciceron keep pairs are new, so a whole-item-trash copy
+    carrying one of them flips from junk to protected. The implementer
+    re-measures both directions and documents them. #155 stays the blocker for
+    the exposing direction.
+  - [P3] "Byte-identical" CLI lines now mean the same template and wording;
+    interpolated names and counts change with the configured sources.
+  - Issue #158 was updated to match.
+- **Plan review round 2 (owner re-review + CodeRabbit on PR #159), all accepted:**
+  - [P2] Round 1 printed the wrong exposure predicate: 157 is "every Nitaraku
+    roll uncovered", not "≥1 uncovered". Recomputed on the same public files:
+    E1 (≥1 roll uncovered) 162, E2 (every roll uncovered) 157, mixed 5, E3 (no
+    keep entry left) 34, S1 (suppressing) 1. All four are now stated with their
+    predicates, and E1 is the headline figure to re-measure.
+  - [P2] `ignored_note_segment_entries` was unreachable: `parse_wishlist`
+    returns only `Wishlist`, so nothing downstream could derive it without
+    duplicating the scoping logic. The counter now lives on `Wishlist`
+    (`ignored_note_segments`), is summed by `merge`, stays `0` when
+    `evidence=False`, and the status copies it.
+  - [P2] The `#notes:` one-character rule must be applied to the tail text
+    **before** the first `|`, as DIM's `[^|]*` capture does. For
+    `#notes:x|tags:pve` the block note wins and supplies the tags. Testing the
+    uncut tail would wrongly select it. Two fixture cases added.
+  - [P3/CodeRabbit] The first-line `{suffix}` placeholder is renamed
+    `{parse_suffix}` (the existing malformed/wildcard suffix) so it cannot be
+    confused with the new ignored-note suffix on the `notes:` line.
+  - [CodeRabbit, round 3] The ignored-segment count is per source: each status
+    copies its own parsed `Wishlist` value, and only the merged `Wishlist` sums
+    them, so a per-source CLI line never prints the aggregate. A two-source CLI
+    test covers it.
+- **Plan review round 4 (owner review on PR #159 at `39e18a5`), both accepted,
+  plus a full-document consistency sweep:**
+  - [P2] A stale round-2 test bullet still said the status copies the *merged*
+    ignored-segment value, contradicting round 3's per-source model. It now
+    requires each status to copy its own source's count and asserts both the
+    merged sum and each per-source value.
+  - [P2] E2 was described as "any keep match disappears". Its predicate only
+    says no remaining roll is a subset of an individual Nitaraku roll, so a
+    weapon's other perks can still match a remaining roll. Reproduced: 123 of
+    the 157 E2 items still have keep entries (E3 = 34 ⊂ E2). The figures are now
+    a nested range: E1 = 162 upper bound, E2 = 157, E3 = 34 lower bound (the
+    only figure guaranteeing no keep protection remains).
+  - Sweep findings fixed in the same commit: the S1 suppressing bullet made the
+    same overstatement ("becomes keep-protected" → "can become"); a paragraph
+    still called both directions upper bounds although E3 is a lower bound; the
+    DIM contract summary still read as testing the uncut tail; and my first
+    draft of the E3 wording said it guarantees the item "loses" protection,
+    when it only guarantees none remains. Likely findings 3 and 5 now name the
+    uncut-tail and overstatement failure modes.
+  - Pattern worth recording: rounds 2 and 3 each introduced a defect while
+    fixing the previous one (E1/E2 mixup; stale test bullet). Round 4 therefore
+    ended with a grep sweep of every mention of the counter, the E/S figures and
+    the tail rule, not a local patch.
+- **Plan review round 5 (owner review on PR #159 at `409cafa`), accepted:**
+  - [P2] The `config.toml` comment and the issue claimed `aegis_keep` and
+    `aegis_trash` share a spreadsheet revision. Neither file declares one, and
+    they are fetched and cached independently, so the claim was unverifiable.
+    Both now say same maintainer, converter and curation family, with revision
+    alignment **not verified**; the docs must say the same and point to the
+    separate `fetch:` lines.
+  - Found while verifying: the "Ciceron 2026-08-27" date was the repository's
+    latest commit (`f6dd04da04`), which touched only `README.md`. The selected
+    files were last changed 2026-08-23 in **different** commits: trash list
+    `2de3403c8f`, keep list `2d380bdd69` ("Filtered out Enhanced perks", a
+    converter change 40 minutes later). Dates are now per file. The conclusion
+    is unchanged: 2026-08-23 is after JxPv2's declared 2026-08-19 revision, and
+    the 506-item S/A agreement remains the evidence of currency. "Ciceron is
+    current" was softened to cite that evidence rather than assert it.
 
 ## 2026-09-13 — #155 planning: approval-only finalized CSVs (PR 1)
 
