@@ -320,6 +320,11 @@ def test_review_smoke_downloads_server_finalized_bytes(
     warlock_veto.click()
     expect(warlock_veto).to_have_attribute("aria-pressed", "true")
 
+    unreviewed_weapon = page.locator('#vc-list tr[data-id="7004"]')
+    expect(unreviewed_weapon).to_be_visible()
+    expect(unreviewed_weapon.locator("button.approve")).to_have_attribute("aria-pressed", "false")
+    expect(unreviewed_weapon.locator("button.veto")).to_have_attribute("aria-pressed", "false")
+
     dialog_messages: list[str] = []
 
     def handle_dialog(dialog: Dialog) -> None:
@@ -344,9 +349,9 @@ def test_review_smoke_downloads_server_finalized_bytes(
     downloaded_bytes = Path(download.path()).read_bytes()
     assert downloaded_bytes == finalized
     downloaded_text = downloaded_bytes.decode("utf-8")
-    assert '"9002"' in downloaded_text
-    assert "9012" not in downloaded_text
-    assert "7001" not in downloaded_text
+    assert '"""9002"""' in downloaded_text
+    assert '"""9012"""' not in downloaded_text
+    assert '"""7004"""' not in downloaded_text
 
 
 @pytest.mark.browser

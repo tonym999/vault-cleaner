@@ -1330,6 +1330,47 @@ def test_unset_and_garbage_verdicts_read_as_unreviewed(plain):
     }
 
 
+def test_approved_output_items_excludes_unrecognized_verdict_tokens(tmp_path: Path):
+    script = tmp_path / "junk-verdicts.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+var items = [
+  { id: "101", name: "Valid approved" },
+  { id: "102", name: "Uppercase" },
+  { id: "103", name: "Yes" },
+  { id: "104", name: "Boolean true" },
+  { id: "105", name: "Empty string" },
+  { id: "106", name: "Vetoed" }
+];
+var verdicts = {
+  "101": "approved",
+  "102": "APPROVED",
+  "103": "yes",
+  "104": true,
+  "105": "",
+  "106": "vetoed"
+};
+var activePersistedVetoIds = new Set();
+var output = api.approvedOutputItems(items, verdicts, activePersistedVetoIds);
+process.stdout.write(JSON.stringify(output.map(function (item) { return item.id; })));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as review_ui:
+        completed = subprocess.run(
+            [NODE, str(script), str(review_ui)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=10,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == ["101"]
+
+
 def test_same_stat_projection_and_cross_kind_dom_overlap(tmp_path: Path):
     script = tmp_path / "same-stat.js"
     script.write_text(

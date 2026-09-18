@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -493,7 +495,13 @@ def test_server_csv_matches_cli_review_write_with_existing_vetoes(tmp_path):
 
 def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
     report = report_for_parity()
-    selected = list(report.sections[0].decisions[:3])
+    weapons_proposals = list(report.sections[0].decisions[:2])
+    armor_proposals = list(report.sections[1].decisions[:2])
+    approved = [weapons_proposals[0], weapons_proposals[1], armor_proposals[0]]
+    vetoed = [armor_proposals[1]]
+    all_selected = approved + vetoed
+    reversed_selected = list(reversed(all_selected))
+
     manifest = tmp_path / "review-manifest.json"
     manifest.write_text(
         json.dumps(
@@ -513,9 +521,9 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
                         "name": decision.name,
                         "action": decision.action,
                         "reason": decision.reason,
-                        "verdict": "vetoed" if index < 2 else "approved",
+                        "verdict": "vetoed" if decision in vetoed else "approved",
                     }
-                    for index, decision in enumerate(selected)
+                    for decision in reversed_selected
                 ],
             }
         ),
@@ -525,8 +533,8 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
     try:
         uploaded = upload_all(client)
         selected_verdicts = [
-            {"id": decision.id, "verdict": "vetoed" if index < 2 else "approved"}
-            for index, decision in enumerate(selected)
+            {"id": decision.id, "verdict": "vetoed" if decision in vetoed else "approved"}
+            for decision in reversed_selected
         ]
         reviewed = client.post(
             "/api/verdicts",
@@ -548,9 +556,14 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
             cli_args("review", cli_output, cli_overrides, manifest=manifest)
         ) == 0
         assert server_response.data == cli_output.read_bytes()
-        assert f'"""{selected[2].id}"""'.encode() in server_response.data
-        assert f'"""{selected[0].id}"""'.encode() not in server_response.data
-        assert f'"""{selected[1].id}"""'.encode() not in server_response.data
+
+        reader = csv.DictReader(io.StringIO(server_response.data.decode("utf-8")))
+        parsed_ids = [row["Id"].strip('"') for row in reader]
+        expected_ids = [decision.id for decision in approved]
+        assert parsed_ids == expected_ids
+        assert len(parsed_ids) == 3
+
+        assert f'"""{vetoed[0].id}"""'.encode() not in server_response.data
     finally:
         session.close()
 

@@ -672,8 +672,8 @@ def main(argv: list[str] | None = None) -> int:
         "--manifest",
         default=None,
         help=(
-            "review manifest JSON to validate and apply (omit to only report override status; "
-            "no manifest means zero approved output rows)"
+            "review manifest JSON to validate and apply; without it there are no approvals, "
+            "so --write produces a header-only reviewed CSV"
         ),
     )
     vp.add_argument("--overrides", default=DEFAULT_OVERRIDES_PATH,

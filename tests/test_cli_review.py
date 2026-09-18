@@ -11,6 +11,7 @@ from test_review import (
 
 from vault_cleaner import cli
 from vault_cleaner.report import write_import_csv
+from vault_cleaner.report_run import RULESET_VERSION, SNAPSHOT_SCHEMA_VERSION
 from vault_cleaner.review import OverrideStore, Veto, load_overrides, save_overrides
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -132,8 +133,8 @@ def test_partial_manifest_emits_only_explicit_approvals(tmp_path, capsys):
         "schema_version": 1,
         "generated_at": "2026-07-25T12:00:00Z",
         "snapshot": {
-            "schema_version": 2,
-            "ruleset_version": 4,
+            "schema_version": SNAPSHOT_SCHEMA_VERSION,
+            "ruleset_version": RULESET_VERSION,
             "fingerprint": run.fingerprint,
         },
         "decisions": [

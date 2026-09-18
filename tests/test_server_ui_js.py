@@ -5485,4 +5485,3 @@ setTimeout(function () {
     )
     assert result["vetoReducedCalls"] == 0
     assert result["okFinalizeCalls"] == 1
-
