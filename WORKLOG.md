@@ -3,6 +3,27 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-19 — Workflow hardening: Gemini review-fix diff audit
+
+Recorded the review-round regression observed on PR #160 so future
+orchestrators and reviewers do not lose the lesson.
+
+- `gemini-3.8-flash` correctly fixed the requested stale-veto conflict count
+  and obsolete approval-only seam documentation, and all automated gates
+  passed, but it also changed adjacent `review_ui.js` / `test_review_ui_js.py`
+  citations to the wrong server-adapter files. Its completion summary described
+  only the intended fixes and did not disclose the collateral substitutions.
+- Added an always-read `AGENTS.md` gotcha requiring Gemini review-fix rounds to
+  be audited against `previous_reviewed_head...new_head`, with word-level prose
+  inspection, complete hunk accounting, and direct verification of every
+  changed `file:line` citation.
+- Added the same operational requirement to the orchestrator's finding-routing
+  instructions and the reusable independent-review prompt. Review-fix prompts
+  must define the allowed edit boundary and identify nearby text that must stay
+  unchanged; green tests and an agent-authored summary are insufficient proof.
+- This is process documentation only. No production code, tests, schemas,
+  dependencies, rules, or version identifiers changed.
+
 ## 2026-09-15 — #158 planning: wishlist evidence model and Aegis source strategy (PR 1)
 
 Created and planned Child 3 of #140 from `main` at

@@ -57,6 +57,18 @@ When acting as the **Orchestrator**:
    - Record a disposition for every finding: `accepted/fixed`, `rejected` with contrary evidence, or `deferred` with explicit human-owner approval and a follow-up reference when applicable. Reviewer findings are evidence to evaluate, not automatic instructions.
    - P0 and P1 findings block PR creation until fixed and re-reviewed under the selected review path. P2 findings normally block; they may be deferred only with explicit human-owner approval, recorded rationale, and a follow-up reference when work remains. P3 findings are advisory unless the orchestrator or owner elevates them. Escalate unresolved P0/P1 disagreements to the human owner; escalate to the planner as well when resolving the finding would change the canonical plan or scope.
    - If defects or scope leaks exist, return precise findings to the implementer and require fixes on the **same implementation branch**. For an independent adversarial path, send the complete updated `base_sha...new_head_sha` diff back to the same independent reviewer, or a new fresh reviewer if that session cannot resume; do not replace the independent re-review with an orchestrator-only check.
+   - **Gemini review-fix hardening:** PR #160 recorded a `gemini-3.8-flash`
+     repair that fixed both reported findings but silently changed adjacent
+     Markdown citations to the wrong files and omitted those changes from its
+     completion summary. When routing findings to Gemini, define the smallest
+     permitted edit boundary and explicitly identify nearby text or citations
+     that must remain unchanged. On return, compare
+     `git diff <previous_reviewed_head>...<new_head>` with the claimed summary,
+     inspect changed prose with
+     `git diff --word-diff=plain <previous_reviewed_head>...<new_head> -- <changed-docs>`,
+     and resolve every changed `file:line` citation against the new head. Green
+     tests do not validate documentation citations, and the implementer's
+     summary is never a substitute for this incremental-diff audit.
 
 8. **Escalate Stop Conditions:**
    - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, follow the escalation route: `implementer → orchestrator → planner`.
@@ -80,6 +92,13 @@ Disposable review checkout pinned to head: <review_checkout>
 Start from a fresh context. Read `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, the entire canonical plan, and all files relevant to the supplied diff before reaching conclusions. Treat the implementation and its reported test results as untrusted.
 
 Review the complete `git diff <base_sha>...<head_sha>`, not only the latest commit or the implementer's summary. In the disposable checkout, verify that both SHAs exist, `HEAD` equals `<head_sha>`, and the head descends from the base. Evaluate correctness, regressions, security and safety rails, the plan's mechanical inclusion test, stop conditions, review checklist, likely findings, negative-test coverage, and repository-specific invariants.
+
+If Gemini produced the implementation or any review-fix commit, apply the
+repository's PR #160 regression audit: treat the agent's completion summary as
+intent rather than a complete change inventory, account for every actual diff
+hunk, inspect changed documentation with a word diff, and open every changed
+`file:line` citation at `<head_sha>`. Report unmentioned collateral edits even
+when the requested fix is correct and every automated gate passes.
 
 Independently rerun the applicable verification suite rather than treating the orchestrator's recorded output as proof: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`, `git diff --check <base_sha>...<head_sha>`, `test -z "$(git ls-files data/)"`, and `test -z "$(git status --porcelain)"`. A skipped required browser suite is not a pass. You may create only ephemeral test caches, build output, and temporary files inside this disposable checkout or its assigned temporary directory. Do not alter tracked files. If permissions, dependencies, or the runtime prevent a command from running, state that limitation explicitly; never silently substitute the orchestrator's result for independent verification.
 

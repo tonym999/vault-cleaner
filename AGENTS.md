@@ -123,6 +123,19 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   add or update an emitter-driven round-trip test for the rule that produces
   it and its `note_history` recognizer, so the suite catches drift between
   production output and history cleanup.
+- **Audit Gemini review-fix rounds against the actual incremental diff.** PR
+  #160 established a specific failure mode with `gemini-3.8-flash`: the agent
+  correctly implemented the requested behavior and reported only the intended
+  fixes, but also rewrote adjacent Markdown source/test citations to the wrong
+  files. Tests stayed green because the collateral defect was documentation-only.
+  When Gemini applies review findings, the orchestrator and the next reviewer
+  must treat its completion summary as intent, not an inventory of changes:
+  inspect `git diff <previous_reviewed_head>...<new_head>`, use a word diff for
+  changed prose, account for every hunk, and open every changed `file:line`
+  citation at the new head. Review-fix prompts must state the exact allowed
+  change boundary and name nearby text or citations that must remain unchanged.
+  An unreported collateral edit is itself a review finding even when all gates
+  pass.
 - Python's `csv` module writes CRLF by default: generate fixtures with
   `lineterminator="\n"` or `git diff --check` will flag them.
 - Review manifests and server payloads are untrusted input. Validate strictly
