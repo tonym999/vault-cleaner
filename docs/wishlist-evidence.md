@@ -55,7 +55,7 @@ Scoping rules mirror [DestinyItemManager/DIM](https://github.com/DestinyItemMana
 4. **Tail precedence:** On a `dimwishlist:` line, a `#notes:` tail takes precedence over `block_notes` **only if its text before the first `|` is longer than one character**. DIM cuts at the pipe first (`(?<wishListNotes>[^|]*)`) before testing length (`length > 1`). For example, `#notes:x|tags:pve` under a block note has pre-pipe text `x` (length 1), so the block note wins and the discarded tail's `tags:pve` is not read. If the pre-pipe text has length > 1, the tail wins and becomes the chosen raw source.
 5. **Notes and tags splitting:**
    - The chosen raw source is split at the first `|`. The stripped left part is `notes` (`None` if empty).
-   - Only the **first** segment following the first `|` can supply tags, and only if it matches `^\s*tags:(.*)$`. Tokens separated by commas or whitespace are casefolded and deduplicated in file order.
+   - Only the **first** segment following the first `|` can supply tags, and only if it matches `^\s*tags:([^|]*)$`. Tokens separated by commas or whitespace are casefolded and deduplicated in file order.
    - Any later segment (including repeated `|tags:` segments of perk hashes found in some files) or a non-tags first segment is ignored.
    - Entries whose effective notes carried an ignored pipe segment increment `Wishlist.ignored_note_segments`. The count is produced by the parser and never recomputed from raw text. Only the merged `Wishlist` sums it.
 

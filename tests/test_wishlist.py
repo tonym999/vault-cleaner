@@ -459,6 +459,22 @@ def test_evidence_scoping_on_fixture():
     # Both 1016 and 1017 had ignored note segments
     assert wl.ignored_note_segments == 2
 
+    # 1018: whitespace-only line resets block note
+    e1018 = wl.keep_evidence[1018][0]
+    assert e1018.notes is None
+    assert e1018.tags == ()
+
+
+def test_tag_case_rejection():
+    spec = WishlistSourceSpec(
+        name="test", url="http://x", family="fam", activity="any", tier_format="none"
+    )
+    text = "//notes:blk|TAGS:pvp\ndimwishlist:item=100&perks=1,2"
+    wl = parse_wishlist(text, "test", spec=spec, evidence=True)
+    entry = wl.keep_evidence[100][0]
+    assert entry.tags == ()
+    assert wl.ignored_note_segments == 1
+
 
 @pytest.mark.parametrize(
     "note,polarity,expected_tier,expected_status",

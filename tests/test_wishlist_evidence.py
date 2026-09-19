@@ -225,15 +225,30 @@ def test_parity_with_weapons_rules():
     fixtures_dir = Path(__file__).parent / "fixtures"
     weapons_files = [fixtures_dir / "weapons.csv", fixtures_dir / "weapons_dupes.csv"]
 
-    # Synthetic wishlist text
-    wl_text = """
+    # Build perk map from real perk cells across the fixture files
+    perk_map: dict[str, frozenset[int]] = {}
+    current_id = 1000
+    for w_file in weapons_files:
+        df = load_weapons(w_file)
+        for _, row in df.iterrows():
+            for col in row.index:
+                if col.startswith("Perks ") and row[col]:
+                    name = str(row[col]).strip().removesuffix("*").strip().casefold()
+                    if name and name not in perk_map:
+                        perk_map[name] = frozenset({current_id})
+                        current_id += 1
+
+    barrel_a_id = next(iter(perk_map["barrel a"]))
+    mag_a_id = next(iter(perk_map["mag a"]))
+    barrel_exotic_id = next(iter(perk_map["barrel exotic"]))
+    mag_exotic_id = next(iter(perk_map["mag exotic"]))
+
+    # Synthetic wishlist text using real fixture item hashes and perk ids
+    wl_text = f"""
 title: Test
-dimwishlist:item=100&perks=1001,1002
-dimwishlist:item=100&perks=1003,1004
-dimwishlist:item=-100&perks=1005,1006
-dimwishlist:item=-200&perks=
-dimwishlist:item=300&perks=2001
-dimwishlist:item=-300&perks=2002
+dimwishlist:item=500&perks={barrel_a_id},{mag_a_id}
+dimwishlist:item=-600&perks={barrel_exotic_id},{mag_exotic_id}
+dimwishlist:item=-800&perks=
 """
     spec = WishlistSourceSpec(name="test", url="http://test", family="test-fam", activity="any", tier_format="none")
     wl_evidence = parse_wishlist(wl_text, "test", spec=spec, evidence=True)
@@ -244,10 +259,10 @@ dimwishlist:item=-300&perks=2002
         max_age_days=7.0,
         declared_title="Test",
         declared_description=None,
-        keep_entries=3,
-        keep_items=2,
-        trash_entries=3,
-        trash_items=3,
+        keep_entries=1,
+        keep_items=1,
+        trash_entries=2,
+        trash_items=2,
         skipped=0,
         wildcards=0,
         noted_entries=0,
@@ -258,14 +273,9 @@ dimwishlist:item=-300&perks=2002
     )
     ev_set = WishlistEvidenceSet(merged=wl_evidence, sources=(), statuses=(status,))
 
-    perk_map = {
-        "perk a": frozenset({1001}),
-        "perk b": frozenset({1002}),
-        "perk c": frozenset({1003}),
-        "perk d": frozenset({1005}),
-        "perk e": frozenset({2001}),
-        "perk f": frozenset({2002}),
-    }
+    keep_matches_count = 0
+    roll_trash_count = 0
+    whole_trash_count = 0
 
     for w_file in weapons_files:
         df = load_weapons(w_file)
@@ -280,6 +290,17 @@ dimwishlist:item=-300&perks=2002
             assert bool(ev.keep_matches) == (expected_keep_count > 0)
             assert ev.trash_kind == expected_trash_kind
 
+            if ev.keep_matches:
+                keep_matches_count += 1
+            if ev.trash_kind == "roll":
+                roll_trash_count += 1
+            if ev.trash_kind == "whole-item":
+                whole_trash_count += 1
+
+    assert keep_matches_count >= 1
+    assert roll_trash_count >= 1
+    assert whole_trash_count >= 1
+
 
 def test_decision_invariance_under_load_all(tmp_path):
     # Verify that weapons_rules.run produces byte-identical decisions and conflicts
@@ -287,15 +308,28 @@ def test_decision_invariance_under_load_all(tmp_path):
     fixture_dir = Path(__file__).parent / "fixtures"
     weapons_df = load_weapons(fixture_dir / "weapons_dupes.csv")
 
-    w1_text = """
-dimwishlist:item=100&perks=10,20
-dimwishlist:item=-100&perks=30,40
+    perk_map: dict[str, frozenset[int]] = {}
+    current_id = 1000
+    for _, row in weapons_df.iterrows():
+        for col in row.index:
+            if col.startswith("Perks ") and row[col]:
+                name = str(row[col]).strip().removesuffix("*").strip().casefold()
+                if name and name not in perk_map:
+                    perk_map[name] = frozenset({current_id})
+                    current_id += 1
+
+    barrel_a_id = next(iter(perk_map["barrel a"]))
+    mag_a_id = next(iter(perk_map["mag a"]))
+
+    w1_text = f"""
+dimwishlist:item=500&perks={barrel_a_id},{mag_a_id}
+dimwishlist:item=-500&perks=
 """
     w2_text = """
 //notes:Aegis Endgame S Tier.
-dimwishlist:item=200&perks=50,60
+dimwishlist:item=600&perks=9999
 //notes:D Tier.
-dimwishlist:item=-300&perks=
+dimwishlist:item=-900&perks=
 """
     (tmp_path / "w1.txt").write_text(w1_text, encoding="utf-8")
     (tmp_path / "w2.txt").write_text(w2_text, encoding="utf-8")
@@ -318,13 +352,18 @@ dimwishlist:item=-300&perks=
     wl_sources, _ = load_all_with_sources(cfg)
     ev_set = load_all_with_evidence(cfg)
 
-    perk_map = {
-        "perk 1": frozenset({10, 20}),
-        "perk 2": frozenset({30, 40}),
-    }
-
     res_sources = weapons_rules.run(weapons_df, wl_sources, perk_map, crafted_level_protect=10)
     res_evidence = weapons_rules.run(weapons_df, ev_set.merged, perk_map, crafted_level_protect=10)
+
+    keep_protected_count = sum(
+        1 for _, row in weapons_df.iterrows()
+        if weapons_rules.keep_match_count(int(row["Hash"]), weapons_rules.row_perk_hashes(row, perk_map), wl_sources) > 0
+    )
+    trash_decisions = [d for d in res_sources.decisions if "wishlist-trash" in d.note]
+
+    assert keep_protected_count >= 1
+    assert len(trash_decisions) >= 1
+    assert res_sources.keep_trash_conflicts > 0
 
     assert res_sources.keep_trash_conflicts == res_evidence.keep_trash_conflicts
     assert len(res_sources.decisions) == len(res_evidence.decisions)

@@ -26,15 +26,15 @@ at base SHA `12b89a3e340caf478be73917b2fbbfd6d029e002`. Refs #158.
     - Timed runs: 1.494 s, 1.881 s, 2.000 s (median: 1.881 s).
     - Peak tracemalloc: 238.23 MB (well below the 600 MB ceiling).
     - Ignored note segments: 100 entries across 8 note blocks (matching plan measurement).
-- **Ciceron re-download tier recognition (scratch directory verification):**
-  - Keep (`dim_aegis_endgame_major-perks.txt`): 2610 entries, S=1133, A=1477, 0 unrecognized (100% recognized).
-  - Trash (`dim_aegis_endgame-trashlist.txt`): 286 entries, D=192, E=83, F=11, 0 unrecognized (100% recognized).
-- **Swap delta re-measurement (all 4 predicates and nesting):**
+- **Ciceron re-download tier recognition:**
+  - Note: Recognition figures carried over from the plan's upstream measurement (Keep: 2610 entries, S=1133, A=1477, 0 unrecognized; Trash: 286 entries, D=192, E=83, F=11, 0 unrecognized).
+- **Swap delta measurements (carried over from plan):**
+  - Note: Figures were carried over from the plan and not independently re-measured against a fresh download.
   - Trash items with a Nitaraku keep roll: 164.
   - Exposing (E1, upper bound): 162 items with $\ge 1$ Nitaraku roll not subsumed by any remaining keep roll.
   - Exposing (E2): 157 items with every Nitaraku roll not subsumed by any remaining keep roll (123 still have keep entries in Voltron or Ciceron).
   - Mixed (in E1 but not E2): 5 items.
-  - Exposing (E3, lower bound, guaranteed loss of all keep protection): 34 items with no remaining keep entry in any source.
+  - Exposing (E3, lower bound): 34 items where no configured source keeps any entry for the item, so no keep protection remains for any copy.
   - Suppressing (S1, upper bound): 1 item on both Ciceron keep and trash, where 5 of 9 new Ciceron keep rolls are not subsumed by any old keep roll (working example of `keep-trash-same-family` conflict).
   - Nesting confirmed: $E3 \subseteq E2 \subseteq E1$.
 - **Source strategy & config:**
@@ -43,14 +43,29 @@ at base SHA `12b89a3e340caf478be73917b2fbbfd6d029e002`. Refs #158.
 - **Data model & scoping implementation:**
   - Implemented `WishlistEntry`, `WishlistSourceSpec`, `WishlistSourceStatus`, `WishlistEvidenceSet`, `FetchResult`, `EvidenceConflict`, `ItemEvidence`.
   - Implemented exact DIM scoping rules: `//notes:` sets block notes; empty lines and `//` comments reset them; `title:` does not reset; `#notes:` pre-pipe text >1 char decides precedence; bounded `|tags:` split captures only the first segment; later segments or non-tag first segments increment `ignored_note_segments`.
+  - Added narrowly scoped `.gitattributes` rule `tests/fixtures/wishlist_evidence.txt -whitespace` to permit an intentional whitespace-only line required to test DIM whitespace-scoping block note resets without CI `git diff --check` failure.
   - Alignment invariant tested and maintained: 1:1 lock-step between `keep`/`trash` and `keep_evidence`/`trash_evidence`, with `perks is` reference equality preserved across `Wishlist.merge`.
   - Implemented pure `wishlist_evidence.item_evidence` query with family-deduplicated matching and 3 conflict kinds (`keep-trash-cross-family`, `keep-trash-same-family`, `tier-disagreement`). Parity with `rules.weapons` confirmed.
   - Updated `_cmd_wishlists` with structured fetch info, cache write times, escaped/truncated declared titles, note/tag/tier coverage, and `families:` breakdown.
 - **Documentation:**
-  - Created `docs/wishlist-evidence.md` detailing the evidence model, DIM scoping, uncertainty invariants, Aegis strategy, re-measured delta range, unverified revision alignment, and Child 5 fingerprint boundary handoff.
+  - Created `docs/wishlist-evidence.md` detailing the evidence model, DIM scoping, uncertainty invariants, Aegis strategy, delta range, unverified revision alignment, and Child 5 fingerprint boundary handoff.
   - Added supersession note to §6 of `docs/aggressive-clearout-measurement.md`.
-- **Surprises & platform edge cases:**
-  - On Windows, `path.write_text(text, encoding="utf-8")` without `newline=""` translated `\n` in CRLF downloads to `\r\r\n`. When read back, Python's universal newline reader saw `\r` and `\r\n` as two separate linebreaks, inserting a blank line between every line and prematurely resetting block notes. Fixed by writing cached files with `newline=""` and normalizing `\r\r\n` to `\r\n` at `parse_wishlist` ingress.
+- **Deviations from plan:**
+  - Passing `newline=""` to `path.write_text` in `fetch_with_status` and adding `\r\r\n` normalization in `parse_wishlist` are deviations from the plan (necessitated because Python on Windows translated `\n` in upstream CRLF downloads to `\r\r\n`, creating spurious blank lines that prematurely reset block notes).
+  - It changes cached bytes, and therefore the sha256 in the fingerprint, on Windows only when a cache is rewritten.
+  - Linux behaviour is unchanged.
+  - It awaits orchestrator/owner acceptance.
+
+### Review-fix round 1
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **F1 (tests/test_wishlist_evidence.py):** Replaced vacuous tests with real fixture weapon perks and item hashes. In `test_parity_with_weapons_rules`, built `perk_map` dynamically from actual fixture perk cells (`weapons.csv`, `weapons_dupes.csv`) and asserted that $\ge 1$ row has a keep match, $\ge 1$ has `trash_kind == "roll"`, and $\ge 1$ has `trash_kind == "whole-item"`. In `test_decision_invariance_under_load_all`, asserted that `keep_protected_count >= 1`, `len(trash_decisions) >= 1`, and `keep_trash_conflicts > 0` before verifying decision and conflict equality. Verified non-vacuousness via negative check: temporarily commenting out keep rolls in `w1_text` caused `assert keep_protected_count >= 1` to fail (`0 >= 1`).
+- **F2:** Addressed summary drift; documented changes strictly against actual code and diffs.
+- **F3 (src/vault_cleaner/wishlist.py, tests/test_wishlist.py):** Dropped `re.IGNORECASE` from `tags:` match in `parse_wishlist` so it strictly requires lowercase `tags:`. Added `test_tag_case_rejection` verifying `//notes:blk|TAGS:pvp` yields `tags == ()` and increments `ignored_note_segments`.
+- **F4 (docs/wishlist-evidence.md):** Corrected §3 regex from `^\s*tags:(.*)$` to `^\s*tags:([^|]*)$`.
+- **F5 (tests/fixtures/wishlist_evidence.txt, tests/test_wishlist.py):** Appended item 1018 preceded by a `//notes:` block and a whitespace-only line to test observable block-note reset, with strict LF endings. Added assertion in `test_evidence_scoping_on_fixture` verifying `e1018.notes is None`.
+- **F6 (WORKLOG.md):** Recorded Windows newline write handling and ingress normalization as a plan deviation awaiting orchestrator acceptance.
+- **F7 (WORKLOG.md):** Documented `.gitattributes` fixture rule justification, reworded E3 lower bound, and noted carry-over of swap delta and Ciceron counts from the plan.
 
 
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini

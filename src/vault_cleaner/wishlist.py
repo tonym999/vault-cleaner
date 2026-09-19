@@ -326,7 +326,7 @@ def parse_wishlist(
             tags = ()
             if segments:
                 first_seg = segments[0]
-                m_tags = re.match(r"^\s*tags:([^|]*)$", first_seg, re.IGNORECASE)
+                m_tags = re.match(r"^\s*tags:([^|]*)$", first_seg)
                 if m_tags:
                     tag_str = m_tags.group(1)
                     tag_tokens = []

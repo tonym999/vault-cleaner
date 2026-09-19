@@ -39,3 +39,6 @@ dimwishlist:item=notanumber&perks=11,12
 dimwishlist:item=1016&perks=41,42
 //notes:Non-tag segment note|unknown:value
 dimwishlist:item=1017&perks=43,44
+//notes:Block note before whitespace reset
+   
+dimwishlist:item=1018&perks=45,46
