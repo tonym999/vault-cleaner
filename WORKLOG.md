@@ -3,6 +3,23 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
+
+Follow-up on the same branch after owner review of the Gemini-specific
+guardrail above.
+
+- The incremental-diff audit (hunk accounting against the summary, word diff
+  for changed docs, re-opening changed `file:line` citations) now applies to
+  every model's review-fix round. It is cheap, and a model-named rule goes
+  stale as model versions change; not having seen other models do this is weak
+  evidence because the #160 defect passed every gate.
+- Only the bounded fix prompt (name the text that must stay unchanged) remains
+  model-conditional, for models with a recorded collateral-edit incident
+  (currently Gemini).
+- Shrank the `AGENTS.md` gotcha to a short generic rule pointing at the
+  orchestrator template, since `AGENTS.md` is loaded every session.
+- Process documentation only; no code, tests, rules, or versions changed.
+
 ## 2026-09-19 — Workflow hardening: Gemini review-fix diff audit
 
 Recorded the review-round regression observed on PR #160 so future
