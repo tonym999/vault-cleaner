@@ -25,14 +25,15 @@ When acting as the **Planner**:
    - Allocate the implementation branch name (e.g. `fix/issue-N-...` or `feat/issue-N-...`).
    - State exact user-facing copy verbatim where copy is decided.
 
-4. **Select Model & Native Reasoning Effort:**
-   - Consult the model family and reasoning-effort matrix in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix).
-   - Select and justify the implementer's exact model ID and native reasoning effort setting (e.g. `claude-sonnet-5` with `xhigh` effort) based on task complexity. Note that neither the plan nor this workflow selects the planner or orchestrator tier, and the orchestrator selects any adversarial reviewer's exact model and effort only after inspecting the real diff.
+4. **Select Implementer Model & Native Reasoning Effort:**
+   - Consult the role roster, implementer ladder, and provider catalog in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix).
+   - Choose the ladder rung by how much ambiguity, engineering judgement, and risk the plan delegates to the implementer, not by file count. Select and justify the implementer's exact model ID and native reasoning effort (e.g. `gpt-5.6-luna` with `xhigh` effort), or `n/a — adaptive` for a model with no user-settable effort such as `MAI-Code-1.1-Flash`. Do not reserve the Bounded rung for trivial or single-file work; when the plan settles the architecture and invariants, it is a legitimate choice for substantial work.
+   - Record your own model as the planner model. The owner chooses the planner and orchestrator models; the orchestrator may re-select the implementer before or after an attempt, and selects any adversarial reviewer's exact model and effort only after inspecting the real diff.
    - Note the manual cross-provider boundary: the orchestrator will verify whether its active runtime supports the target model, or prepare the prompt for a human operator.
 
 5. **Construct the Mechanical Inclusion Test & Escalation Routing:**
    - Define a rule-based inclusion test with worked examples showing what changes are strictly in-scope and what changes are out-of-scope.
-   - Specify explicit stop conditions that require the implementer to halt and return to the orchestrator.
+   - Specify explicit stop conditions that require the implementer to halt and return to the orchestrator. Target material design or scope uncertainty, not ordinary implementation decisions; see [Implementation judgement vs. material uncertainty](../README.md#implementation-judgement-vs-material-uncertainty).
    - Note the escalation route: `implementer → orchestrator → planner`.
 
 6. **Predict Likely Findings:**
@@ -64,7 +65,9 @@ Author the handoff document using the following exact structure:
 
 **Implementation topology:** `planner → orchestrator → implementer → orchestrator-managed review (standard or independent adversarial) → PR`
 
-**Implementation model selected:** `<Exact Model ID & Native Effort>` (justified below)
+**Planner model:** `<Exact Model ID & Native Effort>`
+
+**Implementation model selected:** `<Exact Model ID & Native Effort, or n/a — adaptive>` (<Ladder rung>; justified below)
 
 **Plan baseline:** `main` at `<Commit SHA>` (<Date>)
 
@@ -136,7 +139,7 @@ Rules:
 - commit and push the implementation branch; and
 - **do not open a pull request.**
 
-If any stop condition is reached, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope.
+Make ordinary implementation decisions yourself (local structure, naming, helpers, test shape, following established patterns, fixing failures your own change caused) and explain notable ones in your completion handoff. If any stop condition is reached, or the work needs a design decision the plan did not settle, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope or silently redesign the solution.
 
 When complete, provide the full implementer → orchestrator handoff specified in the plan.
 
@@ -159,7 +162,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 
 Planned #N in [handoffs/issue-N-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-N-implementation-plan.md) on `main`.
 
-- **Implementer tier & effort:** <Exact Model ID & Native Effort>
+- **Implementer model & effort:** <Exact Model ID & Native Effort, or n/a — adaptive>
 - **Implementation branch:** `<allocated-branch-name>`
 - **Likely findings:** <Brief summary of predicted review focus areas>
 ````

@@ -16,8 +16,8 @@ When acting as the **Orchestrator**:
 
 2. **Dispatch Implementer:**
    - Launch an implementer agent using the exact text under `# Reusable implementer execution prompt` in the handoff document.
-   - Dispatch the implementer at the plan's specified **Implementer Tier & Native Effort** without downgrading model tier or reasoning level.
-   - **Manual Cross-Provider Execution (v1):** Check whether the active runtime can instantiate the target model and effort setting. If it cannot, prepare the exact implementer prompt and have a human operator launch the external agent. The external agent returns its branch, base and head SHAs, test output, and completion handoff. Treat that result as untrusted and review the complete diff against the plan. Capture the actual provider, model ID, and effort used in the dispatch record.
+   - Dispatch the implementer at the plan's selected **Implementation model** and native effort. You may re-select the model or effort in either direction on the implementer ladder, before dispatch or after a stopped or failed attempt, under [Implementer Re-selection](../README.md#implementer-re-selection); record the plan's selection, the actual choice, and a one-line reason. Re-selection never changes scope.
+   - **Manual Cross-Provider Execution (v1):** Check whether the active runtime can instantiate the target model and effort setting. If it cannot, prepare the exact implementer prompt and have a human operator launch the external agent. The external agent returns its branch, base and head SHAs, test output, and completion handoff. Treat that result as untrusted and review the complete diff against the plan. Capture your own orchestrator model and the actual provider, model ID, effort (or `n/a — adaptive`), and launch surface in the dispatch record. `MAI-Code-1.1-Flash` is always launched this way, from a local Copilot surface on the allocated branch, never the Copilot cloud agent (see [handoffs/README.md](../README.md#manual-cross-provider-execution-v1)).
 
 3. **Zero Direct Implementation:**
    - You must **NEVER** edit source code, write tests, or implement any part of the ticket yourself.
@@ -47,7 +47,7 @@ When acting as the **Orchestrator**:
    - Consult `# Ticket-specific review decision` in the plan and inspect the real diff:
      - **Standard Review:** For low-risk, self-contained, or routine changes. The orchestrator conducts the review directly against the plan's checklist, likely findings, and test suites.
      - **Independent Adversarial Review:** Triggered if mandated by the plan, or if the diff touches critical invariants (parsers, ranking rules, delete rails, server lifecycle), has unexpectedly high complexity, or underwent messy implementer iterations.
-   - **Reviewer Selection:** The orchestrator owns this selection because it sees the real diff. Re-verify official provider documentation at dispatch time, then select and justify one exact model ID and native effort from the **Independent Review** row in [handoffs/README.md](../README.md#task-classes--recommended-mappings). Prefer a different model family from the implementer when available, but require a separate fresh context and read-only remit even when the same family is used. Record the requested and actual provider/model/effort plus any fallback.
+   - **Reviewer Selection:** The orchestrator owns this selection because it sees the real diff. Re-verify official provider documentation at dispatch time, then select and justify one exact model ID and native effort from the **Independent Review** row in [handoffs/README.md](../README.md#independent-review-mapping). Prefer a different model family from the implementer when available, but require a separate fresh context and read-only remit even when the same family is used, including when the reviewer model matches your own. Never let the implementer's session review or approve its own work. Record the requested and actual provider/model/effort plus any fallback.
    - **Independent Verification Checkout:** Create a detached disposable checkout pinned to the recorded head SHA (for example, `git worktree add --detach <review_checkout> <head_sha>`) and give that checkout to the reviewer. The reviewer may run tests and create only their ephemeral cache, build, and temporary artifacts there; read-only means no tracked implementation edits, commits, pushes, PR or issue mutations, or other durable repository changes. Restrict the runtime's writable paths and remote permissions accordingly. A human operator launching an external reviewer must provide an equivalent disposable checkout.
    - **Adversarial Review Handoff:** Copy the exact text under `## Reusable Independent Adversarial Review Prompt`, substitute only its angle-bracket fields, and dispatch it to a fresh agent session with no planner or implementer conversation history. If the active runtime cannot instantiate the selected model and effort, give that exact prompt to a human operator for manual cross-provider launch. Do not add an implementation narrative or other hand-written brief.
 
@@ -80,10 +80,12 @@ When acting as the **Orchestrator**:
 
 8. **Escalate Stop Conditions:**
    - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, follow the escalation route: `implementer → orchestrator → planner`.
-   - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan in a revised plan PR.
+   - Within the existing plan contract you may clarify instructions, let the same implementer continue, or re-select the implementer (step 2). These are not re-plans.
+   - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan in a revised plan PR, and architectural questions to the owner.
 
 9. **Carry Out Plan Review-Outcome Steps:**
    - When clean and verified, carry out the review-outcome steps specified in the plan **only to the extent the user has authorized them** (e.g. open a pull request targeting `main` referencing the issue, add any required coordination comments on issue threads, and ensure a dated [WORKLOG.md](../../WORKLOG.md) entry accompanies the PR). Opening the PR and posting the comments are separately authorized actions, and neither authorizes a merge; when authorization for a step is absent or unclear, stop and report the completed work instead.
+   - The `WORKLOG.md` entry records the dispatch record from step 2 and, when the outcome was notable, a one-line [implementer outcome note](../README.md#implementer-outcome-notes).
 
 ## Reusable Independent Adversarial Review Prompt
 
