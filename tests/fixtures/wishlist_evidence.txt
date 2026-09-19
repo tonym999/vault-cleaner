@@ -1,0 +1,41 @@
+title:First List Title
+description:A synthetic test description for wishlist evidence
+title:Second Section Title
+//notes:Great weapon roll|tags:PvE, controller
+dimwishlist:item=1001&perks=11,12
+dimwishlist:item=1002&perks=13,14
+
+dimwishlist:item=1003&perks=15,16
+//notes:Temporary note
+// This is a plain comment reset
+dimwishlist:item=1004&perks=17,18
+//notes:Block note text
+dimwishlist:item=1005&perks=19,20#notes:Tail note text
+//notes:Block note for short tail
+dimwishlist:item=1006&perks=21,22#notes:x
+//notes:Block note with controller tag|tags:controller
+dimwishlist:item=1007&perks=23,24#notes:x|tags:pve
+//notes:Block note to be overridden|tags:pve
+dimwishlist:item=1008&perks=25,26#notes:xy|tags:pvp
+//notes:Space tag test| tags: pvp god-pvp
+dimwishlist:item=1009&perks=27,28
+//notes:(Foo version) - Aegis Endgame S Tier. God roll
+dimwishlist:item=1010&perks=29,30
+//notes:Aegis Endgame A Tier. Great roll
+dimwishlist:item=1011&perks=31,32
+//notes:D Tier. Underperforming
+dimwishlist:item=-1012&perks=33,34
+//notes:F Tier. Weak Combo: slow reload
+dimwishlist:item=-1013&perks=35,36
+//notes:Just some arbitrary note without tier prefix
+dimwishlist:item=1014&perks=37,38
+   
+//notes:Sticky block note across title
+title:Intervening Title
+dimwishlist:item=1015&perks=39,40
+dimwishlist:item=69420&perks=11,12
+dimwishlist:item=notanumber&perks=11,12
+//notes:Multi tag block|tags:PvE|tags:111 222
+dimwishlist:item=1016&perks=41,42
+//notes:Non-tag segment note|unknown:value
+dimwishlist:item=1017&perks=43,44

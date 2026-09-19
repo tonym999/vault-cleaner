@@ -13,6 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from vault_cleaner.parse import ARMOR_STATS
+from vault_cleaner.wishlist import WishlistConfigError, source_specs
 
 DEFAULTS = {
     "rails": {
@@ -143,6 +144,10 @@ def load_config(path: str | Path = "config.toml") -> dict:
         merged.setdefault(section, values)
     _validate_paths(merged["paths"], path)
     _validate_armor(merged)
+    try:
+        source_specs(merged["wishlists"]["sources"])
+    except WishlistConfigError as e:
+        raise ConfigError(f"{path}: [wishlists.sources] {e}") from e
     return merged
 
 

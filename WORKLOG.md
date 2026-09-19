@@ -3,6 +3,56 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-19 — #158 implementation: wishlist evidence model, curation families, and Aegis source strategy
+
+Implemented Child 3 of #140 on branch `feat/issue-158-wishlist-evidence` from `main`
+at base SHA `12b89a3e340caf478be73917b2fbbfd6d029e002`. Refs #158.
+
+- **Agent and model metadata:**
+  - Requested model: Google `gemini-3.8-flash` with native `thinking_level = high`.
+  - Actual provider/model/effort: Google `gemini-3.8-flash`, native `thinking_level = high`.
+  - Base SHA: `12b89a3e340caf478be73917b2fbbfd6d029e002`.
+- **Compatibility invariants:**
+  - `RULESET_VERSION` (4), `SNAPSHOT_SCHEMA_VERSION` (2), fingerprint payload, `report_snapshot_v2.json`, `rules/`, `report_run.py`, `report.py`, `review*.py`, `note_history.py`, `pipeline.py`, `server/`, and `ui/` are unchanged.
+  - Evidence parsing is strictly opt-in (`evidence=False` default). With evidence disabled, no entry objects or tags are allocated and `ignored_note_segments` remains 0.
+- **Measured parse performance & memory:**
+  - Evidence-off baseline on `main` (`wishlists/choosy_voltron.txt`):
+    - Timed runs: 0.568 s, 0.629 s, 0.536 s (median: 0.568 s).
+    - Peak tracemalloc: 137.70 MB.
+  - Post-change evidence-off:
+    - Timed runs: 0.572 s, 0.622 s, 0.550 s (median: 0.572 s, +0.7%).
+    - Peak tracemalloc: 137.70 MB (+0.0%).
+  - Post-change evidence-on:
+    - Timed runs: 1.494 s, 1.881 s, 2.000 s (median: 1.881 s).
+    - Peak tracemalloc: 238.23 MB (well below the 600 MB ceiling).
+    - Ignored note segments: 100 entries across 8 note blocks (matching plan measurement).
+- **Ciceron re-download tier recognition (scratch directory verification):**
+  - Keep (`dim_aegis_endgame_major-perks.txt`): 2610 entries, S=1133, A=1477, 0 unrecognized (100% recognized).
+  - Trash (`dim_aegis_endgame-trashlist.txt`): 286 entries, D=192, E=83, F=11, 0 unrecognized (100% recognized).
+- **Swap delta re-measurement (all 4 predicates and nesting):**
+  - Trash items with a Nitaraku keep roll: 164.
+  - Exposing (E1, upper bound): 162 items with $\ge 1$ Nitaraku roll not subsumed by any remaining keep roll.
+  - Exposing (E2): 157 items with every Nitaraku roll not subsumed by any remaining keep roll (123 still have keep entries in Voltron or Ciceron).
+  - Mixed (in E1 but not E2): 5 items.
+  - Exposing (E3, lower bound, guaranteed loss of all keep protection): 34 items with no remaining keep entry in any source.
+  - Suppressing (S1, upper bound): 1 item on both Ciceron keep and trash, where 5 of 9 new Ciceron keep rolls are not subsumed by any old keep roll (working example of `keep-trash-same-family` conflict).
+  - Nesting confirmed: $E3 \subseteq E2 \subseteq E1$.
+- **Source strategy & config:**
+  - Configured `config.toml` with `[wishlists.sources]` subtables: `choosy_voltron` (`choosy-voltron`, `any`, `none`), `aegis_keep` (`aegis-endgame`, `pve`, `ciceron-aegis`), `aegis_trash` (`aegis-endgame`, `pve`, `ciceron-aegis`). Removed Nitaraku (`aegis`).
+  - Added strict source validation via `source_specs` in `wishlist.py`, called in `load_config` in `config.py` and wrapped as `ConfigError`.
+- **Data model & scoping implementation:**
+  - Implemented `WishlistEntry`, `WishlistSourceSpec`, `WishlistSourceStatus`, `WishlistEvidenceSet`, `FetchResult`, `EvidenceConflict`, `ItemEvidence`.
+  - Implemented exact DIM scoping rules: `//notes:` sets block notes; empty lines and `//` comments reset them; `title:` does not reset; `#notes:` pre-pipe text >1 char decides precedence; bounded `|tags:` split captures only the first segment; later segments or non-tag first segments increment `ignored_note_segments`.
+  - Alignment invariant tested and maintained: 1:1 lock-step between `keep`/`trash` and `keep_evidence`/`trash_evidence`, with `perks is` reference equality preserved across `Wishlist.merge`.
+  - Implemented pure `wishlist_evidence.item_evidence` query with family-deduplicated matching and 3 conflict kinds (`keep-trash-cross-family`, `keep-trash-same-family`, `tier-disagreement`). Parity with `rules.weapons` confirmed.
+  - Updated `_cmd_wishlists` with structured fetch info, cache write times, escaped/truncated declared titles, note/tag/tier coverage, and `families:` breakdown.
+- **Documentation:**
+  - Created `docs/wishlist-evidence.md` detailing the evidence model, DIM scoping, uncertainty invariants, Aegis strategy, re-measured delta range, unverified revision alignment, and Child 5 fingerprint boundary handoff.
+  - Added supersession note to §6 of `docs/aggressive-clearout-measurement.md`.
+- **Surprises & platform edge cases:**
+  - On Windows, `path.write_text(text, encoding="utf-8")` without `newline=""` translated `\n` in CRLF downloads to `\r\r\n`. When read back, Python's universal newline reader saw `\r` and `\r\n` as two separate linebreaks, inserting a blank line between every line and prematurely resetting block notes. Fixed by writing cached files with `newline=""` and normalizing `\r\r\n` to `\r\n` at `parse_wishlist` ingress.
+
+
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
 
 Follow-up on the same branch after owner review of the Gemini-specific

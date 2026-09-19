@@ -61,11 +61,25 @@ max_age_days = 30
 # this (or with `vault-cleaner wishlists --refresh`).
 max_age_days = 7
 
-[wishlists.sources]
-# choosy_voltron: community god/recommended rolls + thumbs-down trash entries
-choosy_voltron = "https://raw.githubusercontent.com/48klocs/dim-wish-list-sources/master/choosy_voltron.txt"
-# Aegis PvE endgame tierlist, auto-generated DIM wishlist (trait columns only)
-aegis = "https://raw.githubusercontent.com/Nitaraku/dim-wishlists/main/aegis_wishlist.txt"
-# Aegis trash list: whole-item trash entries for weapons rated D tier or
-# lower (updates less often than the lists above)
-aegis_trash = "https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/dim_aegis_endgame-trashlist.txt"
+[wishlists.sources.choosy_voltron]
+# Community god/recommended rolls + thumbs-down trash; per-entry |tags: carry PvE/PvP
+url = "https://raw.githubusercontent.com/48klocs/dim-wish-list-sources/master/choosy_voltron.txt"
+family = "choosy-voltron"
+activity = "any"
+
+[wishlists.sources.aegis_keep]
+# Aegis PvE Endgame Analysis, S/A tier, major (trait) perks only — Ciceron conversion.
+# One curation family with aegis_trash: same maintainer and converter.
+# Revision alignment with aegis_trash is not verified: neither file declares a
+# revision, and the two are fetched and cached independently.
+url = "https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/dim_aegis_endgame_major-perks.txt"
+family = "aegis-endgame"
+activity = "pve"
+tier_format = "ciceron-aegis"
+
+[wishlists.sources.aegis_trash]
+# Aegis PvE Endgame Analysis trash list: whole-item entries for D tier or lower
+url = "https://raw.githubusercontent.com/Ciceron14/dim-extra-wishlists/main/Aegis%20Spreadsheets%20Wishlists/Aegis%20Endgame%20Analysis/dim_aegis_endgame-trashlist.txt"
+family = "aegis-endgame"
+activity = "pve"
+tier_format = "ciceron-aegis"
