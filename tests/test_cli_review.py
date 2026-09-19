@@ -360,6 +360,39 @@ def test_approved_id_that_is_already_vetoed_is_kept_and_explained(tmp_path, caps
     assert f"approved output: {len(proposals(run)) - 2} decision(s)" in captured.out
 
 
+def test_approved_id_with_stale_saved_veto_emits_item_without_warning(tmp_path, capsys):
+    run = build_report()
+    decision = proposals(run)[0]
+    base = {
+        "hash": decision.hash,
+        "name": decision.name,
+        "fingerprint": "f" * 64,
+        "recorded_at": "2026-07-01T00:00:00Z",
+    }
+    save_overrides(
+        OverrideStore(
+            schema_version=1,
+            vetoes=(
+                Veto(
+                    id=decision.id,
+                    kind=decision.kind,
+                    action="review" if decision.action != "review" else "junk",
+                    reason="old-stale-reason",
+                    **base,
+                ),
+            ),
+        ),
+        tmp_path / "overrides.json",
+    )
+    approving = write_manifest(tmp_path, manifest_payload(run, []), "approve.json")
+    assert run_review(tmp_path, "--manifest", str(approving), "--write") == 0
+    captured = capsys.readouterr()
+    assert "applying a manifest never removes a veto" not in captured.err
+    assert f"approved output: {len(proposals(run))} decision(s)" in captured.out
+    written = (tmp_path / "reviewed.csv").read_text(encoding="utf-8")
+    assert f'"""{decision.id}"""' in written
+
+
 def test_report_mentions_but_does_not_apply_overrides(tmp_path, capsys):
     run = build_report()
     ids = two_vetoed_ids(run)

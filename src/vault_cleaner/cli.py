@@ -455,6 +455,8 @@ def _cmd_review(args: argparse.Namespace) -> int:
     proposed = [d for section in result.sections for d in section.decisions]
     print(f"report: {_action_counts(proposed)}")
 
+    status = classify(store, result)
+
     if merge is not None:
         manifest_counts = (
             f"{len(manifest.decisions)} verdict(s) "
@@ -474,14 +476,14 @@ def _cmd_review(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         for entry in merge.already_vetoed_but_approved:
-            print(
-                f"  kept      id {entry.id} ({entry.name or 'unnamed'}) — approved in "
-                "the manifest but already vetoed; applying a manifest never "
-                "removes a veto, edit the overrides file to undo one",
-                file=sys.stderr,
-            )
+            if entry.id in status.active_ids:
+                print(
+                    f"  kept      id {entry.id} ({entry.name or 'unnamed'}) — approved in "
+                    "the manifest but already vetoed; applying a manifest never "
+                    "removes a veto, edit the overrides file to undo one",
+                    file=sys.stderr,
+                )
 
-    status = classify(store, result)
     _print_override_status(status, args.overrides)
 
     approved_ids = {d.id for d in manifest.approved} if manifest is not None else set()
