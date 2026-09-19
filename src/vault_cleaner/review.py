@@ -543,19 +543,25 @@ def classify(store: OverrideStore, run: ReportRun) -> OverrideStatus:
     )
 
 
-def apply_vetoes(run: ReportRun, vetoed_ids: Iterable[str]) -> list[ReportDecision]:
-    """Return the run's decisions minus vetoed ids, in unchanged order.
+def select_approved_proposals(
+    run: ReportRun,
+    approved_ids: Iterable[str],
+    active_veto_ids: Iterable[str] = (),
+) -> list[ReportDecision]:
+    """Return decisions carrying an explicit fresh approval and no active veto.
 
-    Filtering happens after the pipeline has already chosen winners, so
-    suppressing a losing copy leaves the winner exactly as the rules ranked
-    it — one more copy simply survives this cleanup.
+    A proposal is included if and only if its opaque id is in `approved_ids`
+    and not in `active_veto_ids`. Decisions are returned in report order without
+    mutation or reranking.
     """
-    suppressed = frozenset(vetoed_ids)
+    approved = {str(item_id) for item_id in approved_ids}
+    active_vetoes = {str(item_id) for item_id in active_veto_ids}
+    eligible = approved - active_vetoes
     return [
         decision
         for section in run.sections
         for decision in section.decisions
-        if decision.id not in suppressed
+        if decision.id in eligible
     ]
 
 

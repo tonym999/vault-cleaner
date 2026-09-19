@@ -13,7 +13,7 @@ from test_review import build_report, proposals
 
 from vault_cleaner.report import summarize
 from vault_cleaner.report_run import run_report, snapshot_json
-from vault_cleaner.review import apply_vetoes
+from vault_cleaner.review import select_approved_proposals
 
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not installed")
@@ -50,7 +50,7 @@ function verdictMap(pairs) {
 }
 function rejectsKeptShape(shape, values) {
   try {
-    api.keptItems(values || items, verdicts, shape);
+    api.approvedOutputItems(values || items, verdicts, shape);
     return false;
   } catch (error) {
     return /Set-like object with has/.test(error.message);
@@ -115,20 +115,22 @@ var out = {
     unreviewed: api.filterItems(items, { verdict: "unreviewed" }, verdicts).length
   },
   counts: {
-    kept: api.keptItems(items, verdicts, new Set()).length,
-    keptExcludesVetoed: ids(api.keptItems(items, verdicts, new Set()))
+    approvedOutput: api.approvedOutputItems(items, verdicts, new Set()).length,
+    approvedOutputExcludesVetoed: ids(api.approvedOutputItems(items, verdicts, new Set()))
       .indexOf(first.id) === -1,
-    keptActions: api.actionCounts(api.keptItems(items, verdicts, new Set())),
+    approvedOutputIncludesApproved: ids(api.approvedOutputItems(items, verdicts, new Set()))
+      .indexOf(second.id) !== -1,
+    approvedOutputActions: api.actionCounts(api.approvedOutputItems(items, verdicts, new Set())),
     review: api.reviewCounts(items, verdicts),
     byKind: api.countBy(items, "kind"),
     byAction: api.countBy(items, "action")
   },
   persistedVeto: {
-    kept: ids(api.keptItems(items, verdicts, activePersistedVetoIds)),
-    excludesVetoedId: ids(api.keptItems(
+    approvedOutput: ids(api.approvedOutputItems(items, verdicts, activePersistedVetoIds)),
+    excludesVetoedId: ids(api.approvedOutputItems(
       items, verdicts, activePersistedVetoIds
     )).indexOf(first.id) === -1,
-    excludesApprovedId: ids(api.keptItems(
+    excludesApprovedId: ids(api.approvedOutputItems(
       items, verdicts, activePersistedVetoIds
     )).indexOf(second.id) === -1
   },
@@ -534,7 +536,7 @@ def test_hostile_unicode_values_render_as_text(tmp_path, hostile):
     assert result["unicodeNoteRendered"]
 
 
-def test_kept_items_requires_an_active_set_like_input(plain):
+def test_approved_output_items_requires_an_active_set_like_input(plain):
     assert plain.results["persistedVetoContract"] == {
         "absentRejected": True,
         "arrayRejected": True,
@@ -1275,31 +1277,32 @@ def test_verdict_filter_partitions_the_items(plain):
     assert filters["unreviewed"] == plain.results["itemCount"] - 2
 
 
-def test_a_veto_removes_exactly_one_proposal_from_the_kept_set(plain):
+def test_only_explicit_approvals_appear_in_approved_output(plain):
     counts = plain.results["counts"]
-    assert counts["kept"] == plain.results["itemCount"] - 1
-    assert counts["keptExcludesVetoed"]
+    assert counts["approvedOutput"] == 1
+    assert counts["approvedOutputExcludesVetoed"]
+    assert counts["approvedOutputIncludesApproved"]
     assert counts["review"] == {
         "approved": 1, "vetoed": 1,
         "unreviewed": plain.results["itemCount"] - 2,
     }
 
 
-def test_kept_counts_mirror_python_apply_vetoes(plain):
-    vetoed = plain.results["ids"][0]
-    kept = apply_vetoes(plain.run, frozenset({vetoed}))
-    assert plain.results["counts"]["keptActions"] == {
-        "total": len(kept),
-        "junk": sum(decision.action == "junk" for decision in kept),
-        "review": sum(decision.action == "review" for decision in kept),
+def test_approved_output_counts_mirror_python_select_approved_proposals(plain):
+    approved = plain.results["ids"][1]
+    selected = select_approved_proposals(plain.run, frozenset({approved}))
+    assert plain.results["counts"]["approvedOutputActions"] == {
+        "total": len(selected),
+        "junk": sum(decision.action == "junk" for decision in selected),
+        "review": sum(decision.action == "review" for decision in selected),
     }
 
 
-def test_active_persisted_veto_ids_are_applied_by_kept_items(plain):
+def test_active_persisted_veto_ids_are_excluded_by_approved_output_items(plain):
     persisted = plain.results["persistedVeto"]
     assert persisted["excludesVetoedId"]
     assert persisted["excludesApprovedId"]
-    assert len(persisted["kept"]) == plain.results["itemCount"] - 2
+    assert len(persisted["approvedOutput"]) == 0
 
 
 def test_hostile_names_are_data_not_executable_source(hostile):
@@ -1325,6 +1328,47 @@ def test_unset_and_garbage_verdicts_read_as_unreviewed(plain):
     assert plain.results["verdictOf"] == {
         "unset": "", "garbageIgnored": "", "set": "vetoed"
     }
+
+
+def test_approved_output_items_excludes_unrecognized_verdict_tokens(tmp_path: Path):
+    script = tmp_path / "junk-verdicts.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+var items = [
+  { id: "101", name: "Valid approved" },
+  { id: "102", name: "Uppercase" },
+  { id: "103", name: "Yes" },
+  { id: "104", name: "Boolean true" },
+  { id: "105", name: "Empty string" },
+  { id: "106", name: "Vetoed" }
+];
+var verdicts = {
+  "101": "approved",
+  "102": "APPROVED",
+  "103": "yes",
+  "104": true,
+  "105": "",
+  "106": "vetoed"
+};
+var activePersistedVetoIds = new Set();
+var output = api.approvedOutputItems(items, verdicts, activePersistedVetoIds);
+process.stdout.write(JSON.stringify(output.map(function (item) { return item.id; })));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as review_ui:
+        completed = subprocess.run(
+            [NODE, str(script), str(review_ui)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=10,
+        )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == ["101"]
 
 
 def test_same_stat_projection_and_cross_kind_dom_overlap(tmp_path: Path):

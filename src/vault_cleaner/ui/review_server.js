@@ -1018,10 +1018,10 @@
       if (!host) return;
       view.clear(host);
       var proposed = ui.actionCounts(state.items);
-      var kept = ui.actionCounts(ui.keptItems(state.items, state.verdicts, state.persistedVetoIds));
+      var approvedOutput = ui.actionCounts(ui.approvedOutputItems(state.items, state.verdicts, state.persistedVetoIds));
       var reviewed = ui.reviewCounts(state.items, state.verdicts);
       host.appendChild(view.tile("proposed", String(proposed.total), proposed.junk + " junk, " + proposed.review + " review"));
-      host.appendChild(view.tile("after vetoes", String(kept.total), kept.junk + " junk, " + kept.review + " review"));
+      host.appendChild(view.tile("approved output", String(approvedOutput.total), approvedOutput.junk + " junk, " + approvedOutput.review + " review"));
       host.appendChild(view.tile("reviewed", String(reviewed.approved + reviewed.vetoed), reviewed.approved + " approved, " + reviewed.vetoed + " vetoed"));
       if (state.surface !== "armor-duplicates") {
         var shown = typeof ui.filterItems === "function"
@@ -1460,7 +1460,7 @@
             ? " 1 approved item remains suppressed by an active persisted veto."
             : " " + suppression + " approved items remain suppressed by active persisted vetoes.";
         }
-        host.appendChild(view.el("p", { class: "ok", text: "Finalised — this review is frozen. The reviewed CSV has been produced." + suppressionText }));
+        host.appendChild(view.el("p", { class: "ok", text: "Finalised — this review is frozen. The CSV contains only explicitly approved proposals not blocked by an active saved veto." + suppressionText }));
         host.appendChild(view.el("button", { id: "vc-download-again", type: "button", text: "Download again", disabled: downloadDisabled, on: { click: downloadAgain } }));
         host.appendChild(view.el("button", { id: "vc-reset", type: "button", text: "Reset / Start new review", disabled: lifecycleDisabled, on: { click: resetSession } }));
         host.appendChild(view.el("button", { id: "vc-shutdown", type: "button", text: "Shutdown", disabled: lifecycleDisabled, on: { click: shutdownSession } }));
@@ -1649,11 +1649,17 @@
     }
     function finalizeSession() {
       if (!lifecycleAllowed() || state.server_state === "idle") return;
-      var reviewed = ui.reviewCounts(state.items, state.verdicts);
-      if (reviewed.unreviewed > 0) {
-        var message = "Unreviewed proposals will remain in the generated import CSV unless an existing active persisted veto suppresses them. Continue?";
-        if (typeof root.confirm === "function" && !root.confirm(message)) return;
+      var approved = ui.approvedOutputItems(state.items, state.verdicts, state.persistedVetoIds);
+      var count = approved.length;
+      var message;
+      if (count === 0) {
+        message = "No proposals are approved for output. Finalise a header-only CSV with no item rows?";
+      } else if (count === 1) {
+        message = "Finalise 1 approved proposal into the CSV? Vetoed and unreviewed proposals, plus approvals blocked by active saved vetoes, will be excluded.";
+      } else {
+        message = "Finalise " + count + " approved proposals into the CSV? Vetoed and unreviewed proposals, plus approvals blocked by active saved vetoes, will be excluded.";
       }
+      if (typeof root.confirm === "function" && !root.confirm(message)) return;
       setMutationGate("finalize");
       fetchBytes(FINALIZE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "text/csv" }, body: JSON.stringify(makeFinalizePayload(state)) })
         .then(function (result) { return afterCsvDownload(result, "finalize"); })
