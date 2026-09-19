@@ -27,9 +27,9 @@ at base SHA `12b89a3e340caf478be73917b2fbbfd6d029e002`. Refs #158.
     - Peak tracemalloc: 238.23 MB (well below the 600 MB ceiling).
     - Ignored note segments: 100 entries across 8 note blocks (matching plan measurement).
 - **Ciceron re-download tier recognition:**
-  - Note: Recognition figures carried over from the plan's upstream measurement (Keep: 2610 entries, S=1133, A=1477, 0 unrecognized; Trash: 286 entries, D=192, E=83, F=11, 0 unrecognized).
-- **Swap delta measurements (carried over from plan):**
-  - Note: Figures were carried over from the plan and not independently re-measured against a fresh download.
+  - Re-measured on 2026-09-19 from fresh upstream downloads (matching orchestrator measurement): Keep: 2610 entries, S=1133, A=1477, 0 unrecognized (100% recognized); Trash: 286 entries, D=192, E=83, F=11, 0 unrecognized (100% recognized).
+- **Swap delta measurements (re-measured on 2026-09-19):**
+  - Re-measured on 2026-09-19 from fresh public list downloads (matching plan measurements and confirming subset nesting $E3 \subseteq E2 \subseteq E1$):
   - Trash items with a Nitaraku keep roll: 164.
   - Exposing (E1, upper bound): 162 items with $\ge 1$ Nitaraku roll not subsumed by any remaining keep roll.
   - Exposing (E2): 157 items with every Nitaraku roll not subsumed by any remaining keep roll (123 still have keep entries in Voltron or Ciceron).
@@ -54,7 +54,7 @@ at base SHA `12b89a3e340caf478be73917b2fbbfd6d029e002`. Refs #158.
   - Passing `newline=""` to `path.write_text` in `fetch_with_status` and adding `\r\r\n` normalization in `parse_wishlist` are deviations from the plan (necessitated because Python on Windows translated `\n` in upstream CRLF downloads to `\r\r\n`, creating spurious blank lines that prematurely reset block notes).
   - It changes cached bytes, and therefore the sha256 in the fingerprint, on Windows only when a cache is rewritten.
   - Linux behaviour is unchanged.
-  - It awaits orchestrator/owner acceptance.
+  - Accepted by the owner on 2026-09-19.
 
 ### Review-fix round 1
 
@@ -66,6 +66,13 @@ Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
 - **F5 (tests/fixtures/wishlist_evidence.txt, tests/test_wishlist.py):** Appended item 1018 preceded by a `//notes:` block and a whitespace-only line to test observable block-note reset, with strict LF endings. Added assertion in `test_evidence_scoping_on_fixture` verifying `e1018.notes is None`.
 - **F6 (WORKLOG.md):** Recorded Windows newline write handling and ingress normalization as a plan deviation awaiting orchestrator acceptance.
 - **F7 (WORKLOG.md):** Documented `.gitattributes` fixture rule justification, reworded E3 lower bound, and noted carry-over of swap delta and Ciceron counts from the plan.
+
+### Review-fix round 2
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **R2-1 (docs/wishlist-evidence.md, WORKLOG.md):** Executed Path A re-measurement of Aegis swap delta and tier recognition from freshly downloaded public list bytes on 2026-09-19. Confirmed exact match with all documented figures (T=164, E1=162, E2=157 [123 of 157 with remaining keep], mixed=5, E3=34, S1=1 [5 of 9 unsubsumed], and $E3 \subseteq E2 \subseteq E1$). Updated method wording on lines 112, 137, and 139 in `docs/wishlist-evidence.md` to reflect re-measurement on 2026-09-19.
+- **R2-2 (WORKLOG.md):** Attributed Ciceron tier recognition counts (keep 2610 entries S/A, trash 286 entries D/E/F) to the 2026-09-19 re-measurement and to the orchestrator's measurement.
+- **R2-3 (WORKLOG.md):** Recorded that the F6 deviation (`newline=""` in `fetch_with_status` and `\r\r\n` normalization in `parse_wishlist`) was accepted by the owner on 2026-09-19.
 
 
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini

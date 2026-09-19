@@ -109,7 +109,7 @@ Tier parsing is strictly opt-in per source to prevent false positives (e.g. Volt
 
 ### Upstream evaluation and rationale
 
-Aegis spreadsheet feeds were evaluated in #142 and re-measured for #158:
+Aegis spreadsheet feeds were evaluated in #142 and re-measured on 2026-09-19 for #158:
 
 | Source | Items | Parsed Tiers | Notes / Drawbacks |
 |---|---|---|---|
@@ -134,9 +134,9 @@ The two Ciceron sources share the same maintainer, converter, and curation famil
 
 **Revision alignment is not verified:** Neither file declares a content revision or generation date (reported as `None` / not declared). The files are fetched and cached independently, so one can be fresh while the other is stale (reflected on their separate `fetch:` CLI lines).
 
-### Decision delta in both directions (re-measured)
+### Decision delta in both directions (re-measured on 2026-09-19)
 
-The swap affects decisions in **both** directions. Re-measured from public list bytes (counting item hashes, not vault rows):
+The swap affects decisions in **both** directions. Re-measured on 2026-09-19 from public list bytes (counting item hashes, not vault rows):
 
 ```text
 Trash items (Ciceron trash ∪ Voltron trash) with a Nitaraku keep roll: 164
