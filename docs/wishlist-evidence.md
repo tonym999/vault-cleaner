@@ -59,6 +59,14 @@ Scoping rules mirror [DestinyItemManager/DIM](https://github.com/DestinyItemMana
    - Any later segment (including repeated `|tags:` segments of perk hashes found in some files) or a non-tags first segment is ignored.
    - Entries whose effective notes carried an ignored pipe segment increment `Wishlist.ignored_note_segments`. The count is produced by the parser and never recomputed from raw text. Only the merged `Wishlist` sums it.
 
+### Line-splitting contract (known difference from DIM)
+
+`parse_wishlist` uses Python's `str.splitlines()` to break wishlist text into lines.
+
+- **Difference from DIM:** DIM's TypeScript parser splits strictly on newline characters (`text.split('\n')`). Python's `str.splitlines()` also splits on Unicode and ASCII line boundaries including U+2028 (LINE SEPARATOR), U+2029 (PARAGRAPH SEPARATOR), vertical tab (`\v`), form feed (`\f`), and ASCII record/file separators (`\x1c`..`\x1e`).
+- **Rationale and intentional acceptance:** In standard UTF-8 wishlist files, these characters do not appear in valid item or perk roll definitions. Using `str.splitlines()` provides uniform, idiomatic handling of CRLF and LF across operating systems.
+- **No parser change:** This is an intentional, accepted behavior difference documented for transparency; no code change is made to `parse_wishlist` line splitting.
+
 ## 4. Activity basis and tier recognition
 
 ### Activity basis
@@ -105,6 +113,19 @@ Tier parsing is strictly opt-in per source to prevent false positives (e.g. Volt
   2. `keep-trash-same-family`: family present in both `keep_families` and `trash_families`.
   3. `tier-disagreement`: covered family whose parsed tiers for the item contain more than one distinct value.
 
+### Freshness fields
+
+Fetch freshness tracks cache status and age per source:
+
+- **`FetchResult.status`:** Tracks how the source data was obtained:
+  - `"cache"` (CLI: `served from cache`): Cached file was within `max_age_days` and used without a network download attempt.
+  - `"downloaded"` (CLI: `downloaded`): Successfully fetched over HTTP and written to cache.
+  - `"stale-cache-after-failed-download"` (CLI: `stale cache used after failed download`): A download attempt failed (e.g. network error, timeout, HTTP failure) and an existing cached file was used as fallback. This includes when `--refresh` is passed and the download fails, even if the cached file is within `max_age_days`.
+- **`cache_written_at`:** Unix epoch seconds (float) when the cached file was written to disk, or `None` if the source was never cached.
+- **`max_age_days`:** Float from config (`[wishlists] max_age_days`, defaulting to 7.0) defining cache expiry; when a cache file's age exceeds this threshold, fetch attempts an HTTP download.
+- **`ItemEvidence.stale_sources`:** Tuple of source names covering the item hash whose fetch status was `"stale-cache-after-failed-download"`. Surfaced as uncertainty rather than negative evidence.
+- **`content_revision`:** Always `None` in current implementation; reserved for future content-hashing or HTTP ETag revision tracking.
+
 ## 6. Aegis source strategy and swap measurement
 
 ### Upstream evaluation and rationale
@@ -113,7 +134,7 @@ Aegis spreadsheet feeds were evaluated in #142 and re-measured on 2026-09-19 for
 
 | Source | Items | Parsed Tiers | Notes / Drawbacks |
 |---|---|---|---|
-| **Nitaraku** (`aegis_wishlist.txt`) | 968 | S 184, A 271, B 180, C 147, D 63, E 59, F 41, untiered 23 | Stale (2026-07-04 commit; 489 tier disagreements with current revision). Contains D/E/F keep rolls that suppress Ciceron's trash list on 115 items. |
+| **Nitaraku** (`aegis_wishlist.txt`) | 968 | S 184, A 271, B 180, C 147, D 63, E 59, F 41, untiered 23 | Stale (2026-07-04 commit; 489 tier disagreements with current revision). Carries D/E/F keep entries on 115 Ciceron trash-listed items; a keep entry suppresses that trash verdict only when a weapon's perks match the roll. |
 | **JxPv2** (`all.txt`) | 1,711 | S 201, A 333, B 296, C 252, D 178, E 95, F 58 | Automated every 8 h (declares spreadsheet revision 2026-08-19). No trash list; includes non-weapons. |
 | **MrCharles** | — | 28 permutation files (443 KB – 36.7 MB) | Multi-perk permutation explosion (7–8 perk entries). Rejected on size and matching semantics. |
 | **Ciceron keep** (`major-perks.txt`) | 522 | S 199, A 323 (100% recognized) | Agrees closely with current revision (506 shared S/A items with JxPv2). 2-perk major trait rolls. |

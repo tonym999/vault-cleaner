@@ -575,6 +575,12 @@ dimwishlist:item=30&perks=,
     spec = WishlistSourceSpec(name="a", url="http://a", family="fam-a", activity="pve", tier_format="none")
     wl = parse_wishlist(text, "a", spec=spec, evidence=True)
 
+    assert wl.keep_evidence.keys() == wl.keep.keys()
+    assert wl.trash_evidence.keys() == wl.trash.keys()
+    for d in (wl.keep, wl.keep_evidence, wl.trash, wl.trash_evidence):
+        assert 30 not in d
+        assert 69420 not in d
+
     for h, rolls in wl.keep.items():
         evs = wl.keep_evidence[h]
         assert len(rolls) == len(evs)
@@ -599,6 +605,12 @@ dimwishlist:item=-20&perks=9,10
     wl.merge(wl_b)
     # Family of merged wishlist is unchanged
     assert wl.family == "fam-a"
+
+    assert wl.keep_evidence.keys() == wl.keep.keys()
+    assert wl.trash_evidence.keys() == wl.trash.keys()
+    for d in (wl.keep, wl.keep_evidence, wl.trash, wl.trash_evidence):
+        assert 30 not in d
+        assert 69420 not in d
 
     for h, rolls in wl.keep.items():
         evs = wl.keep_evidence[h]
@@ -675,3 +687,27 @@ def test_fetch_with_status_covers_all_three_statuses(tmp_path, monkeypatch, caps
     assert res3.status == "stale-cache-after-failed-download"
     assert res3.error == "network down"
     assert "stale cache" in capsys.readouterr().err
+
+
+def test_fetch_with_status_preserves_crlf_without_doubling(tmp_path, monkeypatch):
+    text = "//notes:a\r\ndimwishlist:item=1&perks=2\r\n"
+    monkeypatch.setattr(wl_mod, "_download", lambda url, timeout=30: text)
+    res = fetch_with_status("crlf_test", "https://example.test/crlf.txt", cache_dir=tmp_path, max_age_days=7)
+    assert res.path.read_bytes() == text.encode("utf-8")
+    assert b"\r\r\n" not in res.path.read_bytes()
+
+
+def test_parse_wishlist_doubled_cr_normalization():
+    text = "//notes:blk|tags:pve\r\r\ndimwishlist:item=1&perks=2\r\r\n"
+    spec = WishlistSourceSpec(name="test", url="http://test", family="fam", activity="any", tier_format="none")
+    wl_ev = parse_wishlist(text, "test", spec=spec, evidence=True)
+    entry = wl_ev.keep_evidence[1][0]
+    assert entry.notes == "blk"
+    assert entry.tags == ("pve",)
+    assert entry.activity_basis == "tags"
+
+    wl_no_ev = parse_wishlist(text, "test", evidence=False)
+    assert wl_ev.keep == wl_no_ev.keep
+    assert wl_ev.trash == wl_no_ev.trash
+    assert wl_ev.skipped == wl_no_ev.skipped
+    assert wl_ev.wildcards == wl_no_ev.wildcards

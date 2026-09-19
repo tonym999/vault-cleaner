@@ -16,7 +16,9 @@ def test_wishlists_cli_output_two_families(tmp_path, monkeypatch, capsys):
         "title: S1 Title\n"
         "//notes:First note|tags:pve\n"
         "dimwishlist:item=10&perks=1,2\n"
-        "dimwishlist:item=-20&perks=\n",
+        "dimwishlist:item=-20&perks=\n"
+        "dimwishlist:item=malformed\n"
+        "dimwishlist:item=69420&perks=1,2\n",
         encoding="utf-8",
     )
     os.utime(p1, (fixed_mtime, fixed_mtime))
@@ -53,19 +55,27 @@ tier_format = "ciceron-aegis"
     rc = _cmd_wishlists(argparse.Namespace(config=str(cfg_file), refresh=False))
     assert rc == 0
     captured = capsys.readouterr()
+
+    s1_extras = ["1 malformed lines skipped", "1 wildcard entries ignored"]
+    s1_suffix = f" ({', '.join(s1_extras)})"
+    s1_line = f"s1: 1 keep rolls across 1 items, 1 trash entries across 1 items{s1_suffix}"
+    s2_suffix = ""
+    s2_line = f"s2: 1 keep rolls across 1 items, 0 trash entries across 0 items{s2_suffix}"
+    total_line = f"total: {1 + 1} keep rolls, {1 + 0} trash entries"
+
     expected_out = (
-        "s1: 1 keep rolls across 1 items, 1 trash entries across 1 items\n"
+        f"{s1_line}\n"
         "  family: s1; activity: any; tier format: none\n"
         "  fetch: served from cache; cache written 2023-11-14T22:13:20Z (2.5 days old; refresh after 7 days)\n"
         "  declared title: S1 Title\n"
         "  notes: 2 of 2 entries have notes, 2 have tags; tiers: not declared\n"
-        "s2: 1 keep rolls across 1 items, 0 trash entries across 0 items\n"
+        f"{s2_line}\n"
         "  family: fam-beta; activity: pve; tier format: ciceron-aegis\n"
         "  fetch: served from cache; cache written 2023-11-14T22:13:20Z (2.5 days old; refresh after 7 days)\n"
         "  declared title: S2 Title\n"
         "  notes: 1 of 1 entries have notes, 0 have tags; tiers: S=1\n"
         "families: fam-beta = s2; s1 = s1\n"
-        "total: 2 keep rolls, 1 trash entries\n"
+        f"{total_line}\n"
     )
     assert captured.out == expected_out
 
@@ -162,10 +172,11 @@ title_src = "https://example.test/t"
     rc = _cmd_wishlists(argparse.Namespace(config=str(cfg_file), refresh=False))
     assert rc == 0
     captured = capsys.readouterr()
-    # \x00 -> \u0000, \x1b -> \u001b
-    # Total escaped length exceeds 100 chars, so truncated to 100 with … appended
-    assert "\\u0000" in captured.out
-    assert "…" in captured.out
+    escaped = "".join(c if c.isprintable() else f"\\u{ord(c):04x}" for c in long_raw_title)
+    prefix = escaped[:100]
+    assert len(prefix) == 100
+    expected_title = prefix + "…"
+    assert f"  declared title: {expected_title}" in captured.out.splitlines()
 
 
 def test_wishlists_cli_families_ordering(tmp_path, capsys):

@@ -74,6 +74,22 @@ Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
 - **R2-2 (WORKLOG.md):** Attributed Ciceron tier recognition counts (keep 2610 entries S/A, trash 286 entries D/E/F) to the 2026-09-19 re-measurement and to the orchestrator's measurement.
 - **R2-3 (WORKLOG.md):** Recorded that the F6 deviation (`newline=""` in `fetch_with_status` and `\r\r\n` normalization in `parse_wishlist`) was accepted by the owner on 2026-09-19.
 
+### Review-fix round 3
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **F1 (tests/test_wishlist.py):** Added unit tests for Windows newline handling without touching production code:
+  - `test_fetch_with_status_preserves_crlf_without_doubling`: verifies `fetch_with_status` preserves CRLF line endings from downloads without doubling into `\r\r\n`. Negative check failure when `newline=""` was temporarily reverted in `fetch_with_status`:
+    `AssertionError: assert b'//notes:a\r\r\ndimwishlist:item=1&perks=2\r\r\n' == b'//notes:a\r\ndimwishlist:item=1&perks=2\r\n'`
+  - `test_parse_wishlist_doubled_cr_normalization`: verifies `parse_wishlist` normalizes `\r\r\n` into `\r\n`, preventing spurious empty lines from prematurely resetting block notes. Negative check failure when `\r\r\n` normalization was temporarily commented out:
+    `AssertionError: assert None == 'blk' (where None = WishlistEntry(...).notes)`
+- **F2 (tests/test_wishlist.py):** Strengthened `test_alignment_invariant_and_merge` by asserting key set equality (`wl.keep_evidence.keys() == wl.keep.keys()` and `wl.trash_evidence.keys() == wl.trash.keys()`) and explicitly asserting absence of malformed (item 30) and wildcard (item 69420) entries across `keep`, `keep_evidence`, `trash`, and `trash_evidence` both after initial parse and after merge.
+- **F3 (tests/test_cli_wishlists.py):**
+  - In `test_wishlists_cli_output_two_families`, added malformed (`item=malformed`) and wildcard (`item=69420`) entries to `s1.txt` and constructed expected source/total lines using the exact `_cmd_wishlists` f-string templates (`{skipped} malformed lines skipped`, `{wildcards} wildcard entries ignored`).
+  - In `test_wishlists_cli_title_escaping_and_truncation`, replaced loose substring assertions with an exact assertion on the computed 100-character escaped title (`\u{ord:04x}`) plus `…`.
+- **F4 (docs/wishlist-evidence.md):** Corrected Nitaraku description in §6 table to: "Carries D/E/F keep entries on 115 Ciceron trash-listed items; a keep entry suppresses that trash verdict only when a weapon's perks match the roll."
+- **F5 (docs/wishlist-evidence.md):** Added `### Freshness fields` subsection to §5 documenting `FetchResult.status` values and CLI labels, semantics of `stale-cache-after-failed-download` (including failed `--refresh`), `cache_written_at`, `max_age_days`, `ItemEvidence.stale_sources`, and `content_revision` (always `None`).
+- **F6 (docs/wishlist-evidence.md):** Added `### Line-splitting contract (known difference from DIM)` subsection to §3 documenting that `parse_wishlist` intentionally uses Python's `str.splitlines()` (splitting on U+2028, U+2029, etc. unlike DIM's `\n` split) for platform-uniform CRLF/LF handling, as a docs-only note without code changes.
+
 
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
 
