@@ -61,11 +61,11 @@ Scoping rules mirror [DestinyItemManager/DIM](https://github.com/DestinyItemMana
 
 ### Line-splitting contract (known difference from DIM)
 
-`parse_wishlist` uses Python's `str.splitlines()` to break wishlist text into lines.
-
-- **Difference from DIM:** DIM's TypeScript parser splits strictly on newline characters (`text.split('\n')`). Python's `str.splitlines()` also splits on Unicode and ASCII line boundaries including U+2028 (LINE SEPARATOR), U+2029 (PARAGRAPH SEPARATOR), vertical tab (`\v`), form feed (`\f`), and ASCII record/file separators (`\x1c`..`\x1e`).
-- **Rationale and intentional acceptance:** In standard UTF-8 wishlist files, these characters do not appear in valid item or perk roll definitions. Using `str.splitlines()` provides uniform, idiomatic handling of CRLF and LF across operating systems.
-- **No parser change:** This is an intentional, accepted behavior difference documented for transparency; no code change is made to `parse_wishlist` line splitting.
+- `parse_wishlist` splits text with Python's `str.splitlines()`. DIM splits only on `\n` (`fileText.split('\n')`).
+- `str.splitlines()` also splits on `\r`, `\v` (`\x0b`), `\f` (`\x0c`), `\x1c`, `\x1d`, `\x1e`, U+0085, U+2028 and U+2029.
+- **Effect on evidence:** a note containing one of those characters is cut short at it. Example: `//notes:a<U+2028>b` gives `notes == "a"`, where DIM would keep `a<U+2028>b`.
+- Keep/trash matching (`keep`, `trash`, `skipped`, `wildcards`) already used `str.splitlines()` before #158. This ticket does not change line splitting.
+- This is a known difference from DIM, listed alongside the per-line whitespace stripping difference.
 
 ## 4. Activity basis and tier recognition
 
@@ -121,10 +121,10 @@ Fetch freshness tracks cache status and age per source:
   - `"cache"` (CLI: `served from cache`): Cached file was within `max_age_days` and used without a network download attempt.
   - `"downloaded"` (CLI: `downloaded`): Successfully fetched over HTTP and written to cache.
   - `"stale-cache-after-failed-download"` (CLI: `stale cache used after failed download`): A download attempt failed (e.g. network error, timeout, HTTP failure) and an existing cached file was used as fallback. This includes when `--refresh` is passed and the download fails, even if the cached file is within `max_age_days`.
-- **`cache_written_at`:** Unix epoch seconds (float) when the cached file was written to disk, or `None` if the source was never cached.
-- **`max_age_days`:** Float from config (`[wishlists] max_age_days`, defaulting to 7.0) defining cache expiry; when a cache file's age exceeds this threshold, fetch attempts an HTTP download.
+- **`cache_written_at`:** The cache file's `st_mtime` (Unix epoch seconds, float) read after the fetch completes, or `None` if that `stat()` call fails. When no usable cache exists and the download fails, `fetch_with_status` raises `WishlistError` and returns no `FetchResult`.
+- **`max_age_days`:** Float from config (`[wishlists] max_age_days`, defaulting to 7.0). A cache counts as fresh when its age is less than `max_age_days × 86400` seconds; a non-positive `max_age_days` always attempts a download.
 - **`ItemEvidence.stale_sources`:** Tuple of source names covering the item hash whose fetch status was `"stale-cache-after-failed-download"`. Surfaced as uncertainty rather than negative evidence.
-- **`content_revision`:** Always `None` in current implementation; reserved for future content-hashing or HTTP ETag revision tracking.
+- **`content_revision`:** Always `None`, because the selected source files declare no content revision or generated date.
 
 ## 6. Aegis source strategy and swap measurement
 

@@ -711,3 +711,23 @@ def test_parse_wishlist_doubled_cr_normalization():
     assert wl_ev.trash == wl_no_ev.trash
     assert wl_ev.skipped == wl_no_ev.skipped
     assert wl_ev.wildcards == wl_no_ev.wildcards
+
+
+def test_fetch_with_status_write_text_newline_argument(tmp_path, monkeypatch):
+    import pathlib
+
+    recorded_kwargs = []
+    orig_write_text = pathlib.Path.write_text
+
+    def spy_write_text(self, *args, **kwargs):
+        recorded_kwargs.append(kwargs)
+        return orig_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "write_text", spy_write_text)
+    monkeypatch.setattr(wl_mod, "_download", lambda url, timeout=30: "dimwishlist:item=1&perks=2\n")
+
+    res = fetch_with_status("spy_test", "https://example.test/list.txt", cache_dir=tmp_path)
+    assert res.status == "downloaded"
+    assert len(recorded_kwargs) == 1
+    assert recorded_kwargs[0].get("newline") == ""
+    assert recorded_kwargs[0].get("encoding") == "utf-8"

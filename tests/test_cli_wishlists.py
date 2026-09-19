@@ -56,12 +56,29 @@ tier_format = "ciceron-aegis"
     assert rc == 0
     captured = capsys.readouterr()
 
-    s1_extras = ["1 malformed lines skipped", "1 wildcard entries ignored"]
-    s1_suffix = f" ({', '.join(s1_extras)})"
-    s1_line = f"s1: 1 keep rolls across 1 items, 1 trash entries across 1 items{s1_suffix}"
-    s2_suffix = ""
-    s2_line = f"s2: 1 keep rolls across 1 items, 0 trash entries across 0 items{s2_suffix}"
-    total_line = f"total: {1 + 1} keep rolls, {1 + 0} trash entries"
+    def _old_first_line(name, keep, n, trash, m, skipped=0, wildcards=0):
+        extras = []
+        if skipped:
+            extras.append(f"{skipped} malformed lines skipped")
+        if wildcards:
+            extras.append(f"{wildcards} wildcard entries ignored")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        return f"{name}: {keep} keep rolls across {n} items, {trash} trash entries across {m} items{suffix}"
+
+    s1_keep = 1
+    s1_n = 1
+    s1_trash = 1
+    s1_m = 1
+    s2_keep = 1
+    s2_n = 1
+    s2_trash = 0
+    s2_m = 0
+
+    s1_line = _old_first_line("s1", s1_keep, s1_n, s1_trash, s1_m, skipped=1, wildcards=1)
+    s2_line = _old_first_line("s2", s2_keep, s2_n, s2_trash, s2_m)
+    total_keep = s1_keep + s2_keep
+    total_trash = s1_trash + s2_trash
+    total_line = f"total: {total_keep} keep rolls, {total_trash} trash entries"
 
     expected_out = (
         f"{s1_line}\n"

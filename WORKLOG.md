@@ -84,11 +84,24 @@ Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
     `AssertionError: assert None == 'blk' (where None = WishlistEntry(...).notes)`
 - **F2 (tests/test_wishlist.py):** Strengthened `test_alignment_invariant_and_merge` by asserting key set equality (`wl.keep_evidence.keys() == wl.keep.keys()` and `wl.trash_evidence.keys() == wl.trash.keys()`) and explicitly asserting absence of malformed (item 30) and wildcard (item 69420) entries across `keep`, `keep_evidence`, `trash`, and `trash_evidence` both after initial parse and after merge.
 - **F3 (tests/test_cli_wishlists.py):**
-  - In `test_wishlists_cli_output_two_families`, added malformed (`item=malformed`) and wildcard (`item=69420`) entries to `s1.txt` and constructed expected source/total lines using the exact `_cmd_wishlists` f-string templates (`{skipped} malformed lines skipped`, `{wildcards} wildcard entries ignored`).
+  - In `test_wishlists_cli_output_two_families`, added malformed (`item=malformed`) and wildcard (`item=69420`) entries to `s1.txt` and constructed expected source/total lines (hand-written in round 3; round 4 updated this to build them from the old pre-change template helper).
   - In `test_wishlists_cli_title_escaping_and_truncation`, replaced loose substring assertions with an exact assertion on the computed 100-character escaped title (`\u{ord:04x}`) plus `…`.
 - **F4 (docs/wishlist-evidence.md):** Corrected Nitaraku description in §6 table to: "Carries D/E/F keep entries on 115 Ciceron trash-listed items; a keep entry suppresses that trash verdict only when a weapon's perks match the roll."
 - **F5 (docs/wishlist-evidence.md):** Added `### Freshness fields` subsection to §5 documenting `FetchResult.status` values and CLI labels, semantics of `stale-cache-after-failed-download` (including failed `--refresh`), `cache_written_at`, `max_age_days`, `ItemEvidence.stale_sources`, and `content_revision` (always `None`).
-- **F6 (docs/wishlist-evidence.md):** Added `### Line-splitting contract (known difference from DIM)` subsection to §3 documenting that `parse_wishlist` intentionally uses Python's `str.splitlines()` (splitting on U+2028, U+2029, etc. unlike DIM's `\n` split) for platform-uniform CRLF/LF handling, as a docs-only note without code changes.
+- **F6 (docs/wishlist-evidence.md):** Added `### Line-splitting contract (known difference from DIM)` subsection to §3 documenting that `parse_wishlist` splits text with Python's `str.splitlines()` (splitting on `\r`, `\v`, `\f`, `\x1c`..`\x1e`, U+0085, U+2028, U+2029 unlike DIM's `\n` split), cutting notes containing those characters short, as a docs-only note without code changes (round 4 corrected the wording to remove unrecorded rationale).
+
+### Review-fix round 4
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **Item 1 (docs/wishlist-evidence.md):** Rewrote the `### Line-splitting contract (known difference from DIM)` subsection in §3 to be strictly factual, documenting the characters `str.splitlines()` splits on, the effect on notes cutting short, and that keep/trash matching already used `str.splitlines()` before #158. Removed unrecorded claims of intentionality, acceptance, and rationale.
+- **Item 2 (docs/wishlist-evidence.md):** In `### Freshness fields` (§5), corrected `cache_written_at` to state it is `st_mtime` read after fetch completes (or `None` if stat fails) and noted `fetch_with_status` raises `WishlistError` when no usable cache exists and download fails; corrected `content_revision` to state it is always `None` because selected source files declare none (removing "reserved for future" wording); corrected `max_age_days` to match `_is_fresh_cache` logic (age < max_age_days * 86400, non-positive always downloads).
+- **Item 3 (tests/test_cli_wishlists.py):** In `test_wishlists_cli_output_two_families`, replaced hand-written expected first lines and total line with values produced by a local `_old_first_line` helper reproducing the pre-change `_cmd_wishlists` template and named variables.
+- **Item 4 (tests/test_wishlist.py):** Added cross-platform unit test `test_fetch_with_status_write_text_newline_argument` using a spy on `Path.write_text` to verify `newline=""` and `encoding="utf-8"` are passed to `write_text`. Verified that temporarily removing `newline=""` from `src/vault_cleaner/wishlist.py:482` fails with:
+  ```
+  AssertionError: assert None == ''
+   +  where None = <built-in method get of dict object at 0x...('newline')
+   +    where <built-in method get of dict object at 0x... = {'encoding': 'utf-8'}.get
+  ```
 
 
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
