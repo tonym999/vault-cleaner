@@ -21,3 +21,5 @@ handoffs/issue-104-implementation-plan.md -whitespace
 handoffs/issue-105-implementation-plan.md -whitespace
 handoffs/issue-110-implementation-plan.md -whitespace
 handoffs/issue-118-implementation-plan.md -whitespace
+# Test fixture intentional whitespace-only line testing DIM whitespace scoping
+tests/fixtures/wishlist_evidence.txt -whitespace

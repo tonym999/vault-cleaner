@@ -3,6 +3,107 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-19 — #158 implementation: wishlist evidence model, curation families, and Aegis source strategy
+
+Implemented Child 3 of #140 on branch `feat/issue-158-wishlist-evidence` from `main`
+at base SHA `12b89a3e340caf478be73917b2fbbfd6d029e002`. Refs #158.
+
+- **Agent and model metadata:**
+  - Requested model: Google `gemini-3.8-flash` with native `thinking_level = high`.
+  - Actual provider/model/effort: Google `gemini-3.8-flash`, native `thinking_level = high`.
+  - Base SHA: `12b89a3e340caf478be73917b2fbbfd6d029e002`.
+- **Compatibility invariants:**
+  - `RULESET_VERSION` (4), `SNAPSHOT_SCHEMA_VERSION` (2), fingerprint payload, `report_snapshot_v2.json`, `rules/`, `report_run.py`, `report.py`, `review*.py`, `note_history.py`, `pipeline.py`, `server/`, and `ui/` are unchanged.
+  - Evidence parsing is strictly opt-in (`evidence=False` default). With evidence disabled, no entry objects or tags are allocated and `ignored_note_segments` remains 0.
+- **Measured parse performance & memory:**
+  - Evidence-off baseline on `main` (`wishlists/choosy_voltron.txt`):
+    - Timed runs: 0.568 s, 0.629 s, 0.536 s (median: 0.568 s).
+    - Peak tracemalloc: 137.70 MB.
+  - Post-change evidence-off:
+    - Timed runs: 0.572 s, 0.622 s, 0.550 s (median: 0.572 s, +0.7%).
+    - Peak tracemalloc: 137.70 MB (+0.0%).
+  - Post-change evidence-on:
+    - Timed runs: 1.494 s, 1.881 s, 2.000 s (median: 1.881 s).
+    - Peak tracemalloc: 238.23 MB (well below the 600 MB ceiling).
+    - Ignored note segments: 100 entries across 8 note blocks (matching plan measurement).
+- **Ciceron re-download tier recognition:**
+  - Re-measured on 2026-09-19 from fresh upstream downloads (matching orchestrator measurement): Keep: 2610 entries, S=1133, A=1477, 0 unrecognized (100% recognized); Trash: 286 entries, D=192, E=83, F=11, 0 unrecognized (100% recognized).
+- **Swap delta measurements (re-measured on 2026-09-19):**
+  - Re-measured on 2026-09-19 from fresh public list downloads (matching plan measurements and confirming subset nesting $E3 \subseteq E2 \subseteq E1$):
+  - Trash items with a Nitaraku keep roll: 164.
+  - Exposing (E1, upper bound): 162 items with $\ge 1$ Nitaraku roll not subsumed by any remaining keep roll.
+  - Exposing (E2): 157 items with every Nitaraku roll not subsumed by any remaining keep roll (123 still have keep entries in Voltron or Ciceron).
+  - Mixed (in E1 but not E2): 5 items.
+  - Exposing (E3, lower bound): 34 items where no configured source keeps any entry for the item, so no keep protection remains for any copy.
+  - Suppressing (S1, upper bound): 1 item on both Ciceron keep and trash, where 5 of 9 new Ciceron keep rolls are not subsumed by any old keep roll (working example of `keep-trash-same-family` conflict).
+  - Nesting confirmed: $E3 \subseteq E2 \subseteq E1$.
+- **Source strategy & config:**
+  - Configured `config.toml` with `[wishlists.sources]` subtables: `choosy_voltron` (`choosy-voltron`, `any`, `none`), `aegis_keep` (`aegis-endgame`, `pve`, `ciceron-aegis`), `aegis_trash` (`aegis-endgame`, `pve`, `ciceron-aegis`). Removed Nitaraku (`aegis`).
+  - Added strict source validation via `source_specs` in `wishlist.py`, called in `load_config` in `config.py` and wrapped as `ConfigError`.
+- **Data model & scoping implementation:**
+  - Implemented `WishlistEntry`, `WishlistSourceSpec`, `WishlistSourceStatus`, `WishlistEvidenceSet`, `FetchResult`, `EvidenceConflict`, `ItemEvidence`.
+  - Implemented exact DIM scoping rules: `//notes:` sets block notes; empty lines and `//` comments reset them; `title:` does not reset; `#notes:` pre-pipe text >1 char decides precedence; bounded `|tags:` split captures only the first segment; later segments or non-tag first segments increment `ignored_note_segments`.
+  - Added narrowly scoped `.gitattributes` rule `tests/fixtures/wishlist_evidence.txt -whitespace` to permit an intentional whitespace-only line required to test DIM whitespace-scoping block note resets without CI `git diff --check` failure.
+  - Alignment invariant tested and maintained: 1:1 lock-step between `keep`/`trash` and `keep_evidence`/`trash_evidence`, with `perks is` reference equality preserved across `Wishlist.merge`.
+  - Implemented pure `wishlist_evidence.item_evidence` query with family-deduplicated matching and 3 conflict kinds (`keep-trash-cross-family`, `keep-trash-same-family`, `tier-disagreement`). Parity with `rules.weapons` confirmed.
+  - Updated `_cmd_wishlists` with structured fetch info, cache write times, escaped/truncated declared titles, note/tag/tier coverage, and `families:` breakdown.
+- **Documentation:**
+  - Created `docs/wishlist-evidence.md` detailing the evidence model, DIM scoping, uncertainty invariants, Aegis strategy, delta range, unverified revision alignment, and Child 5 fingerprint boundary handoff.
+  - Added supersession note to §6 of `docs/aggressive-clearout-measurement.md`.
+- **Deviations from plan:**
+  - Passing `newline=""` to `path.write_text` in `fetch_with_status` and adding `\r\r\n` normalization in `parse_wishlist` are deviations from the plan (necessitated because Python on Windows translated `\n` in upstream CRLF downloads to `\r\r\n`, creating spurious blank lines that prematurely reset block notes).
+  - It changes cached bytes, and therefore the sha256 in the fingerprint, on Windows only when a cache is rewritten.
+  - Linux behaviour is unchanged.
+  - Accepted by the owner on 2026-09-19.
+
+### Review-fix round 1
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **F1 (tests/test_wishlist_evidence.py):** Replaced vacuous tests with real fixture weapon perks and item hashes. In `test_parity_with_weapons_rules`, built `perk_map` dynamically from actual fixture perk cells (`weapons.csv`, `weapons_dupes.csv`) and asserted that $\ge 1$ row has a keep match, $\ge 1$ has `trash_kind == "roll"`, and $\ge 1$ has `trash_kind == "whole-item"`. In `test_decision_invariance_under_load_all`, asserted that `keep_protected_count >= 1`, `len(trash_decisions) >= 1`, and `keep_trash_conflicts > 0` before verifying decision and conflict equality. Verified non-vacuousness via negative check: temporarily commenting out keep rolls in `w1_text` caused `assert keep_protected_count >= 1` to fail (`0 >= 1`).
+- **F2:** Addressed summary drift; documented changes strictly against actual code and diffs.
+- **F3 (src/vault_cleaner/wishlist.py, tests/test_wishlist.py):** Dropped `re.IGNORECASE` from `tags:` match in `parse_wishlist` so it strictly requires lowercase `tags:`. Added `test_tag_case_rejection` verifying `//notes:blk|TAGS:pvp` yields `tags == ()` and increments `ignored_note_segments`.
+- **F4 (docs/wishlist-evidence.md):** Corrected §3 regex from `^\s*tags:(.*)$` to `^\s*tags:([^|]*)$`.
+- **F5 (tests/fixtures/wishlist_evidence.txt, tests/test_wishlist.py):** Appended item 1018 preceded by a `//notes:` block and a whitespace-only line to test observable block-note reset, with strict LF endings. Added assertion in `test_evidence_scoping_on_fixture` verifying `e1018.notes is None`.
+- **F6 (WORKLOG.md):** Recorded Windows newline write handling and ingress normalization as a plan deviation awaiting orchestrator acceptance.
+- **F7 (WORKLOG.md):** Documented `.gitattributes` fixture rule justification, reworded E3 lower bound, and noted carry-over of swap delta and Ciceron counts from the plan.
+
+### Review-fix round 2
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **R2-1 (docs/wishlist-evidence.md, WORKLOG.md):** Executed Path A re-measurement of Aegis swap delta and tier recognition from freshly downloaded public list bytes on 2026-09-19. Confirmed exact match with all documented figures (T=164, E1=162, E2=157 [123 of 157 with remaining keep], mixed=5, E3=34, S1=1 [5 of 9 unsubsumed], and $E3 \subseteq E2 \subseteq E1$). Updated method wording on lines 112, 137, and 139 in `docs/wishlist-evidence.md` to reflect re-measurement on 2026-09-19.
+- **R2-2 (WORKLOG.md):** Attributed Ciceron tier recognition counts (keep 2610 entries S/A, trash 286 entries D/E/F) to the 2026-09-19 re-measurement and to the orchestrator's measurement.
+- **R2-3 (WORKLOG.md):** Recorded that the F6 deviation (`newline=""` in `fetch_with_status` and `\r\r\n` normalization in `parse_wishlist`) was accepted by the owner on 2026-09-19.
+
+### Review-fix round 3
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **F1 (tests/test_wishlist.py):** Added unit tests for Windows newline handling without touching production code:
+  - `test_fetch_with_status_preserves_crlf_without_doubling`: verifies `fetch_with_status` preserves CRLF line endings from downloads without doubling into `\r\r\n`. Negative check failure when `newline=""` was temporarily reverted in `fetch_with_status`:
+    `AssertionError: assert b'//notes:a\r\r\ndimwishlist:item=1&perks=2\r\r\n' == b'//notes:a\r\ndimwishlist:item=1&perks=2\r\n'`
+  - `test_parse_wishlist_doubled_cr_normalization`: verifies `parse_wishlist` normalizes `\r\r\n` into `\r\n`, preventing spurious empty lines from prematurely resetting block notes. Negative check failure when `\r\r\n` normalization was temporarily commented out:
+    `AssertionError: assert None == 'blk' (where None = WishlistEntry(...).notes)`
+- **F2 (tests/test_wishlist.py):** Strengthened `test_alignment_invariant_and_merge` by asserting key set equality (`wl.keep_evidence.keys() == wl.keep.keys()` and `wl.trash_evidence.keys() == wl.trash.keys()`) and explicitly asserting absence of malformed (item 30) and wildcard (item 69420) entries across `keep`, `keep_evidence`, `trash`, and `trash_evidence` both after initial parse and after merge.
+- **F3 (tests/test_cli_wishlists.py):**
+  - In `test_wishlists_cli_output_two_families`, added malformed (`item=malformed`) and wildcard (`item=69420`) entries to `s1.txt` and constructed expected source/total lines (hand-written in round 3; round 4 updated this to build them from the old pre-change template helper).
+  - In `test_wishlists_cli_title_escaping_and_truncation`, replaced loose substring assertions with an exact assertion on the computed 100-character escaped title (`\u{ord:04x}`) plus `…`.
+- **F4 (docs/wishlist-evidence.md):** Corrected Nitaraku description in §6 table to: "Carries D/E/F keep entries on 115 Ciceron trash-listed items; a keep entry suppresses that trash verdict only when a weapon's perks match the roll."
+- **F5 (docs/wishlist-evidence.md):** Added `### Freshness fields` subsection to §5 documenting `FetchResult.status` values and CLI labels, semantics of `stale-cache-after-failed-download` (including failed `--refresh`), `cache_written_at`, `max_age_days`, `ItemEvidence.stale_sources`, and `content_revision` (always `None`).
+- **F6 (docs/wishlist-evidence.md):** Added `### Line-splitting contract (known difference from DIM)` subsection to §3 documenting that `parse_wishlist` splits text with Python's `str.splitlines()` (splitting on `\r`, `\v`, `\f`, `\x1c`..`\x1e`, U+0085, U+2028, U+2029 unlike DIM's `\n` split), cutting notes containing those characters short, as a docs-only note without code changes (round 4 corrected the wording to remove unrecorded rationale).
+
+### Review-fix round 4
+
+Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
+- **Item 1 (docs/wishlist-evidence.md):** Rewrote the `### Line-splitting contract (known difference from DIM)` subsection in §3 to be strictly factual, documenting the characters `str.splitlines()` splits on, the effect on notes cutting short, and that keep/trash matching already used `str.splitlines()` before #158. Removed unrecorded claims of intentionality, acceptance, and rationale.
+- **Item 2 (docs/wishlist-evidence.md):** In `### Freshness fields` (§5), corrected `cache_written_at` to state it is `st_mtime` read after fetch completes (or `None` if stat fails) and noted `fetch_with_status` raises `WishlistError` when no usable cache exists and download fails; corrected `content_revision` to state it is always `None` because selected source files declare none (removing "reserved for future" wording); corrected `max_age_days` to match `_is_fresh_cache` logic (age < max_age_days * 86400, non-positive always downloads).
+- **Item 3 (tests/test_cli_wishlists.py):** In `test_wishlists_cli_output_two_families`, replaced hand-written expected first lines and total line with values produced by a local `_old_first_line` helper reproducing the pre-change `_cmd_wishlists` template and named variables.
+- **Item 4 (tests/test_wishlist.py):** Added cross-platform unit test `test_fetch_with_status_write_text_newline_argument` using a spy on `Path.write_text` to verify `newline=""` and `encoding="utf-8"` are passed to `write_text`. Verified that temporarily removing `newline=""` from `src/vault_cleaner/wishlist.py:482` fails with:
+  ```
+  AssertionError: assert None == ''
+   +  where None = <built-in method get of dict object at 0x...('newline')
+   +    where <built-in method get of dict object at 0x... = {'encoding': 'utf-8'}.get
+  ```
+
+
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
 
 Follow-up on the same branch after owner review of the Gemini-specific

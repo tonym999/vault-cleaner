@@ -8,7 +8,9 @@ default; nothing touches disk until --write.
 from __future__ import annotations
 
 import argparse
+import datetime
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -38,7 +40,11 @@ from vault_cleaner.review import (
     select_approved_proposals,
 )
 from vault_cleaner.rules import ghosts as ghost_rules
-from vault_cleaner.wishlist import WishlistError, fetch, parse_wishlist
+from vault_cleaner.wishlist import (
+    WishlistError,
+    load_source_with_evidence,
+    source_specs,
+)
 
 LOADERS = {
     "weapons": load_weapons,
@@ -547,34 +553,97 @@ def _cmd_wishlists(args: argparse.Namespace) -> int:
     if not sources:
         print("error: no [wishlists.sources] configured in config.toml", file=sys.stderr)
         return 1
+    specs = source_specs(sources)
+    if not specs:
+        print("error: no [wishlists.sources] configured in config.toml", file=sys.stderr)
+        return 1
 
     total_keep = total_trash = 0
-    for name, url in sources.items():
+    for spec in specs:
         try:
-            path = fetch(
-                name, url,
-                cache_dir=cfg["paths"]["wishlist_cache_dir"],
-                max_age_days=cfg["wishlists"]["max_age_days"],
-                refresh=args.refresh,
+            _wl, _src_data, status = load_source_with_evidence(
+                spec, cfg, refresh=args.refresh
             )
         except WishlistError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
-        wl = parse_wishlist(path.read_text(encoding="utf-8"), name)
-        keep = sum(len(v) for v in wl.keep.values())
-        trash = sum(len(v) for v in wl.trash.values())
-        total_keep += keep
-        total_trash += trash
+
+        total_keep += status.keep_entries
+        total_trash += status.trash_entries
+
         extras = []
-        if wl.skipped:
-            extras.append(f"{wl.skipped} malformed lines skipped")
-        if wl.wildcards:
-            extras.append(f"{wl.wildcards} wildcard entries ignored")
+        if status.skipped:
+            extras.append(f"{status.skipped} malformed lines skipped")
+        if status.wildcards:
+            extras.append(f"{status.wildcards} wildcard entries ignored")
         suffix = f" ({', '.join(extras)})" if extras else ""
-        print(
-            f"{name}: {keep} keep rolls across {len(wl.keep)} items, "
-            f"{trash} trash entries across {len(wl.trash)} items{suffix}"
+
+        if status.fetch.status == "cache":
+            fetch_label = "served from cache"
+        elif status.fetch.status == "downloaded":
+            fetch_label = "downloaded"
+        elif status.fetch.status == "stale-cache-after-failed-download":
+            fetch_label = "stale cache used after failed download"
+        else:
+            fetch_label = status.fetch.status
+
+        if status.fetch.cache_written_at is not None:
+            utc_dt = datetime.datetime.fromtimestamp(
+                status.fetch.cache_written_at, tz=datetime.UTC
+            )
+            dt_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            age = (time.time() - status.fetch.cache_written_at) / 86400.0
+            when = f"{dt_str} ({age:.1f} days old; refresh after {status.max_age_days:g} days)"
+        else:
+            when = "unknown"
+
+        if status.declared_title is not None:
+            escaped = "".join(
+                ch if ch.isprintable() else f"\\u{ord(ch):04x}"
+                for ch in status.declared_title
+            )
+            if len(escaped) > 100:
+                title = escaped[:100] + "…"
+            else:
+                title = escaped
+        else:
+            title = "(none)"
+
+        entries = status.keep_entries + status.trash_entries
+        if spec.tier_format == "none":
+            tiers_str = "not declared"
+        else:
+            if status.tier_counts:
+                tiers_str = " ".join(f"{t}={cnt}" for t, cnt in status.tier_counts)
+            else:
+                tiers_str = "none recognized"
+            if status.unrecognized_tier_entries > 0:
+                tiers_str += f", {status.unrecognized_tier_entries} unrecognized"
+
+        notes_line = (
+            f"  notes: {status.noted_entries} of {entries} entries have notes, "
+            f"{status.tagged_entries} have tags; tiers: {tiers_str}"
         )
+        if status.ignored_note_segment_entries > 0:
+            notes_line += f"; {status.ignored_note_segment_entries} entries had ignored note segments"
+
+        print(
+            f"{spec.name}: {status.keep_entries} keep rolls across {status.keep_items} items, "
+            f"{status.trash_entries} trash entries across {status.trash_items} items{suffix}"
+        )
+        print(f"  family: {spec.family}; activity: {spec.activity}; tier format: {spec.tier_format}")
+        print(f"  fetch: {fetch_label}; cache written {when}")
+        print(f"  declared title: {title}")
+        print(notes_line)
+
+    fams: dict[str, list[str]] = {}
+    for spec in specs:
+        fams.setdefault(spec.family, []).append(spec.name)
+    fam_parts = []
+    for fam in sorted(fams.keys()):
+        src_names = sorted(fams[fam])
+        fam_parts.append(f"{fam} = {' + '.join(src_names)}")
+    print(f"families: {'; '.join(fam_parts)}")
     print(f"total: {total_keep} keep rolls, {total_trash} trash entries")
     return 0
 
