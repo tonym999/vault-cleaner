@@ -6,7 +6,7 @@ surprises the next agent should know about.
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
 
 Follow-up on the same branch after owner review of the Gemini-specific
-guardrail above.
+guardrail below.
 
 - The incremental-diff audit (hunk accounting against the summary, word diff
   for changed docs, re-opening changed `file:line` citations) now applies to
@@ -18,7 +18,15 @@ guardrail above.
   (currently Gemini).
 - Shrank the `AGENTS.md` gotcha to a short generic rule pointing at the
   orchestrator template, since `AGENTS.md` is loaded every session.
-- Process documentation only; no code, tests, rules, or versions changed.
+- Review round on PR #161 (owner + CodeRabbit): merged `main` (#160) into the
+  branch; added `Previous reviewed head` and verbatim `Implementer fix-round
+  summary` fields to the reusable reviewer prompt, since a fresh reviewer
+  otherwise has neither the incremental range nor the claim to audit; switched
+  the audit from `prev...new` (merge-base diff) to the direct tree diff
+  `prev new`, guarded by `git merge-base --is-ancestor`, falling back to a
+  complete re-review when history was rewritten.
+- Process documentation only; no product code, tests, product or runtime
+  rules, or versions changed.
 
 ## 2026-09-19 — Workflow hardening: Gemini review-fix diff audit
 
@@ -39,7 +47,7 @@ orchestrators and reviewers do not lose the lesson.
   must define the allowed edit boundary and identify nearby text that must stay
   unchanged; green tests and an agent-authored summary are insufficient proof.
 - This is process documentation only. No production code, tests, schemas,
-  dependencies, rules, or version identifiers changed.
+  dependencies, product or runtime rules, or version identifiers changed.
 
 ## 2026-09-15 — #155 implementation: approval-only finalized CSVs (PR 2)
 

@@ -125,10 +125,11 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   production output and history cleanup.
 - **Audit every review-fix round against the incremental diff.** An agent's
   completion summary is intent, not an inventory of changes. Account for every
-  hunk in `git diff <previous_reviewed_head>...<new_head>` and open every
-  changed `file:line` citation at the new head; green tests do not validate
-  doc citations, and an unreported collateral edit is itself a finding (PR
-  #160). Details in [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
+  hunk in the direct tree diff `git diff <previous_reviewed_head> <new_head>`
+  and open every changed `file:line` citation at the new head; green tests do
+  not validate doc citations, and an unreported collateral edit is itself a
+  finding (PR #160). Details in
+  [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
 - Python's `csv` module writes CRLF by default: generate fixtures with
   `lineterminator="\n"` or `git diff --check` will flag them.
 - Review manifests and server payloads are untrusted input. Validate strictly
