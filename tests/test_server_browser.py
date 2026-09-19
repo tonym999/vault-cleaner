@@ -297,31 +297,61 @@ def test_review_smoke_downloads_server_finalized_bytes(
     expect(page.locator('#vc-list tr[data-id="9012"]')).to_have_count(0)
     page.get_by_role("button", name="Reset filters").click()
     expect(class_filter).to_have_value("")
-    row = page.locator("#vc-list tr[data-id]").first
-    expect(row).to_be_visible()
+    page.locator("#vc-upload-weapons").set_input_files(HOSTILE_EXPORT)
+    expect(page.locator("#vc-upload-status-weapons")).to_have_text("Accepted")
 
-    approve = row.locator("button.approve")
+    hunter_row = page.locator('#vc-list tr[data-id="9002"]')
+    expect(hunter_row).to_be_visible()
+    approve = hunter_row.locator("button.approve")
     approve.click()
     expect(approve).to_have_attribute("aria-pressed", "true")
 
-    unset = row.locator("button.clear-verdict")
-    unset.click()
-    expect(unset).to_have_attribute("aria-pressed", "true")
+    warlock_row = page.locator('#vc-list tr[data-id="9012"]')
+    expect(warlock_row).to_be_visible()
+    warlock_approve = warlock_row.locator("button.approve")
+    warlock_approve.click()
+    expect(warlock_approve).to_have_attribute("aria-pressed", "true")
 
-    veto = row.locator("button.veto")
-    veto.click()
-    expect(veto).to_have_attribute("aria-pressed", "true")
+    warlock_clear = warlock_row.locator("button.clear-verdict")
+    warlock_clear.click()
+    expect(warlock_clear).to_have_attribute("aria-pressed", "true")
 
-    page.once("dialog", lambda dialog: dialog.accept())
+    warlock_veto = warlock_row.locator("button.veto")
+    warlock_veto.click()
+    expect(warlock_veto).to_have_attribute("aria-pressed", "true")
+
+    unreviewed_weapon = page.locator('#vc-list tr[data-id="7004"]')
+    expect(unreviewed_weapon).to_be_visible()
+    expect(unreviewed_weapon.locator("button.approve")).to_have_attribute("aria-pressed", "false")
+    expect(unreviewed_weapon.locator("button.veto")).to_have_attribute("aria-pressed", "false")
+
+    dialog_messages: list[str] = []
+
+    def handle_dialog(dialog: Dialog) -> None:
+        dialog_messages.append(dialog.message)
+        dialog.accept()
+
+    page.once("dialog", handle_dialog)
     with page.expect_download() as download_info:
         page.locator("#vc-finalize").click()
     download = download_info.value
     expect(page.locator("#vc-download-again")).to_be_visible()
 
+    assert dialog_messages == [
+        (
+            "Finalise 1 approved proposal into the CSV? Vetoed and unreviewed proposals, "
+            "plus approvals blocked by active saved vetoes, will be excluded."
+        )
+    ]
     assert download.suggested_filename == "dim-import.csv"
     finalized = live_server.session.finalized_csv_bytes
     assert finalized is not None
-    assert Path(download.path()).read_bytes() == finalized
+    downloaded_bytes = Path(download.path()).read_bytes()
+    assert downloaded_bytes == finalized
+    downloaded_text = downloaded_bytes.decode("utf-8")
+    assert '"""9002"""' in downloaded_text
+    assert '"""9012"""' not in downloaded_text
+    assert '"""7004"""' not in downloaded_text
 
 
 @pytest.mark.browser

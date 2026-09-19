@@ -32,12 +32,12 @@ from vault_cleaner.report_run import run_report, snapshot_dict
 from vault_cleaner.review import (
     DEFAULT_OVERRIDES_PATH,
     ReviewManifestError,
-    apply_vetoes,
     check_keys,
     classify,
     require_id,
     require_text,
     save_overrides,
+    select_approved_proposals,
 )
 from vault_cleaner.review_session import merge_verdicts, retain_verdicts, utc_now
 from vault_cleaner.server.errors import ApiError, error_payload
@@ -787,11 +787,18 @@ def create_app(
             recorded_at=utc_now(),
         )
         status = classify(merge.store, session.report)
-        kept = apply_vetoes(session.report, status.active_ids)
-        csv_bytes = render_import_csv(
-            decision.import_row() for decision in kept
+        approved_ids = {
+            entry["id"]
+            for entry in session.verdicts
+            if entry.get("verdict") == "approved"
+        }
+        output_decisions = select_approved_proposals(
+            session.report, approved_ids, status.active_ids
         )
-        conflict_count = len(merge.already_vetoed_but_approved)
+        csv_bytes = render_import_csv(
+            decision.import_row() for decision in output_decisions
+        )
+        conflict_count = len(approved_ids & status.active_ids)
 
         try:
             current_digest = session.read_override_digest()

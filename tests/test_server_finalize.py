@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -15,7 +17,7 @@ from vault_cleaner.report_run import (
     SNAPSHOT_SCHEMA_VERSION,
     run_report,
 )
-from vault_cleaner.review import OverridesError, save_overrides
+from vault_cleaner.review import OverridesError, load_overrides, save_overrides
 from vault_cleaner.review_session import OverrideStore, Veto
 from vault_cleaner.server import app as server_app
 from vault_cleaner.server.app import create_app
@@ -151,24 +153,39 @@ def test_finalize_caches_bytes_and_uses_one_response_contract(client_session):
     uploaded = upload(client)
     assert uploaded.status_code == 200
 
-    first = finalize(client, uploaded.json)
+    approved_id = uploaded.json["snapshot"]["sections"][0]["decisions"][0]["id"]
+    reviewed = client.post(
+        "/api/verdicts",
+        base_url=ORIGIN,
+        headers={"Origin": ORIGIN},
+        json={
+            "report_revision": uploaded.json["report_revision"],
+            "verdict_revision": uploaded.json["verdict_revision"],
+            "fingerprint": uploaded.json["fingerprint"],
+            "decisions": [{"id": approved_id, "verdict": "approved"}],
+        },
+    )
+    assert reviewed.status_code == 200
+
+    first = finalize(client, reviewed.json)
     assert first.status_code == 200
     assert first.content_type == "text/csv; charset=utf-8"
     assert first.headers["Content-Disposition"] == 'attachment; filename="dim-import.csv"'
     assert first.headers["Vault-Cleaner-Report-Revision"] == "1"
-    assert first.headers["Vault-Cleaner-Verdict-Revision"] == "0"
+    assert first.headers["Vault-Cleaner-Verdict-Revision"] == "1"
     assert first.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "0"
     first_bytes = first.data
+    assert f'"""{approved_id}"""'.encode() in first_bytes
     persisted = overrides.read_bytes()
 
-    retry = finalize(client, uploaded.json)
+    retry = finalize(client, reviewed.json)
     downloaded = client.get("/api/finalized.csv", base_url=ORIGIN)
     assert retry.status_code == downloaded.status_code == 200
     assert retry.data == downloaded.data == first_bytes
     for response in (first, retry, downloaded):
         assert response.headers["Content-Disposition"] == 'attachment; filename="dim-import.csv"'
         assert response.headers["Vault-Cleaner-Report-Revision"] == "1"
-        assert response.headers["Vault-Cleaner-Verdict-Revision"] == "0"
+        assert response.headers["Vault-Cleaner-Verdict-Revision"] == "1"
         assert response.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "0"
     assert overrides.read_bytes() == persisted
     assert session.state == "finalized"
@@ -234,8 +251,22 @@ def test_once_finalize_shuts_down_only_after_successful_response_close(tmp_path)
     session.shutdown_callback = lambda: callbacks.append("shutdown")
     try:
         uploaded = upload(client)
-        response = finalize(client, uploaded.json)
+        approved_id = uploaded.json["snapshot"]["sections"][0]["decisions"][0]["id"]
+        reviewed = client.post(
+            "/api/verdicts",
+            base_url=ORIGIN,
+            headers={"Origin": ORIGIN},
+            json={
+                "report_revision": uploaded.json["report_revision"],
+                "verdict_revision": uploaded.json["verdict_revision"],
+                "fingerprint": uploaded.json["fingerprint"],
+                "decisions": [{"id": approved_id, "verdict": "approved"}],
+            },
+        )
+        assert reviewed.status_code == 200
+        response = finalize(client, reviewed.json)
         assert response.status_code == 200
+        assert f'"""{approved_id}"""'.encode() in response.data
         assert response.headers["Vault-Cleaner-Serve-Once"] == "true"
         assert callbacks == []
         assert session.state == "finalized"
@@ -318,15 +349,115 @@ def test_once_idempotent_retry_after_response_failure_schedules_shutdown(
         session.close()
 
 
-def test_server_csv_matches_cli_report_write_byte_for_byte(tmp_path):
-    client, session, _overrides = build_client(tmp_path)
+def test_server_csv_matches_cli_review_write_with_partial_verdicts_and_vetoes(tmp_path):
+    report = report_for_parity()
+    all_decisions = [d for s in report.sections for d in s.decisions]
+    assert len(all_decisions) >= 4
+
+    p_conflict = all_decisions[0]    # has durable veto AND approved -> excluded from CSV
+    p_approved = all_decisions[1]    # approved, no veto -> included in CSV
+    p_vetoed = all_decisions[2]      # fresh veto -> excluded from CSV, added to overrides
+    p_unreviewed = all_decisions[3]  # unreviewed -> excluded from CSV
+
+    existing_veto = Veto(
+        id=p_conflict.id,
+        kind=p_conflict.kind,
+        hash=p_conflict.hash,
+        name=p_conflict.name,
+        action=p_conflict.action,
+        reason=p_conflict.reason,
+        fingerprint=report.fingerprint,
+        recorded_at="2026-08-25T00:00:00Z",
+    )
+    source_overrides = tmp_path / "source-overrides.json"
+    save_overrides(OverrideStore(schema_version=1, vetoes=(existing_veto,)), source_overrides)
+
+    cli_manifest = tmp_path / "cli-manifest.json"
+    cli_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-08-25T00:00:00Z",
+                "snapshot": {
+                    "schema_version": SNAPSHOT_SCHEMA_VERSION,
+                    "ruleset_version": RULESET_VERSION,
+                    "fingerprint": report.fingerprint,
+                },
+                "decisions": [
+                    {
+                        "id": p_conflict.id,
+                        "kind": p_conflict.kind,
+                        "hash": p_conflict.hash,
+                        "name": p_conflict.name,
+                        "action": p_conflict.action,
+                        "reason": p_conflict.reason,
+                        "verdict": "approved",
+                    },
+                    {
+                        "id": p_approved.id,
+                        "kind": p_approved.kind,
+                        "hash": p_approved.hash,
+                        "name": p_approved.name,
+                        "action": p_approved.action,
+                        "reason": p_approved.reason,
+                        "verdict": "approved",
+                    },
+                    {
+                        "id": p_vetoed.id,
+                        "kind": p_vetoed.kind,
+                        "hash": p_vetoed.hash,
+                        "name": p_vetoed.name,
+                        "action": p_vetoed.action,
+                        "reason": p_vetoed.reason,
+                        "verdict": "vetoed",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client, session, _overrides = build_client(
+        tmp_path,
+        overrides_bytes=source_overrides.read_bytes(),
+    )
     try:
         uploaded = upload_all(client)
-        server_response = finalize(client, uploaded.json)
-        cli_output = tmp_path / "cli-report.csv"
-        cli_overrides = tmp_path / "cli-overrides.json"
-        assert cli.main(cli_args("report", cli_output, cli_overrides)) == 0
+        reviewed = client.post(
+            "/api/verdicts",
+            base_url=ORIGIN,
+            headers={"Origin": ORIGIN},
+            json={
+                "report_revision": uploaded.json["report_revision"],
+                "verdict_revision": uploaded.json["verdict_revision"],
+                "fingerprint": uploaded.json["fingerprint"],
+                "decisions": [
+                    {"id": p_conflict.id, "verdict": "approved"},
+                    {"id": p_approved.id, "verdict": "approved"},
+                    {"id": p_vetoed.id, "verdict": "vetoed"},
+                ],
+            },
+        )
+        assert reviewed.status_code == 200
+        server_response = finalize(client, reviewed.json)
+        assert server_response.status_code == 200
+        assert server_response.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "1"
+
+        cli_output = tmp_path / "cli-partial-review.csv"
+        cli_overrides = tmp_path / "cli-partial-overrides.json"
+        cli_overrides.write_bytes(source_overrides.read_bytes())
+        assert cli.main(
+            cli_args("review", cli_output, cli_overrides, manifest=cli_manifest)
+        ) == 0
+
+        # Exact byte-for-byte parity
         assert server_response.data == cli_output.read_bytes()
+        # Non-empty output: contains approved proposal
+        assert f'"""{p_approved.id}"""'.encode() in server_response.data
+        # Excludes conflict, vetoed, and unreviewed proposals
+        assert f'"""{p_conflict.id}"""'.encode() not in server_response.data
+        assert f'"""{p_vetoed.id}"""'.encode() not in server_response.data
+        assert f'"""{p_unreviewed.id}"""'.encode() not in server_response.data
     finally:
         session.close()
 
@@ -357,14 +488,20 @@ def test_server_csv_matches_cli_review_write_with_existing_vetoes(tmp_path):
         cli_overrides = tmp_path / "cli-review-overrides.json"
         cli_overrides.write_bytes(source_overrides.read_bytes())
         assert cli.main(cli_args("review", cli_output, cli_overrides)) == 0
-        assert server_response.data == cli_output.read_bytes()
+        assert server_response.data == cli_output.read_bytes() == b"Id,Hash,Tag,Notes\r\n"
     finally:
         session.close()
 
 
 def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
     report = report_for_parity()
-    selected = list(report.sections[0].decisions[:3])
+    weapons_proposals = list(report.sections[0].decisions[:2])
+    armor_proposals = list(report.sections[1].decisions[:2])
+    approved = [weapons_proposals[0], weapons_proposals[1], armor_proposals[0]]
+    vetoed = [armor_proposals[1]]
+    all_selected = approved + vetoed
+    reversed_selected = list(reversed(all_selected))
+
     manifest = tmp_path / "review-manifest.json"
     manifest.write_text(
         json.dumps(
@@ -384,9 +521,9 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
                         "name": decision.name,
                         "action": decision.action,
                         "reason": decision.reason,
-                        "verdict": "vetoed" if index < 2 else "approved",
+                        "verdict": "vetoed" if decision in vetoed else "approved",
                     }
-                    for index, decision in enumerate(selected)
+                    for decision in reversed_selected
                 ],
             }
         ),
@@ -396,8 +533,8 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
     try:
         uploaded = upload_all(client)
         selected_verdicts = [
-            {"id": decision.id, "verdict": "vetoed" if index < 2 else "approved"}
-            for index, decision in enumerate(selected)
+            {"id": decision.id, "verdict": "vetoed" if decision in vetoed else "approved"}
+            for decision in reversed_selected
         ]
         reviewed = client.post(
             "/api/verdicts",
@@ -412,12 +549,21 @@ def test_server_csv_matches_cli_review_manifest_write_byte_for_byte(tmp_path):
         )
         assert reviewed.status_code == 200
         server_response = finalize(client, reviewed.json)
+        assert server_response.status_code == 200
         cli_output = tmp_path / "cli-manifest-review.csv"
         cli_overrides = tmp_path / "cli-manifest-overrides.json"
         assert cli.main(
             cli_args("review", cli_output, cli_overrides, manifest=manifest)
         ) == 0
         assert server_response.data == cli_output.read_bytes()
+
+        reader = csv.DictReader(io.StringIO(server_response.data.decode("utf-8")))
+        parsed_ids = [row["Id"].strip('"') for row in reader]
+        expected_ids = [decision.id for decision in approved]
+        assert parsed_ids == expected_ids
+        assert len(parsed_ids) == 3
+
+        assert f'"""{vetoed[0].id}"""'.encode() not in server_response.data
     finally:
         session.close()
 
@@ -494,14 +640,16 @@ def test_finalize_rejects_stale_report_fingerprint_and_verdict_without_mutation(
     assert before[0] == "exports-loaded"
 
 
-def test_session_veto_suppresses_only_that_row_and_unreviewed_proposals_remain(
+def test_session_finalization_includes_only_approved_and_excludes_vetoed_and_unreviewed(
     client_session,
 ):
     client, session, _overrides = client_session
     uploaded = upload(client)
     proposals = uploaded.json["snapshot"]["sections"][0]["decisions"]
-    vetoed_id = proposals[0]["id"]
-    retained_id = proposals[1]["id"]
+    assert len(proposals) >= 3
+    approved_id = proposals[0]["id"]
+    vetoed_id = proposals[1]["id"]
+    unreviewed_id = proposals[2]["id"]
     reviewed = client.post(
         "/api/verdicts",
         base_url=ORIGIN,
@@ -510,15 +658,132 @@ def test_session_veto_suppresses_only_that_row_and_unreviewed_proposals_remain(
             "report_revision": uploaded.json["report_revision"],
             "verdict_revision": uploaded.json["verdict_revision"],
             "fingerprint": uploaded.json["fingerprint"],
-            "decisions": [{"id": vetoed_id, "verdict": "vetoed"}],
+            "decisions": [
+                {"id": approved_id, "verdict": "approved"},
+                {"id": vetoed_id, "verdict": "vetoed"},
+            ],
         },
     )
     assert reviewed.status_code == 200
     response = finalize(client, reviewed.json)
     assert response.status_code == 200
+    assert f'"""{approved_id}"""'.encode() in response.data
     assert f'"""{vetoed_id}"""'.encode() not in response.data
-    assert f'"""{retained_id}"""'.encode() in response.data
+    assert f'"""{unreviewed_id}"""'.encode() not in response.data
     assert session.state == "finalized"
+
+
+def test_finalize_with_zero_approvals_produces_exact_header_only_bytes(client_session):
+    client, session, _overrides = client_session
+    uploaded = upload(client)
+    response = finalize(client, uploaded.json)
+    assert response.status_code == 200
+    assert response.data == b"Id,Hash,Tag,Notes\r\n"
+    assert session.state == "finalized"
+
+
+def test_clearing_approval_to_unreviewed_excludes_proposal_from_finalized_csv(client_session):
+    client, _session, _overrides = client_session
+    uploaded = upload(client)
+    target_id = uploaded.json["snapshot"]["sections"][0]["decisions"][0]["id"]
+
+    # First approve
+    approved = client.post(
+        "/api/verdicts",
+        base_url=ORIGIN,
+        headers={"Origin": ORIGIN},
+        json={
+            "report_revision": uploaded.json["report_revision"],
+            "verdict_revision": uploaded.json["verdict_revision"],
+            "fingerprint": uploaded.json["fingerprint"],
+            "decisions": [{"id": target_id, "verdict": "approved"}],
+        },
+    )
+    assert approved.status_code == 200
+
+    # Then clear back to unreviewed (verdict: None)
+    cleared = client.post(
+        "/api/verdicts",
+        base_url=ORIGIN,
+        headers={"Origin": ORIGIN},
+        json={
+            "report_revision": approved.json["report_revision"],
+            "verdict_revision": approved.json["verdict_revision"],
+            "fingerprint": approved.json["fingerprint"],
+            "decisions": [{"id": target_id, "verdict": None}],
+        },
+    )
+    assert cleared.status_code == 200
+    assert cleared.json["verdicts"] == []
+
+    response = finalize(client, cleared.json)
+    assert response.status_code == 200
+    assert response.data == b"Id,Hash,Tag,Notes\r\n"
+    assert f'"""{target_id}"""'.encode() not in response.data
+
+
+def test_server_finalize_four_row_truth_table(tmp_path):
+    report = report_for_parity()
+    all_decisions = [d for s in report.sections for d in s.decisions]
+    assert len(all_decisions) >= 4
+
+    p_approved_no_veto = all_decisions[0]
+    p_approved_active_veto = all_decisions[1]
+    p_vetoed = all_decisions[2]
+    p_unreviewed = all_decisions[3]
+
+    active_veto = Veto(
+        id=p_approved_active_veto.id,
+        kind=p_approved_active_veto.kind,
+        hash=p_approved_active_veto.hash,
+        name=p_approved_active_veto.name,
+        action=p_approved_active_veto.action,
+        reason=p_approved_active_veto.reason,
+        fingerprint=report.fingerprint,
+        recorded_at="2026-08-25T00:00:00Z",
+    )
+    source_overrides = tmp_path / "source-overrides.json"
+    save_overrides(OverrideStore(schema_version=1, vetoes=(active_veto,)), source_overrides)
+
+    client, session, overrides = build_client(
+        tmp_path,
+        overrides_bytes=source_overrides.read_bytes(),
+    )
+    try:
+        uploaded = upload_all(client)
+        reviewed = client.post(
+            "/api/verdicts",
+            base_url=ORIGIN,
+            headers={"Origin": ORIGIN},
+            json={
+                "report_revision": uploaded.json["report_revision"],
+                "verdict_revision": uploaded.json["verdict_revision"],
+                "fingerprint": uploaded.json["fingerprint"],
+                "decisions": [
+                    {"id": p_approved_no_veto.id, "verdict": "approved"},
+                    {"id": p_approved_active_veto.id, "verdict": "approved"},
+                    {"id": p_vetoed.id, "verdict": "vetoed"},
+                ],
+            },
+        )
+        assert reviewed.status_code == 200
+        response = finalize(client, reviewed.json)
+        assert response.status_code == 200
+        assert response.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "1"
+
+        # Row 1: approved, no active veto -> included
+        assert f'"""{p_approved_no_veto.id}"""'.encode() in response.data
+        # Row 2: approved, active veto -> excluded
+        assert f'"""{p_approved_active_veto.id}"""'.encode() not in response.data
+        # Row 3: vetoed -> excluded
+        assert f'"""{p_vetoed.id}"""'.encode() not in response.data
+        # Row 4: unreviewed -> excluded
+        assert f'"""{p_unreviewed.id}"""'.encode() not in response.data
+
+        stored = load_overrides(overrides)
+        assert {v.id for v in stored.vetoes} == {p_approved_active_veto.id, p_vetoed.id}
+    finally:
+        session.close()
 
 
 def test_finalize_refuses_initially_missing_override_file_created(client_session):
@@ -625,6 +890,48 @@ def test_persisted_veto_and_session_approval_conflict_stays_suppressed(
     assert response.status_code == 200
     assert response.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "1"
     assert f'"""{proposal["id"]}"""'.encode() not in response.data
+
+
+def test_finalize_with_stale_saved_veto_emits_item_and_zero_suppressed_count(
+    client_session,
+):
+    client, session, overrides = client_session
+    uploaded = upload(client)
+    proposal = uploaded.json["snapshot"]["sections"][0]["decisions"][0]
+    # A saved veto whose action or reason no longer matches the current proposal
+    # is classified as stale, so it must not suppress the approved item or
+    # count as an approved-still-vetoed conflict.
+    veto = Veto(
+        id=proposal["id"],
+        kind=proposal["kind"],
+        hash=proposal["hash"],
+        name=proposal["name"],
+        action="review" if proposal["action"] != "review" else "junk",
+        reason="stale-historical-reason",
+        fingerprint=uploaded.json["fingerprint"],
+        recorded_at="2026-08-25T00:00:00Z",
+    )
+    store = OverrideStore(schema_version=1, vetoes=(veto,))
+    save_overrides(store, overrides)
+    session.override_store = store
+    session.override_digest = hashlib.sha256(overrides.read_bytes()).hexdigest()
+    reviewed = client.post(
+        "/api/verdicts",
+        base_url=ORIGIN,
+        headers={"Origin": ORIGIN},
+        json={
+            "report_revision": 1,
+            "verdict_revision": 0,
+            "fingerprint": uploaded.json["fingerprint"],
+            "decisions": [{"id": proposal["id"], "verdict": "approved"}],
+        },
+    )
+    assert reviewed.status_code == 200
+    response = finalize(client, reviewed.json)
+    assert response.status_code == 200
+    assert response.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "0"
+    assert session.approved_still_vetoed_count == 0
+    assert f'"""{proposal["id"]}"""'.encode() in response.data
 
 
 def test_reset_invalid_override_refresh_preserves_the_live_review(client_session):

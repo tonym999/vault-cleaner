@@ -135,7 +135,7 @@ Cell population across all committed fixtures:
 | **Crafted protection** | `Crafted == 'crafted'` | HARD if empty level (`crafted-lvunknown`) or level ≥ 10 (`crafted-lv{level}`, [rails.py:51](../src/vault_cleaner/rules/rails.py#L51)) | Retained; hard rail preserved |
 | **Locked state** | `Locked == 'true'` | SOFT rail (`locked` -> review-only) | Retained as soft rail; flagged for review, never auto-junked |
 | **Exotic state** | `Rarity == 'Exotic'` | SOFT rail (`exotic` -> review-only) | Retained as soft rail; flagged for review, never auto-junked |
-| **Durable veto** | `Id in OverrideStore.vetoes` (`data/overrides.json`) | Excluded from CSV in `apply_vetoes` | Retained; a veto suppresses export until it goes **stale** (the proposal's `(action, reason)` no longer matches, per `classify`) or is **explicitly removed** by editing `data/overrides.json`. Re-reviewing does **not** clear it: `merge_manifest` is additive by design — "Approving an id never removes an existing veto… Un-vetoing is an explicit edit of the overrides file" ([review.py:562-575](../src/vault_cleaner/review.py#L562-L575)) — and a later manifest approving a vetoed id is reported as a conflict via `already_vetoed_but_approved`, not honoured. |
+| **Durable veto** | `Id in OverrideStore.vetoes` (`data/overrides.json`) | Excluded from CSV in `apply_vetoes` (baseline; superseded by #155 approval-only finalization, see §9) | Retained; a veto suppresses export until it goes **stale** (the proposal's `(action, reason)` no longer matches, per `classify`) or is **explicitly removed** by editing `data/overrides.json`. Re-reviewing does **not** clear it: `merge_manifest` is additive by design — "Approving an id never removes an existing veto… Un-vetoing is an explicit edit of the overrides file" ([review.py:562-575](../src/vault_cleaner/review.py#L562-L575)) — and a later manifest approving a vetoed id is reported as a conflict via `already_vetoed_but_approved`, not honoured. |
 
 ### Identifier handling and types
 
@@ -228,6 +228,9 @@ dry run — pass --write to write the combined import CSV
 
 ### Current finalization seam
 
+> [!NOTE]
+> **Baseline reference:** Describes the pre-implementation baseline. Superseded by #155 approval-only finalization; see [§9](#9-approval-only-finalization-contract).
+
 The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](../src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). It has two sibling call sites:
 1. Server finalization: [server/app.py:790-792](../src/vault_cleaner/server/app.py#L790-L792)
 2. CLI review: [cli.py:484](../src/vault_cleaner/cli.py#L484)
@@ -243,7 +246,7 @@ To prevent premature automatic dismantling while enabling high-confidence clear-
 | Strength Class | Definition | Rules Producing It | Emit Action | Output Inclusion |
 |---|---|---|---|---|
 | **Automatic junk candidate** | Deterministic evidence of inferiority with zero soft-rail impediment | `wishlist-trash whole-item`, `wishlist-trash roll`, `dupe-lower`, `dupe-tie` on unprotected items | `junk` | Proposed for junk; included in CSV under current subtractive seam, but requires explicit approval under Child 2b approval-only seam |
-| **Review-only comparison** | Proposal backed by evidence but restricted by a soft rail (locked/exotic) or pairwise coverage trade-off | `#vc-review: wishlist-trash whole-item (locked)`, `#vc-review: wishlist-trash whole-item (exotic)`, `#vc-review: dupe-lower (locked)`, `#vc-review: dupe-lower (exotic)`, `#vc-review: dupe-tie (exotic)`, future useful-combination dominance (#34) | `review` | **Current behaviour:** displayed in review UI and **included** in the CSV unless actively vetoed — `apply_vetoes` is subtractive, so an unreviewed `review` decision ships. **Child 2b target:** excluded unless explicitly approved. |
+| **Review-only comparison** | Proposal backed by evidence but restricted by a soft rail (locked/exotic) or pairwise coverage trade-off | `#vc-review: wishlist-trash whole-item (locked)`, `#vc-review: wishlist-trash whole-item (exotic)`, `#vc-review: dupe-lower (locked)`, `#vc-review: dupe-lower (exotic)`, `#vc-review: dupe-tie (exotic)`, future useful-combination dominance (#34) | `review` | **Baseline behaviour (superseded by #155; see §9):** displayed in review UI and previously included in the CSV unless actively vetoed. **Landed Child 2b rule:** excluded unless explicitly approved. |
 | **Protected / retained** | Hard-protected by player directive, system state, or dupe winner | Hard rails (`dim-tag:{tag}`, `equipped`, `crafted-lv{level}`, `crafted-lvunknown`) — current behaviour; plus `loadout-protected`, a **Child 2a settled decision, not yet implemented** (`grep -rn "loadout-protected" src/ tests/` returns nothing today; see §2 and §8) — and dupe survivor / winner | **none** | No decision is emitted at all. Hard-protected rows `continue` before any `Decision` is constructed ([weapons.py:83-84](../src/vault_cleaner/rules/weapons.py#L83-L84), [dupes.py:244-245](../src/vault_cleaner/rules/dupes.py#L244-L245)), and the dupe survivor is never visited — `dupes.resolve` iterates `keyed[1:]`, the losers only ([dupes.py:242](../src/vault_cleaner/rules/dupes.py#L242)). There is no `keep` action anywhere in the pipeline; absence from the decision list *is* the retention. Nothing to include in or exclude from the CSV. |
 | **Unknown or uncovered** | No wishlist match, ungroupable perks, or unique roll without comparable duplicate | Unmatched rolls, ungroupable exact-dupe rows, lone rolls | None | Retained. **Explicit invariant:** absence of wishlist coverage or inability to determine roll identity is **never** evidence of junk. |
 
@@ -573,31 +576,39 @@ Each of these is cited to where it is already measured elsewhere in this documen
 
 ## 9. Approval-only finalization contract
 
+> [!NOTE]
+> **Implementation status (Child 2b, Issue #155):**
+> Landed in #155. `review.apply_vetoes` was replaced with `review.select_approved_proposals(run, approved_ids, active_veto_ids=())`. Both server finalization (`server/app.py`) and CLI review (`cli.py`) now emit only decisions satisfying `current proposal AND explicit fresh approval AND NOT active persisted veto`. When no proposals are approved, an exact header-only CSV is written.
+
 ### Authoritative seam and call sites
 
-The authoritative finalization seam is `review.apply_vetoes` ([review.py:546](../src/vault_cleaner/review.py#L546)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). Both sibling call sites must be updated together:
-1. Server: [src/vault_cleaner/server/app.py:790-792](../src/vault_cleaner/server/app.py#L790-L792)
-2. CLI: [src/vault_cleaner/cli.py:484](../src/vault_cleaner/cli.py#L484)
+The authoritative finalization seam is `review.select_approved_proposals` ([review.py:546-566](../src/vault_cleaner/review.py#L546-L566)) feeding `report.render_import_csv` ([report.py:83-102](../src/vault_cleaner/report.py#L83-L102)). Both sibling call sites use this seam:
+1. Server: [src/vault_cleaner/server/app.py:795-800](../src/vault_cleaner/server/app.py#L795-L800)
+2. CLI: [src/vault_cleaner/cli.py:489-492](../src/vault_cleaner/cli.py#L489-L492)
 
 ### Approval-only rule
 
-Today, `apply_vetoes` is subtractive:
+The finalization seam uses additive, approval-only selection rather than subtractive filtering:
 ```python
-# Current subtractive behavior (review.py:553-559):
-suppressed = frozenset(vetoed_ids)
+# Landed approval-only behavior (review.py:557-565):
+approved = {str(item_id) for item_id in approved_ids}
+active_vetoes = {str(item_id) for item_id in active_veto_ids}
+eligible = approved - active_vetoes
 return [
     decision
     for section in run.sections
     for decision in section.decisions
-    if decision.id not in suppressed
+    if decision.id in eligible
 ]
 ```
 
-In approval-only finalization (Child 2b):
+Under approval-only finalization (Child 2b, Issue #155):
 - An item is included in the output CSV **only if explicitly approved** (`verdict == "approved"`).
 - Vetoed proposals (`verdict == "vetoed"`) are excluded.
 - Unreviewed proposals (`verdict` unset / unchecked) are **excluded**.
-- The canonical verdict *token set* is `VERDICTS = frozenset({"approved", "vetoed"})` ([review_session.py:41](../src/vault_cleaner/review_session.py#L41)). Both untrusted-input boundaries accept exactly that token set for a non-null verdict — [review.py:300-304](../src/vault_cleaner/review.py#L300-L304) (the review-manifest validator) rejects any verdict not in `VERDICTS`, and [server/app.py:221-228](../src/vault_cleaner/server/app.py#L221-L228) (the server's verdict-request validator) rejects any non-null verdict not in the inlined literal `{"approved", "vetoed"}` — but the **enforcement is not identical**: the server additionally accepts `verdict: null` as an explicit clear path (`"{where}: verdict must be approved, vetoed, or null"`, `app.py:227`), which the manifest validator has no equivalent for — a missing or non-string `verdict` there fails as malformed input, not as an accepted clear signal. This distinction matters specifically for the approval-only contract, which turns on distinguishing "vetoed" from "unset/unchecked": the server's `null` path is how a client clears a verdict back to unset, and the review-manifest side was never given the same explicit clear token. `review_ui.js:131` accepts only these two *verdict* tokens (`verdict === "approved" || verdict === "vetoed"`); there is no `"approve"` / `"veto"` **verdict** token anywhere in the codebase. (`"approve"` and `"veto"` do appear elsewhere in `review_ui.js` — e.g. lines 893, 900, 1231, 1233, 1238, 1240 — but only as CSS class names and `aria-label` fragments for the UI buttons, and in `tests/test_review_ui_js.py:1557` asserting that presentation; none of those is a verdict value.)
+- An active persisted veto suppresses an item even if marked approved in the current session via `select_approved_proposals(..., active_veto_ids=status.active_ids)` (`eligible = approved - active_vetoes`), maintaining veto precedence. The count of such suppressed approvals is surfaced in the server's `Vault-Cleaner-Approved-Still-Vetoed` header (`len(approved_ids & status.active_ids)`).
+- If no proposals are approved, an exact header-only CSV is produced.
+- The canonical verdict *token set* is `VERDICTS = frozenset({"approved", "vetoed"})` ([review_session.py:41](../src/vault_cleaner/review_session.py#L41)). Both untrusted-input boundaries accept exactly that token set for a non-null verdict — [review.py:300-304](../src/vault_cleaner/review.py#L300-L304) (the review-manifest validator) rejects any verdict not in `VERDICTS`, and [server/app.py:221-228](../src/vault_cleaner/server/app.py#L221-L228) (the server's verdict-request validator) rejects any non-null verdict not in the inlined literal `{"approved", "vetoed"}` — but the **enforcement is not identical**: the server additionally accepts `verdict: null` as an explicit clear path (`"{where}: verdict must be approved, vetoed, or null"`, `app.py:227`), which the manifest validator has no equivalent for — a missing or non-string `verdict` there fails as malformed input, not as an accepted clear signal. This distinction matters specifically for the approval-only contract, which turns on distinguishing "vetoed" from "unset/unchecked": the server's `null` path is how a client clears a verdict back to unset, and the review-manifest side was never given the same explicit clear token. `review_ui.js:129-131` accepts only these two *verdict* tokens (`verdict === "approved" || verdict === "vetoed"`); there is no `"approve"` / `"veto"` **verdict** token anywhere in the codebase. (`"approve"` and `"veto"` do appear elsewhere in `review_ui.js` — e.g. lines 1017, 1019, 1024, 1026, 1361, 1363, 1368, 1370 — but only as CSS class names and `aria-label` fragments for the UI buttons, and in `tests/test_review_ui_js.py:1660, 2009` asserting that presentation; none of those is a verdict value.)
 
 ### Durable veto interaction and semantics
 

@@ -17,13 +17,13 @@ from vault_cleaner.review import (
     OverrideStore,
     ReviewManifestError,
     Veto,
-    apply_vetoes,
     check_manifest_matches,
     classify,
     load_overrides,
     merge_manifest,
     parse_manifest,
     save_overrides,
+    select_approved_proposals,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -513,35 +513,76 @@ def test_veto_for_an_unloaded_export_is_unchecked_not_orphaned(tmp_path):
     assert status.orphaned == ()
 
 
-# --- applying ---------------------------------------------------------------
+# --- selecting approved proposals -------------------------------------------
 
 
-def test_apply_vetoes_removes_only_the_vetoed_rows_in_order():
+def test_select_approved_proposals_four_row_truth_table():
     run = build_report()
     all_decisions = proposals(run)
-    vetoed = {all_decisions[1].id, all_decisions[3].id}
+    assert len(all_decisions) >= 4
 
-    kept = apply_vetoes(run, vetoed)
-    assert [d.id for d in kept] == [d.id for d in all_decisions if d.id not in vetoed]
+    p_approved_no_veto = all_decisions[0]
+    p_approved_active_veto = all_decisions[1]
+    p_vetoed = all_decisions[2]
+    p_unreviewed = all_decisions[3]
+
+    approved = {p_approved_no_veto.id, p_approved_active_veto.id}
+    active_vetoes = {p_approved_active_veto.id, p_vetoed.id}
+
+    selected = select_approved_proposals(run, approved, active_vetoes)
+    selected_ids = [d.id for d in selected]
+
+    # Row 1: approved AND NOT active veto -> included
+    assert p_approved_no_veto.id in selected_ids
+    # Row 2: approved AND active veto -> excluded
+    assert p_approved_active_veto.id not in selected_ids
+    # Row 3: vetoed (not approved) -> excluded
+    assert p_vetoed.id not in selected_ids
+    # Row 4: unreviewed -> excluded
+    assert p_unreviewed.id not in selected_ids
+
+    assert selected_ids == [p_approved_no_veto.id]
 
 
-def test_vetoing_a_loser_does_not_promote_or_rerank_anything():
-    """Overrides run after the pipeline: one more copy simply survives."""
+def test_select_approved_proposals_partial_approvals_and_stable_report_order():
+    run = build_report()
+    all_decisions = proposals(run)
+    first, third = all_decisions[0], all_decisions[2]
+
+    # Pass approvals in reverse order
+    selected = select_approved_proposals(run, [third.id, first.id])
+    assert [d.id for d in selected] == [first.id, third.id]
+    # Decision objects are identical to the report run (no mutation or reranking)
+    assert selected[0] == first
+    assert selected[1] == third
+
+
+def test_select_approved_proposals_duplicate_and_unknown_ids_are_harmless():
+    run = build_report()
+    all_decisions = proposals(run)
+    target = all_decisions[0]
+
+    # Duplicate approved ids and unknown ids
+    approved = [target.id, target.id, "unknown-404"]
+    active_vetoes = ["unknown-999"]
+    selected = select_approved_proposals(run, approved, active_vetoes)
+    assert [d.id for d in selected] == [target.id]
+
+
+def test_select_approved_proposals_empty_approvals_returns_empty():
+    run = build_report()
+    assert select_approved_proposals(run, []) == []
+
+
+def test_approving_a_loser_does_not_promote_or_rerank_anything():
     run = build_report()
     all_decisions = proposals(run)
     loser = next(d for d in all_decisions if d.kept_id)
 
-    kept = apply_vetoes(run, [loser.id])
-    assert loser.id not in {d.id for d in kept}
-    # the winner it deferred to is still untouched by any decision
-    assert loser.kept_id not in {d.id for d in kept}
-    # every other decision is byte-identical to before
-    assert [d for d in kept] == [d for d in all_decisions if d.id != loser.id]
-
-
-def test_apply_vetoes_ignores_ids_that_were_never_proposed():
-    run = build_report()
-    assert apply_vetoes(run, ["404404404"]) == proposals(run)
+    selected = select_approved_proposals(run, [loser.id])
+    assert [d.id for d in selected] == [loser.id]
+    assert loser.kept_id not in {d.id for d in selected}
+    assert selected[0] == loser
 
 
 # --- merging ----------------------------------------------------------------

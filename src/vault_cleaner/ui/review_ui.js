@@ -145,7 +145,8 @@
   }
 
   /**
-   * Return a filtered copy excluding persisted or current-session vetoes.
+   * Return a filtered copy containing only explicitly approved items without
+   * active persisted vetoes.
    * Active persisted veto ids must be Set-like with `has(id)`; item ids are
    * opaque strings and are never coerced through Number. Invalid active-id
    * shapes throw TypeError.
@@ -157,7 +158,7 @@
    * @returns {Array<Object>} A new filtered array.
    * @throws {TypeError} If activePersistedVetoIds has no callable `has`.
    */
-  function keptItems(items, verdicts, activePersistedVetoIds) {
+  function approvedOutputItems(items, verdicts, activePersistedVetoIds) {
     if (!activePersistedVetoIds ||
         typeof activePersistedVetoIds.has !== "function") {
       throw new TypeError(
@@ -165,8 +166,8 @@
       );
     }
     return items.filter(function (item) {
-      return !hasPersistedVeto(activePersistedVetoIds, item.id) &&
-             verdictOf(verdicts, item.id) !== "vetoed";
+      return verdictOf(verdicts, item.id) === "approved" &&
+             !hasPersistedVeto(activePersistedVetoIds, item.id);
     });
   }
 
@@ -1764,7 +1765,7 @@
     DIM_QUERY_SAVEABLE_MAX: DIM_QUERY_SAVEABLE_MAX,
     actionCounts: actionCounts, compareIds: compareIds, compareText: compareText,
     countBy: countBy, filterItems: filterItems, groupItems: groupItems, groupLabel: groupLabel,
-    isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, keptItems: keptItems,
+    isObject: isObject, itemsFromSnapshot: itemsFromSnapshot, approvedOutputItems: approvedOutputItems,
     matchesProtection: matchesProtection, matchesLoadout: matchesLoadout, matchesText: matchesText, requireIdString: requireIdString,
     reviewCounts: reviewCounts, sortItems: sortItems, str: str, verdictOf: verdictOf,
     emptyMap: emptyMap, createView: createView,

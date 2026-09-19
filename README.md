@@ -109,6 +109,11 @@ python3 -m venv .venv
 is where you record what you actually approved, and it is the command that
 writes the reviewed import CSV.
 
+The reviewed CSV contains only proposals that were **explicitly approved** and
+are not blocked by an active saved veto (`current proposal AND explicit fresh approval AND NOT active persisted veto`).
+Vetoed and unreviewed proposals are excluded. If no proposals are approved (such as running
+`review --write` without a manifest), an exact header-only CSV is written.
+
 ```bash
 # what the rules propose (unchanged; never applies your vetoes)
 .venv/bin/vault-cleaner report
@@ -119,13 +124,13 @@ writes the reviewed import CSV.
 # validate a review manifest and show what it would change
 .venv/bin/vault-cleaner review --manifest data/review.json
 
-# persist the vetoes and write the reviewed CSV
+# persist the vetoes and write the reviewed CSV (containing only explicitly approved proposals)
 .venv/bin/vault-cleaner review --manifest data/review.json --write
 ```
 
 `report --write` writes the proposal CSV, while `review --write` writes the
-reviewed CSV and updates `data/overrides.json`. None of these terminal commands
-changes what another one produces.
+reviewed CSV (containing only explicitly approved items) and updates `data/overrides.json`.
+None of these terminal commands changes what another one produces.
 
 ### What a veto is
 
@@ -218,7 +223,9 @@ DIM import and are not yet durable. Existing durable vetoes from
 does not remove such a veto.
 
 Choose **Finalise review** to persist this session's new vetoes, produce the
-reviewed CSV, and download it as `dim-import.csv`. **Download again** retrieves
+finalised CSV containing only explicitly approved proposals not blocked by an
+active saved veto, and download it as `dim-import.csv`. If no proposals are approved,
+a header-only CSV with 0 item rows is produced. **Download again** retrieves
 the same finalised bytes without repeating finalisation. **Reset / Start new
 review** clears the live report and session verdicts without deleting exports
 or durable overrides. **Shutdown** terminates the server session; <kbd>Ctrl-C</kbd>

@@ -109,11 +109,36 @@ def test_real_loopback_once_returns_complete_csv_then_exits(tmp_path):
             upload = connection.getresponse()
             upload_payload = json.loads(upload.read())
             assert upload.status == 200
-            finalize_body = json.dumps(
+            target_id = upload_payload["snapshot"]["sections"][0]["decisions"][0]["id"]
+            verdicts_body = json.dumps(
                 {
                     "report_revision": upload_payload["report_revision"],
                     "verdict_revision": upload_payload["verdict_revision"],
                     "fingerprint": upload_payload["fingerprint"],
+                    "decisions": [{"id": target_id, "verdict": "approved"}],
+                }
+            ).encode()
+            connection.request(
+                "POST",
+                "/api/verdicts",
+                body=verdicts_body,
+                headers={
+                    "Host": session.expected_host,
+                    "Cookie": cookie,
+                    "Origin": session.expected_origin,
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(verdicts_body)),
+                },
+            )
+            verdicts_resp = connection.getresponse()
+            verdicts_payload = json.loads(verdicts_resp.read())
+            assert verdicts_resp.status == 200
+
+            finalize_body = json.dumps(
+                {
+                    "report_revision": verdicts_payload["report_revision"],
+                    "verdict_revision": verdicts_payload["verdict_revision"],
+                    "fingerprint": verdicts_payload["fingerprint"],
                 }
             ).encode()
             connection.request(
@@ -138,6 +163,7 @@ def test_real_loopback_once_returns_complete_csv_then_exits(tmp_path):
             assert csv_bytes.startswith(b"Id,Hash,Tag,Notes\r\n")
             assert csv_bytes.endswith(b"\r\n")
             assert len(csv_bytes) > len(b"Id,Hash,Tag,Notes\r\n")
+            assert f'"""{target_id}"""'.encode() in csv_bytes
         finally:
             connection.close()
         thread.join(timeout=5)

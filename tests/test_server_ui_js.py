@@ -509,7 +509,7 @@ def test_server_adapter_uses_browser_owned_transport_and_server_mutations():
     assert "/api/shutdown" in source
     assert ".disabled = disabled" in source
     assert "Restart vault-cleaner serve and open its new bootstrap URL" in source
-    for label in ('"proposed"', '"after vetoes"', '"reviewed"', '"shown"', '"unreviewed"'):
+    for label in ('"proposed"', '"approved output"', '"reviewed"', '"shown"', '"unreviewed"'):
         assert label in source
 
 
@@ -940,7 +940,7 @@ function makeUi(document) {
     COLUMNS: [["name", "Name"]],
     itemsFromSnapshot: function () { return []; },
     actionCounts: function () { return { total: 0, junk: 0, review: 0 }; },
-    keptItems: function () { return []; },
+    approvedOutputItems: function () { return []; },
     reviewCounts: function () {
       return { approved: 0, vetoed: 0, unreviewed: 0 };
     },
@@ -2191,14 +2191,15 @@ def test_server_ui_mutation_workflow_uses_acknowledged_state_and_exact_routes(
         assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
         assert result["finalizeHeaders"]["approvedStillVetoed"] == "0"
         assert result["actionsText"].startswith(
-            "Finalised — this review is frozen. The reviewed CSV has been produced."
+            "Finalised — this review is frozen. The CSV contains only explicitly approved proposals not blocked by an active saved veto."
         )
-        assert "approved" not in result["actionsText"]
         assert "suppressed" not in result["actionsText"]
     if scenario == "finalize-invalid-header":
         assert result["paths"] == ["/api/report", "/api/finalize", "/api/report"]
         assert result["finalizeHeaders"]["approvedStillVetoed"] == "not-a-count"
-        assert "approved" not in result["actionsText"]
+        assert result["actionsText"].startswith(
+            "Finalised — this review is frozen. The CSV contains only explicitly approved proposals not blocked by an active saved veto."
+        )
         assert "suppressed" not in result["actionsText"]
     if scenario == "finalize-once":
         assert result["paths"] == ["/api/report", "/api/finalize"]
@@ -5270,3 +5271,217 @@ setTimeout(function () {
     assert result["finalized"]["finalizedVisible"] is True
     assert result["finalized"]["finalizedCount"] == "2 weapon proposals currently shown."
     assert result["finalized"]["finalizedQuery"] == "id:7001 or id:7002"
+
+
+def test_finalize_confirmation_prompt_and_cancellation(tmp_path: Path):
+    harness = tmp_path / "server-ui-finalize-confirm.js"
+    harness.write_text(
+        r'''
+"use strict";
+var fs = require("fs"), vm = require("vm");
+var source = fs.readFileSync(process.argv[2], "utf8");
+var shared = require(process.argv[3]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase(); this.ownerDocument = document;
+  this.children = []; this.parentNode = null; this.attributes = Object.create(null);
+  this.listeners = Object.create(null); this._textContent = ""; this.disabled = false;
+  this.hidden = false; this.value = "";
+}
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () { return this._textContent; },
+  set: function (value) { this._textContent = String(value); this.children = []; }
+});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this; this.children.push(child); return child;
+};
+Node.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1);
+  child.parentNode = null;
+};
+Node.prototype.setAttribute = function (name, value) {
+  this.attributes[name] = String(value);
+  if (name === "id") this.ownerDocument.nodes[String(value)] = this;
+};
+Node.prototype.getAttribute = function (name) {
+  return this.attributes[name] === undefined ? null : this.attributes[name];
+};
+Node.prototype.addEventListener = function (name, callback) {
+  (this.listeners[name] || (this.listeners[name] = [])).push(callback);
+};
+Node.prototype.dispatch = function (name, event) {
+  if (name === "click" && this.disabled) return;
+  event = event || { target: this, preventDefault: function () {} };
+  (this.listeners[name] || []).forEach(function (callback) { callback(event); });
+};
+Node.prototype.querySelector = function () { return null; };
+Node.prototype.querySelectorAll = function () { return []; };
+
+function Document() {
+  this.readyState = "complete";
+  this.nodes = Object.create(null);
+  ["vc-status", "vc-actions", "vc-session-note", "vc-proposals", "vc-groups",
+   "vc-counts", "vc-summary-strip"].forEach(function (id) {
+    this.nodes[id] = new Node("div", this);
+  }, this);
+  this.body = this.nodes["vc-status"];
+  this.main = this.nodes["vc-actions"];
+}
+Document.prototype.getElementById = function (id) { return this.nodes[id] || null; };
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) {
+  var n = new Node("#text", this); n.textContent = text; return n;
+};
+Document.prototype.addEventListener = function () {};
+
+var confirmMessages = [];
+var confirmReturn = true;
+var calls = [];
+
+function makeEnvelope(verdicts, overrideStatus) {
+  return {
+    schema_version: 1, state: "reviewing", report_revision: 1, verdict_revision: 1,
+    fingerprint: "fp",
+    snapshot: {
+      sections: [{
+        kind: "weapons",
+        decisions: [
+          { id: "101", hash: "1", name: "Alpha", action: "junk", reason: "r1" },
+          { id: "102", hash: "2", name: "Beta", action: "junk", reason: "r2" }
+        ]
+      }]
+    },
+    verdicts: verdicts || [],
+    override_status: overrideStatus || []
+  };
+}
+
+var currentEnvelope = makeEnvelope([], []);
+var document = new Document();
+var context = {
+  document: document,
+  VaultCleanerReviewUI: shared,
+  Promise: Promise,
+  Set: Set,
+  confirm: function (msg) {
+    confirmMessages.push(msg);
+    return confirmReturn;
+  },
+  fetch: function (path, options) {
+    calls.push({ path: path, options: options });
+    if (path === "/api/report") {
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: function () { return Promise.resolve(currentEnvelope); }
+      });
+    }
+    if (path === "/api/finalize") {
+      return Promise.resolve({
+        ok: true, status: 200,
+        headers: {
+          get: function (header) {
+            if (header === "Content-Type") return "text/csv";
+            return null;
+          }
+        },
+        text: function () { return Promise.resolve("Id,Hash,Tag,Notes\r\n"); }
+      });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({}); } });
+  },
+  Blob: function () {},
+  URL: { createObjectURL: function () { return "blob:csv"; }, revokeObjectURL: function () {} },
+  setTimeout: setTimeout
+};
+context.globalThis = context;
+vm.runInNewContext(source, context);
+
+setTimeout(function () {
+  var server = context.VaultCleanerServerUI;
+  var finalizeBtn = document.nodes["vc-finalize"];
+
+  // 1. Zero approved proposals: prompt asks for header-only CSV
+  confirmReturn = false;
+  finalizeBtn.dispatch("click");
+  var zeroMsg = confirmMessages.slice(-1)[0];
+  var zeroCalls = calls.filter(function (c) { return c.path === "/api/finalize"; }).length;
+
+  // 2. Singular (1 approved proposal)
+  server.applySessionEnvelope(makeEnvelope([{ id: "101", verdict: "approved" }], []), server.state);
+  confirmReturn = false;
+  finalizeBtn.dispatch("click");
+  var singularMsg = confirmMessages.slice(-1)[0];
+  var singularCalls = calls.filter(function (c) { return c.path === "/api/finalize"; }).length;
+
+  // 3. Plural (2 approved proposals)
+  server.applySessionEnvelope(makeEnvelope([
+    { id: "101", verdict: "approved" },
+    { id: "102", verdict: "approved" }
+  ], []), server.state);
+  confirmReturn = false;
+  finalizeBtn.dispatch("click");
+  var pluralMsg = confirmMessages.slice(-1)[0];
+  var pluralCalls = calls.filter(function (c) { return c.path === "/api/finalize"; }).length;
+
+  // 4. Post-veto output count: 2 approved proposals, but 1 has active saved veto -> count is 1
+  server.applySessionEnvelope(makeEnvelope([
+    { id: "101", verdict: "approved" },
+    { id: "102", verdict: "approved" }
+  ], [{ id: "102", status: "active", detail: "" }]), server.state);
+  confirmReturn = false;
+  finalizeBtn.dispatch("click");
+  var vetoReducedMsg = confirmMessages.slice(-1)[0];
+  var vetoReducedCalls = calls.filter(function (c) { return c.path === "/api/finalize"; }).length;
+
+  // 5. OK continues: confirm returns true -> calls /api/finalize
+  confirmReturn = true;
+  finalizeBtn.dispatch("click");
+  var okFinalizeCalls = calls.filter(function (c) { return c.path === "/api/finalize"; }).length;
+
+  process.stdout.write(JSON.stringify({
+    zeroMsg: zeroMsg,
+    zeroCalls: zeroCalls,
+    singularMsg: singularMsg,
+    singularCalls: singularCalls,
+    pluralMsg: pluralMsg,
+    pluralCalls: pluralCalls,
+    vetoReducedMsg: vetoReducedMsg,
+    vetoReducedCalls: vetoReducedCalls,
+    okFinalizeCalls: okFinalizeCalls
+  }));
+}, 20);
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_server.js")
+    shared = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as adapter, as_file(shared) as presentation:
+        completed = subprocess.run(
+            [NODE, str(harness), str(adapter), str(presentation)],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            timeout=30,
+        )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result["zeroMsg"] == (
+        "No proposals are approved for output. Finalise a header-only CSV with no item rows?"
+    )
+    assert result["zeroCalls"] == 0
+    assert result["singularMsg"] == (
+        "Finalise 1 approved proposal into the CSV? Vetoed and unreviewed proposals, "
+        "plus approvals blocked by active saved vetoes, will be excluded."
+    )
+    assert result["singularCalls"] == 0
+    assert result["pluralMsg"] == (
+        "Finalise 2 approved proposals into the CSV? Vetoed and unreviewed proposals, "
+        "plus approvals blocked by active saved vetoes, will be excluded."
+    )
+    assert result["pluralCalls"] == 0
+    assert result["vetoReducedMsg"] == (
+        "Finalise 1 approved proposal into the CSV? Vetoed and unreviewed proposals, "
+        "plus approvals blocked by active saved vetoes, will be excluded."
+    )
+    assert result["vetoReducedCalls"] == 0
+    assert result["okFinalizeCalls"] == 1
