@@ -798,7 +798,7 @@ def create_app(
         csv_bytes = render_import_csv(
             decision.import_row() for decision in output_decisions
         )
-        conflict_count = len(merge.already_vetoed_but_approved)
+        conflict_count = len(approved_ids & status.active_ids)
 
         try:
             current_digest = session.read_override_digest()

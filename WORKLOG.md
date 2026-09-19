@@ -50,15 +50,18 @@ from `main` at base SHA `032d78ad7541bb517de9176f19cc6b15f7f516da`. Refs #155.
   - F6 (hard-coded versions): replaced literal version numbers in `tests/test_cli_review.py::test_partial_manifest_emits_only_explicit_approvals` with imported `SNAPSHOT_SCHEMA_VERSION` and `RULESET_VERSION`.
   - F7 (junk verdict tokens): added `test_approved_output_items_excludes_unrecognized_verdict_tokens` in `tests/test_review_ui_js.py` verifying `"APPROVED"`, `"yes"`, `true`, `""` are excluded while `"approved"` is included.
   - F8 (stale `--manifest` help): updated `cli.py` `--manifest` help to state that without it there are no approvals, so `--write` produces a header-only reviewed CSV.
+- **Review round 2 findings and actions:**
+  - P2 (stale saved veto suppression count): In `src/vault_cleaner/server/app.py`, `conflict_count` was previously derived from `len(merge.already_vetoed_but_approved)`. However, `merge.already_vetoed_but_approved` checks whether an approved ID exists in the durable store regardless of whether `classify()` marks it active or stale. Because a stale veto does not suppress an approved proposal in `select_approved_proposals`, this caused an approved item with a stale veto to be emitted in the CSV while falsely incrementing `Vault-Cleaner-Approved-Still-Vetoed` and triggering the UI's conflict notice. Fixed by calculating `conflict_count = len(approved_ids & status.active_ids)` against post-merge active vetoes. Added regression test `test_finalize_with_stale_saved_veto_emits_item_and_zero_suppressed_count` in `tests/test_server_finalize.py`.
+  - P3 (measurement doc obsolete description): Updated `docs/aggressive-clearout-measurement.md` section 9 to replace the pre-implementation description of subtractive `apply_vetoes` with the landed additive `select_approved_proposals` seam, citing `src/vault_cleaner/server/app.py:795-799` and `src/vault_cleaner/cli.py:488-492` call sites, and documenting the landed approval-only inclusion rule (`current proposal AND explicit fresh approval AND NOT active persisted veto`).
 - **Verification:**
   - `ruff check src tests scripts` passed cleanly.
-  - Full test suite: `984 passed`.
+  - Full test suite: `985 passed`.
   - Browser test suite: `16 passed, 3 deselected` with `VAULT_CLEANER_BROWSER_REQUIRED=1` (0 skipped).
   - `git diff --check origin/main...HEAD` passed with zero output.
   - `git merge-tree --write-tree origin/main HEAD` exited 0.
   - `git ls-files data/` empty.
 - **Docs:** updated `README.md` review workflow and server finalization sections;
-  added Child 2b landed-status note at section 9 in `docs/aggressive-clearout-measurement.md`.
+  updated Section 9 in `docs/aggressive-clearout-measurement.md` documenting landed `select_approved_proposals` and sibling call sites.
 
 ## 2026-09-15 — #158 planning: wishlist evidence model and Aegis source strategy (PR 1)
 

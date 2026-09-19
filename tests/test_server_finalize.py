@@ -892,6 +892,48 @@ def test_persisted_veto_and_session_approval_conflict_stays_suppressed(
     assert f'"""{proposal["id"]}"""'.encode() not in response.data
 
 
+def test_finalize_with_stale_saved_veto_emits_item_and_zero_suppressed_count(
+    client_session,
+):
+    client, session, overrides = client_session
+    uploaded = upload(client)
+    proposal = uploaded.json["snapshot"]["sections"][0]["decisions"][0]
+    # A saved veto whose action or reason no longer matches the current proposal
+    # is classified as stale, so it must not suppress the approved item or
+    # count as an approved-still-vetoed conflict.
+    veto = Veto(
+        id=proposal["id"],
+        kind=proposal["kind"],
+        hash=proposal["hash"],
+        name=proposal["name"],
+        action="review" if proposal["action"] != "review" else "junk",
+        reason="stale-historical-reason",
+        fingerprint=uploaded.json["fingerprint"],
+        recorded_at="2026-08-25T00:00:00Z",
+    )
+    store = OverrideStore(schema_version=1, vetoes=(veto,))
+    save_overrides(store, overrides)
+    session.override_store = store
+    session.override_digest = hashlib.sha256(overrides.read_bytes()).hexdigest()
+    reviewed = client.post(
+        "/api/verdicts",
+        base_url=ORIGIN,
+        headers={"Origin": ORIGIN},
+        json={
+            "report_revision": 1,
+            "verdict_revision": 0,
+            "fingerprint": uploaded.json["fingerprint"],
+            "decisions": [{"id": proposal["id"], "verdict": "approved"}],
+        },
+    )
+    assert reviewed.status_code == 200
+    response = finalize(client, reviewed.json)
+    assert response.status_code == 200
+    assert response.headers["Vault-Cleaner-Approved-Still-Vetoed"] == "0"
+    assert session.approved_still_vetoed_count == 0
+    assert f'"""{proposal["id"]}"""'.encode() in response.data
+
+
 def test_reset_invalid_override_refresh_preserves_the_live_review(client_session):
     client, session, overrides = client_session
     upload(client)
