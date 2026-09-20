@@ -3,6 +3,151 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
+
+Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from
+`main` at `775f662`. Planner model `claude-opus-5` (`xhigh`). Refs #34.
+
+- **Issue rescoped first (authorised issue operation).** #34 was retitled to
+  "Child 4: same-Hash useful-combination coverage for weapons (review-only)",
+  its body replaced with the measured Child 4 specification, and its
+  `M6 — Armor dupes` milestone cleared to match its landed siblings #148, #155
+  and #158. This follows the reconciliation recommendation in
+  `docs/aggressive-clearout-measurement.md` §7, which was explicitly advisory
+  and required separate authorisation; the owner gave it on 2026-09-20.
+- **Real-export authorisation (owner, 2026-09-20).** Aggregate counts,
+  distributions and item names measured from
+  `data/in/2026-09-01T-current/weapons.csv` may be committed for this ticket.
+  Instance `Id` values, verbatim rows and `Notes` contents stay barred; the
+  transcripts in `docs/evidence/issue-34/README.md` print none of them, so no
+  capture needed redaction. Section 1's fence was re-executed after writing and
+  reproduced its recorded output byte for byte.
+- **Owner scope decisions (2026-09-20):** both advice kinds (`coverage-dominated
+  by` and `coverage-uncovered vs`) are in scope, and the pass runs by default
+  rather than behind a `config.toml` gate.
+- **Design decisions, all measurement-driven:**
+  - *Nothing is enumerated.* The export carries no measured socket partition —
+    #31 deliberately left `Perks N` as an ordered tuple — so "enumerate the
+    combinations this copy can select" is not measurable. A curated keep roll is
+    already an author-asserted valid combination and the existing
+    `roll <= perk_hashes` test already decides availability, so the pass reads
+    combinations from the wishlists instead of inventing them.
+  - *Compare uncollapsed, display collapsed.* `matched` is downward closed, so
+    `matched(A) ⊆ matched(B)` is the exact "B provides everything A does" test.
+    Comparing subsumption-collapsed sets instead finds 27 dominance relations
+    where the uncollapsed test finds 30, because a four-perk Voltron roll
+    semantically covers a two-perk Aegis roll whose collapsed element differs.
+    Evidence §1 block `[7]` measures both bases: the collapsed comparison misses
+    three relations and claims none the correct test does not, so the mistake is
+    a silent loss that no "emits nothing wrong" assertion can catch.
+  - *Absence is not dominance.* An empty candidate coverage set satisfies the
+    subset test vacuously, so the 53 uncovered-versus-covered copies get their
+    own label rather than sharing the dominance clause.
+  - *Consensus stays out of decisions.* `family` reaches no decision input and
+    no `Notes` clause, so #158's handoff of fingerprinted source identity to
+    Child 5 stays intact; consensus is dry-run output only.
+- **Surprises the next agent should know:**
+  - **The loadout hard rail does not exist.** #140's tracking comment and the
+    measurement document's §8 item 4 both assert it. The owner reversed that
+    premise before #148 was implemented, and #148 landed loadout *visibility*
+    only — `rails.protection` has no loadout clause. Four of the 30 dominance
+    candidates are in a loadout. Two committed documents still state the stale
+    premise; neither was edited here, since this ticket has no authorisation to
+    revise them.
+  - **Raw source consensus is degenerate.** All 823 matched combinations on the
+    real export have exactly one supporting family, because the Aegis feed is
+    traits-only while Voltron rolls carry four perks. Subsumption-aware support
+    recovers the signal: 724 at one family, 99 at two.
+  - **Exact weapon duplicates are effectively extinct.** The current export has
+    exactly one exact-roll group with more than one member (2 losers), so #31's
+    pass cannot contribute meaningfully to #140's ~190-removal target and
+    coverage is the next lever. Expected yield: 80 new review-only proposals.
+  - **Perk scope is a non-issue.** Reading every `Perks N` cell versus only
+    #31's immutable pre-tracker prefix produces identical matches — 0 rows
+    differ, 929 matched rolls either way — so the pass reuses the existing
+    `row_perk_hashes` helper and keeps one definition of "matches a keep roll".
+  - Two things the spike's child map got ahead of: the module is `coverage.py`,
+    not `combinations.py` (it enumerates nothing), and the `RULESET_VERSION`
+    4 → 5 bump belongs to this child, leaving 5 → 6 for Child 5.
+- **Selections:** implementer `gpt-5.6-luna` (`high`), Judgement rung — the plan
+  settles the architecture, but the failure modes here are quiet rather than
+  loud. Review path: independent adversarial review.
+- No product code, tests, schemas, rules or versions changed in this PR.
+
+### Review-fix round 1
+
+Addressed four P2 findings from the PR #167 review on branch
+`handoff/issue-34-implementation-plan`. All four were accepted; none touched the
+design (comparison basis, safety rule, scope boundaries, versioning), so they
+were specification-completeness defects rather than substantive ones.
+
+- **F4 (`docs/evidence/issue-34/README.md`) — model all earlier decisions.**
+  The transcript reimplemented the earlier passes' decision filter instead of
+  calling them, kept the eight soft-protected `wishlist-trash` review rows, and
+  reported 652 coverage inputs. Those rows deliberately stay in the *dupes* pool
+  (`rules/weapons.py:101-106`) but do carry a decision, so the planned
+  decided-id filter excludes them. Block `[4]` now takes the pool from the
+  decisions `rules.weapons.run` actually emits: 21 prior decisions (11
+  `wishlist-trash` junk, 8 `wishlist-trash` review, 2 `dupe-lower` review) and
+  **644** inputs. Re-measured, every dependent figure is unchanged — 116 hashes,
+  339 compared instances, 30 dominated, 53 uncovered (50 eligible), 148 trade-offs,
+  13 equal, 114 both-uncovered, same protection splits and name lists — so only
+  the pool figure itself was wrong. The transcript was recaptured and its fence
+  re-executed: it reproduces byte for byte.
+- **F3 (`cli.py:210`) — stale soft-protected label.** The existing
+  `resolved: N junk, M review (soft-protected)` line was true while every review
+  came from a soft rail. Coverage advice makes it false: 49 of the ~80 new review
+  candidates carry no rail at all. The plan now requires the neutral
+  `resolved: N junk, M review{wl_note}` form plus a CLI regression test. This was
+  the only finding describing user-visible wrong output.
+- **F2 (dry-run output contract) — print the combination counts.**
+  `CoverageSummary.combination_counts` was defined and never printed, leaving
+  #34's "combination counts in dry-run output" criterion unmet. The plan now
+  prints the distribution, fixes both distributions' denominator to **compared
+  copies only** (including the zero bucket), states the `CoverageSummary` field
+  semantics, quotes the expected real-export values from the new evidence block
+  `[8]`, and requires CLI assertions on all three lines. Block `[3]`'s
+  whole-export consensus figures are deliberately larger than the summary's
+  compared-copy figures; the plan now says so.
+- **F1 (emitter contract) — exercise every partner label.** The plan asked for
+  round-trip coverage of "both new clauses", which is two of the four emitting
+  branches; `AGENTS.md` requires every winner or partner label in every branch.
+  It now requires all four, and notes that a two-member group can never reach a
+  tie-break branch, so the fixture needs a `Hash` group of at least three
+  distinct rolls with two partners tied on gain. Realistic: 54 of the 116
+  multi-roll hashes on the real export hold three or more distinct rolls.
+- Added a fifth likely finding for the implementer, since the planner made this
+  mistake first: prior *review* decisions left in the coverage pool.
+- **Verification:** `.venv/bin/ruff check src tests scripts` passed,
+  `.venv/bin/pytest -q` passed (1045), `git diff --check` clean,
+  `git ls-files data/` empty. Evidence §1's fence re-executed and reproduced.
+
+### Review-fix round 2
+
+Addressed two CodeRabbit findings on the round 1 head, both introduced by the
+round 1 fixes themselves.
+
+- **Unit conflation in the dry-run contract (Major).** Round 1's F2 fix said
+  "both distributions are reported over compared copies", but the two are at
+  different units: `combination_counts` counts compared *copies* per combination
+  count (totalling 339), while `consensus_counts` counts collapsed
+  *combinations* belonging to compared copies, per supporting family count
+  (totalling 528). An implementer reading the old wording could have built
+  consensus per copy. Both the `CoverageSummary` field semantics and the output
+  contract now state each unit, and the evidence labels the two figures.
+- **Hard rail applied on one side only (Minor).** Evidence block `[8]` filtered
+  hard-protected candidates out of `uncovered` but not `dominated`, while the
+  plan defines both as counts of clauses actually emitted. The current export has
+  no hard-protected dominated candidate, so the captured figure (30) was right by
+  accident; the script now applies the filter on both sides through one helper.
+  The transcript was recaptured and its fence reproduces byte for byte.
+- **Follow-through on the same finding:** the `CoverageSummary` field-semantics
+  sentence still said hard-protected candidates are excluded from `uncovered`
+  alone, which is the asymmetry the finding was about. It now says both.
+- **Verification:** `.venv/bin/ruff check src tests scripts` passed,
+  `.venv/bin/pytest -q` passed (1045), `git diff --check` clean,
+  `git ls-files data/` empty.
+
 ## 2026-09-20 — #163 review-fix round
 
 Addressed review findings and repaired merge state on branch
