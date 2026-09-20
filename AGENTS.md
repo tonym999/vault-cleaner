@@ -259,16 +259,16 @@ exception from its label, and never treat it as permission to merge.
    - The **Planner** researches the issue, measures code state, resolves staleness, allocates branch names, and authors a handoff document using [handoffs/templates/planner.md](handoffs/templates/planner.md).
    - Saved as `handoffs/issue-N-implementation-plan.md` on a plan branch (`handoff/issue-N-implementation-plan`).
    - Appends a dated entry to [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know) and, when that action is authorized, opens PR 1 targeting `main`.
-   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer tier, allocated implementation branch name, and likely findings.
+   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer model and native effort, allocated implementation branch name, and likely findings.
 3. **Implementation Phase (PR 2):**
    - The **Orchestrator** reads the merged plan from `main` using [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
-   - Dispatches the **Implementer** to work on the allocated implementation branch (`fix/issue-N-...` or `feat/issue-N-...`) at the plan's specified model tier.
+   - Dispatches the **Implementer** to work on the allocated implementation branch (`fix/issue-N-...` or `feat/issue-N-...`) at the plan's selected implementer model; the orchestrator may re-select it (see [handoffs/README.md](handoffs/README.md#implementer-re-selection)).
    - The implementer follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know), and reports results without opening a PR.
    - The orchestrator reviews the diff (`git diff base_sha...HEAD`) and command outputs against the plan's review checklist and likely findings. For an `independent adversarial review` path, it also creates a disposable checkout pinned to the reviewed head, dispatches the exact implementation-read-only reviewer prompt from the orchestrator template to a fresh reviewer session, records the actual reviewer provider/model/effort, and remains responsible for routing findings. The reviewer independently reruns applicable verification, may write only ephemeral test artifacts in that checkout, and reports commands it could not run; a skipped required browser suite is not a pass. The orchestrator records a disposition for every P0-P3 finding, escalates unresolved blocking disagreements, and returns accepted defects to the implementer on the same branch for fix and independent complete-diff re-review.
    - If a stop condition triggers or plan boundaries must change, escalation follows `implementer → orchestrator → planner` to re-cut the plan.
    - Once clean and verified, and only when opening it is authorized, the orchestrator opens PR 2 targeting `main`.
 
-Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules.
+Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules, and for the role → model roster: Sol and Opus are the regular planner/orchestrator choices, Sonnet and Gemini remain permitted planner alternatives, and the primary implementer ladder is MAI-Code-1.1-Flash / Luna high / Luna xhigh.
 
 ## Creating issues
 
