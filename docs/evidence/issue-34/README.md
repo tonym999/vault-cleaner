@@ -39,18 +39,30 @@ below is from a later run, and reports `fetch=cache` for all three sources.
 
 ## 1. Same-Hash useful-combination coverage relations
 
-This is the measurement the plan's comparison rule, yield table and consensus
-findings are taken from. It reproduces the pipeline position of the proposed
-pass — wishlist-trash junk removed, exact-roll groups resolved — before
-classifying every ordered pair of distinct rolls within one `Hash`. Block `[7]`
-re-classifies the same pairs on subsumption-collapsed sets — the wrong basis — so
-the cost of that mistake is measured rather than asserted.
+This is the measurement the plan's comparison rule, yield table, consensus
+findings and dry-run output contract are taken from.
+
+Block `[4]` takes the coverage pool from the decisions `rules.weapons.run`
+actually emits rather than reimplementing the earlier passes, so every prior
+junk **and review** decision is excluded exactly as the planned pass excludes
+it. An earlier revision of this transcript reimplemented that filter, kept the
+eight soft-protected `wishlist-trash` review rows, and reported 652 inputs
+instead of 644; no other figure in this file was affected.
+
+Blocks `[5]` and `[6]` classify every ordered pair of distinct rolls within one
+`Hash`. Block `[7]` re-classifies the same pairs on subsumption-collapsed sets —
+the wrong basis — so the cost of that mistake is measured rather than asserted.
+Block `[8]` reports the values the `dupes` dry-run summary is specified to
+print, over compared copies only.
 
 ```bash
 set -euo pipefail
 OUT="$(mktemp -d)"
 cat > "$OUT/coverage_measure.py" <<'PY'
 """Same-Hash useful-combination coverage measurement for issue #34.
+
+The coverage pool is taken from the decisions `rules.weapons.run` actually
+emits, rather than from a reimplementation of the earlier passes.
 
 Prints aggregates, distributions and weapon names only: no instance Ids, no
 verbatim CSV rows, no Notes cell contents.
@@ -61,10 +73,12 @@ from collections import Counter, defaultdict
 from vault_cleaner.config import load_config
 from vault_cleaner.manifest import load_perk_map_data
 from vault_cleaner.parse import load_weapons
+from vault_cleaner.report import reason_slug
 from vault_cleaner.rules import rails
-from vault_cleaner.rules.dupes import exact_roll_fingerprint, rank_key
+from vault_cleaner.rules import weapons as weapons_rules
+from vault_cleaner.rules.dupes import exact_roll_fingerprint
 from vault_cleaner.rules.id_order import instance_id_order
-from vault_cleaner.rules.weapons import row_perk_hashes, trash_match
+from vault_cleaner.rules.weapons import row_perk_hashes
 from vault_cleaner.wishlist import load_all_with_evidence
 
 cfg = load_config("config.toml")
@@ -101,22 +115,22 @@ def maximal(rolls):
     return {roll for roll in rolls if not any(roll < other for other in rolls)}
 
 
-rows = []
-for _, row in weapons.iterrows():
+def facts(row):
     item_hash = int(row["Hash"])
     perks = row_perk_hashes(row, perk_map)
-    curated = wl.keep.get(item_hash, [])
-    matched = {canonical(roll) for roll in curated if roll <= perks}
-    level, reason = rails.protection(row, clp)
-    rows.append({
+    matched = {canonical(roll) for roll in wl.keep.get(item_hash, []) if roll <= perks}
+    level, _ = rails.protection(row, clp)
+    return {
         "id": str(row["Id"]), "hash": item_hash, "name": row["Name"],
         "fingerprint": exact_roll_fingerprint(row), "matched": matched,
         "collapsed": maximal(matched), "protection": level or "unprotected",
-        "trash": trash_match(item_hash, perks, wl), "rank": rank_key(row),
         "loadout": bool(str(row.get("Loadouts", "")).strip()),
-    })
+    }
 
-print("[2] groupability and coverage")
+
+rows = [facts(row) for _, row in weapons.iterrows()]
+
+print("[2] groupability and coverage, across the whole export")
 print(f"  rows without an exact-roll fingerprint (never compared)="
       f"{sum(1 for r in rows if r['fingerprint'] is None)}")
 print(f"  rows with >=1 matched keep roll={sum(1 for r in rows if r['matched'])}")
@@ -135,6 +149,15 @@ family_rolls = defaultdict(list)
 for item_hash, entries in (wl.keep_evidence or {}).items():
     for entry in entries:
         family_rolls[item_hash].append((canonical(entry.perks), entry.family))
+
+
+def supporting_families(row, combination):
+    return {
+        family for roll, family in family_rolls[row["hash"]]
+        if roll <= combination and roll in row["matched"]
+    }
+
+
 exact_agreement, subsumption_agreement = Counter(), Counter()
 for row in rows:
     for combination in row["collapsed"]:
@@ -142,48 +165,32 @@ for row in rows:
             family for roll, family in family_rolls[row["hash"]]
             if roll == combination
         })] += 1
-        subsumption_agreement[len({
-            family for roll, family in family_rolls[row["hash"]]
-            if roll <= combination and roll in row["matched"]
-        })] += 1
-print("[3] family consensus per collapsed combination")
+        subsumption_agreement[len(supporting_families(row, combination))] += 1
+print("[3] family consensus per collapsed combination, across the whole export")
 print("  exact-roll-identity agreement:", sorted(exact_agreement.items()))
 print("  subsumption-aware agreement:  ", sorted(subsumption_agreement.items()))
 
-# Reproduce the pipeline position: wishlist-trash junk leaves the pool, the
-# exact pass resolves its groups, and the coverage pass sees what is left.
-trash_junked = {
-    r["id"] for r in rows
-    if r["trash"] and not r["matched"] and r["protection"] == "unprotected"
-}
-pool = [r for r in rows if r["id"] not in trash_junked]
-exact_groups = defaultdict(list)
-for row in pool:
-    if row["fingerprint"] is not None:
-        exact_groups[(str(row["hash"]), row["fingerprint"])].append(row)
-exact_losers = set()
-for members in exact_groups.values():
-    if len(members) < 2:
-        continue
-    best_rank = max(member["rank"] for member in members)
-    winner = min((m for m in members if m["rank"] == best_rank),
-                 key=lambda m: instance_id_order(m["id"]))
-    exact_losers |= {m["id"] for m in members if m["id"] != winner["id"]}
-survivors = [r for r in pool
-             if r["id"] not in exact_losers and r["fingerprint"] is not None]
+# The pool comes from the decisions the real pass emits, so every earlier
+# junk and review decision is excluded exactly as the planned pass excludes it.
+run = weapons_rules.run(weapons, wl, perk_map, clp)
+decided = {decision.id for decision in run.decisions}
+print("[4] pipeline position, from actual rules.weapons.run decisions")
+for (action, reason), count in sorted(
+        Counter((d.action, reason_slug(d.note)[1]) for d in run.decisions).items()):
+    print(f"  prior decision {action}/{reason}={count}")
+print(f"  decided ids excluded from the coverage pool={len(decided)}")
+survivors = [r for r in rows
+             if r["id"] not in decided and r["fingerprint"] is not None]
+print(f"  coverage-pass input (undecided, groupable)={len(survivors)}")
+
 by_hash = defaultdict(list)
 for row in survivors:
     by_hash[row["hash"]].append(row)
 multi_roll = {h: v for h, v in by_hash.items()
               if len({m["fingerprint"] for m in v}) >= 2}
-print("[4] pipeline position")
-print(f"  wishlist-trash junk removed from the pool={len(trash_junked)}")
-print(f"  exact-roll groups with >=2 members="
-      f"{sum(1 for m in exact_groups.values() if len(m) > 1)} "
-      f"losers={len(exact_losers)}")
-print(f"  coverage-pass input (undecided, groupable)={len(survivors)}")
+compared = [m for members in multi_roll.values() for m in members]
 print(f"  Hashes with >=2 distinct rolls={len(multi_roll)} "
-      f"instances={sum(len(v) for v in multi_roll.values())}")
+      f"instances={len(compared)}")
 print("  distinct rolls per such Hash:", sorted(Counter(
     len({m['fingerprint'] for m in v}) for v in multi_roll.values()).items()))
 
@@ -247,6 +254,11 @@ for label, found in (("coverage-dominated by", dominated),
 print(f"  mutual trade-off (kept by the rule)={len(trade_off)}"
       f" equal-coverage={len(equal)} both-uncovered={len(neither)}")
 print(f"  instances in both advice sets={len(set(dominated) & set(uncovered))}")
+unprotected_advice = sum(
+    1 for found in (dominated, uncovered) for v in found.values()
+    if v[2]["protection"] == "unprotected"
+)
+print(f"  advice candidates that carry no rail at all={unprotected_advice}")
 
 # The same ordered pairs classified on the subsumption-collapsed sets. This is
 # the wrong basis for comparison and is measured only to show what it costs.
@@ -284,6 +296,18 @@ print("  missed names="
       f"{sorted({dominated[i][2]['name'] for i in missed})}")
 print(f"  dominance relations only a collapsed comparison would claim="
       f"{len(collapsed_dominated - set(dominated))}")
+
+# The distributions the dry-run summary reports, over compared copies only.
+combination_counts = sorted(Counter(len(m["collapsed"]) for m in compared).items())
+compared_consensus = Counter()
+for row in compared:
+    for combination in row["collapsed"]:
+        compared_consensus[len(supporting_families(row, combination))] += 1
+print("[8] dry-run summary values, over compared copies only")
+print(f"  compared_instances={len(compared)} dominated={len(dominated)} "
+      f"uncovered={len([1 for v in uncovered.values() if v[2]['protection'] != 'hard'])}")
+print(f"  combination_counts={combination_counts}")
+print(f"  consensus_counts={sorted(compared_consensus.items())}")
 PY
 .venv/bin/python "$OUT/coverage_measure.py" data/in/2026-09-01T-current/weapons.csv > "$OUT/coverage_measure.txt" 2>&1
 cat "$OUT/coverage_measure.txt"
@@ -298,7 +322,7 @@ cat "$OUT/coverage_measure.txt"
   source=choosy_voltron family=choosy-voltron keep_rolls=255373 keep_items=1234 trash_rolls=53 fetch=cache
   source=aegis_keep family=aegis-endgame keep_rolls=2610 keep_items=522 trash_rolls=0 fetch=cache
   source=aegis_trash family=aegis-endgame keep_rolls=0 keep_items=0 trash_rolls=286 fetch=cache
-[2] groupability and coverage
+[2] groupability and coverage, across the whole export
   rows without an exact-roll fingerprint (never compared)=0
   rows with >=1 matched keep roll=301
   rows with curated rolls for their Hash but no match=128
@@ -306,13 +330,15 @@ cat "$OUT/coverage_measure.txt"
   matched rolls per row (uncollapsed): [(1, 87), (2, 92), (3, 23), (4, 54), (5, 10), (6, 16), (7, 2), (8, 5), (9, 4), (10, 5), (14, 2), (18, 1)]
   combinations per row (subsumption-collapsed): [(1, 99), (2, 91), (3, 17), (4, 59), (5, 9), (6, 9), (8, 8), (9, 4), (10, 3), (12, 1), (14, 1)]
   rows where collapsing reduced the count=46
-[3] family consensus per collapsed combination
+[3] family consensus per collapsed combination, across the whole export
   exact-roll-identity agreement: [(1, 823)]
   subsumption-aware agreement:   [(1, 724), (2, 99)]
-[4] pipeline position
-  wishlist-trash junk removed from the pool=11
-  exact-roll groups with >=2 members=1 losers=2
-  coverage-pass input (undecided, groupable)=652
+[4] pipeline position, from actual rules.weapons.run decisions
+  prior decision junk/wishlist-trash whole-item=11
+  prior decision review/dupe-lower=2
+  prior decision review/wishlist-trash whole-item=8
+  decided ids excluded from the coverage pool=21
+  coverage-pass input (undecided, groupable)=644
   Hashes with >=2 distinct rolls=116 instances=339
   distinct rolls per such Hash: [(2, 62), (3, 30), (4, 11), (5, 4), (6, 4), (7, 3), (8, 2)]
 [5] ordered pair relations among distinct rolls of one Hash
@@ -334,6 +360,7 @@ cat "$OUT/coverage_measure.txt"
     names=['Adamantite', 'Aurora Dawn', 'Cynosure', 'DECATUR 02', 'Eighty-Six', "Elsie's Rifle", 'Ergo Sum', 'Evening SI4', "Felwinter's Lie", 'Fimbulwinter Stitch', 'Forced Memorializer', "Horror's Least", 'IRONWOOD 03', "Joxer's Longsword", 'King Orfeo', 'Mercury-A', 'Mint Retrograde', 'Mistral Lift', 'Phoneutria Fera', 'Precipial', 'Pro Memoria', 'Punching Out', 'Riptide', 'Roar of the Bear', 'Sarpedon-D', 'Service Revolver', 'Tarnation', "Temptation's Hook", 'The Recluse', 'The Slammer', 'The Time-Worn Spire', 'The Wizened Rebuke', 'Trachinus', 'Uncivil Discourse', 'Unending Tempest', 'Vouchsafe', 'Wilderflight']
   mutual trade-off (kept by the rule)=148 equal-coverage=13 both-uncovered=114
   instances in both advice sets=0
+  advice candidates that carry no rail at all=49
 [7] the same pairs classified on collapsed sets (the wrong comparison basis)
   A-strict-subset-of-B=28
   A-uncovered-B-covered=93
@@ -344,6 +371,10 @@ cat "$OUT/coverage_measure.txt"
   dominance relations a collapsed comparison would miss=3
   missed names=['Gizmo Weft', "Reghusk's Pledge", 'Stars in Shadow']
   dominance relations only a collapsed comparison would claim=0
+[8] dry-run summary values, over compared copies only
+  compared_instances=339 dominated=30 uncovered=50
+  combination_counts=[(0, 143), (1, 58), (2, 66), (3, 10), (4, 43), (5, 4), (6, 7), (8, 3), (9, 2), (10, 2), (12, 1)]
+  consensus_counts=[(1, 459), (2, 69)]
 ```
 
 ---

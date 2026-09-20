@@ -72,7 +72,9 @@ The two advice sets do not overlap. Expect **80 new review-only proposals** on t
 
 ### Pipeline position
 
-The pass runs last in the weapons pipeline, on copies the earlier passes left undecided — mirroring armor's exact → close ordering in [pipeline.py:161-205](../src/vault_cleaner/pipeline.py#L161-L205). Measured pipeline position on the real export: 11 wishlist-trash junk decisions remove their rows, the exact pass resolves 1 group (2 losers), and 652 groupable copies reach the coverage pass.
+The pass runs last in the weapons pipeline, on copies the earlier passes left undecided — mirroring armor's exact → close ordering in [pipeline.py:161-205](../src/vault_cleaner/pipeline.py#L161-L205). Measured pipeline position on the real export (evidence §1 block `[4]`, taken from the decisions `weapons.run` actually emits): 21 prior decisions remove their rows — 11 `wishlist-trash` junk, **8 soft-protected `wishlist-trash` review**, and 2 `dupe-lower` review — leaving **644** groupable copies for the coverage pass.
+
+The soft-protected trash reviews are the easy ones to miss: they deliberately stay in the *dupes* pool ([rules/weapons.py:101-106](../src/vault_cleaner/rules/weapons.py#L101-L106)) but they do carry a decision, so the coverage filter must exclude them. Take the pool from the emitted decision ids rather than recomputing which rows the earlier passes would have decided.
 
 ## Dependencies and assumptions
 
@@ -112,6 +114,8 @@ def matched_rolls(item_hash, perk_hashes, wl, tokens) -> frozenset[frozenset[int
 def collapse(rolls: frozenset[frozenset[int]]) -> frozenset[frozenset[int]]: ...
 def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: ...
 ```
+
+`CoverageSummary` field semantics, so the dataclass and the printed contract cannot drift: `compared_instances` counts copies in a `Hash` group holding at least two distinct rolls; `dominated` and `uncovered` count the clauses actually emitted, so hard-protected candidates are excluded from `uncovered`; `combination_counts` and `consensus_counts` are ascending `(value, count)` pairs over those compared copies.
 
 - `canonical_perk_tokens` inverts `PerkMapData.names` deterministically: iterate names in sorted order, use `min(hashes)` as the token, first name wins for a hash that appears under several. A hash absent from the map maps to itself, so an unknown perk stays distinct rather than silently merging.
 - `collapse` keeps only maximal elements under `⊆`.
@@ -178,17 +182,38 @@ Add one recognizer covering both clauses, so a second run replaces the previous 
 #### [MODIFY] [cli.py:173-218](../src/vault_cleaner/cli.py#L173-L218)
 
 - `_resolve_weapons` returns the coverage summary alongside the existing tuple members.
-- `_cmd_dupes` prints, after the existing `resolved:` line and only when a summary is present:
+- **The existing `resolved:` line must lose its `(soft-protected)` claim.** [cli.py:210](../src/vault_cleaner/cli.py#L210) currently prints `resolved: {j} junk, {r} review (soft-protected){wl_note}`, which was true while every review came from a soft rail. Coverage advice makes it false: 49 of the ~80 new review candidates carry no rail at all (evidence §1 block `[6]`). Replace it with the neutral form, keeping `wl_note` unchanged:
+
+```python
+print(f"resolved: {len(junk)} junk, {len(review)} review{wl_note}")
+```
+
+  The per-item lines already carry each decision's own `(locked)` / `(exotic)` reason, and the coverage lines below give the coverage breakdown, so no information is lost. Add a CLI regression test asserting that a run containing an unprotected coverage review does not describe its review total as soft-protected.
+- `_cmd_dupes` prints, after that line and only when a summary is present:
 
 ```python
 print(
     f"coverage: {s.dominated} dominated, {s.uncovered} uncovered vs a covered copy "
     f"— review-only, from {s.compared_instances} compared copies"
 )
+distribution = ", ".join(f"{n}: {rows}" for n, rows in s.combination_counts) or "none"
+print(f"coverage combinations per compared copy — {distribution}")
 if s.consensus_counts is not None:
     support = ", ".join(f"{families}: {count}" for families, count in s.consensus_counts)
     print(f"coverage evidence: combinations by supporting curation family — {support}")
 ```
+
+Both distributions are reported over **compared copies only** — the copies that entered at least one same-`Hash` comparison — not over every analysed row. A distribution covering copies nothing was compared against is not evidence about coverage. `combination_counts` includes the zero bucket, because "no curated combination available" is the single most common state and hiding it would overstate coverage.
+
+Expected values on the real export, from evidence §1 block `[8]`, which an implementer can check their output against:
+
+```text
+compared_instances=339 dominated=30 uncovered=50
+combination_counts=[(0, 143), (1, 58), (2, 66), (3, 10), (4, 43), (5, 4), (6, 7), (8, 3), (9, 2), (10, 2), (12, 1)]
+consensus_counts=[(1, 459), (2, 69)]
+```
+
+Note that block `[3]`'s consensus figures (724 / 99) span every row in the export, so they are deliberately larger than the summary's compared-copy figures. Add CLI assertions for all three lines, so an implementation following this handoff satisfies #34's "combination counts and family consensus appear in dry-run output" criterion rather than merely defining the field.
 
 No review-UI, server, snapshot or `config.toml` change is in scope. The new decisions reach the review UI through the existing proposal path, whose reason filter is data-driven.
 
@@ -206,7 +231,7 @@ Regenerate with `python scripts/regenerate_report_snapshot.py`. That golden is b
 
 #### [NEW] [tests/fixtures/weapons_coverage.csv](../tests/fixtures/weapons_coverage.csv) and [tests/fixtures/wishlist_coverage.txt](../tests/fixtures/wishlist_coverage.txt)
 
-Synthetic rows pinned to the real export header (copy it from an existing weapons fixture), fake items only. Generate any CSV with `lineterminator="\n"`. Cover, within one or two hashes: a strict-subset pair; a mutual trade-off pair; an equal-coverage pair with different rolls; a mutually uncovered pair; an uncovered-versus-covered pair; two sources recommending the same roll (consensus 2); a base/enhanced variant pair of one display name; a hard-protected copy that must be a partner but never a candidate; a soft-protected (locked or exotic) candidate; and one ungroupable row with no tracker boundary.
+Synthetic rows pinned to the real export header (copy it from an existing weapons fixture), fake items only. Generate any CSV with `lineterminator="\n"`. Cover: a strict-subset pair; a mutual trade-off pair; an equal-coverage pair with different rolls; a mutually uncovered pair; an uncovered-versus-covered pair; two sources recommending the same roll (consensus 2); a base/enhanced variant pair of one display name; a hard-protected copy that must be a partner but never a candidate; a soft-protected (locked or exotic) candidate; one ungroupable row with no tracker boundary; and — for the two tie-break branches — a `Hash` group of at least three distinct rolls in which two partners tie on gain, once for a dominated candidate and once for an uncovered one. An earlier prior-pass decision on a row that would otherwise be compared is worth one row too, so the decided-id exclusion is exercised.
 
 #### [NEW] [tests/test_coverage.py](../tests/test_coverage.py)
 
@@ -214,7 +239,9 @@ At minimum: each relation produces the right decision or none; collapsed-versus-
 
 #### [MODIFY] [tests/test_note_history_roundtrip.py](../tests/test_note_history_roundtrip.py)
 
-Add emitter-driven round-trip coverage for both new clauses, per the emitter contract in [AGENTS.md](../AGENTS.md): take the clause text the rule actually emits, feed it back through `strip_trailing_tool_clauses`, and assert the user's original Notes text survives. Follow the pattern the armor close-pass clauses already use there.
+Add emitter-driven round-trip coverage for **all four emitting branches**, not just the two clause kinds. The emitter contract in [AGENTS.md](../AGENTS.md) covers "each winner or partner label in every emitting branch", and this pass has four: dominated/`largest coverage gain`, dominated/`deterministic id tie-break`, uncovered/`most combinations`, and uncovered/`deterministic id tie-break`. Take the clause text the rule actually emits, feed it back through `strip_trailing_tool_clauses`, and assert the user's original Notes text survives. Follow the pattern the armor close-pass clauses already use there.
+
+**A two-member group cannot reach either tie-break branch**, since a tie needs two partners with equal gain. The fixture must therefore include a `Hash` group of at least three distinct rolls where two candidate partners tie. That is not a contrived shape: 54 of the 116 multi-roll hashes on the real export hold three or more distinct rolls (evidence §1 block `[4]`).
 
 ### Documentation
 
@@ -269,7 +296,8 @@ Escalation route: `implementer → orchestrator → planner`.
 1. **Collapsed-versus-uncollapsed comparison.** The most likely defect is comparing `collapse(matched(A)) ⊂ collapse(matched(B))` because the collapsed sets are already in hand for display. Measured, that drops three of 30 real dominance relations on the real export while inventing none, so it is invisible both to a test suite using single-source fixtures and to any assertion that no wrong advice is emitted. The fixture must pair an Aegis-style subset roll with a Voltron-style superset roll, and the test must assert the relation is **found**, not merely that nothing bogus appears.
 2. **Absence treated as evidence.** `matched(A)` empty makes `matched(A) ⊆ matched(B)` vacuously true, so a naive implementation files the 53 uncovered copies under `coverage-dominated by`. They must carry the separate `coverage-uncovered vs` label, and the hard-protected three must receive no clause at all.
 3. **Emitter/recognizer drift.** The recognizer regex is hand-written against strings the rule formats elsewhere; a stray space, a singular "combination", or a missing `partner` alternative leaves a clause that accumulates on the next run. The round-trip test must be driven by the emitter's own output, not by a re-typed literal.
-4. **Scope leak into presentation or policy.** Snapshot projections, review-UI rendering, or a `config.toml` gate are all adjacent and all out of scope; a diff touching `ui/`, `server/`, `review.py` or `config.toml` is a finding.
+4. **Prior review decisions left in the pool.** Soft-protected `wishlist-trash` reviews stay in the *dupes* pool by design, so an implementation that mirrors the dupe pass's filter instead of excluding every decided id will compare eight already-decided copies on the real export and can cite one as a partner. The planner made exactly this mistake in the first revision of the evidence transcript.
+5. **Scope leak into presentation or policy.** Snapshot projections, review-UI rendering, or a `config.toml` gate are all adjacent and all out of scope; a diff touching `ui/`, `server/`, `review.py` or `config.toml` is a finding.
 
 # Reusable implementer execution prompt
 
@@ -311,7 +339,9 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] Check 3: Empty candidate coverage yields `coverage-uncovered vs`, never `coverage-dominated by`; hard-protected copies receive no clause but remain eligible partners.
 - [ ] Check 4: Copies sharing an exact-roll fingerprint, and copies whose fingerprint is `None`, are never compared.
 - [ ] Check 5: Mutual trade-offs, equal coverage and mutually uncovered pairs produce no decision.
-- [ ] Check 6: Both clauses match the verbatim formats; the `note_history` recognizer is emitter-driven and a second run replaces rather than accumulates.
+- [ ] Check 6: Both clauses match the verbatim formats; the `note_history` recognizer is emitter-driven and a second run replaces rather than accumulates. All four emitting branches — both clause kinds × both partner labels — have round-trip coverage, with the tie-break branches reached through a three-member group.
+- [ ] Check 6b: The `resolved:` line no longer claims every review is soft-protected, and a regression test pins that; the three coverage summary lines print decision totals, the combination distribution and family consensus, each asserted in a CLI test.
+- [ ] Check 6c: The coverage pool is built from emitted decision ids, so soft-protected `wishlist-trash` reviews and `dupe-lower` reviews are excluded from comparison.
 - [ ] Check 7: Partner selection and decision order are deterministic under row reversal, using `instance_id_order` for every tie-break.
 - [ ] Check 8: `family` reaches no decision input and no `Notes` clause; `WishlistSourceIdentity`, `_decision_config`, the fingerprint payload and the snapshot schema are untouched.
 - [ ] Check 9: `RULESET_VERSION` is 5, `SNAPSHOT_SCHEMA_VERSION` is 2, and the regenerated golden differs only in the ruleset version and fingerprint.

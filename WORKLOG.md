@@ -74,6 +74,54 @@ Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from
   loud. Review path: independent adversarial review.
 - No product code, tests, schemas, rules or versions changed in this PR.
 
+### Review-fix round 1
+
+Addressed four P2 findings from the PR #167 review on branch
+`handoff/issue-34-implementation-plan`. All four were accepted; none touched the
+design (comparison basis, safety rule, scope boundaries, versioning), so they
+were specification-completeness defects rather than substantive ones.
+
+- **F4 (`docs/evidence/issue-34/README.md`) — model all earlier decisions.**
+  The transcript reimplemented the earlier passes' decision filter instead of
+  calling them, kept the eight soft-protected `wishlist-trash` review rows, and
+  reported 652 coverage inputs. Those rows deliberately stay in the *dupes* pool
+  (`rules/weapons.py:101-106`) but do carry a decision, so the planned
+  decided-id filter excludes them. Block `[4]` now takes the pool from the
+  decisions `rules.weapons.run` actually emits: 21 prior decisions (11
+  `wishlist-trash` junk, 8 `wishlist-trash` review, 2 `dupe-lower` review) and
+  **644** inputs. Re-measured, every dependent figure is unchanged — 116 hashes,
+  339 compared instances, 30 dominated, 53 uncovered (50 eligible), 148 trade-offs,
+  13 equal, 114 both-uncovered, same protection splits and name lists — so only
+  the pool figure itself was wrong. The transcript was recaptured and its fence
+  re-executed: it reproduces byte for byte.
+- **F3 (`cli.py:210`) — stale soft-protected label.** The existing
+  `resolved: N junk, M review (soft-protected)` line was true while every review
+  came from a soft rail. Coverage advice makes it false: 49 of the ~80 new review
+  candidates carry no rail at all. The plan now requires the neutral
+  `resolved: N junk, M review{wl_note}` form plus a CLI regression test. This was
+  the only finding describing user-visible wrong output.
+- **F2 (dry-run output contract) — print the combination counts.**
+  `CoverageSummary.combination_counts` was defined and never printed, leaving
+  #34's "combination counts in dry-run output" criterion unmet. The plan now
+  prints the distribution, fixes both distributions' denominator to **compared
+  copies only** (including the zero bucket), states the `CoverageSummary` field
+  semantics, quotes the expected real-export values from the new evidence block
+  `[8]`, and requires CLI assertions on all three lines. Block `[3]`'s
+  whole-export consensus figures are deliberately larger than the summary's
+  compared-copy figures; the plan now says so.
+- **F1 (emitter contract) — exercise every partner label.** The plan asked for
+  round-trip coverage of "both new clauses", which is two of the four emitting
+  branches; `AGENTS.md` requires every winner or partner label in every branch.
+  It now requires all four, and notes that a two-member group can never reach a
+  tie-break branch, so the fixture needs a `Hash` group of at least three
+  distinct rolls with two partners tied on gain. Realistic: 54 of the 116
+  multi-roll hashes on the real export hold three or more distinct rolls.
+- Added a fifth likely finding for the implementer, since the planner made this
+  mistake first: prior *review* decisions left in the coverage pool.
+- **Verification:** `.venv/bin/ruff check src tests scripts` passed,
+  `.venv/bin/pytest -q` passed (1045), `git diff --check` clean,
+  `git ls-files data/` empty. Evidence §1's fence re-executed and reproduced.
+
 ## 2026-09-20 — #163 review-fix round
 
 Addressed review findings and repaired merge state on branch
