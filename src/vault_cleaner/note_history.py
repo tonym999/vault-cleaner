@@ -64,10 +64,11 @@ _GENERATED_CLAUSE_RES = tuple(
         r"#vc-review: armor-dominated by [^\s]+ \(\+[0-9]+ total\)",
         r"#vc-review: armor-similar to [^\s]+ \([^()\r\n]+\)",
         # Weapon coverage advice.
+        # "most combinations" retained as migration term for notes emitted by interim runs.
         (
             r"#vc-review: coverage-(?:dominated by|uncovered vs); "
             r"compare \[[^\]\r\n]*\]; curated matches [0-9]+ vs [0-9]+; partner "
-            r"(?:largest coverage gain|most combinations|deterministic id tie-break)"
+            r"(?:largest coverage gain|most curated matches|most combinations|deterministic id tie-break)"
         ),
         # Other current rule families.  The #vc- namespace is tool-owned only
         # when one of these complete clauses is the trailing Notes suffix.

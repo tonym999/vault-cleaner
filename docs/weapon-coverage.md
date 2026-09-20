@@ -65,7 +65,7 @@ The pass emits four exact clause variations across two advice kinds:
 ```text
 #vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner largest coverage gain
 #vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner deterministic id tie-break
-#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most combinations
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most curated matches
 #vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner deterministic id tie-break
 ```
 

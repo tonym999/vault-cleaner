@@ -133,7 +133,7 @@ def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: .
 ```text
 #vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner largest coverage gain
 #vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner deterministic id tie-break
-#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most combinations
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most curated matches
 #vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner deterministic id tie-break
 ```
 
@@ -171,7 +171,7 @@ Add one recognizer covering both clauses, so a second run replaces the previous 
 (
     r"#vc-review: coverage-(?:dominated by|uncovered vs); "
     r"compare \[[^\]\r\n]*\]; curated matches [0-9]+ vs [0-9]+; partner "
-    r"(?:largest coverage gain|most combinations|deterministic id tie-break)"
+    r"(?:largest coverage gain|most curated matches|most combinations|deterministic id tie-break)"
 ),
 ```
 
@@ -241,7 +241,7 @@ At minimum: each relation produces the right decision or none; collapsed-versus-
 
 #### [MODIFY] [tests/test_note_history_roundtrip.py](../tests/test_note_history_roundtrip.py)
 
-Add emitter-driven round-trip coverage for **all four emitting branches**, not just the two clause kinds. The emitter contract in [AGENTS.md](../AGENTS.md) covers "each winner or partner label in every emitting branch", and this pass has four: dominated/`largest coverage gain`, dominated/`deterministic id tie-break`, uncovered/`most combinations`, and uncovered/`deterministic id tie-break`. Take the clause text the rule actually emits, feed it back through `strip_trailing_tool_clauses`, and assert the user's original Notes text survives. Follow the pattern the armor close-pass clauses already use there.
+Add emitter-driven round-trip coverage for **all four emitting branches**, not just the two clause kinds. The emitter contract in [AGENTS.md](../AGENTS.md) covers "each winner or partner label in every emitting branch", and this pass has four: dominated/`largest coverage gain`, dominated/`deterministic id tie-break`, uncovered/`most curated matches`, and uncovered/`deterministic id tie-break`. Take the clause text the rule actually emits, feed it back through `strip_trailing_tool_clauses`, and assert the user's original Notes text survives. Follow the pattern the armor close-pass clauses already use there.
 
 **A two-member group cannot reach either tie-break branch**, since a tie needs two partners with equal gain. The fixture must therefore include a `Hash` group of at least three distinct rolls where two candidate partners tie. That is not a contrived shape: 54 of the 116 multi-roll hashes on the real export hold three or more distinct rolls (evidence §1 block `[4]`).
 

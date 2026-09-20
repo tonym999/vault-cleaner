@@ -533,7 +533,7 @@ def test_armor_close_partner_tie_labels_round_trip(
     [
         ("10011", "coverage-dominated by", "largest coverage gain"),
         ("10091", "coverage-dominated by", "deterministic id tie-break"),
-        ("10051", "coverage-uncovered vs", "most combinations"),
+        ("10051", "coverage-uncovered vs", "most curated matches"),
         ("10101", "coverage-uncovered vs", "deterministic id tie-break"),
     ],
 )
@@ -545,3 +545,12 @@ def test_coverage_partner_labels_round_trip(
         frame, _weapon_coverage, item_id, "review", expected_reason
     )
     assert first.note.endswith(f"; partner {expected_partner_label}")
+
+
+def test_legacy_coverage_most_combinations_recognizer():
+    """Interim 'most combinations' clauses are stripped during migration."""
+    note = (
+        "my original note #vc-review: coverage-uncovered vs; compare [Test]; "
+        "curated matches 0 vs 1; partner most combinations"
+    )
+    assert strip_trailing_tool_clauses(note) == "my original note"

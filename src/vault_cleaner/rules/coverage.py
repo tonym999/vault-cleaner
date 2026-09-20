@@ -240,7 +240,7 @@ def analyse(
                     partner_reason = (
                         "deterministic id tie-break"
                         if len(tied) > 1
-                        else "most combinations"
+                        else "most curated matches"
                     )
                     partner_group_ids = tuple(
                         oid for oid in all_hash_ids if oid != best_b["id"]

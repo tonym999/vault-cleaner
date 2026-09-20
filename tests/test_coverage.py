@@ -269,7 +269,7 @@ def test_fixture_all_coverage_relations():
     assert d_10051.action == "review"
     assert d_10051.kept_id == "10052"
     assert "#vc-review: coverage-uncovered vs" in d_10051.note
-    assert "curated matches 0 vs 1; partner most combinations" in d_10051.note
+    assert "curated matches 0 vs 1; partner most curated matches" in d_10051.note
 
     # Hash 1006: hard-protected copy 10062 acts as partner, never candidate
     assert "10062" not in decisions_by_id
@@ -481,7 +481,7 @@ def test_partner_selection_uncovered_ranks_by_uncollapsed_curated_matches():
     Copy 2 has {7, 8} (matched 1, collapsed 1).
     Copy 3 has {1, 2, 3} (matched 3, collapsed 1).
     Both Copy 2 and Copy 3 have 1 collapsed combination, but Copy 3 provides 3
-    curated matches. Copy 1 must cite Copy 3 with 'curated matches 0 vs 3; partner most combinations'.
+    curated matches. Copy 1 must cite Copy 3 with 'curated matches 0 vs 3; partner most curated matches'.
     """
     wl = Wishlist(
         keep={
@@ -527,7 +527,7 @@ def test_partner_selection_uncovered_ranks_by_uncollapsed_curated_matches():
     assert d.id == "copy1"
     assert d.kept_id == "copy3"
     assert "#vc-review: coverage-uncovered vs" in d.note
-    assert "curated matches 0 vs 3; partner most combinations" in d.note
+    assert "curated matches 0 vs 3; partner most curated matches" in d.note
 
 
 def test_partner_selection_dominated_chain_ranks_by_uncollapsed_matches():
