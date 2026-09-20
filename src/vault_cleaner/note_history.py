@@ -66,7 +66,7 @@ _GENERATED_CLAUSE_RES = tuple(
         # Weapon coverage advice.
         (
             r"#vc-review: coverage-(?:dominated by|uncovered vs); "
-            r"compare \[[^\]\r\n]*\]; combinations [0-9]+ vs [0-9]+; partner "
+            r"compare \[[^\]\r\n]*\]; curated matches [0-9]+ vs [0-9]+; partner "
             r"(?:largest coverage gain|most combinations|deterministic id tie-break)"
         ),
         # Other current rule families.  The #vc- namespace is tool-owned only

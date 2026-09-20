@@ -19,12 +19,13 @@ Instead, combinations are read from curated wishlists:
 - The subset check `roll <= perk_hashes` determines whether a weapon copy can provide that combination.
 - Perk hashes are canonicalised so base and enhanced variants sharing a display name map to one deterministic token, deduplicating equivalent recommendations across sources.
 
-### 2. Compare uncollapsed matched sets, display collapsed counts
+### 2. Compare uncollapsed matched sets, display monotonic curated matches
 
 `matched(X)` is downward closed: if a copy matches a 4-perk roll, it also matches any curated 2-perk sub-roll for that Hash. Therefore, `matched(A) ⊆ matched(B)` represents the exact test that copy `B` provides everything copy `A` does.
 
-Displayed counts collapse recommendations subsumed by a more specific matched one (e.g. a 2-perk traits roll subsumed by a 4-perk roll counts as one combination).
 Comparing collapsed sets directly would incorrectly drop genuine dominance relations (measured: 3 of 30 relations lost on real vault data). Dominance comparison must always use the uncollapsed sets.
+
+Note explanations report uncollapsed matched-set cardinalities as `curated matches N vs M`, ensuring that the explanation is strictly monotonic ($N < M$ for dominated decisions). Displayed aggregate CLI distributions continue to report subsumption-collapsed maximal combinations.
 
 ### 3. Absence of coverage is uncertainty, not dominance
 
@@ -62,10 +63,10 @@ Consensus is reported in dry-run output only and never enters decision logic, `N
 The pass emits four exact clause variations across two advice kinds:
 
 ```text
-#vc-review: coverage-dominated by; compare [REF]; combinations N vs M; partner largest coverage gain
-#vc-review: coverage-dominated by; compare [REF]; combinations N vs M; partner deterministic id tie-break
-#vc-review: coverage-uncovered vs; compare [REF]; combinations 0 vs M; partner most combinations
-#vc-review: coverage-uncovered vs; compare [REF]; combinations 0 vs M; partner deterministic id tie-break
+#vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner largest coverage gain
+#vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner deterministic id tie-break
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most combinations
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner deterministic id tie-break
 ```
 
-Here, `REF` is a human-readable weapon reference (`weapon_reference`), `N` is the candidate's collapsed combination count, and `M` is the partner's.
+Here, `REF` is a human-readable weapon reference (`weapon_reference`), `N` is the candidate's uncollapsed curated match count, and `M` is the partner's (guaranteeing `N < M` for dominated decisions).

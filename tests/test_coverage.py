@@ -138,7 +138,7 @@ def test_collapsed_vs_uncollapsed_comparison():
     assert d.id == "1"
     assert d.kept_id == "2"
     assert "coverage-dominated by" in d.note
-    assert "combinations 1 vs 2" in d.note
+    assert "curated matches 1 vs 3" in d.note
 
 
 def test_base_enhanced_variant_canonicalisation():
@@ -250,7 +250,7 @@ def test_fixture_all_coverage_relations():
     assert d_10011.action == "review"
     assert d_10011.kept_id == "10012"
     assert "#vc-review: coverage-dominated by" in d_10011.note
-    assert "combinations 1 vs 1; partner largest coverage gain" in d_10011.note
+    assert "curated matches 1 vs 3; partner largest coverage gain" in d_10011.note
 
     # Hash 1002: mutual trade-off -> neither in decisions
     assert "10021" not in decisions_by_id
@@ -269,7 +269,7 @@ def test_fixture_all_coverage_relations():
     assert d_10051.action == "review"
     assert d_10051.kept_id == "10052"
     assert "#vc-review: coverage-uncovered vs" in d_10051.note
-    assert "combinations 0 vs 1; partner most combinations" in d_10051.note
+    assert "curated matches 0 vs 1; partner most combinations" in d_10051.note
 
     # Hash 1006: hard-protected copy 10062 acts as partner, never candidate
     assert "10062" not in decisions_by_id
@@ -292,13 +292,13 @@ def test_fixture_all_coverage_relations():
     d_10091 = decisions_by_id["10091"]
     assert d_10091.kept_id == "10092"  # 10092 has lower instance id order than 10093
     assert "partner deterministic id tie-break" in d_10091.note
-    assert "combinations 1 vs 2" in d_10091.note
+    assert "curated matches 1 vs 2" in d_10091.note
 
     # Hash 1010: uncovered candidate with tied partners (count 1 on 10102 and 10103)
     d_10101 = decisions_by_id["10101"]
     assert d_10101.kept_id == "10102"  # 10102 has lower instance id order than 10103
     assert "partner deterministic id tie-break" in d_10101.note
-    assert "combinations 0 vs 1" in d_10101.note
+    assert "curated matches 0 vs 1" in d_10101.note
 
     # Hash 1012: uncovered vs covered (10122 vs 10121)
     d_10122 = decisions_by_id["10122"]
@@ -328,23 +328,79 @@ def test_same_fingerprint_rows_never_compared():
     df = pd.DataFrame([
         {
             "Name": "Twin", "Hash": "2001", "Id": "1", "Tag": "",
-            "Locked": "false", "Equipped": "false", "Crafted": "false",
-            "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
             "Perks 0": "Perk A*", "Perks 1": "Perk B*", "Perks 2": "Kill Tracker",
         },
         {
             "Name": "Twin", "Hash": "2001", "Id": "2", "Tag": "",
-            "Locked": "false", "Equipped": "false", "Crafted": "false",
-            "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
             "Perks 0": "Perk A*", "Perks 1": "Perk B*", "Perks 2": "Kill Tracker",
         },
     ]).fillna("")
-    # Both rows share the exact same fingerprint
-    assert exact_roll_fingerprint(df.iloc[0]) == exact_roll_fingerprint(df.iloc[1])
+    fp0 = exact_roll_fingerprint(df.iloc[0])
+    fp1 = exact_roll_fingerprint(df.iloc[1])
+    assert fp0 is not None
+    assert fp0 == fp1
     analysis = coverage.analyse(df, wl, PERK_MAP, crafted_level_protect=10)
     # Not compared: 0 compared instances, 0 decisions
     assert analysis.summary.compared_instances == 0
     assert len(analysis.decisions) == 0
+
+
+def test_non_cardinality_monotone_inversion_emits_curated_matches():
+    """Dominance explanation is monotonic even when collapsed counts invert."""
+    wl = Wishlist(
+        keep={
+            7001: [
+                frozenset({1, 2}),
+                frozenset({1, 3}),
+                frozenset({1, 2, 3, 4}),
+            ]
+        }
+    )
+    perk_map = {
+        "perk a": frozenset({1}),
+        "perk b": frozenset({2}),
+        "perk c": frozenset({3}),
+        "perk d": frozenset({4}),
+    }
+    df = pd.DataFrame([
+        {
+            "Name": "Inversion Gun", "Hash": "7001", "Id": "cand", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "perk a*", "Perks 1": "perk b*", "Perks 2": "perk c*", "Perks 3": "Kill Tracker",
+        },
+        {
+            "Name": "Inversion Gun", "Hash": "7001", "Id": "part", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "perk a*", "Perks 1": "perk b*", "Perks 2": "perk c*", "Perks 3": "perk d*", "Perks 4": "Kill Tracker",
+        },
+    ]).fillna("")
+    tokens = coverage.canonical_perk_tokens(perk_map)
+    matched_cand = coverage.matched_rolls(7001, frozenset({1, 2, 3}), wl, tokens)
+    matched_part = coverage.matched_rolls(7001, frozenset({1, 2, 3, 4}), wl, tokens)
+    # Candidate matches {1, 2} and {1, 3} -> 2 uncollapsed matches, 2 collapsed combinations
+    assert len(matched_cand) == 2
+    assert len(coverage.collapse(matched_cand)) == 2
+    # Partner matches {1, 2}, {1, 3}, {1, 2, 3, 4} -> 3 uncollapsed matches, 1 collapsed combination
+    assert len(matched_part) == 3
+    assert len(coverage.collapse(matched_part)) == 1
+
+    # Dominance holds on uncollapsed sets
+    assert matched_cand < matched_part
+
+    analysis = coverage.analyse(df, wl, perk_map, crafted_level_protect=10)
+    assert len(analysis.decisions) == 1
+    d = analysis.decisions[0]
+    assert d.id == "cand"
+    assert d.kept_id == "part"
+    assert "#vc-review: coverage-dominated by" in d.note
+    assert "curated matches 2 vs 3" in d.note
+    assert "combinations 2 vs 1" not in d.note
 
 
 def test_weapons_run_excludes_prior_decided_rows():

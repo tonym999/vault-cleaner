@@ -131,13 +131,13 @@ def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: .
 **Exact clause formats** (the emitter contract; these strings are the ticket's user-facing copy):
 
 ```text
-#vc-review: coverage-dominated by; compare [REF]; combinations N vs M; partner largest coverage gain
-#vc-review: coverage-dominated by; compare [REF]; combinations N vs M; partner deterministic id tie-break
-#vc-review: coverage-uncovered vs; compare [REF]; combinations 0 vs M; partner most combinations
-#vc-review: coverage-uncovered vs; compare [REF]; combinations 0 vs M; partner deterministic id tie-break
+#vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner largest coverage gain
+#vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner deterministic id tie-break
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most combinations
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner deterministic id tie-break
 ```
 
-`REF` is `weapon_reference(partner_row, exact_roll_display_prefix(partner_row), distinguish_from=<the other instance ids in that Hash group, sorted by instance_id_order>)`, reused verbatim from [rules/dupes.py:253,261](../src/vault_cleaner/rules/dupes.py#L253). `N` is the candidate's collapsed combination count, `M` the partner's. "combinations" stays plural in every case so the recognizer needs no alternation. `partner <reason>` names the first decisive dimension of the partner choice, exactly as the close pass does.
+`REF` is `weapon_reference(partner_row, exact_roll_display_prefix(partner_row), distinguish_from=<the other instance ids in that Hash group, sorted by instance_id_order>)`, reused verbatim from [rules/dupes.py:253,261](../src/vault_cleaner/rules/dupes.py#L253). `N` is the candidate's uncollapsed curated match count, `M` the partner's (guaranteeing `N < M` for dominated decisions). `partner <reason>` names the first decisive dimension of the partner choice, exactly as the close pass does.
 
 #### [MODIFY] [rules/weapons.py:59-111](../src/vault_cleaner/rules/weapons.py#L59-L111)
 
@@ -170,7 +170,7 @@ Add one recognizer covering both clauses, so a second run replaces the previous 
 ```python
 (
     r"#vc-review: coverage-(?:dominated by|uncovered vs); "
-    r"compare \[[^\]\r\n]*\]; combinations [0-9]+ vs [0-9]+; partner "
+    r"compare \[[^\]\r\n]*\]; curated matches [0-9]+ vs [0-9]+; partner "
     r"(?:largest coverage gain|most combinations|deterministic id tie-break)"
 ),
 ```

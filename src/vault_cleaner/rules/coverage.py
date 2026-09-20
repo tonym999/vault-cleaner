@@ -4,7 +4,8 @@ Compares distinct rolls of the same item Hash by useful wishlist combination
 coverage. Curated keep rolls are author-asserted valid combinations, so
 combinations are read from the wishlists rather than enumerated from the export.
 Comparison uses the downward-closed uncollapsed matched sets (A strict subset
-of B), while displayed counts use subsumption-collapsed maximal combinations.
+of B); note explanations display monotonic uncollapsed curated matches (N vs M),
+while aggregate CLI counts use subsumption-collapsed maximal combinations.
 Absence of coverage is uncertainty, not trash evidence; uncovered copies
 receive the distinct 'coverage-uncovered vs' review outcome.
 
@@ -204,11 +205,11 @@ def analyse(
                         exact_roll_display_prefix(best_b["row"]),
                         distinguish_from=partner_group_ids,
                     )
-                    n = len(a["collapsed"])
-                    m = len(best_b["collapsed"])
+                    n = len(a["matched"])
+                    m = len(best_b["matched"])
                     hashtag = (
                         f"#vc-review: coverage-dominated by; compare {ref}; "
-                        f"combinations {n} vs {m}; partner {partner_reason}"
+                        f"curated matches {n} vs {m}; partner {partner_reason}"
                     )
                     note = append_tool_clause(a["row"]["Notes"], hashtag)
                     decisions.append(
@@ -249,10 +250,10 @@ def analyse(
                         exact_roll_display_prefix(best_b["row"]),
                         distinguish_from=partner_group_ids,
                     )
-                    m = len(best_b["collapsed"])
+                    m = len(best_b["matched"])
                     hashtag = (
                         f"#vc-review: coverage-uncovered vs; compare {ref}; "
-                        f"combinations 0 vs {m}; partner {partner_reason}"
+                        f"curated matches 0 vs {m}; partner {partner_reason}"
                     )
                     note = append_tool_clause(a["row"]["Notes"], hashtag)
                     decisions.append(
