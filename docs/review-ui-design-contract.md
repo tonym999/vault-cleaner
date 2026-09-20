@@ -128,8 +128,10 @@ More facts in the same category, found while capturing the design:
 - **Ids and hashes.** The prototype's sample ids and hashes are in the real
   format. None are copied into this repository. Every example below uses
   obviously synthetic values, and every id and hash is an **opaque string**,
-  never a number: `"9007199254740993"` is 2^53 + 1, which a JSON number would
-  silently round.
+  never a number. The risk is at the browser boundary: `"9007199254740993"` is
+  2^53 + 1, and JavaScript's `JSON.parse` silently rounds it when it becomes a
+  `Number`. Python can keep it exact, but the same contract applies to every
+  layer so no boundary has to be trusted to preserve it.
 
 ## 4. Design tokens
 
@@ -232,7 +234,9 @@ on the left, a small monospace `CSV` tag on the right, and beneath them a dashed
 drop-style box showing either a prompt or the chosen file's name. The card takes
 a primary tint on hover. Below the cards, after a hairline, sit the session
 actions: **Finalize review** (primary), **Reset / Start new review**
-(secondary), and **Shutdown** (secondary with a rose hover).
+(secondary), and **Shutdown** (secondary with rose text and a rose hover
+border). Production spells the first label **Finalise review**, and its
+wording wins.
 
 **Production semantics that stay:**
 
@@ -240,9 +244,20 @@ actions: **Finalize review** (primary), **Reset / Start new review**
   progress and errors (`vc-upload-status-*`);
 - the file input accepts `.csv,text/csv` and the browser submits **file bytes,
   never a path**;
-- the session actions are a labelled group, and their enabled state, the
-  additional **Download again** action, and every label follow the server's
-  session state (`idle`, `exports-loaded`, `reviewing`, `finalized`, `closed`).
+- the session actions are a labelled group whose members follow the server's
+  session state, not a fixed set:
+  - `idle`: **Shutdown** and a "Connected. Upload one or more DIM CSV exports to
+    begin." hint;
+  - `exports-loaded` and `reviewing`: **Finalise review**, **Reset / Start new
+    review** and **Shutdown**;
+  - `finalized`: a "Finalised — this review is frozen" confirmation (with a count
+    of approved items still suppressed by an active saved veto, when there are
+    any), then **Download again**, **Reset / Start new review** and
+    **Shutdown**. **Finalise review** is not offered;
+  - `closed`: none.
+
+  **Download again** stays available while the server is disconnected, but not
+  once the session is terminal; reset and shutdown need a live connection.
 
 **Deltas.** The prototype hides the file input (`sr-only`) inside a styled
 label. Whatever is built must show a visible focus indicator on the *card* when
@@ -298,7 +313,10 @@ content (item 2 of section 3).
 - The filter row is built from report-derived facets: search, Guardian Class,
   Type, Archetype and Tuning Mod Slot, plus reset.
 - **Whole-group filtering.** A filter selects groups, never individual members;
-  the "groups stay intact" line is real behaviour, not decoration.
+  the "groups stay intact" line is real behaviour, not decoration. For a
+  same-stat group the Tuning Mod Slot filter matches when *any* member has that
+  slot, and the group is then shown in full (`matchesArmorGroup` in
+  `review_ui.js`).
 - The surface navigation and group-kind controls are **`aria-pressed` toggle
   buttons, not `tab`/`tablist` roles**. This was a deliberate decision (see the
   `.tabs` comment in `review.css` and #131). A visual tab strip must not change
@@ -464,22 +482,44 @@ primary border on hover.
   session is finalised or terminal, and when the server is not connected. A
   verdict's state changes only after the server acknowledges it. The repaint
   updates existing nodes in place so **keyboard focus is not lost**.
-- **Read-only members** show no buttons. They show a "Read-only" badge, the
-  disposition as text, any existing proposal action and reason, and the current
-  verdict as text. Only members with an existing proposal are actionable.
-- Verdicts do not tag anything, change a DIM tag, or re-rank a group.
+- **Read-only members** show no buttons, and only members with an existing
+  proposal are actionable. What a read-only member *does* show depends on the
+  group kind, and the difference is deliberate (`armorMemberStatus` in
+  `review_ui.js`):
+  - **Exact group.** A "Read-only" badge and the disposition as text. Only when
+    the member also carries a later proposal does it add "Also proposed X in
+    Proposals", the **current verdict**, and the proposal reason. A survivor or
+    retained member with no later proposal shows **no** "Current verdict" line,
+    so the redundant "Unreviewed" disclosure stays absent (asserted in
+    `tests/test_server_browser.py`).
+  - **Same-stat group.** An "Existing proposal" or "Read-only comparison"
+    badge, the proposed action and reason when there is one, and **always** the
+    current verdict.
+- A verdict is a session decision, not a tag. A veto suppresses one proposal
+  without tagging the item `keep`, changing an existing DIM tag, or re-ranking a
+  group; an approval only makes the proposal eligible for the finalised
+  reviewed CSV. Nothing changes in DIM until that CSV is imported.
+- **Stale state is production behaviour.** If the report or the verdicts have
+  changed under the page, the server rejects the request, the page re-fetches
+  the report, and it announces that the action was **not applied** and must be
+  repeated. The prototype has no equivalent, and no optimistic update may
+  replace it.
 
 **Delta.** The prototype's three labels and pressed treatment match production's
 names already. The prototype has no `aria-pressed`, no accessible ids, no
 disabled state and no read-only variant; production's are required.
 
-### 5.12 DIM search text
+### 5.12 Production controls with no prototype design
 
-Production also has visible, copy-able DIM `id:` search text for armor groups
-and for filtered weapon proposals (#117, #150). The prototype has **no
-equivalent** and therefore no design for it. The existing production
-presentation stays as it is, and the contract's tokens and banner rules apply
-to it when it is restyled. It is not to be dropped in a migration.
+Two delivered features have **no equivalent in the prototype** and therefore no
+design in it. Both stay as they are; the contract's tokens and banner rules
+apply when they are restyled, and neither may be dropped in a migration.
+
+- **DIM search text.** Visible, copy-able DIM `id:` search text for armor groups
+  and for filtered weapon proposals (#117, #150).
+- **Bulk verdicts.** The Proposals surface has **Approve all shown**, **Veto all
+  shown** and **Unset all shown**, which act on the currently filtered proposals
+  through the same acknowledged mutation path as a single verdict.
 
 ## 6. Icon roles
 
@@ -503,10 +543,12 @@ Requirements that hold for any implementation:
 
 - **No icon carries meaning alone.** Icon-only controls need an accessible name;
   otherwise the icon is hidden from assistive technology.
-- **Delivery must respect the server CSP.** It is `default-src 'none'`, with
-  `script-src 'self'` and `style-src 'self'` (`server/app.py`). Inline `<svg>`
-  elements are permitted; external images, remote fonts, and inline `style`
-  attributes are not.
+- **Delivery must respect the server CSP** (`SERVER_CSP` in `server/app.py`).
+  It sets `default-src 'none'` and then allows only `script-src 'self'`,
+  `style-src 'self'` and `connect-src 'self'`. There is **no `img-src` or
+  `font-src`**, so *every* `<img>`, CSS image and web font is blocked, including
+  same-origin and `data:` ones. Inline `<svg>` markup is permitted; an inline
+  `style` attribute on it is not.
 - The prototype reuses one glyph for two roles (the shield for both the
   application mark and Armor, sparkles for both Ghosts and the review-only
   banner). Distinct roles should get distinct shapes.
@@ -620,8 +662,14 @@ Constraints the spike must respect. These restate existing rules and are
   that replaces DOM must not drop keyboard focus or race the server's revision
   checks.
 - **No request ever supplies a filesystem path.**
-- **Packaging:** templates and assets must ship in the wheel
-  (`scripts/check_wheel_install.py` covers this).
+- **Packaging is not covered today for new resources.** `pyproject.toml`
+  packages only top-level `*.css`, `*.html` and `*.js` for `vault_cleaner.ui`,
+  and `scripts/check_wheel_install.py` requests only `/` plus three hard-coded
+  assets (`review.css`, `review_ui.js`, `review_server.js`). A nested template
+  directory, a dynamically loaded fragment, or a new asset type such as an
+  `.svg` icon would be omitted from the wheel without that check noticing. The
+  M10 implementation must update **both** the package-data configuration and the
+  wheel proof so that every new template and asset is packaged *and* exercised.
 
 ## 11. Prototype defects not to inherit
 
@@ -636,8 +684,11 @@ Collected here so a later reader does not mistake them for design:
 - A green pill used for two different meanings (survivor and approved).
 - Verdict controls on read-only members, and Member 1 assumed to be the survivor.
 - An unused shadcn `Button` component and a dead `dark` variant.
-- Vercel Analytics rendered in production builds. It is a network call and is
-  incompatible with a local, no-outbound-request product.
+- Vercel Analytics rendered in production builds. It is a telemetry call to a
+  third party. The durable rule is **no analytics, no telemetry and no remote UI
+  resources**; the only outbound traffic the product permits is the explicitly
+  documented static game-content download (wishlists and the public Bungie
+  manifest), which `--no-wishlists` turns off (README, "Privacy").
 
 ## 12. Open questions
 

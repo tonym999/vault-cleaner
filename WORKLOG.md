@@ -38,8 +38,11 @@ Refs #136. **The durable reference is
     error as success. Delivered production semantics are the floor.
   - Its grids are written for exactly two and three members; production's matrix
     already switches orientation by container width for 2 to 6 members.
-  - It renders Vercel Analytics in production builds, which cannot ship in a
-    local, no-outbound-request tool.
+  - It renders Vercel Analytics in production builds, which cannot ship: the
+    durable rule is no analytics, telemetry or remote UI resources. The only
+    outbound traffic the product permits is the documented static game-content
+    download (wishlists and the public Bungie manifest), which `--no-wishlists`
+    turns off.
   - Its sample ids and hashes are in the real 19-digit format. None were copied;
     the document uses synthetic opaque strings only.
   - `PLAN.md` has no M10 section although this ticket is labelled M10. Adding it
@@ -49,10 +52,26 @@ Refs #136. **The durable reference is
   stat role, and session-action placement. Section 10 records a candidate
   component-to-partial mapping plus the constraints the M10 spike must respect;
   section 12 lists the open questions.
-- **Verification.** Every production symbol, selector, CSP value and file the
-  document cites was checked against the tree at this head. Two claims were
-  wrong on first draft (the matrix column range is 2 to 6 members, and the
-  prototype renders sixteen icons, not twenty) and were corrected.
+- **Verification, stated precisely.** The first draft checked that each cited
+  symbol, selector, CSP value and file *exists*; that did not verify the
+  behavioural claims made about them. Review found two such claims wrong (the
+  wheel check does not cover new templates or assets, and read-only exact-group
+  members do not always show a current verdict), and a full re-audit of every
+  behavioural claim against the source then found and corrected more: the
+  finalised-state action set, the CSP's image and font blocking, the scope of
+  the id-precision warning, the "no outbound request" wording, and a "verdicts
+  do not tag anything" line. It also added two delivered controls the prototype
+  has no design for (bulk verdicts, stale-state handling). Earlier first-draft
+  corrections: the matrix column range is 2 to 6 members, and the prototype
+  renders sixteen icons, not twenty. Checks run: `git diff --check`, a
+  byte-level scan for invisible characters, `ruff check`, and the full pytest
+  suite (all unchanged by this documentation-only diff).
+- **No test added (rationale).** This is a documentation-only change. The suite
+  has no precedent for testing prose, the claims are about the code's behaviour
+  and are validated by reading it, and `AGENTS.md` already records that green
+  tests do not validate doc citations. A test would pin sentences, not
+  behaviour, and would fail on harmless rewording. The existing suite still runs
+  unchanged and passes.
 
 ## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
 
