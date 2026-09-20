@@ -27,6 +27,9 @@ Implemented Child 4 of #140 on branch `feat/issue-34-coverage-review` from
   - Switched `pipeline.resolve_weapons` from `load_all_with_sources` to
     `load_all_with_evidence` to make subsumption-aware family consensus counts
     available while preserving external source identity and fingerprint invariance.
+    Measured parse cost (from #158 baseline): evidence-off baseline median 0.568 s /
+    137.70 MB peak tracemalloc; evidence-on path taken by resolve_weapons median 1.881 s /
+    238.23 MB peak tracemalloc, comfortably below the 600 MB ceiling.
   - Bumped `RULESET_VERSION` from 4 to 5 in `src/vault_cleaner/report_run.py`,
     intentionally invalidating persisted review manifests and vetoes from ruleset v4.
   - Regenerated `tests/fixtures/report_snapshot_v2.json` with
@@ -54,6 +57,14 @@ Implemented Child 4 of #140 on branch `feat/issue-34-coverage-review` from
   - `git ls-files data/` returns nothing.
   - Regenerated snapshot golden verified to contain only the ruleset version (4 -> 5)
     and fingerprint diff.
+
+### Review-fix round 1
+
+Addressed review findings on branch `feat/issue-34-coverage-review`:
+- **F3 (fixture collapse exercise & non-downward-closed matching):** Added nested roll `dimwishlist:item=1001&perks=1,2,3` to `tests/fixtures/wishlist_coverage.txt`. Copy 10012 matches `{1, 2}`, `{1, 3}`, and `{1, 2, 3}`, which collapses to `{{1, 2, 3}}`. As a result, `collapse(matched(10011)) = {{1, 2}}` is not a subset of `collapse(matched(10012)) = {{1, 2, 3}}`, exercising the uncollapsed subset comparison in the shared fixture. Added explicit assertions in `tests/test_coverage.py::test_fixture_all_coverage_relations` that `matched(10011) < matched(10012)`, that `collapse(matched(10011))` is not a subset of `collapse(matched(10012))`, and that 10011 receives a `coverage-dominated by` decision citing 10012 with `combinations 1 vs 1; partner largest coverage gain`.
+- **F2 (pinned summary distribution values & consensus unit):** Closed test coverage gaps where summary distribution values were previously only matched by prefix. Updated `test_cli_output_neutral_resolved_and_coverage_lines` to assert both the combination distribution (`0: 6, 1: 13, 2: 3`) and family consensus (`1: 19`) lines in full with exact values. In `test_fixture_all_coverage_relations`, asserted `summary.combination_counts` as `((0, 6), (1, 13), (2, 3))` and `summary.consensus_counts` as `((1, 19),)` with documentation explaining that consensus is counted per combination (19 combinations across 16 copies holding >= 1 combination), which distinguishes it from an erroneous per-copy count (`((1, 16),)`).
+- **F4 (evidence-loader measured cost):** Recorded measured performance and memory cost figures for the `load_all_with_evidence` switch sourced from the #158 entry in `WORKLOG.md`.
+
 
 ## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
 

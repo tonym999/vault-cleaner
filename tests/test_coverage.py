@@ -221,17 +221,36 @@ def test_fixture_all_coverage_relations():
     assert summary.compared_instances == 22
     assert summary.dominated == 3
     assert summary.uncovered == 4
+    assert summary.combination_counts == ((0, 6), (1, 13), (2, 3))
+    # Consensus is counted by combination (not per copy).
+    # On this fixture, 19 collapsed combinations are supported by 1 family across
+    # 16 copies that hold at least one combination. A per-copy implementation would
+    # incorrectly produce ((1, 16),) instead of the correct ((1, 19),).
+    assert summary.consensus_counts == ((1, 19),)
+
     coverage_decisions = [d for d in run_res.decisions if "coverage-" in d.note]
     assert len(coverage_decisions) == 7
 
     decisions_by_id = {d.id: d for d in coverage_decisions}
 
     # Hash 1001: strict subset (10011 dominated by 10012)
+    # Distinguishing case for F3: 10011 is dominated by 10012 under uncollapsed matching,
+    # even though collapse(matched(10011)) is not a subset of collapse(matched(10012)).
+    from vault_cleaner.rules.weapons import row_perk_hashes
+
+    tokens = coverage.canonical_perk_tokens(PERK_MAP)
+    row_10011 = weapons[weapons["Id"] == "10011"].iloc[0]
+    row_10012 = weapons[weapons["Id"] == "10012"].iloc[0]
+    matched_10011 = coverage.matched_rolls(1001, row_perk_hashes(row_10011, PERK_MAP), wl, tokens)
+    matched_10012 = coverage.matched_rolls(1001, row_perk_hashes(row_10012, PERK_MAP), wl, tokens)
+    assert matched_10011 < matched_10012
+    assert not (coverage.collapse(matched_10011) <= coverage.collapse(matched_10012))
+
     d_10011 = decisions_by_id["10011"]
     assert d_10011.action == "review"
     assert d_10011.kept_id == "10012"
     assert "#vc-review: coverage-dominated by" in d_10011.note
-    assert "combinations 1 vs 2; partner largest coverage gain" in d_10011.note
+    assert "combinations 1 vs 1; partner largest coverage gain" in d_10011.note
 
     # Hash 1002: mutual trade-off -> neither in decisions
     assert "10021" not in decisions_by_id
@@ -394,5 +413,5 @@ max_age_days = 30
 
     # Check coverage summary lines
     assert "coverage: 3 dominated, 4 uncovered vs a covered copy — review-only, from 22 compared copies" in out
-    assert "coverage combinations per compared copy — " in out
-    assert "coverage evidence: combinations by supporting curation family — " in out
+    assert "coverage combinations per compared copy — 0: 6, 1: 13, 2: 3" in out
+    assert "coverage evidence: combinations by supporting curation family — 1: 19" in out
