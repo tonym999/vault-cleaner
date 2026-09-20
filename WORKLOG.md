@@ -5,37 +5,52 @@ surprises the next agent should know about.
 
 ## 2026-09-20 — #163 review-fix round
 
-Merged `origin/main` at `41af2c2` into this branch to resolve the stale
-`WORKLOG.md` conflict without rebase or force-push, while preserving the
-newest-first ordering of the active entries. Refs #163.
+Addressed review findings and repaired merge state on branch
+`docs/issue-163-role-based-model-roster`. Refs #163.
 
-- **Findings addressed:**
-  - Worklog ownership: the orchestrator owns the dispatch record, re-selection
-    reason, launch metadata, exact model ID and native effort, and notable
-    outcome; the implementer owns the implementation-branch write. The
-    orchestrator must hand the complete dispatch record to the implementer and
-    verify it landed before opening the implementation PR.
-  - Re-selection contract: allowed before dispatch or after a stopped/failed
-    attempt when inspection or the attempt shows materially different
-    complexity, judgement, or risk than the plan expected; still never changes
-    scope.
-  - MAI launch gates: manual cross-provider execution is used only when the
-    active runtime cannot instantiate `MAI-Code-1.1-Flash`; the workflow never
-    dispatches implementation to the Copilot cloud agent, and the implementer
-    never opens a PR.
-  - Bounded-rung criteria: removed the plan-side "orchestrator believes..."
-    clause; re-selection retains orchestrator judgement instead.
-  - Roster consistency: preserved the owner-confirmed policy that Sol and Opus
-    are the regular planner/orchestrator choices while Sonnet and Gemini remain
-    permitted planner alternatives.
-  - Terminology cleanup: removed surviving model-tier suffix wording and
-    renamed the Independent Review table header from `Task Class` to a
-    role-appropriate label.
-  - Dispatch metadata correctness: requires the dispatch record to capture the
-    orchestrator's exact model ID and native effort, not only its model.
-  - Worklog closing language: clarified that no product code, tests, schemas,
-    product rules, or product versions changed; workflow documentation and
-    workflow rules did change.
+- **Merge repair note:**
+  - The previous merge commit (`447bc55`) retained the stale first-parent
+    product tree and discarded the unrelated #165 product changes from `main`.
+  - This corrective commit restored every unrelated path exactly from
+    `origin/main` (`.gitattributes`, `config.toml`,
+    `docs/aggressive-clearout-measurement.md`, `docs/wishlist-evidence.md`,
+    `src/vault_cleaner/cli.py`, `src/vault_cleaner/config.py`,
+    `src/vault_cleaner/wishlist.py`, `src/vault_cleaner/wishlist_evidence.py`,
+    `tests/fixtures/wishlist_evidence.txt`, `tests/test_cli_wishlists.py`,
+    `tests/test_wishlist.py`, `tests/test_wishlist_evidence.py`), leaving
+    only the intended five workflow documentation files in the PR diff.
+- **Findings addressed in code:**
+  - Planner roster table consistency (`handoffs/README.md`): explicitly updated
+    the `Planner` row's "Supported models" cell to show regular choices (Sol
+    `gpt-5.6-sol` and Opus `claude-opus-5` with `xhigh` effort for planning)
+    and permitted alternatives (`claude-sonnet-5` `xhigh` and
+    `gemini-3.1-pro-preview` `high`), aligning the table and following prose.
+  - Planning-phase dispatch sentence (`AGENTS.md`): explicitly required the
+    implementer model and native effort in the planning-phase dispatch sentence
+    while retaining the plan path, allocated branch, and likely-findings
+    fields.
+  - MAI-specific guidance scoping (`handoffs/README.md`,
+    `handoffs/templates/orchestrator.md`): scoped MAI and Copilot restrictions
+    explicitly to implementation dispatch. General manual cross-provider
+    fallback remains available whenever the active runtime cannot instantiate
+    any selected implementer or reviewer target; for implementation dispatch
+    specifically, `MAI-Code-1.1-Flash` uses manual fallback only if the runtime
+    cannot instantiate it; local-Copilot and cloud-agent restrictions are
+    implementation constraints only; and independent-reviewer fallback is
+    preserved.
+  - Preserved earlier review fixes from `447bc55`: orchestrator hands the
+    complete dispatch record to the implementer and verifies it landed in
+    `WORKLOG.md`; the dispatch record includes the orchestrator's exact model
+    ID and native effort; re-selection requires materially different
+    complexity, judgement, or risk and never changes scope; Bounded rung has no
+    plan-time "orchestrator believes" clause; "model tier suffixes" is
+    replaced with current terminology; Independent Review table uses
+    `Review Role`; and cloud-agent behavior is described accurately.
+  - WORKLOG restoration: rebuilt `WORKLOG.md` from `origin/main` to preserve
+    the complete #158 entry and all other `main` history byte-for-byte, restored
+    the substantive original #163 entry from `baf4358` with corrected stale
+    statements, and positioned this review-fix round at the top. GitHub review
+    threads remain open for verification and resolution by the owner/reviewers.
 - **Decisions made:**
   - Confirmed the owner decisions D1–D4 remain intact.
   - Preserved the regular Sol/Opus planner/orchestrator policy and the
@@ -46,9 +61,65 @@ newest-first ordering of the active entries. Refs #163.
 - **Verification:**
   - `.venv/bin/ruff check src tests scripts` passed.
   - `.venv/bin/pytest -q` passed.
-  - `git diff --check origin/main...HEAD` passed cleanly.
+  - `git diff --check origin/main...HEAD` passed cleanly with LF line endings.
   - `git ls-files data/` returned no tracked files.
-  - `git status --short` shows only the documentation and worklog edits for this review-fix round.
+  - `git status --short` verified.
+  - `git diff --quiet origin/main HEAD -- <unrelated paths>` confirmed exit code 0.
+- Workflow documentation and workflow rules changed; no product code, tests,
+  schemas, product rules, or product versions changed.
+
+## 2026-09-19 — #163: role-based model roster and implementer ladder
+
+Direct documentation PR for #163, explicitly authorized by the owner as the
+issue-to-PR route (no planning PR). Branch
+`docs/issue-163-role-based-model-roster` from `main` at `12b89a3`. Refs #163.
+
+- **What changed:**
+  - `handoffs/README.md`: roles are defined by function, with a new Role → Model
+    Roster (planner and orchestrator: Sol `gpt-5.6-sol` or Opus
+    `claude-opus-5`, chosen by the owner per ticket) and an Implementer Ladder
+    replacing the Routine/Complex implementation rows. The rungs are Bounded
+    (`MAI-Code-1.1-Flash`), Judgement (`gpt-5.6-luna` `high`) and High-risk
+    (`gpt-5.6-luna` `xhigh`), classified by delegated ambiguity, judgement and
+    risk rather than file count. Also added: Implementer Re-selection,
+    Implementer Outcome Notes, an "implementation judgement vs. material
+    uncertainty" boundary under escalation, a Microsoft catalog row, and MAI
+    launch rules under Manual Cross-Provider Execution.
+  - `handoffs/templates/planner.md`: the planner model is recorded in the plan
+    header; implementer selection uses the ladder; stop conditions target
+    material uncertainty; the reusable implementer prompt tells the
+    implementer to make ordinary decisions itself and to stop only for
+    unsettled design; the dispatch draft says "model" rather than "tier".
+  - `handoffs/templates/orchestrator.md`: orchestrator re-selection replaces
+    "without downgrading model tier or reasoning level"; the dispatch record
+    carries the orchestrator model, launch surface and `n/a — adaptive`
+    effort; in-contract reassignment is distinguished from re-planning; the
+    reviewer link points at the new Independent Review Mapping anchor.
+  - `AGENTS.md`: "tier" wording in workflow steps 2–3 now says "model", plus a
+    pointer to the roster.
+- **Decisions made (owner-confirmed on #163):** existing Sonnet/Gemini/Terra
+  implementers stay as permitted alternatives per rung (D1); the orchestrator
+  may re-select the implementer in either direction (D2); reviewer
+  independence is unchanged, and fresh context plus a read-only remit is enough
+  even when Opus orchestrates and reviews (D3); planner and orchestrator stay
+  separate roles (D4); #163 lands before #144 (sequencing comment posted on
+  #144). My own call, not an owner decision: `claude-sonnet-5` and
+  `gemini-3.1-pro-preview` remain listed as permitted planners rather than
+  being dropped, by the same no-deletion logic as D1.
+- **Surprises the next agent should know about:**
+  - The "Sol → Luna → Sol" wording that motivated the issue survives only in
+    historical handoffs (#32, #102, #110) and old worklog entries; #122 had
+    already made the canonical docs role-based. Historical files are
+    deliberately untouched.
+  - `MAI-Code-1.1-Flash` (Microsoft) has no user-settable effort control
+    (adaptive reasoning budget), so plans record `n/a — adaptive`. For
+    implementation dispatch specifically, manual cross-provider execution is
+    used only if the active runtime cannot instantiate it. Dispatch to the
+    Copilot cloud agent is excluded by repository policy: entry points differ,
+    but the rule that the implementer must never open a pull request is
+    absolute. The model card says Copilot CLI support is "planned for a later
+    rollout", while the later GA changelog lists the CLI, so confirm it at
+    dispatch.
 - Workflow documentation and workflow rules changed; no product code, tests,
   schemas, product rules, or product versions changed.
 
@@ -151,6 +222,7 @@ Addressed review findings on branch `feat/issue-158-wishlist-evidence`:
    +  where None = <built-in method get of dict object at 0x...('newline')
    +    where <built-in method get of dict object at 0x... = {'encoding': 'utf-8'}.get
   ```
+
 
 ## 2026-09-19 — Generalize the review-fix diff audit beyond Gemini
 

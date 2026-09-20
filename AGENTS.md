@@ -259,7 +259,7 @@ exception from its label, and never treat it as permission to merge.
    - The **Planner** researches the issue, measures code state, resolves staleness, allocates branch names, and authors a handoff document using [handoffs/templates/planner.md](handoffs/templates/planner.md).
    - Saved as `handoffs/issue-N-implementation-plan.md` on a plan branch (`handoff/issue-N-implementation-plan`).
    - Appends a dated entry to [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know) and, when that action is authorized, opens PR 1 targeting `main`.
-   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer model, allocated implementation branch name, and likely findings.
+   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer model and native effort, allocated implementation branch name, and likely findings.
 3. **Implementation Phase (PR 2):**
    - The **Orchestrator** reads the merged plan from `main` using [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
    - Dispatches the **Implementer** to work on the allocated implementation branch (`fix/issue-N-...` or `feat/issue-N-...`) at the plan's selected implementer model; the orchestrator may re-select it (see [handoffs/README.md](handoffs/README.md#implementer-re-selection)).

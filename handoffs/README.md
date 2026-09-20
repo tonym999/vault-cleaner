@@ -161,7 +161,7 @@ For every implementer or independent-reviewer dispatch, the orchestrator records
 
 The dispatch record captures the orchestrator's own exact model ID and native effort, the **actual** implementer provider/model/effort used, the launch surface for externally launched agents (for example GitHub Copilot in VS Code, or Copilot CLI), and any fallback or re-selection taken. When a model has no user-settable effort, record `n/a — adaptive` rather than guessing a level. A repository model table is selection guidance; it does not itself make that provider available to the active runtime.
 
-Use manual cross-provider execution only when the active runtime cannot instantiate `MAI-Code-1.1-Flash`. Launch it from a local agent surface (Copilot agent mode in VS Code, or Copilot CLI where available) working on the allocated branch, so it commits and pushes only that branch. Do not dispatch implementation to the Copilot cloud agent in this workflow: entry points differ, but the repository policy is absolute and the implementer must never open a pull request.
+For implementation dispatch specifically, when the selected target is `MAI-Code-1.1-Flash`, use manual cross-provider execution only if the active runtime cannot instantiate it. Launch it from a local agent surface (Copilot agent mode in VS Code, or Copilot CLI where available) working on the allocated branch, so it commits and pushes only that branch. Do not dispatch implementation to the Copilot cloud agent in this workflow: entry points differ, but the repository policy is absolute and the implementer must never open a pull request.
 
 The first complete real-issue pilot of this workflow is tracked in [#124](https://github.com/tonym999/vault-cleaner/issues/124). It runs after this workflow is available from `main`, because the orchestrator contract requires a merged plan rather than an unmerged integration-PR artifact.
 
@@ -181,7 +181,7 @@ workflows.
 
 | Role | Supported models | Chosen by |
 |---|---|---|
-| **Planner** | Sol (`gpt-5.6-sol`) or Opus (`claude-opus-5`), `xhigh` effort for planning. Either may plan any ticket; neither is assumed. | Owner, per ticket and availability |
+| **Planner** | Regular choices: Sol (`gpt-5.6-sol`) or Opus (`claude-opus-5`), `xhigh` effort for planning. Permitted alternatives: `claude-sonnet-5` (`xhigh`) and `gemini-3.1-pro-preview` (`high`). Either regular model may plan any ticket; neither is assumed. | Owner, per ticket and availability |
 | **Orchestrator** | Sol or Opus. The same model, and often the same session driver, may plan and orchestrate one ticket; the roles stay separate. | Owner, per ticket and availability |
 | **Implementer** | The [implementer ladder](#implementer-ladder) below. | Plan selects; orchestrator may re-select |
 | **Independent reviewer** | The Independent Review row below. | Orchestrator, at dispatch, after seeing the real diff |
