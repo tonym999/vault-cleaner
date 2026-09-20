@@ -3,6 +3,58 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-20 — #34 implementation: same-Hash useful-combination coverage for weapons
+
+Implemented Child 4 of #140 on branch `feat/issue-34-coverage-review` from
+`main` at `9192d5c`. Implementer model `gpt-5.6-luna` (`high`). Refs #34.
+
+- **What landed:**
+  - Added review-only weapon coverage pass in `src/vault_cleaner/rules/coverage.py`
+    and integrated into `weapons_rules.run` and `pipeline.resolve_weapons`.
+  - Implemented uncollapsed matched-set subset comparison for dominance, collapsed
+    maximal combination counts for display, and the distinct `coverage-uncovered vs`
+    outcome for candidate copies with no wishlist keep matches compared against a
+    covered partner.
+  - Deterministic partner selection with tie-breaking on lowest opaque instance ID
+    order, surfacing the decisive partner dimension (`largest coverage gain`,
+    `most combinations`, or `deterministic id tie-break`).
+  - Added recognizer for both new coverage clauses in `src/vault_cleaner/note_history.py`
+    with emitter-driven round-trip tests covering all four emitting branches in
+    `tests/test_note_history_roundtrip.py`.
+  - Updated `cli.py` to remove the outdated `(soft-protected)` claim on the
+    `resolved:` summary line and report coverage totals, combination distribution,
+    and family consensus in dry-run output.
+  - Switched `pipeline.resolve_weapons` from `load_all_with_sources` to
+    `load_all_with_evidence` to make subsumption-aware family consensus counts
+    available while preserving external source identity and fingerprint invariance.
+  - Bumped `RULESET_VERSION` from 4 to 5 in `src/vault_cleaner/report_run.py`,
+    intentionally invalidating persisted review manifests and vetoes from ruleset v4.
+  - Regenerated `tests/fixtures/report_snapshot_v2.json` with
+    `python scripts/regenerate_report_snapshot.py`, verifying the only delta is
+    `ruleset_version` and the derived fingerprint.
+  - Added documentation in `docs/weapon-coverage.md` and updated `PLAN.md` rules
+    engine ordering.
+  - Added synthetic fixtures `tests/fixtures/weapons_coverage.csv` and
+    `tests/fixtures/wishlist_coverage.txt` and comprehensive test coverage in
+    `tests/test_coverage.py`.
+- **Decisions made & surprises:**
+  - Real-export authorisation recorded for this ticket on 2026-09-20 (aggregate counts,
+    distributions, and item names from `data/in/2026-09-01T-current/weapons.csv`).
+  - Local import of `row_perk_hashes` inside `coverage.analyse` prevents a circular
+    import cycle between `rules.weapons` and `rules.coverage`.
+  - Updated `test_keep_match_does_not_compete_with_a_different_roll` in
+    `tests/test_weapons_rules.py` to verify that the uncovered copy receives
+    review-only coverage advice rather than being junked.
+  - Updated `tests/test_pipeline.py` to patch `fetch_with_status` matching the
+    `load_all_with_evidence` loader switch.
+- **Verification:**
+  - `ruff check src tests scripts` passed cleanly.
+  - `pytest -q` passed across all 1064 tests.
+  - `git diff --check origin/main...HEAD` clean.
+  - `git ls-files data/` returns nothing.
+  - Regenerated snapshot golden verified to contain only the ruleset version (4 -> 5)
+    and fingerprint diff.
+
 ## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
 
 Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from

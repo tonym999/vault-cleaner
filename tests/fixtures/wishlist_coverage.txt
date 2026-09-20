@@ -1,0 +1,40 @@
+// Wishlist fixture for weapon combination coverage tests
+title: Coverage Test Wishlist
+
+// Hash 1001: Strict-subset pair
+dimwishlist:item=1001&perks=1,2
+dimwishlist:item=1001&perks=1,3
+
+// Hash 1002: Mutual trade-off pair
+dimwishlist:item=1002&perks=1,2
+dimwishlist:item=1002&perks=3,4
+
+// Hash 1003: Equal-coverage pair
+dimwishlist:item=1003&perks=1,2
+
+// Hash 1005: Uncovered-versus-covered pair
+dimwishlist:item=1005&perks=1,2
+
+// Hash 1006: Hard-protected copy
+dimwishlist:item=1006&perks=1,2
+
+// Hash 1007: Soft-protected candidate
+dimwishlist:item=1007&perks=1,2
+dimwishlist:item=1007&perks=1,3
+
+// Hash 1009: Dominated candidate with tied partners
+dimwishlist:item=1009&perks=1,2
+dimwishlist:item=1009&perks=1,3
+dimwishlist:item=1009&perks=1,4
+
+// Hash 1010: Uncovered candidate with tied partners
+dimwishlist:item=1010&perks=1,2
+dimwishlist:item=1010&perks=3,4
+
+// Hash 1011: Prior-pass decided row exclusion
+dimwishlist:item=-1011&perks=99
+dimwishlist:item=1011&perks=1,2
+
+// Hash 1012: Base/enhanced recommendation
+dimwishlist:item=1012&perks=1,2
+dimwishlist:item=1012&perks=1,20

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from vault_cleaner.note_history import append_tool_clause
-from vault_cleaner.rules import dupes, rails
+from vault_cleaner.rules import coverage, dupes, rails
 from vault_cleaner.wishlist import Wishlist
 
 
@@ -24,6 +24,7 @@ class RunResult:
     # Items matching both a keep roll and a trash entry (sources disagree);
     # keep wins, but the count is surfaced so the conflict isn't invisible.
     keep_trash_conflicts: int = 0
+    coverage: coverage.CoverageSummary | None = None
 
 
 def row_perk_hashes(row: pd.Series, perk_map: dict[str, frozenset[int]]) -> frozenset[int]:
@@ -108,4 +109,10 @@ def run(
         pool, crafted_level_protect,
     )
     decisions.extend(d for d in dupe_decisions if d.id not in trash_ids)
+    decided = {d.id for d in decisions}
+    analysis = coverage.analyse(
+        weapons[~weapons["Id"].isin(decided)], wl, perk_map, crafted_level_protect
+    )
+    decisions.extend(analysis.decisions)
+    result.coverage = analysis.summary
     return result

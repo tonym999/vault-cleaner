@@ -23,8 +23,9 @@ from vault_cleaner.rules import weapons as weapons_rules
 from vault_cleaner.rules.armor import ArmorEvaluation
 from vault_cleaner.rules.armor_close import ArmorSameStatGroup
 from vault_cleaner.rules.armor_dupes import ArmorExactDuplicateGroup
+from vault_cleaner.rules.coverage import CoverageSummary
 from vault_cleaner.rules.dupes import Decision
-from vault_cleaner.wishlist import WishlistSourceData, load_all_with_sources
+from vault_cleaner.wishlist import WishlistSourceData, load_all_with_evidence
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class WeaponPipelineResult:
     wishlists_used: bool
     wishlist_sources: tuple[WishlistSourceIdentity, ...] = ()
     manifest: ManifestIdentity | None = None
+    coverage: CoverageSummary | None = None
 
 
 @dataclass
@@ -143,18 +145,19 @@ def resolve_weapons(
             wishlists_used=False,
         )
 
-    wishlists, wishlist_sources = load_all_with_sources(cfg)
+    evidence = load_all_with_evidence(cfg)
     perk_data = load_perk_map_data(
         cfg["paths"]["manifest_cache_dir"],
         cfg["manifest"]["max_age_days"],
     )
-    result = weapons_rules.run(weapons, wishlists, perk_data.names, crafted_level)
+    result = weapons_rules.run(weapons, evidence.merged, perk_data.names, crafted_level)
     return WeaponPipelineResult(
         decisions=result.decisions,
         keep_trash_conflicts=result.keep_trash_conflicts,
         wishlists_used=True,
-        wishlist_sources=_wishlist_identities(wishlist_sources),
+        wishlist_sources=_wishlist_identities(evidence.sources),
         manifest=_manifest_identity(perk_data),
+        coverage=result.coverage,
     )
 
 
