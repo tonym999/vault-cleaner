@@ -81,6 +81,15 @@ Addressed reviewer finding on PR #168 regarding partner selection metric alignme
   - `test_partner_selection_dominated_chain_ranks_by_uncollapsed_matches`: In a dominated chain $A \subset B \subset C$, both copies 1 and 2 cite maximal partner 3 directly with `partner largest coverage gain` (`curated matches 1 vs 3` and `curated matches 2 vs 3`), rather than copy 1 citing copy 2 on a collapsed gain tie.
 - **Documentation:** Updated partner selection descriptions in `docs/weapon-coverage.md` §5 and `handoffs/issue-34-implementation-plan.md`.
 
+### PR #168 review-fix round (partner label)
+
+Addressed reviewer findings on PR #168 regarding uncovered partner label accuracy and history maintenance:
+- **Partner label renamed to 'most curated matches':** Updated the uncovered branch partner label in `src/vault_cleaner/rules/coverage.py` from `most combinations` to `most curated matches`. When the ranking metric moved from collapsed combinations `len(b["collapsed"])` to uncollapsed matches `len(b["matched"])`, the label `most combinations` became false in cases where partners tie on collapsed combinations but differ in uncollapsed curated matches (such as the regression test fixture where copy 2 and copy 3 both have 1 collapsed combination, but copy 3 provides 3 curated matches).
+- **Migration term retained in note_history:** Retained `most combinations` alongside `most curated matches` in the `_GENERATED_CLAUSE_RES` recognizer alternation in `src/vault_cleaner/note_history.py` as a migration term. Notes persist in user DIM exports across tool runs; retaining the legacy term ensures that any notes written by interim runs of this branch continue to be stripped and replaced on subsequent passes rather than accumulating duplicate tool clauses.
+- **Heading restored (Finding 2 repair):** Restored the `## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)` heading above the planning entry prose, repairing an unreported collateral deletion from the previous review-fix round, and collapsed the doubled blank line.
+- **Real-export measurement:** Confirmed aggregate counts remain unchanged at 30 dominated / 50 uncovered / 339 compared copies (presentation-only label update).
+
+## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
 
 Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from
 `main` at `775f662`. Planner model `claude-opus-5` (`xhigh`). Refs #34.
