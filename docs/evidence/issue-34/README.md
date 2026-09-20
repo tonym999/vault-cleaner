@@ -53,7 +53,10 @@ Blocks `[5]` and `[6]` classify every ordered pair of distinct rolls within one
 `Hash`. Block `[7]` re-classifies the same pairs on subsumption-collapsed sets —
 the wrong basis — so the cost of that mistake is measured rather than asserted.
 Block `[8]` reports the values the `dupes` dry-run summary is specified to
-print, over compared copies only.
+print. Its two distributions are at different units: `combination_counts` counts
+compared **copies** per combination count and totals 339, while
+`consensus_counts` counts collapsed **combinations** per supporting family count
+and totals 528.
 
 ```bash
 set -euo pipefail
@@ -303,11 +306,18 @@ compared_consensus = Counter()
 for row in compared:
     for combination in row["collapsed"]:
         compared_consensus[len(supporting_families(row, combination))] += 1
-print("[8] dry-run summary values, over compared copies only")
-print(f"  compared_instances={len(compared)} dominated={len(dominated)} "
-      f"uncovered={len([1 for v in uncovered.values() if v[2]['protection'] != 'hard'])}")
-print(f"  combination_counts={combination_counts}")
-print(f"  consensus_counts={sorted(compared_consensus.items())}")
+# Both counts are of clauses actually emitted, so hard-protected candidates
+# are excluded from each. This export happens to have no hard-protected
+# dominated candidate, but the filter belongs on both sides regardless.
+emitted = lambda found: len(
+    [1 for v in found.values() if v[2]["protection"] != "hard"]
+)
+print("[8] dry-run summary values, over compared copies")
+print(f"  compared_instances={len(compared)} dominated={emitted(dominated)} "
+      f"uncovered={emitted(uncovered)}")
+print(f"  combination_counts (copies per combination count)={combination_counts}")
+print(f"  consensus_counts (combinations per supporting family count)="
+      f"{sorted(compared_consensus.items())}")
 PY
 .venv/bin/python "$OUT/coverage_measure.py" data/in/2026-09-01T-current/weapons.csv > "$OUT/coverage_measure.txt" 2>&1
 cat "$OUT/coverage_measure.txt"
@@ -371,10 +381,10 @@ cat "$OUT/coverage_measure.txt"
   dominance relations a collapsed comparison would miss=3
   missed names=['Gizmo Weft', "Reghusk's Pledge", 'Stars in Shadow']
   dominance relations only a collapsed comparison would claim=0
-[8] dry-run summary values, over compared copies only
+[8] dry-run summary values, over compared copies
   compared_instances=339 dominated=30 uncovered=50
-  combination_counts=[(0, 143), (1, 58), (2, 66), (3, 10), (4, 43), (5, 4), (6, 7), (8, 3), (9, 2), (10, 2), (12, 1)]
-  consensus_counts=[(1, 459), (2, 69)]
+  combination_counts (copies per combination count)=[(0, 143), (1, 58), (2, 66), (3, 10), (4, 43), (5, 4), (6, 7), (8, 3), (9, 2), (10, 2), (12, 1)]
+  consensus_counts (combinations per supporting family count)=[(1, 459), (2, 69)]
 ```
 
 ---

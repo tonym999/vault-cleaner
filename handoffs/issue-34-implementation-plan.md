@@ -115,7 +115,7 @@ def collapse(rolls: frozenset[frozenset[int]]) -> frozenset[frozenset[int]]: ...
 def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: ...
 ```
 
-`CoverageSummary` field semantics, so the dataclass and the printed contract cannot drift: `compared_instances` counts copies in a `Hash` group holding at least two distinct rolls; `dominated` and `uncovered` count the clauses actually emitted, so hard-protected candidates are excluded from `uncovered`; `combination_counts` and `consensus_counts` are ascending `(value, count)` pairs over those compared copies.
+`CoverageSummary` field semantics, so the dataclass and the printed contract cannot drift: `compared_instances` counts copies in a `Hash` group holding at least two distinct rolls; `dominated` and `uncovered` count the clauses actually emitted, so hard-protected candidates are excluded from `uncovered`; `combination_counts` and `consensus_counts` are both ascending `(value, count)` pairs, but **at different units**: `combination_counts` counts compared *copies* per collapsed combination count, while `consensus_counts` counts collapsed *combinations* belonging to compared copies, per supporting family count. On the real export the first totals 339 and the second 528; an implementation that counts consensus per copy will produce the wrong distribution.
 
 - `canonical_perk_tokens` inverts `PerkMapData.names` deterministically: iterate names in sorted order, use `min(hashes)` as the token, first name wins for a hash that appears under several. A hash absent from the map maps to itself, so an unknown perk stays distinct rather than silently merging.
 - `collapse` keeps only maximal elements under `⊆`.
@@ -203,15 +203,17 @@ if s.consensus_counts is not None:
     print(f"coverage evidence: combinations by supporting curation family — {support}")
 ```
 
-Both distributions are reported over **compared copies only** — the copies that entered at least one same-`Hash` comparison — not over every analysed row. A distribution covering copies nothing was compared against is not evidence about coverage. `combination_counts` includes the zero bucket, because "no curated combination available" is the single most common state and hiding it would overstate coverage.
+Both distributions are scoped to **compared copies only** — the copies that entered at least one same-`Hash` comparison — not to every analysed row. A distribution covering copies nothing was compared against is not evidence about coverage. Within that scope they count different things, as the field semantics above state: `combination_counts` is per compared copy, `consensus_counts` is per collapsed combination of those copies. `combination_counts` includes the zero bucket, because "no curated combination available" is the single most common state and hiding it would overstate coverage.
 
 Expected values on the real export, from evidence §1 block `[8]`, which an implementer can check their output against:
 
 ```text
 compared_instances=339 dominated=30 uncovered=50
-combination_counts=[(0, 143), (1, 58), (2, 66), (3, 10), (4, 43), (5, 4), (6, 7), (8, 3), (9, 2), (10, 2), (12, 1)]
-consensus_counts=[(1, 459), (2, 69)]
+combination_counts (copies per combination count)=[(0, 143), (1, 58), (2, 66), (3, 10), (4, 43), (5, 4), (6, 7), (8, 3), (9, 2), (10, 2), (12, 1)]
+consensus_counts (combinations per supporting family count)=[(1, 459), (2, 69)]
 ```
+
+`dominated` and `uncovered` there are counts of clauses actually emitted, so both exclude hard-protected candidates. This export has no hard-protected dominated candidate, which is why the filter is invisible in the figure 30 — apply it on both sides anyway.
 
 Note that block `[3]`'s consensus figures (724 / 99) span every row in the export, so they are deliberately larger than the summary's compared-copy figures. Add CLI assertions for all three lines, so an implementation following this handoff satisfies #34's "combination counts and family consensus appear in dry-run output" criterion rather than merely defining the field.
 

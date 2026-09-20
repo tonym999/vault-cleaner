@@ -122,6 +122,29 @@ were specification-completeness defects rather than substantive ones.
   `.venv/bin/pytest -q` passed (1045), `git diff --check` clean,
   `git ls-files data/` empty. Evidence §1's fence re-executed and reproduced.
 
+### Review-fix round 2
+
+Addressed two CodeRabbit findings on the round 1 head, both introduced by the
+round 1 fixes themselves.
+
+- **Unit conflation in the dry-run contract (Major).** Round 1's F2 fix said
+  "both distributions are reported over compared copies", but the two are at
+  different units: `combination_counts` counts compared *copies* per combination
+  count (totalling 339), while `consensus_counts` counts collapsed
+  *combinations* belonging to compared copies, per supporting family count
+  (totalling 528). An implementer reading the old wording could have built
+  consensus per copy. Both the `CoverageSummary` field semantics and the output
+  contract now state each unit, and the evidence labels the two figures.
+- **Hard rail applied on one side only (Minor).** Evidence block `[8]` filtered
+  hard-protected candidates out of `uncovered` but not `dominated`, while the
+  plan defines both as counts of clauses actually emitted. The current export has
+  no hard-protected dominated candidate, so the captured figure (30) was right by
+  accident; the script now applies the filter on both sides through one helper.
+  The transcript was recaptured and its fence reproduces byte for byte.
+- **Verification:** `.venv/bin/ruff check src tests scripts` passed,
+  `.venv/bin/pytest -q` passed (1045), `git diff --check` clean,
+  `git ls-files data/` empty.
+
 ## 2026-09-20 — #163 review-fix round
 
 Addressed review findings and repaired merge state on branch
