@@ -37,6 +37,9 @@ Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from
     Comparing subsumption-collapsed sets instead finds 27 dominance relations
     where the uncollapsed test finds 30, because a four-perk Voltron roll
     semantically covers a two-perk Aegis roll whose collapsed element differs.
+    Evidence §1 block `[7]` measures both bases: the collapsed comparison misses
+    three relations and claims none the correct test does not, so the mistake is
+    a silent loss that no "emits nothing wrong" assertion can catch.
   - *Absence is not dominance.* An empty candidate coverage set satisfies the
     subset test vacuously, so the 53 uncovered-versus-covered copies get their
     own label rather than sharing the dominance clause.

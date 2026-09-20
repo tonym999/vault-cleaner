@@ -42,7 +42,9 @@ below is from a later run, and reports `fetch=cache` for all three sources.
 This is the measurement the plan's comparison rule, yield table and consensus
 findings are taken from. It reproduces the pipeline position of the proposed
 pass — wishlist-trash junk removed, exact-roll groups resolved — before
-classifying every ordered pair of distinct rolls within one `Hash`.
+classifying every ordered pair of distinct rolls within one `Hash`. Block `[7]`
+re-classifies the same pairs on subsumption-collapsed sets — the wrong basis — so
+the cost of that mistake is measured rather than asserted.
 
 ```bash
 set -euo pipefail
@@ -245,6 +247,43 @@ for label, found in (("coverage-dominated by", dominated),
 print(f"  mutual trade-off (kept by the rule)={len(trade_off)}"
       f" equal-coverage={len(equal)} both-uncovered={len(neither)}")
 print(f"  instances in both advice sets={len(set(dominated) & set(uncovered))}")
+
+# The same ordered pairs classified on the subsumption-collapsed sets. This is
+# the wrong basis for comparison and is measured only to show what it costs.
+collapsed_relations = Counter()
+collapsed_dominated = set()
+for members in multi_roll.values():
+    for a in members:
+        for b in members:
+            if a["id"] == b["id"] or a["fingerprint"] == b["fingerprint"]:
+                continue
+            ca, cb = a["collapsed"], b["collapsed"]
+            if not ca and not cb:
+                collapsed_relations["both-uncovered"] += 1
+            elif not ca:
+                collapsed_relations["A-uncovered-B-covered"] += 1
+            elif not cb:
+                continue
+            elif ca == cb:
+                collapsed_relations["equal-coverage"] += 1
+            elif ca < cb:
+                collapsed_relations["A-strict-subset-of-B"] += 1
+                collapsed_dominated.add(a["id"])
+            elif ca > cb:
+                continue
+            else:
+                collapsed_relations["mutual-trade-off"] += 1
+print("[7] the same pairs classified on collapsed sets (the wrong comparison basis)")
+for relation, count in sorted(collapsed_relations.items()):
+    print(f"  {relation}={count}")
+print(f"  coverage-dominated by candidates={len(collapsed_dominated)}"
+      f" (uncollapsed={len(dominated)})")
+missed = set(dominated) - collapsed_dominated
+print(f"  dominance relations a collapsed comparison would miss={len(missed)}")
+print("  missed names="
+      f"{sorted({dominated[i][2]['name'] for i in missed})}")
+print(f"  dominance relations only a collapsed comparison would claim="
+      f"{len(collapsed_dominated - set(dominated))}")
 PY
 .venv/bin/python "$OUT/coverage_measure.py" data/in/2026-09-01T-current/weapons.csv > "$OUT/coverage_measure.txt" 2>&1
 cat "$OUT/coverage_measure.txt"
@@ -295,6 +334,16 @@ cat "$OUT/coverage_measure.txt"
     names=['Adamantite', 'Aurora Dawn', 'Cynosure', 'DECATUR 02', 'Eighty-Six', "Elsie's Rifle", 'Ergo Sum', 'Evening SI4', "Felwinter's Lie", 'Fimbulwinter Stitch', 'Forced Memorializer', "Horror's Least", 'IRONWOOD 03', "Joxer's Longsword", 'King Orfeo', 'Mercury-A', 'Mint Retrograde', 'Mistral Lift', 'Phoneutria Fera', 'Precipial', 'Pro Memoria', 'Punching Out', 'Riptide', 'Roar of the Bear', 'Sarpedon-D', 'Service Revolver', 'Tarnation', "Temptation's Hook", 'The Recluse', 'The Slammer', 'The Time-Worn Spire', 'The Wizened Rebuke', 'Trachinus', 'Uncivil Discourse', 'Unending Tempest', 'Vouchsafe', 'Wilderflight']
   mutual trade-off (kept by the rule)=148 equal-coverage=13 both-uncovered=114
   instances in both advice sets=0
+[7] the same pairs classified on collapsed sets (the wrong comparison basis)
+  A-strict-subset-of-B=28
+  A-uncovered-B-covered=93
+  both-uncovered=296
+  equal-coverage=24
+  mutual-trade-off=312
+  coverage-dominated by candidates=27 (uncollapsed=30)
+  dominance relations a collapsed comparison would miss=3
+  missed names=['Gizmo Weft', "Reghusk's Pledge", 'Stars in Shadow']
+  dominance relations only a collapsed comparison would claim=0
 ```
 
 ---

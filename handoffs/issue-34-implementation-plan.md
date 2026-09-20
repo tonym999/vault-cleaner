@@ -46,7 +46,7 @@ It is also unnecessary. A curated keep roll **is** an author-asserted valid comb
 
 `matched` is downward closed: if copy `B` matches a roll `r`, and `r' ⊆ r` is also curated for that `Hash`, then `B` matches `r'` too. So `matched(A) ⊆ matched(B)` is exactly "B provides everything A does".
 
-Comparing the *collapsed* sets instead is wrong and measurably lossy: it finds 27 dominance relations where the uncollapsed test finds 30, because a copy matching a four-perk Voltron roll semantically covers a two-perk Aegis roll whose collapsed element is a different set. **Compare uncollapsed; display collapsed.** This is the single easiest thing to get backwards in this ticket.
+Comparing the *collapsed* sets instead is wrong and measurably lossy. Evidence §1 block `[7]` classifies the same ordered pairs both ways: collapsed comparison yields 27 dominance candidates against the uncollapsed test's 30, missing three (Gizmo Weft, Reghusk's Pledge, Stars in Shadow) and claiming none the uncollapsed test does not. The cause is that a copy matching a four-perk Voltron roll semantically covers a two-perk Aegis roll whose collapsed element is a different set. **Compare uncollapsed; display collapsed.** This is the single easiest thing to get backwards in this ticket, and because the error is strictly a loss of relations it cannot be caught by asserting that no false advice appears.
 
 ### Perk scope
 
@@ -266,7 +266,7 @@ Escalation route: `implementer → orchestrator → planner`.
 
 ## Likely findings
 
-1. **Collapsed-versus-uncollapsed comparison.** The most likely defect is comparing `collapse(matched(A)) ⊂ collapse(matched(B))` because the collapsed sets are already in hand for display. That silently drops real dominance relations (30 → 27 on the real export) and is invisible to a test suite that only uses single-source fixtures. The fixture must include an Aegis-style subset roll paired with a Voltron-style superset roll so this is caught.
+1. **Collapsed-versus-uncollapsed comparison.** The most likely defect is comparing `collapse(matched(A)) ⊂ collapse(matched(B))` because the collapsed sets are already in hand for display. Measured, that drops three of 30 real dominance relations on the real export while inventing none, so it is invisible both to a test suite using single-source fixtures and to any assertion that no wrong advice is emitted. The fixture must pair an Aegis-style subset roll with a Voltron-style superset roll, and the test must assert the relation is **found**, not merely that nothing bogus appears.
 2. **Absence treated as evidence.** `matched(A)` empty makes `matched(A) ⊆ matched(B)` vacuously true, so a naive implementation files the 53 uncovered copies under `coverage-dominated by`. They must carry the separate `coverage-uncovered vs` label, and the hard-protected three must receive no clause at all.
 3. **Emitter/recognizer drift.** The recognizer regex is hand-written against strings the rule formats elsewhere; a stray space, a singular "combination", or a missing `partner` alternative leaves a clause that accumulates on the next run. The round-trip test must be driven by the emitter's own output, not by a re-typed literal.
 4. **Scope leak into presentation or policy.** Snapshot projections, review-UI rendering, or a `config.toml` gate are all adjacent and all out of scope; a diff touching `ui/`, `server/`, `review.py` or `config.toml` is a finding.
