@@ -3,6 +3,57 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-20 — #136 review UI design contract (direct docs PR)
+
+Captured the Next.js review prototype as a durable, framework-neutral design
+contract on branch `docs/issue-136-design-contract`. Model `claude-sonnet-5`.
+Refs #136. **The durable reference is
+[`docs/review-ui-design-contract.md`](docs/review-ui-design-contract.md).**
+
+- **Route (owner, 2026-09-20).** The owner explicitly authorised the direct
+  single-PR route for this documentation ticket, per `handoffs/README.md`. That
+  authorises the route only; opening and merging the PR are separate actions.
+- **Design-contract decision.** The prototype is the target for *how the UI
+  looks and is composed*; production Python/server contracts, M9 semantics,
+  #131/#113/#119 and the AGENTS.md/PLAN.md security rules win for *what things
+  mean, do and expose*. The four-level precedence is recorded verbatim in the
+  document so a future agent cannot treat prototype state as server authority.
+- **Scope.** Documentation only. No production renderer, server, report,
+  snapshot, schema, rules, lifecycle, auth, persistence, revision, verdict or
+  finalisation change; no dependency added. Runtime stays pandas and Flask. No
+  Next build output, `node_modules`, or archive is committed.
+- **What the prototype turned out to be.** Two files carry the design
+  (`app/page.tsx`, `app/globals.css`); the shadcn `Button` is never used by the
+  page. Everything data-like is sample content: two hard-coded groups, the
+  407/88/319/71 counts, the fingerprint, index-based "Preferred survivor",
+  simulated lifecycle notices, and a class/slot filter set. Section 3 of the
+  document is the full register.
+- **Surprises the next agent should know.**
+  - The prototype is **dark only**; it has no light palette. The light theme is
+    an open decision, not a carried-over fact.
+  - Its stat-bar widths are inline `style` attributes, which the server's
+    `style-src 'self'` CSP silently drops (the same failure #131 fixed).
+  - It has no `aria-pressed`, no labels on the filter controls, no focus style on
+    the hidden-input upload card, and an emerald status line that would show an
+    error as success. Delivered production semantics are the floor.
+  - Its grids are written for exactly two and three members; production's matrix
+    already switches orientation by container width for 2 to 6 members.
+  - It renders Vercel Analytics in production builds, which cannot ship in a
+    local, no-outbound-request tool.
+  - Its sample ids and hashes are in the real 19-digit format. None were copied;
+    the document uses synthetic opaque strings only.
+  - `PLAN.md` has no M10 section although this ticket is labelled M10. Adding it
+    was out of scope and is listed as an open question.
+- **Not decided here (by design).** The Jinja rendering route and fragment
+  architecture, light-theme values, chips versus segmented control, hue per
+  stat role, and session-action placement. Section 10 records a candidate
+  component-to-partial mapping plus the constraints the M10 spike must respect;
+  section 12 lists the open questions.
+- **Verification.** Every production symbol, selector, CSP value and file the
+  document cites was checked against the tree at this head. Two claims were
+  wrong on first draft (the matrix column range is 2 to 6 members, and the
+  prototype renders sixteen icons, not twenty) and were corrected.
+
 ## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
 
 Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from
