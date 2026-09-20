@@ -184,7 +184,7 @@ def analyse(
             if len(a["matched"]) > 0:
                 # Dominated candidates: matched(A) is a strict subset of matched(B).
                 dom_candidates = [
-                    (b, len(b["collapsed"] - a["collapsed"]))
+                    (b, len(b["matched"]))
                     for b in eligible_partners
                     if a["matched"] < b["matched"]
                 ]
@@ -229,7 +229,7 @@ def analyse(
             else:
                 # Uncovered candidates: matched(A) is empty and matched(B) is non-empty.
                 uncov_candidates = [
-                    (b, len(b["collapsed"]))
+                    (b, len(b["matched"]))
                     for b in eligible_partners
                     if len(b["matched"]) > 0
                 ]

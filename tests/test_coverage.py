@@ -471,3 +471,116 @@ max_age_days = 30
     assert "coverage: 3 dominated, 4 uncovered vs a covered copy — review-only, from 22 compared copies" in out
     assert "coverage combinations per compared copy — 0: 6, 1: 13, 2: 3" in out
     assert "coverage evidence: combinations by supporting curation family — 1: 19" in out
+
+
+def test_partner_selection_uncovered_ranks_by_uncollapsed_curated_matches():
+    """Uncovered candidate selects partner with most uncollapsed curated matches.
+
+    Curated keep rolls: {1, 2}, {1, 3}, {1, 2, 3}, {7, 8}.
+    Copy 1 has {9} (matched 0).
+    Copy 2 has {7, 8} (matched 1, collapsed 1).
+    Copy 3 has {1, 2, 3} (matched 3, collapsed 1).
+    Both Copy 2 and Copy 3 have 1 collapsed combination, but Copy 3 provides 3
+    curated matches. Copy 1 must cite Copy 3 with 'curated matches 0 vs 3; partner most combinations'.
+    """
+    wl = Wishlist(
+        keep={
+            7002: [
+                frozenset({1, 2}),
+                frozenset({1, 3}),
+                frozenset({1, 2, 3}),
+                frozenset({7, 8}),
+            ]
+        }
+    )
+    perk_map = {
+        "p1": frozenset({1}),
+        "p2": frozenset({2}),
+        "p3": frozenset({3}),
+        "p7": frozenset({7}),
+        "p8": frozenset({8}),
+        "p9": frozenset({9}),
+    }
+    df = pd.DataFrame([
+        {
+            "Name": "Uncov Gun", "Hash": "7002", "Id": "copy1", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "p9*", "Perks 1": "Kill Tracker",
+        },
+        {
+            "Name": "Uncov Gun", "Hash": "7002", "Id": "copy2", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "p7*", "Perks 1": "p8*", "Perks 2": "Kill Tracker",
+        },
+        {
+            "Name": "Uncov Gun", "Hash": "7002", "Id": "copy3", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "p1*", "Perks 1": "p2*", "Perks 2": "p3*", "Perks 3": "Kill Tracker",
+        },
+    ]).fillna("")
+    analysis = coverage.analyse(df, wl, perk_map, crafted_level_protect=10)
+    assert len(analysis.decisions) == 1
+    d = analysis.decisions[0]
+    assert d.id == "copy1"
+    assert d.kept_id == "copy3"
+    assert "#vc-review: coverage-uncovered vs" in d.note
+    assert "curated matches 0 vs 3; partner most combinations" in d.note
+
+
+def test_partner_selection_dominated_chain_ranks_by_uncollapsed_matches():
+    """Dominated candidate selects partner with largest uncollapsed match cardinality.
+
+    Curated keep rolls: {1, 2}, {1, 2, 3}, {1, 2, 3, 4}.
+    Copy 1 has {1, 2} (matched 1, collapsed 1).
+    Copy 2 has {1, 2, 3} (matched 2, collapsed 1).
+    Copy 3 has {1, 2, 3, 4} (matched 3, collapsed 1).
+    Both Copy 2 and Copy 3 have collapsed gain 1 relative to Copy 1, but Copy 3
+    strictly dominates Copy 2 and provides 3 matches. Copy 1 and Copy 2 must both
+    cite Copy 3 with 'partner largest coverage gain'.
+    """
+    wl = Wishlist(
+        keep={
+            7003: [
+                frozenset({1, 2}),
+                frozenset({1, 2, 3}),
+                frozenset({1, 2, 3, 4}),
+            ]
+        }
+    )
+    perk_map = {
+        "p1": frozenset({1}),
+        "p2": frozenset({2}),
+        "p3": frozenset({3}),
+        "p4": frozenset({4}),
+    }
+    df = pd.DataFrame([
+        {
+            "Name": "Chain Gun", "Hash": "7003", "Id": "copy1", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "p1*", "Perks 1": "p2*", "Perks 2": "Kill Tracker",
+        },
+        {
+            "Name": "Chain Gun", "Hash": "7003", "Id": "copy2", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "p1*", "Perks 1": "p2*", "Perks 2": "p3*", "Perks 3": "Kill Tracker",
+        },
+        {
+            "Name": "Chain Gun", "Hash": "7003", "Id": "copy3", "Tag": "",
+            "Rarity": "Legendary", "Locked": "false", "Equipped": "false",
+            "Crafted": "false", "Crafted Level": "0", "Notes": "", "Owner": "Vault",
+            "Perks 0": "p1*", "Perks 1": "p2*", "Perks 2": "p3*", "Perks 3": "p4*", "Perks 4": "Kill Tracker",
+        },
+    ]).fillna("")
+    analysis = coverage.analyse(df, wl, perk_map, crafted_level_protect=10)
+    assert len(analysis.decisions) == 2
+    d1 = next(d for d in analysis.decisions if d.id == "copy1")
+    d2 = next(d for d in analysis.decisions if d.id == "copy2")
+    assert d1.kept_id == "copy3"
+    assert "curated matches 1 vs 3; partner largest coverage gain" in d1.note
+    assert d2.kept_id == "copy3"
+    assert "curated matches 2 vs 3; partner largest coverage gain" in d2.note

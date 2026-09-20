@@ -120,8 +120,8 @@ def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: .
 - `canonical_perk_tokens` inverts `PerkMapData.names` deterministically: iterate names in sorted order, use `min(hashes)` as the token, first name wins for a hash that appears under several. A hash absent from the map maps to itself, so an unknown perk stays distinct rather than silently merging.
 - `collapse` keeps only maximal elements under `⊆`.
 - `analyse` groups by `Hash` over rows whose `exact_roll_fingerprint` is not `None`, and within a group compares only rows with different fingerprints. Hard-protected rows receive no advice but remain eligible partners. For each candidate `A`:
-  - **dominated** when some partner `B` has `matched(A)` non-empty and `matched(A) < matched(B)`. Best partner: largest `len(collapse(matched(B)) - collapse(matched(A)))`, then lowest `instance_id_order`.
-  - **uncovered** when `matched(A)` is empty and some partner `B` has non-empty `matched(B)`. Best partner: largest `len(collapse(matched(B)))`, then lowest `instance_id_order`.
+  - **dominated** when some partner `B` has `matched(A)` non-empty and `matched(A) < matched(B)`. Best partner: largest uncollapsed match count `len(matched(B))` (identically maximizing uncollapsed coverage gain), then lowest `instance_id_order`.
+  - **uncovered** when `matched(A)` is empty and some partner `B` has non-empty `matched(B)`. Best partner: largest uncollapsed match count `len(matched(B))`, then lowest `instance_id_order`.
   - otherwise nothing. Equal coverage, mutual trade-offs and mutually uncovered pairs produce no decision.
   - Each copy receives **at most one** clause, dominance taking precedence (the two conditions are mutually exclusive anyway).
 - Emitted `Decision`s use `action="review"`, `tag=row["Tag"]` (tag preserved — the import must be a tag no-op), `kept_id=<partner id>`, and `note=append_tool_clause(row["Notes"], hashtag)`.

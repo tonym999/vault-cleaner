@@ -49,8 +49,8 @@ Coverage advice is strictly `#vc-review` only:
 Candidates are compared only within the same item `Hash`, among copies left undecided by earlier passes (wishlist-trash and exact-dupe) that carry distinct, known exact-roll fingerprints. Copies sharing an exact-roll fingerprint or lacking a measured tracker boundary are never compared.
 
 Partner selection is deterministic:
-- For `coverage-dominated by`: selects the partner with the largest collapsed combination gain `len(collapse(matched(B)) - collapse(matched(A)))`, broken deterministically by lowest opaque instance ID order.
-- For `coverage-uncovered vs`: selects the partner with the most collapsed combinations `len(collapse(matched(B)))`, broken deterministically by lowest opaque instance ID order.
+- For `coverage-dominated by`: selects the partner with the largest uncollapsed coverage gain (equivalent to largest uncollapsed match count `len(matched(B))`), broken deterministically by lowest opaque instance ID order.
+- For `coverage-uncovered vs`: selects the partner with the most uncollapsed curated matches `len(matched(B))`, broken deterministically by lowest opaque instance ID order.
 
 ### 6. Subsumption-aware family consensus
 
