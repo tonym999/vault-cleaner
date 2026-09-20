@@ -141,6 +141,9 @@ round 1 fixes themselves.
   no hard-protected dominated candidate, so the captured figure (30) was right by
   accident; the script now applies the filter on both sides through one helper.
   The transcript was recaptured and its fence reproduces byte for byte.
+- **Follow-through on the same finding:** the `CoverageSummary` field-semantics
+  sentence still said hard-protected candidates are excluded from `uncovered`
+  alone, which is the asymmetry the finding was about. It now says both.
 - **Verification:** `.venv/bin/ruff check src tests scripts` passed,
   `.venv/bin/pytest -q` passed (1045), `git diff --check` clean,
   `git ls-files data/` empty.
