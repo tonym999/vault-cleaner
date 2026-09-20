@@ -81,8 +81,13 @@ def test_keep_match_does_not_compete_with_a_different_roll():
         weapon("A", 100, perks=["Perk A", "Perk B"]),  # keep-matched, MW 0
         weapon("B", 100, **{"Masterwork Tier": "10"}),  # unmatched, MW 10
     )
+    # The exact-dupe pass never junks across distinct rolls. The coverage pass
+    # emits a review-only proposal for the uncovered copy.
     decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
-    assert decisions == []
+    assert [(d.id, d.action, d.kept_id) for d in decisions] == [
+        ("B", "review", "A")
+    ]
+    assert "coverage-uncovered vs" in decisions[0].note
 
 
 def test_keep_match_exact_duplicates_still_resolve_inside_their_group():

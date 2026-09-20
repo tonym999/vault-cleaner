@@ -39,9 +39,8 @@ from vault_cleaner.rules.dupes import Decision
 SNAPSHOT_SCHEMA_VERSION = 2
 # Snapshot schema changes are independent of rule decision semantics and do
 # not change RULESET_VERSION; saved review manifests nevertheless pin and
-# reject mismatched schemas. Ruleset v4 intentionally captures the shared
-# opaque-id ordering and complete exotic class-item disposition semantics.
-RULESET_VERSION = 4
+# reject mismatched schemas. Ruleset v5 adds the review-only weapon coverage pass.
+RULESET_VERSION = 5
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
     kind: str(Path(DEFAULT_INPUT_DIR) / filename)

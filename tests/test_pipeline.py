@@ -52,7 +52,13 @@ def test_missing_wishlist_cache_has_a_domain_error(tmp_path, monkeypatch):
         "test": "https://example.test/wishlist",
     }
     missing = tmp_path / "wishlists" / "missing.txt"
-    monkeypatch.setattr(wishlist_module, "fetch", lambda *args, **kwargs: missing)
+    monkeypatch.setattr(
+        wishlist_module,
+        "fetch_with_status",
+        lambda *args, **kwargs: wishlist_module.FetchResult(
+            path=missing, status="cache", cache_written_at=1000.0
+        ),
+    )
 
     with pytest.raises(WishlistError, match="could not read cached wishlist"):
         pipeline.resolve_weapons(load_weapons(FIXTURE), cfg)

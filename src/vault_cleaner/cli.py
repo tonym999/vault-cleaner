@@ -177,6 +177,7 @@ def _resolve_weapons(weapons, cfg, no_wishlists: bool):
         result.decisions,
         result.keep_trash_conflicts,
         result.wishlists_used,
+        result.coverage,
     )
 
 
@@ -196,7 +197,9 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     try:
-        decisions, conflicts, use_wishlists = _resolve_weapons(weapons, cfg, args.no_wishlists)
+        decisions, conflicts, use_wishlists, coverage_summary = _resolve_weapons(
+            weapons, cfg, args.no_wishlists
+        )
     except (WishlistError, ManifestError) as e:
         print(f"error: {e}", file=sys.stderr)
         print("(pass --no-wishlists to run without wishlist data)", file=sys.stderr)
@@ -207,7 +210,18 @@ def _cmd_dupes(args: argparse.Namespace) -> int:
     trash = [d for d in decisions if "wishlist-trash" in d.note]
     print(f"parsed {len(weapons)} weapons from {input_path}")
     wl_note = f" ({len(trash)} from wishlist-trash)" if use_wishlists else " (wishlists off)"
-    print(f"resolved: {len(junk)} junk, {len(review)} review (soft-protected){wl_note}")
+    print(f"resolved: {len(junk)} junk, {len(review)} review{wl_note}")
+    if coverage_summary is not None:
+        s = coverage_summary
+        print(
+            f"coverage: {s.dominated} dominated, {s.uncovered} uncovered vs a covered copy "
+            f"— review-only, from {s.compared_instances} compared copies"
+        )
+        distribution = ", ".join(f"{n}: {rows}" for n, rows in s.combination_counts) or "none"
+        print(f"coverage combinations per compared copy — {distribution}")
+        if s.consensus_counts is not None:
+            support = ", ".join(f"{families}: {count}" for families, count in s.consensus_counts)
+            print(f"coverage evidence: combinations by supporting curation family — {support}")
     if conflicts:
         print(
             f"note: {conflicts} item(s) matched both keep and trash lists — "

@@ -120,8 +120,8 @@ def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: .
 - `canonical_perk_tokens` inverts `PerkMapData.names` deterministically: iterate names in sorted order, use `min(hashes)` as the token, first name wins for a hash that appears under several. A hash absent from the map maps to itself, so an unknown perk stays distinct rather than silently merging.
 - `collapse` keeps only maximal elements under `⊆`.
 - `analyse` groups by `Hash` over rows whose `exact_roll_fingerprint` is not `None`, and within a group compares only rows with different fingerprints. Hard-protected rows receive no advice but remain eligible partners. For each candidate `A`:
-  - **dominated** when some partner `B` has `matched(A)` non-empty and `matched(A) < matched(B)`. Best partner: largest `len(collapse(matched(B)) - collapse(matched(A)))`, then lowest `instance_id_order`.
-  - **uncovered** when `matched(A)` is empty and some partner `B` has non-empty `matched(B)`. Best partner: largest `len(collapse(matched(B)))`, then lowest `instance_id_order`.
+  - **dominated** when some partner `B` has `matched(A)` non-empty and `matched(A) < matched(B)`. Best partner: largest uncollapsed match count `len(matched(B))` (identically maximizing uncollapsed coverage gain), then lowest `instance_id_order`.
+  - **uncovered** when `matched(A)` is empty and some partner `B` has non-empty `matched(B)`. Best partner: largest uncollapsed match count `len(matched(B))`, then lowest `instance_id_order`.
   - otherwise nothing. Equal coverage, mutual trade-offs and mutually uncovered pairs produce no decision.
   - Each copy receives **at most one** clause, dominance taking precedence (the two conditions are mutually exclusive anyway).
 - Emitted `Decision`s use `action="review"`, `tag=row["Tag"]` (tag preserved — the import must be a tag no-op), `kept_id=<partner id>`, and `note=append_tool_clause(row["Notes"], hashtag)`.
@@ -131,13 +131,13 @@ def analyse(weapons, wl, perk_map, crafted_level_protect) -> CoverageAnalysis: .
 **Exact clause formats** (the emitter contract; these strings are the ticket's user-facing copy):
 
 ```text
-#vc-review: coverage-dominated by; compare [REF]; combinations N vs M; partner largest coverage gain
-#vc-review: coverage-dominated by; compare [REF]; combinations N vs M; partner deterministic id tie-break
-#vc-review: coverage-uncovered vs; compare [REF]; combinations 0 vs M; partner most combinations
-#vc-review: coverage-uncovered vs; compare [REF]; combinations 0 vs M; partner deterministic id tie-break
+#vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner largest coverage gain
+#vc-review: coverage-dominated by; compare [REF]; curated matches N vs M; partner deterministic id tie-break
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner most curated matches
+#vc-review: coverage-uncovered vs; compare [REF]; curated matches 0 vs M; partner deterministic id tie-break
 ```
 
-`REF` is `weapon_reference(partner_row, exact_roll_display_prefix(partner_row), distinguish_from=<the other instance ids in that Hash group, sorted by instance_id_order>)`, reused verbatim from [rules/dupes.py:253,261](../src/vault_cleaner/rules/dupes.py#L253). `N` is the candidate's collapsed combination count, `M` the partner's. "combinations" stays plural in every case so the recognizer needs no alternation. `partner <reason>` names the first decisive dimension of the partner choice, exactly as the close pass does.
+`REF` is `weapon_reference(partner_row, exact_roll_display_prefix(partner_row), distinguish_from=<the other instance ids in that Hash group, sorted by instance_id_order>)`, reused verbatim from [rules/dupes.py:253,261](../src/vault_cleaner/rules/dupes.py#L253). `N` is the candidate's uncollapsed curated match count, `M` the partner's (guaranteeing `N < M` for dominated decisions). `partner <reason>` names the first decisive dimension of the partner choice, exactly as the close pass does.
 
 #### [MODIFY] [rules/weapons.py:59-111](../src/vault_cleaner/rules/weapons.py#L59-L111)
 
@@ -170,8 +170,8 @@ Add one recognizer covering both clauses, so a second run replaces the previous 
 ```python
 (
     r"#vc-review: coverage-(?:dominated by|uncovered vs); "
-    r"compare \[[^\]\r\n]*\]; combinations [0-9]+ vs [0-9]+; partner "
-    r"(?:largest coverage gain|most combinations|deterministic id tie-break)"
+    r"compare \[[^\]\r\n]*\]; curated matches [0-9]+ vs [0-9]+; partner "
+    r"(?:largest coverage gain|most curated matches|most combinations|deterministic id tie-break)"
 ),
 ```
 
@@ -241,7 +241,7 @@ At minimum: each relation produces the right decision or none; collapsed-versus-
 
 #### [MODIFY] [tests/test_note_history_roundtrip.py](../tests/test_note_history_roundtrip.py)
 
-Add emitter-driven round-trip coverage for **all four emitting branches**, not just the two clause kinds. The emitter contract in [AGENTS.md](../AGENTS.md) covers "each winner or partner label in every emitting branch", and this pass has four: dominated/`largest coverage gain`, dominated/`deterministic id tie-break`, uncovered/`most combinations`, and uncovered/`deterministic id tie-break`. Take the clause text the rule actually emits, feed it back through `strip_trailing_tool_clauses`, and assert the user's original Notes text survives. Follow the pattern the armor close-pass clauses already use there.
+Add emitter-driven round-trip coverage for **all four emitting branches**, not just the two clause kinds. The emitter contract in [AGENTS.md](../AGENTS.md) covers "each winner or partner label in every emitting branch", and this pass has four: dominated/`largest coverage gain`, dominated/`deterministic id tie-break`, uncovered/`most curated matches`, and uncovered/`deterministic id tie-break`. Take the clause text the rule actually emits, feed it back through `strip_trailing_tool_clauses`, and assert the user's original Notes text survives. Follow the pattern the armor close-pass clauses already use there.
 
 **A two-member group cannot reach either tie-break branch**, since a tie needs two partners with equal gain. The fixture must therefore include a `Hash` group of at least three distinct rolls where two candidate partners tie. That is not a contrived shape: 54 of the 116 multi-roll hashes on the real export hold three or more distinct rolls (evidence §1 block `[4]`).
 

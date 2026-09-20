@@ -9,10 +9,20 @@ from vault_cleaner.duplicate_reference import format_tuning_comparison
 from vault_cleaner.note_history import strip_trailing_tool_clauses
 from vault_cleaner.parse import load_armor, load_ghosts, load_weapons
 from vault_cleaner.report import reason_slug
-from vault_cleaner.rules import armor, armor_close, armor_dupes, dupes, ghosts, weapons
+from vault_cleaner.rules import (
+    armor,
+    armor_close,
+    armor_dupes,
+    coverage,
+    dupes,
+    ghosts,
+    weapons,
+)
 from vault_cleaner.wishlist import parse_wishlist
 
 WEAPON_FIXTURE = Path(__file__).parent / "fixtures" / "weapons_dupes.csv"
+WEAPONS_COVERAGE_FIXTURE = Path(__file__).parent / "fixtures" / "weapons_coverage.csv"
+WISHLIST_COVERAGE_FIXTURE = Path(__file__).parent / "fixtures" / "wishlist_coverage.txt"
 ARMOR_FIXTURE = Path(__file__).parent / "fixtures" / "armor.csv"
 ARMOR_DUPES_FIXTURE = Path(__file__).parent / "fixtures" / "armor_dupes.csv"
 ARMOR_CLOSE_FIXTURE = Path(__file__).parent / "fixtures" / "armor_close.csv"
@@ -85,6 +95,21 @@ def _assert_round_trip(
 
 def _weapon_dupes(frame):
     return dupes.resolve(frame, crafted_level_protect=10)
+
+
+def _weapon_coverage(frame):
+    wl = parse_wishlist(WISHLIST_COVERAGE_FIXTURE.read_text(encoding="utf-8"))
+    perk_map = {
+        "frame": frozenset({1000}),
+        "perk a": frozenset({1}),
+        "perk b": frozenset({2, 20}),
+        "perk c": frozenset({3}),
+        "perk d": frozenset({4}),
+        "perk e": frozenset({5}),
+        "perk f": frozenset({6}),
+        "bad perk": frozenset({99}),
+    }
+    return coverage.analyse(frame, wl, perk_map, crafted_level_protect=10).decisions
 
 
 def _weapon_crafted_level_frame():
@@ -357,6 +382,38 @@ def _wishlist_roll_review(frame):
             "ghost-unprotected-surplus",
             id="ghost-junk",
         ),
+        pytest.param(
+            load_weapons(WEAPONS_COVERAGE_FIXTURE),
+            _weapon_coverage,
+            "10011",
+            "review",
+            "coverage-dominated by",
+            id="coverage-dominated-gain",
+        ),
+        pytest.param(
+            load_weapons(WEAPONS_COVERAGE_FIXTURE),
+            _weapon_coverage,
+            "10091",
+            "review",
+            "coverage-dominated by",
+            id="coverage-dominated-tie-break",
+        ),
+        pytest.param(
+            load_weapons(WEAPONS_COVERAGE_FIXTURE),
+            _weapon_coverage,
+            "10051",
+            "review",
+            "coverage-uncovered vs",
+            id="coverage-uncovered-most",
+        ),
+        pytest.param(
+            load_weapons(WEAPONS_COVERAGE_FIXTURE),
+            _weapon_coverage,
+            "10101",
+            "review",
+            "coverage-uncovered vs",
+            id="coverage-uncovered-tie-break",
+        ),
     ],
 )
 def test_current_emitter_notes_round_trip(
@@ -469,3 +526,31 @@ def test_armor_close_partner_tie_labels_round_trip(
         frame, first, selected_label="Partner"
     )
     assert first.note.endswith(f"; partner deterministic id tie-break; {expected}")
+
+
+@pytest.mark.parametrize(
+    ("item_id", "expected_reason", "expected_partner_label"),
+    [
+        ("10011", "coverage-dominated by", "largest coverage gain"),
+        ("10091", "coverage-dominated by", "deterministic id tie-break"),
+        ("10051", "coverage-uncovered vs", "most curated matches"),
+        ("10101", "coverage-uncovered vs", "deterministic id tie-break"),
+    ],
+)
+def test_coverage_partner_labels_round_trip(
+    item_id, expected_reason, expected_partner_label
+):
+    frame = load_weapons(WEAPONS_COVERAGE_FIXTURE)
+    first = _assert_round_trip(
+        frame, _weapon_coverage, item_id, "review", expected_reason
+    )
+    assert first.note.endswith(f"; partner {expected_partner_label}")
+
+
+def test_legacy_coverage_most_combinations_recognizer():
+    """Interim 'most combinations' clauses are stripped during migration."""
+    note = (
+        "my original note #vc-review: coverage-uncovered vs; compare [Test]; "
+        "curated matches 0 vs 1; partner most combinations"
+    )
+    assert strip_trailing_tool_clauses(note) == "my original note"
