@@ -71,7 +71,7 @@ All plan files stored in this directory follow the standard format:
 handoffs/issue-N-implementation-plan.md
 ```
 
-- Filenames must **never** include role names (e.g. `luna`) or model tier suffixes (e.g. `xhigh`).
+- Filenames must **never** include role names (e.g. `luna`) or model/effort labels (e.g. `xhigh`).
 - Branch names for plans follow `handoff/issue-N-implementation-plan`.
 - Implementation branches follow `fix/issue-N-...` or `feat/issue-N-...` as allocated in the plan.
 - The 10 dangling remote `handoff/*` branches remain active on GitHub until this workflow PR merges to `main`. Deleting a `handoff/*` branch is a post-merge cleanup operation.
@@ -120,10 +120,10 @@ questions go to the owner.
 The plan's implementer selection is a recommendation, not a fixed floor. The
 orchestrator may change the implementer model or effort in either direction on
 the [implementer ladder](#implementer-ladder), before dispatch or after a
-stopped or failed attempt, when inspection or the attempt shows more or less
-complexity than the plan expected. It records the plan's selection, the actual
-model and effort, and a one-line reason in the dispatch record and the
-`WORKLOG.md` entry. A change of model never changes scope.
+stopped or failed attempt, when inspection or the attempt shows materially
+different complexity, judgement, or risk than the plan expected. It records the
+plan's selection, the actual model and effort, and a one-line reason in the
+dispatch record and the `WORKLOG.md` entry. Re-selection never changes scope.
 
 ## Implementer Outcome Notes
 
@@ -159,9 +159,9 @@ The orchestrator records one disposition for every finding: `accepted/fixed`, `r
 
 For every implementer or independent-reviewer dispatch, the orchestrator records the requested provider, exact model ID, and native effort, then checks whether its active runtime can instantiate that target. If it cannot, the orchestrator prepares the exact role prompt and a human operator launches the external agent. An external implementer returns its branch, base and head SHAs, test output, and completion handoff; an external reviewer returns the fixed findings report for the supplied immutable SHAs. The orchestrator treats every external result as untrusted. Any scope deviation follows `implementer → orchestrator → planner`. Automated provider discovery, authentication, launching, and monitoring are deferred to a separate issue.
 
-The dispatch record captures the orchestrator's own model, the **actual** implementer provider/model/effort used, the launch surface for externally launched agents (for example GitHub Copilot in VS Code, or Copilot CLI), and any fallback or re-selection taken. When a model has no user-settable effort, record `n/a — adaptive` rather than guessing a level. A repository model table is selection guidance; it does not itself make that provider available to the active runtime.
+The dispatch record captures the orchestrator's own exact model ID and native effort, the **actual** implementer provider/model/effort used, the launch surface for externally launched agents (for example GitHub Copilot in VS Code, or Copilot CLI), and any fallback or re-selection taken. When a model has no user-settable effort, record `n/a — adaptive` rather than guessing a level. A repository model table is selection guidance; it does not itself make that provider available to the active runtime.
 
-**MAI-Code-1.1-Flash** is available through GitHub Copilot, which the current orchestrator runtimes cannot instantiate, so it always uses this manual path. Launch it from a local agent surface (Copilot agent mode in VS Code, or Copilot CLI where available) working on the allocated branch, so it commits and pushes only that branch. Do not dispatch implementation to the Copilot cloud agent: it works through a pull request it opens itself, which breaks the rule that the implementer never opens a PR.
+Use manual cross-provider execution only when the active runtime cannot instantiate `MAI-Code-1.1-Flash`. Launch it from a local agent surface (Copilot agent mode in VS Code, or Copilot CLI where available) working on the allocated branch, so it commits and pushes only that branch. Do not dispatch implementation to the Copilot cloud agent in this workflow: entry points differ, but the repository policy is absolute and the implementer must never open a pull request.
 
 The first complete real-issue pilot of this workflow is tracked in [#124](https://github.com/tonym999/vault-cleaner/issues/124). It runs after this workflow is available from `main`, because the orchestrator contract requires a merged plan rather than an unmerged integration-PR artifact.
 
@@ -201,7 +201,7 @@ lies; the review gate makes that acceptable.
 
 | Rung | The plan delegates… | Typical work (examples, not limits) | Primary model | Permitted alternatives |
 |---|---|---|---|---|
-| **Bounded** | a well-defined outcome and scope; architecture and important invariants are already decided in the plan, and the orchestrator believes the model has a reasonable chance of completing it correctly | small and medium well-specified bug fixes; bounded features; localized multi-file changes; mechanical refactors following an established pattern; tests for defined behaviour; lint/type/test fixes; presentation work with clear acceptance criteria; repetitive edits across known locations; bounded exploration followed by bounded implementation | `MAI-Code-1.1-Flash` (`n/a — adaptive`) | `claude-sonnet-5` (`high`), `gpt-5.6-terra` (`medium`), `gemini-3.8-flash` (`high`) |
+| **Bounded** | a well-defined outcome and scope; architecture and important invariants are already decided in the plan | small and medium well-specified bug fixes; bounded features; localized multi-file changes; mechanical refactors following an established pattern; tests for defined behaviour; lint/type/test fixes; presentation work with clear acceptance criteria; repetitive edits across known locations; bounded exploration followed by bounded implementation | `MAI-Code-1.1-Flash` (`n/a — adaptive`) | `claude-sonnet-5` (`high`), `gpt-5.6-terra` (`medium`), `gemini-3.8-flash` (`high`) |
 | **Judgement** | substantial engineering judgement or resolution of real ambiguity | meaningful choices between alternative designs; inferring intended behaviour across several components; significant but bounded refactoring decisions; ambiguity the plan could not settle; work a Bounded attempt showed to exceed that rung | `gpt-5.6-luna` (`high`) | `claude-sonnet-5` (`xhigh`), `gpt-5.6-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
 | **High-risk** | substantial reasoning responsibility or risk inside the implementation itself | persistence and data integrity; concurrency and races; stale-state reconciliation; lifecycle and state machines (e.g. server lifecycle); transactional or destructive operations; complex cross-file invariants; debugging with no established cause; potentially architectural refactors; several interacting failure modes at once | `gpt-5.6-luna` (`xhigh`) | `claude-sonnet-5` (`xhigh`), `gpt-5.6-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
 
@@ -212,7 +212,7 @@ attempt stops or fails, the orchestrator may re-select a higher rung under
 
 ### Independent Review Mapping
 
-| Task Class | Model Selection & Effort Rationale | Recommended Model & Native Effort |
+| Review Role | Model Selection & Effort Rationale | Recommended Model & Native Effort |
 |---|---|---|
 | **Independent Review** | Reviewing implementation diffs against plan checklists and likely findings. | `claude-opus-5` (`high`), `gpt-5.6-sol` (`high`), or `gemini-3.1-pro-preview` (`high`) |
 
