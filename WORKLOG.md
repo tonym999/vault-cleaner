@@ -3,6 +3,74 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
+
+Planned Child 4 of #140 on branch `handoff/issue-34-implementation-plan` from
+`main` at `775f662`. Planner model `claude-opus-5` (`xhigh`). Refs #34.
+
+- **Issue rescoped first (authorised issue operation).** #34 was retitled to
+  "Child 4: same-Hash useful-combination coverage for weapons (review-only)",
+  its body replaced with the measured Child 4 specification, and its
+  `M6 — Armor dupes` milestone cleared to match its landed siblings #148, #155
+  and #158. This follows the reconciliation recommendation in
+  `docs/aggressive-clearout-measurement.md` §7, which was explicitly advisory
+  and required separate authorisation; the owner gave it on 2026-09-20.
+- **Real-export authorisation (owner, 2026-09-20).** Aggregate counts,
+  distributions and item names measured from
+  `data/in/2026-09-01T-current/weapons.csv` may be committed for this ticket.
+  Instance `Id` values, verbatim rows and `Notes` contents stay barred; the
+  transcripts in `docs/evidence/issue-34/README.md` print none of them, so no
+  capture needed redaction. Section 1's fence was re-executed after writing and
+  reproduced its recorded output byte for byte.
+- **Owner scope decisions (2026-09-20):** both advice kinds (`coverage-dominated
+  by` and `coverage-uncovered vs`) are in scope, and the pass runs by default
+  rather than behind a `config.toml` gate.
+- **Design decisions, all measurement-driven:**
+  - *Nothing is enumerated.* The export carries no measured socket partition —
+    #31 deliberately left `Perks N` as an ordered tuple — so "enumerate the
+    combinations this copy can select" is not measurable. A curated keep roll is
+    already an author-asserted valid combination and the existing
+    `roll <= perk_hashes` test already decides availability, so the pass reads
+    combinations from the wishlists instead of inventing them.
+  - *Compare uncollapsed, display collapsed.* `matched` is downward closed, so
+    `matched(A) ⊆ matched(B)` is the exact "B provides everything A does" test.
+    Comparing subsumption-collapsed sets instead finds 27 dominance relations
+    where the uncollapsed test finds 30, because a four-perk Voltron roll
+    semantically covers a two-perk Aegis roll whose collapsed element differs.
+  - *Absence is not dominance.* An empty candidate coverage set satisfies the
+    subset test vacuously, so the 53 uncovered-versus-covered copies get their
+    own label rather than sharing the dominance clause.
+  - *Consensus stays out of decisions.* `family` reaches no decision input and
+    no `Notes` clause, so #158's handoff of fingerprinted source identity to
+    Child 5 stays intact; consensus is dry-run output only.
+- **Surprises the next agent should know:**
+  - **The loadout hard rail does not exist.** #140's tracking comment and the
+    measurement document's §8 item 4 both assert it. The owner reversed that
+    premise before #148 was implemented, and #148 landed loadout *visibility*
+    only — `rails.protection` has no loadout clause. Four of the 30 dominance
+    candidates are in a loadout. Two committed documents still state the stale
+    premise; neither was edited here, since this ticket has no authorisation to
+    revise them.
+  - **Raw source consensus is degenerate.** All 823 matched combinations on the
+    real export have exactly one supporting family, because the Aegis feed is
+    traits-only while Voltron rolls carry four perks. Subsumption-aware support
+    recovers the signal: 724 at one family, 99 at two.
+  - **Exact weapon duplicates are effectively extinct.** The current export has
+    exactly one exact-roll group with more than one member (2 losers), so #31's
+    pass cannot contribute meaningfully to #140's ~190-removal target and
+    coverage is the next lever. Expected yield: 80 new review-only proposals.
+  - **Perk scope is a non-issue.** Reading every `Perks N` cell versus only
+    #31's immutable pre-tracker prefix produces identical matches — 0 rows
+    differ, 929 matched rolls either way — so the pass reuses the existing
+    `row_perk_hashes` helper and keeps one definition of "matches a keep roll".
+  - Two things the spike's child map got ahead of: the module is `coverage.py`,
+    not `combinations.py` (it enumerates nothing), and the `RULESET_VERSION`
+    4 → 5 bump belongs to this child, leaving 5 → 6 for Child 5.
+- **Selections:** implementer `gpt-5.6-luna` (`high`), Judgement rung — the plan
+  settles the architecture, but the failure modes here are quiet rather than
+  loud. Review path: independent adversarial review.
+- No product code, tests, schemas, rules or versions changed in this PR.
+
 ## 2026-09-20 — #163 review-fix round
 
 Addressed review findings and repaired merge state on branch
