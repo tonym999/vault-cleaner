@@ -3,6 +3,111 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-25 — #136 PR #169 review fixes and conflict resolution
+
+Updated branch `docs/issue-136-design-contract` after owner review. Refs #136.
+
+- Merged current `main` and resolved the `WORKLOG.md` conflict by preserving the
+  complete, later #34 implementation entry above the original #136 entry and
+  retaining the earlier #34 planning history below it.
+- Rechecked the design contract against the owner-supplied Next.js archive and
+  qualified the dark-only finding: the page and token palette are dark-only,
+  while `app/layout.tsx` advertises both colour schemes in shell metadata.
+- Confirmed that the unused shadcn `Button` contains `dark:` variants, while the
+  design-bearing page and global stylesheet do not use the declared variant.
+- Kept the prototype archive out of the repository; it was reference material
+  only and includes sample item ids that must not be committed.
+- Verification after the merge resolution: `ruff check src tests scripts`
+  passed; the full pytest suite passed (`1068 passed`); staged and unstaged
+  `git diff --check` passed; no path under `data/` is tracked; and the changed
+  documentation passed the byte-level invisible-character scan.
+
+## 2026-09-20 — #34 implementation: same-Hash useful-combination coverage for weapons
+
+Implemented Child 4 of #140 on branch `feat/issue-34-coverage-review` from
+`main` at `9192d5c`. Implementer model `gpt-5.6-luna` (`high`). Refs #34.
+
+- **What landed:**
+  - Added review-only weapon coverage pass in `src/vault_cleaner/rules/coverage.py`
+    and integrated into `weapons_rules.run` and `pipeline.resolve_weapons`.
+  - Implemented uncollapsed matched-set subset comparison for dominance, collapsed
+    maximal combination counts for display, and the distinct `coverage-uncovered vs`
+    outcome for candidate copies with no wishlist keep matches compared against a
+    covered partner.
+  - Deterministic partner selection with tie-breaking on lowest opaque instance ID
+    order, surfacing the decisive partner dimension (`largest coverage gain`,
+    `most combinations`, or `deterministic id tie-break`).
+  - Added recognizer for both new coverage clauses in `src/vault_cleaner/note_history.py`
+    with emitter-driven round-trip tests covering all four emitting branches in
+    `tests/test_note_history_roundtrip.py`.
+  - Updated `cli.py` to remove the outdated `(soft-protected)` claim on the
+    `resolved:` summary line and report coverage totals, combination distribution,
+    and family consensus in dry-run output.
+  - Switched `pipeline.resolve_weapons` from `load_all_with_sources` to
+    `load_all_with_evidence` to make subsumption-aware family consensus counts
+    available while preserving external source identity and fingerprint invariance.
+    Measured parse cost (from #158 baseline): evidence-off baseline median 0.568 s /
+    137.70 MB peak tracemalloc; evidence-on path taken by resolve_weapons median 1.881 s /
+    238.23 MB peak tracemalloc, comfortably below the 600 MB ceiling.
+  - Bumped `RULESET_VERSION` from 4 to 5 in `src/vault_cleaner/report_run.py`,
+    intentionally invalidating persisted review manifests and vetoes from ruleset v4.
+  - Regenerated `tests/fixtures/report_snapshot_v2.json` with
+    `python scripts/regenerate_report_snapshot.py`, verifying the only delta is
+    `ruleset_version` and the derived fingerprint.
+  - Added documentation in `docs/weapon-coverage.md` and updated `PLAN.md` rules
+    engine ordering.
+  - Added synthetic fixtures `tests/fixtures/weapons_coverage.csv` and
+    `tests/fixtures/wishlist_coverage.txt` and comprehensive test coverage in
+    `tests/test_coverage.py`.
+- **Decisions made & surprises:**
+  - Real-export authorisation recorded for this ticket on 2026-09-20 (aggregate counts,
+    distributions, and item names from `data/in/2026-09-01T-current/weapons.csv`).
+  - Local import of `row_perk_hashes` inside `coverage.analyse` prevents a circular
+    import cycle between `rules.weapons` and `rules.coverage`.
+  - Updated `test_keep_match_does_not_compete_with_a_different_roll` in
+    `tests/test_weapons_rules.py` to verify that the uncovered copy receives
+    review-only coverage advice rather than being junked.
+  - Updated `tests/test_pipeline.py` to patch `fetch_with_status` matching the
+    `load_all_with_evidence` loader switch.
+- **Verification:**
+  - `ruff check src tests scripts` passed cleanly.
+  - `pytest -q` passed across all 1064 tests.
+  - `git diff --check origin/main...HEAD` clean.
+  - `git ls-files data/` returns nothing.
+  - Regenerated snapshot golden verified to contain only the ruleset version (4 -> 5)
+    and fingerprint diff.
+
+### Review-fix round 1
+
+Addressed review findings on branch `feat/issue-34-coverage-review`:
+- **F3 (fixture collapse exercise & non-downward-closed matching):** Added nested roll `dimwishlist:item=1001&perks=1,2,3` to `tests/fixtures/wishlist_coverage.txt`. Copy 10012 matches `{1, 2}`, `{1, 3}`, and `{1, 2, 3}`, which collapses to `{{1, 2, 3}}`. As a result, `collapse(matched(10011)) = {{1, 2}}` is not a subset of `collapse(matched(10012)) = {{1, 2, 3}}`, exercising the uncollapsed subset comparison in the shared fixture. Added explicit assertions in `tests/test_coverage.py::test_fixture_all_coverage_relations` that `matched(10011) < matched(10012)`, that `collapse(matched(10011))` is not a subset of `collapse(matched(10012))`, and that 10011 receives a `coverage-dominated by` decision citing 10012 with `combinations 1 vs 1; partner largest coverage gain`.
+- **F2 (pinned summary distribution values & consensus unit):** Closed test coverage gaps where summary distribution values were previously only matched by prefix. Updated `test_cli_output_neutral_resolved_and_coverage_lines` to assert both the combination distribution (`0: 6, 1: 13, 2: 3`) and family consensus (`1: 19`) lines in full with exact values. In `test_fixture_all_coverage_relations`, asserted `summary.combination_counts` as `((0, 6), (1, 13), (2, 3))` and `summary.consensus_counts` as `((1, 19),)` with documentation explaining that consensus is counted per combination (19 combinations across 16 copies holding >= 1 combination), which distinguishes it from an erroneous per-copy count (`((1, 16),)`).
+- **F4 (evidence-loader measured cost):** Recorded measured performance and memory cost figures for the `load_all_with_evidence` switch sourced from the #158 entry in `WORKLOG.md`.
+
+### PR #168 review-fix round (P2 & P3)
+
+Addressed owner review findings on PR #168:
+- **P2 (monotonic dominance explanation & emitter-contract amendment):** Replaced non-cardinality-monotone collapsed combination counts in coverage note clauses with monotonic uncollapsed matched-set counts, updating the clause phrasing to `curated matches N vs M` across both clause families (`coverage-dominated by` and `coverage-uncovered vs`). For dominated decisions, $N = |\text{matched}(A)|$ and $M = |\text{matched}(B)|$, guaranteeing $N < M$ and eliminating contradictory `combinations 2 vs 1` or `combinations 1 vs 1` explanations caused by non-monotonic collapse. Uncovered decisions emit `curated matches 0 vs M`. Partner selection (collapsed gain) and aggregate CLI distribution output remain unchanged. Updated `rules/coverage.py`, `note_history.py` recognizer, emitter-driven round-trip tests in `test_note_history_roundtrip.py`, `docs/weapon-coverage.md`, and `handoffs/issue-34-implementation-plan.md`. Added focused regression test `test_non_cardinality_monotone_inversion_emits_curated_matches` verifying that candidate $\{1,2,3\}$ with 2 collapsed combinations is dominated by partner $\{1,2,3,4\}$ with 1 collapsed combination and emits `curated matches 2 vs 3`.
+- **P3 (repair same-fingerprint regression test):** In `tests/test_coverage.py::test_same_fingerprint_rows_never_compared`, added `"Rarity": "Legendary"` to both test rows so `exact_roll_fingerprint()` computes non-`None` fingerprints, and strengthened assertions to verify both fingerprints are non-`None` and equal before asserting `compared_instances == 0` and 0 decisions.
+
+### PR #168 review-fix round (partner metric)
+
+Addressed reviewer finding on PR #168 regarding partner selection metric alignment:
+- **Partner selection aligned with uncollapsed matched cardinality:** Updated partner selection in `src/vault_cleaner/rules/coverage.py` to rank partners by uncollapsed matched set cardinality `len(b["matched"])` in both the dominated branch and uncovered branch. This ensures the printed `curated matches N vs M` count is the decisive dimension of partner choice, restoring the invariant held by `armor_close.py` and the handoff document.
+- **Truthfulness of 'largest coverage gain':** For any dominated candidate $A$, maximizing partner uncollapsed cardinality $\max_B |\text{matched}(B)|$ is mathematically identical to maximizing uncollapsed coverage gain $\max_B (|\text{matched}(B)| - |\text{matched}(A)|)$, since $|\text{matched}(A)|$ is constant for $A$. Thus, "largest coverage gain" remains strictly truthful.
+- **Regression tests:** Added two focused regression tests in `tests/test_coverage.py`:
+  - `test_partner_selection_uncovered_ranks_by_uncollapsed_curated_matches`: An uncovered candidate selects the partner with 3 uncollapsed matches over one with 1 match, even though both partners collapse to 1 combination (`curated matches 0 vs 3; partner most combinations`).
+  - `test_partner_selection_dominated_chain_ranks_by_uncollapsed_matches`: In a dominated chain $A \subset B \subset C$, both copies 1 and 2 cite maximal partner 3 directly with `partner largest coverage gain` (`curated matches 1 vs 3` and `curated matches 2 vs 3`), rather than copy 1 citing copy 2 on a collapsed gain tie.
+- **Documentation:** Updated partner selection descriptions in `docs/weapon-coverage.md` §5 and `handoffs/issue-34-implementation-plan.md`.
+
+### PR #168 review-fix round (partner label)
+
+Addressed reviewer findings on PR #168 regarding uncovered partner label accuracy and history maintenance:
+- **Partner label renamed to 'most curated matches':** Updated the uncovered branch partner label in `src/vault_cleaner/rules/coverage.py` from `most combinations` to `most curated matches`. When the ranking metric moved from collapsed combinations `len(b["collapsed"])` to uncollapsed matches `len(b["matched"])`, the label `most combinations` became false in cases where partners tie on collapsed combinations but differ in uncollapsed curated matches (such as the regression test fixture where copy 2 and copy 3 both have 1 collapsed combination, but copy 3 provides 3 curated matches).
+- **Migration term retained in note_history:** Retained `most combinations` alongside `most curated matches` in the `_GENERATED_CLAUSE_RES` recognizer alternation in `src/vault_cleaner/note_history.py` as a migration term. Notes persist in user DIM exports across tool runs; retaining the legacy term ensures that any notes written by interim runs of this branch continue to be stripped and replaced on subsequent passes rather than accumulating duplicate tool clauses.
+- **Heading restored (Finding 2 repair):** Restored the `## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)` heading above the planning entry prose, repairing an unreported collateral deletion from the previous review-fix round, and collapsed the doubled blank line.
+- **Real-export measurement:** Confirmed aggregate counts remain unchanged at 30 dominated / 50 uncovered / 339 compared copies (presentation-only label update).
+
 ## 2026-09-20 — #136 review UI design contract (direct docs PR)
 
 Captured the Next.js review prototype as a durable, framework-neutral design
@@ -22,15 +127,17 @@ Refs #136. **The durable reference is
   snapshot, schema, rules, lifecycle, auth, persistence, revision, verdict or
   finalisation change; no dependency added. Runtime stays pandas and Flask. No
   Next build output, `node_modules`, or archive is committed.
-- **What the prototype turned out to be.** Two files carry the design
+- **What the prototype turned out to be.** Two files carry the rendered design
   (`app/page.tsx`, `app/globals.css`); the shadcn `Button` is never used by the
   page. Everything data-like is sample content: two hard-coded groups, the
   407/88/319/71 counts, the fingerprint, index-based "Preferred survivor",
   simulated lifecycle notices, and a class/slot filter set. Section 3 of the
   document is the full register.
 - **Surprises the next agent should know.**
-  - The prototype is **dark only**; it has no light palette. The light theme is
-    an open decision, not a carried-over fact.
+  - The prototype's rendered palette is **dark only**; it has no light token
+    set. Its shell metadata nevertheless advertises `light dark`, white/black
+    theme colours and scheme-specific favicons. The light theme is an open
+    decision, not a carried-over fact.
   - Its stat-bar widths are inline `style` attributes, which the server's
     `style-src 'self'` CSP silently drops (the same failure #131 fixed).
   - It has no `aria-pressed`, no labels on the filter controls, no focus style on
@@ -45,7 +152,7 @@ Refs #136. **The durable reference is
     turns off.
   - Its sample ids and hashes are in the real 19-digit format. None were copied;
     the document uses synthetic opaque strings only.
-  - `PLAN.md` has no M10 section although this ticket is labelled M10. Adding it
+  - `PLAN.md` has no M10 section although this ticket is titled as M10. Adding it
     was out of scope and is listed as an open question.
 - **Not decided here (by design).** The Jinja rendering route and fragment
   architecture, light-theme values, chips versus segmented control, hue per

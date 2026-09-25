@@ -70,13 +70,14 @@ a shadcn (`base-nova`) setup. Its shape:
 | --- | --- |
 | `app/page.tsx` | The whole UI: one client component holding all state, 277 lines |
 | `app/globals.css` | Design tokens plus a small `@layer components` set: `button-primary`, `button-secondary`, `icon-button`, `field`, `metric-card`, `filter-chip`, `tab-button`, `empty-state` |
-| `app/layout.tsx` | Title, favicons, `color-scheme`, Vercel Analytics in production |
+| `app/layout.tsx` | Title, scheme-specific favicons, contradictory light/dark shell metadata, Vercel Analytics in production |
 | `components/ui/button.tsx` | A shadcn `Button` with variants and sizes. **Never used by the page**, so it carries no design intent |
 | Everything else | Scaffold: lockfile, icons, placeholder images |
 
-It has one page and no server. Its title is "Vault Cleaner / Review". Only
-`app/page.tsx` and `app/globals.css` carry design intent; the rest of the
-archive was scaffolding.
+It has one page and no server. Its title is "Vault Cleaner / Review".
+`app/page.tsx` and `app/globals.css` carry the rendered design intent;
+`app/layout.tsx` carries shell metadata and the production-only analytics hook.
+The remaining archive is scaffolding.
 
 The prototype is a **visual and component design source**. It is not the
 production architecture. The production application remains the Flask
@@ -135,12 +136,16 @@ More facts in the same category, found while capturing the design:
 
 ## 4. Design tokens
 
-The prototype is **dark only**: `color-scheme: dark`, a single token set, and the
-Tailwind `dark` variant declared but never used. There is no light palette in
-the prototype. Production already has both a light and a dark set. The tokens
-below record the prototype's *dark-theme intent*; the light theme is not a
-prototype fact and is recorded as an open decision in
-[section 12](#12-open-questions).
+The prototype's **rendered page and token palette are dark only**:
+`app/globals.css` sets `color-scheme: dark` and defines a single token set. Its
+custom Tailwind `dark` variant is unused by the design-bearing page and global
+stylesheet; `dark:` classes occur only in the unused shadcn `Button`. The shell
+metadata is inconsistent with that rendered design: `app/layout.tsx` advertises
+`colorScheme: 'light dark'`, white/black theme colours and scheme-specific
+favicons. None of that supplies a light page palette. Production already has
+both a light and a dark set. The tokens below record the prototype's
+*dark-theme intent*; light-theme values are not a prototype fact and are
+recorded as an open decision in [section 12](#12-open-questions).
 
 ### 4.1 Colour roles (dark, OKLCH)
 
@@ -675,7 +680,8 @@ Constraints the spike must respect. These restate existing rules and are
 
 Collected here so a later reader does not mistake them for design:
 
-- Dark only, with no light palette.
+- Rendered page and token palette are dark only despite shell metadata that
+  advertises both colour schemes; no light page palette exists.
 - Inline-style bar widths (blocked by the CSP).
 - Hard-coded two- and three-member grids.
 - Unlabelled filter controls; no pressed or expanded state anywhere.
@@ -683,7 +689,8 @@ Collected here so a later reader does not mistake them for design:
 - Status notice always emerald, even for errors.
 - A green pill used for two different meanings (survivor and approved).
 - Verdict controls on read-only members, and Member 1 assumed to be the survivor.
-- An unused shadcn `Button` component and a dead `dark` variant.
+- An unused shadcn `Button` component containing `dark:` variants, while the
+  custom `dark` variant is dead in the design-bearing page and stylesheet.
 - Vercel Analytics rendered in production builds. It is a telemetry call to a
   third party. The durable rule is **no analytics, no telemetry and no remote UI
   resources**; the only outbound traffic the product permits is the explicitly
@@ -694,7 +701,8 @@ Collected here so a later reader does not mistake them for design:
 
 Recorded, not decided. None blocks this ticket.
 
-1. **Light theme.** The prototype defines only dark. Production ships both.
+1. **Light theme.** The prototype defines only a dark page palette despite its
+   contradictory light/dark shell metadata. Production ships both.
    Which light values match the prototype's hierarchy is a decision for the
    implementation ticket, using [section 4.3](#43-rules-that-hold-in-any-theme)
    as the guardrail.
@@ -706,5 +714,5 @@ Recorded, not decided. None blocks this ticket.
    (delivered)? The role word is required either way.
 5. **Session actions.** Inside the intake card (prototype) or a separate labelled
    group (delivered)?
-6. **`PLAN.md` has no M10 section yet.** This ticket is labelled M10 but the plan
-   does not define it. Adding it is outside this ticket's scope.
+6. **`PLAN.md` has no M10 section yet.** This ticket is titled as M10 but the
+   plan does not define it. Adding it is outside this ticket's scope.
