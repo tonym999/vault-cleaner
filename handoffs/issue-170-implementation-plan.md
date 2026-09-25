@@ -125,13 +125,30 @@ review-only caveat copy below states exactly that.
 
 ### Partner-retention measurement
 
-`dupes.resolve` never proposes its survivor. Soft-reviewed wishlist-trash rows
-stay in the dupe pool ([weapons.py:103-111](../src/vault_cleaner/rules/weapons.py#L103-L111)),
-so a survivor can in principle also carry a wishlist-trash review decision.
+`dupes.resolve` never proposes its survivor. However, soft-reviewed
+wishlist-trash rows stay in the dupe pool
+([weapons.py:103-111](../src/vault_cleaner/rules/weapons.py#L103-L111)), so a
+survivor can also carry a wishlist-trash review decision. This is reproduced
+on current `main` (PR #173 review finding P1). Using the
+`tests/test_weapons_rules.py` helpers, a locked copy `11` matching a trash
+roll beats copy `22` on masterwork tier. Copy `22` escapes the trash rule
+through a keep perk in a post-tracker cell. `run(...)` yields:
+
+```text
+11 review  | #vc-review: wishlist-trash roll (locked)
+22 junk 11 | #vc-junk: dupe-lower; keep [id 11; location Vault; Tier 5; MW10; roll Roll 4 / Roll 5]; winner higher Masterwork Tier
+```
+
 Coverage partners are maximal by matched-set cardinality among undecided rows,
 so a coverage partner cannot itself be dominated. The "also proposed" caveat
 below is therefore defensive for coverage and live for dupes; it is computed
 from the report's decided ids, never assumed.
+
+**Owner decision, 2026-09-25 (option A on PR #173 P1):** this ticket stays
+presentation-only and does not change the rule. #170's acceptance criterion
+was amended to "never present a proposed copy as retained: when the named copy
+is also proposed in the same report, the explanation says so explicitly". The
+"also proposed" caveat is that statement. The rule-level fix belongs to #174.
 
 ### Model verification and selection
 
@@ -164,7 +181,15 @@ the review path, not the rung, carries that risk. Permitted alternative:
      also show raw slugs.
 - **Soft-protection caveats and loadout caveats** are computed at the report
   layer from the same row facts `ReportDecision` already carries
-  (`protection_level`, `protection_reason`, `in_loadout`), not inside rules.
+  (`protection_level`, `protection_reason`, `locked`, `in_loadout`), not
+  inside rules. The locked caveat reads the row's own `locked` flag, not
+  `protection_reason`. `rails.protection` returns only the first soft
+  reason, and Exotic precedes Locked
+  ([rails.py:52-55](../src/vault_cleaner/rules/rails.py#L52-L55)), so a locked
+  Exotic reports `exotic` (PR #173 review finding P2).
+- **#174 is not a dependency.** If #174 lands first, the "also proposed"
+  caveat simply stops occurring for dupes. Its test in this plan builds the
+  case directly through `_decision_records`, so it stays valid either way.
 - **No dependency on #171 or #172.** #172 (Child 5) depends on this ticket and
   adds its own reasons through the builders defined here. #171 designs the
   future page around this structure.
@@ -227,7 +252,7 @@ Constants and builders (names are binding; bodies are the implementer's):
 - `coverage_dominated(*, n: int, m: int, keep_instead: str)`
 - `coverage_uncovered(*, m: int, keep_instead: str)`
 - `with_context(explanation, *, action, protection_level, protection_reason,
-  in_loadout, partner_also_proposed) -> ProposalExplanation`, which returns a
+  locked, in_loadout, partner_also_proposed) -> ProposalExplanation`, which returns a
   copy with the context caveats appended after the rule's own caveats.
 
 **Verbatim copy.** `{…}` marks substituted values; nothing else varies.
@@ -269,7 +294,7 @@ Context caveats, appended by `with_context` in this order, each only when its
 condition holds:
 1. `action == "review"`: `Review only: approving adds a note in DIM and leaves its tag unchanged.`
 2. `protection_level == "soft"` and `protection_reason == "exotic"`: `Exotic, so never tagged junk automatically.`
-3. `protection_level == "soft"` and `protection_reason == "locked"`: `Locked in game: unlock it before dismantling.`
+3. `locked` (the row's own flag, independent of `protection_reason`, so a locked Exotic gets caveats 2 and 3): `Locked in game: unlock it before dismantling.`
 4. `in_loadout`: `In a DIM loadout: dismantling it breaks that loadout.`
 5. `partner_also_proposed`: `The copy suggested to keep is also proposed in this report. Decide on both together.`
 
@@ -316,6 +341,7 @@ counts stay unchanged.
   decision with `decision.explanation is not None`, set
   `explanation=with_context(decision.explanation, action=decision.action,
   protection_level=level, protection_reason=protection_reason,
+  locked=<the same expression used for locked>,
   in_loadout=<the same expression used for in_loadout>,
   partner_also_proposed=bool(decision.kept_id) and str(decision.kept_id) != str(decision.id) and str(decision.kept_id) in decided_ids)`.
   Decisions without an explanation keep `None`.
@@ -393,9 +419,10 @@ No inline `style` attributes (CSP `style-src 'self'`).
   `dupe-lower` dimensions, tie, unknown winner → `ValueError`, wishlist
   whole-item and roll with and without sources, `pve_only`, uncovered `m == 1`
   and `m == 3`, dominated.
-- `with_context`: each caveat alone, all five together in the fixed order, and
-  none for a junk, unprotected, non-loadout decision without a proposed
-  partner.
+- `with_context`: each caveat alone, all five together in the fixed order,
+  `protection_reason="exotic"` with `locked=True` yielding caveats 2 then 3,
+  and none for a junk, unprotected, unlocked, non-loadout decision without a
+  proposed partner.
 - `weapon_keep_reference`: Vault vs character owner, empty owner, crafted with
   and without level, non-crafted with a stale level (omitted), and hostile
   values (control characters, a `#vc-` marker, and a 200-character name) that
@@ -419,7 +446,9 @@ Schema 3 and the golden rename. Add: every weapons-section decision in the
 golden has a non-null explanation, and every armor or ghost decision has
 `null`. Add a `_decision_records` test in which a decision's `kept_id` is
 itself decided, asserting the "also proposed" caveat, and a
-soft-locked, in-loadout review decision asserting caveats 1, 3 and 4 in order.
+soft-locked, in-loadout review decision asserting caveats 1, 3 and 4 in order,
+and a locked Exotic review decision (real rows through `rails.protection`,
+which reports `exotic`) asserting caveats 1, 2 and 3 in order.
 
 #### [MODIFY] [test_review_ui_js.py](../tests/test_review_ui_js.py) and [test_server_ui_js.py](../tests/test_server_ui_js.py)
 
@@ -558,7 +587,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] Every production hunk passes the mechanical inclusion test; no `#vc-` clause, recognizer, `reason_slug`, rail, ranking or partner-selection line changed.
 - [ ] The rename-aware golden diff shows only `schema_version: 3` and added `explanation` members; the fingerprint is unchanged, and `RULESET_VERSION` is still 5.
 - [ ] Every string in `explanation.py` matches the plan verbatim, pinned by exact-equality tests. The label/slug agreement test runs real rules for all six slugs.
-- [ ] Caveat order and conditions match the plan; the "also proposed" test uses a real decided `kept_id`.
+- [ ] Caveat order and conditions match the plan; the locked caveat reads the `locked` flag, and a locked Exotic gets both caveats 2 and 3; the "also proposed" test uses a real decided `kept_id`.
 - [ ] Wishlist attribution works with and without evidence, and `pve_only` is false when any matching entry is not exactly PvE.
 - [ ] UI builds every explanation node via `el`/`textContent`; the hostile explanation test covers every field and a caveat.
 - [ ] `groupLabel` is byte-identical for armor and ghost groups; Reason filter values are still slugs.

@@ -44,6 +44,31 @@ Planned #170 on `handoff/issue-170-implementation-plan` from `main` at
   - Approving a *review* proposal writes its note but leaves the DIM tag
     unchanged. The review-only caveat says exactly that.
 
+### Review-fix round 1 (PR #173)
+
+Owner review raised two findings; both were accepted.
+
+- **P1, a "keep instead" copy can itself be proposed.** Reproduced on
+  `c64f703` with the `tests/test_weapons_rules.py` helpers. A locked copy
+  matching a trash roll wins the dupe pass on masterwork tier, and the other
+  copy, which escapes the trash rule through a keep perk in a post-tracker
+  cell, is junked with `keep` naming it. That corrects the planning entry
+  above: this happens in practice, not just "in principle". The plan had
+  quietly replaced #170's "resolve to a retained copy" criterion with a
+  caveat. The owner chose option A: #170 stays presentation-only, and its
+  acceptance criterion was amended on the issue to "never present a proposed
+  copy as retained; say so explicitly". The rule fix is filed as #174 (bug,
+  M2 — Weapon dupes, sub-issue of #140, `Todo`). #174 records the
+  `RULESET_VERSION` sequencing question against #172. The plan now carries the
+  reproduction and the owner decision.
+- **P2, locked Exotics lost the unlock caveat.** `rails.protection` returns
+  only the first soft reason, and Exotic precedes Locked, so
+  `protection_reason == "locked"` never fires for a locked Exotic. The locked
+  caveat now reads the row's `locked` flag, `with_context` takes `locked`, and
+  unit and report-level tests cover a locked Exotic receiving the exotic and
+  locked caveats in order.
+- No product code, tests, schemas, rules or versions changed.
+
 ## 2026-09-25 — #136 PR #169 review fixes and conflict resolution
 
 Updated branch `docs/issue-136-design-contract` after owner review. Refs #136.
