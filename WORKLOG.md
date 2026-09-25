@@ -3,6 +3,25 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-25 — #136 PR #169 review fixes and conflict resolution
+
+Updated branch `docs/issue-136-design-contract` after owner review. Refs #136.
+
+- Merged current `main` and resolved the `WORKLOG.md` conflict by preserving the
+  complete, later #34 implementation entry above the original #136 entry and
+  retaining the earlier #34 planning history below it.
+- Rechecked the design contract against the owner-supplied Next.js archive and
+  qualified the dark-only finding: the page and token palette are dark-only,
+  while `app/layout.tsx` advertises both colour schemes in shell metadata.
+- Confirmed that the unused shadcn `Button` contains `dark:` variants, while the
+  design-bearing page and global stylesheet do not use the declared variant.
+- Kept the prototype archive out of the repository; it was reference material
+  only and includes sample item ids that must not be committed.
+- Verification after the merge resolution: `ruff check src tests scripts`
+  passed; the full pytest suite passed (`1068 passed`); staged and unstaged
+  `git diff --check` passed; no path under `data/` is tracked; and the changed
+  documentation passed the byte-level invisible-character scan.
+
 ## 2026-09-20 — #34 implementation: same-Hash useful-combination coverage for weapons
 
 Implemented Child 4 of #140 on branch `feat/issue-34-coverage-review` from
@@ -88,6 +107,78 @@ Addressed reviewer findings on PR #168 regarding uncovered partner label accurac
 - **Migration term retained in note_history:** Retained `most combinations` alongside `most curated matches` in the `_GENERATED_CLAUSE_RES` recognizer alternation in `src/vault_cleaner/note_history.py` as a migration term. Notes persist in user DIM exports across tool runs; retaining the legacy term ensures that any notes written by interim runs of this branch continue to be stripped and replaced on subsequent passes rather than accumulating duplicate tool clauses.
 - **Heading restored (Finding 2 repair):** Restored the `## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)` heading above the planning entry prose, repairing an unreported collateral deletion from the previous review-fix round, and collapsed the doubled blank line.
 - **Real-export measurement:** Confirmed aggregate counts remain unchanged at 30 dominated / 50 uncovered / 339 compared copies (presentation-only label update).
+
+## 2026-09-20 — #136 review UI design contract (direct docs PR)
+
+Captured the Next.js review prototype as a durable, framework-neutral design
+contract on branch `docs/issue-136-design-contract`. Model `claude-sonnet-5`.
+Refs #136. **The durable reference is
+[`docs/review-ui-design-contract.md`](docs/review-ui-design-contract.md).**
+
+- **Route (owner, 2026-09-20).** The owner explicitly authorised the direct
+  single-PR route for this documentation ticket, per `handoffs/README.md`. That
+  authorises the route only; opening and merging the PR are separate actions.
+- **Design-contract decision.** The prototype is the target for *how the UI
+  looks and is composed*; production Python/server contracts, M9 semantics,
+  #131/#113/#119 and the AGENTS.md/PLAN.md security rules win for *what things
+  mean, do and expose*. The four-level precedence is recorded verbatim in the
+  document so a future agent cannot treat prototype state as server authority.
+- **Scope.** Documentation only. No production renderer, server, report,
+  snapshot, schema, rules, lifecycle, auth, persistence, revision, verdict or
+  finalisation change; no dependency added. Runtime stays pandas and Flask. No
+  Next build output, `node_modules`, or archive is committed.
+- **What the prototype turned out to be.** Two files carry the rendered design
+  (`app/page.tsx`, `app/globals.css`); the shadcn `Button` is never used by the
+  page. Everything data-like is sample content: two hard-coded groups, the
+  407/88/319/71 counts, the fingerprint, index-based "Preferred survivor",
+  simulated lifecycle notices, and a class/slot filter set. Section 3 of the
+  document is the full register.
+- **Surprises the next agent should know.**
+  - The prototype's rendered palette is **dark only**; it has no light token
+    set. Its shell metadata nevertheless advertises `light dark`, white/black
+    theme colours and scheme-specific favicons. The light theme is an open
+    decision, not a carried-over fact.
+  - Its stat-bar widths are inline `style` attributes, which the server's
+    `style-src 'self'` CSP silently drops (the same failure #131 fixed).
+  - It has no `aria-pressed`, no labels on the filter controls, no focus style on
+    the hidden-input upload card, and an emerald status line that would show an
+    error as success. Delivered production semantics are the floor.
+  - Its grids are written for exactly two and three members; production's matrix
+    already switches orientation by container width for 2 to 6 members.
+  - It renders Vercel Analytics in production builds, which cannot ship: the
+    durable rule is no analytics, telemetry or remote UI resources. The only
+    outbound traffic the product permits is the documented static game-content
+    download (wishlists and the public Bungie manifest), which `--no-wishlists`
+    turns off.
+  - Its sample ids and hashes are in the real 19-digit format. None were copied;
+    the document uses synthetic opaque strings only.
+  - `PLAN.md` has no M10 section although this ticket is titled as M10. Adding it
+    was out of scope and is listed as an open question.
+- **Not decided here (by design).** The Jinja rendering route and fragment
+  architecture, light-theme values, chips versus segmented control, hue per
+  stat role, and session-action placement. Section 10 records a candidate
+  component-to-partial mapping plus the constraints the M10 spike must respect;
+  section 12 lists the open questions.
+- **Verification, stated precisely.** The first draft checked that each cited
+  symbol, selector, CSP value and file *exists*; that did not verify the
+  behavioural claims made about them. Review found two such claims wrong (the
+  wheel check does not cover new templates or assets, and read-only exact-group
+  members do not always show a current verdict), and a full re-audit of every
+  behavioural claim against the source then found and corrected more: the
+  finalised-state action set, the CSP's image and font blocking, the scope of
+  the id-precision warning, the "no outbound request" wording, and a "verdicts
+  do not tag anything" line. It also added two delivered controls the prototype
+  has no design for (bulk verdicts, stale-state handling). Earlier first-draft
+  corrections: the matrix column range is 2 to 6 members, and the prototype
+  renders sixteen icons, not twenty. Checks run: `git diff --check`, a
+  byte-level scan for invisible characters, `ruff check`, and the full pytest
+  suite (all unchanged by this documentation-only diff).
+- **No test added (rationale).** This is a documentation-only change. The suite
+  has no precedent for testing prose, the claims are about the code's behaviour
+  and are validated by reading it, and `AGENTS.md` already records that green
+  tests do not validate doc citations. A test would pin sentences, not
+  behaviour, and would fail on harmless rewording. The existing suite still runs
+  unchanged and passes.
 
 ## 2026-09-20 — #34 planning: same-Hash useful-combination coverage (PR 1)
 
