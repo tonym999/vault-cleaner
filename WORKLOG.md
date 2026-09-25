@@ -3,6 +3,47 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-25 — #170 planning: plain-English reasons for weapon proposals (PR 1)
+
+Planned #170 on `handoff/issue-170-implementation-plan` from `main` at
+`c64f703`. Planner `claude-opus-5-5`. Refs #170.
+
+- **What landed:** `handoffs/issue-170-implementation-plan.md`. No product
+  code, tests, schemas, rules or versions changed in this PR.
+- **Context:** the owner asked on 2026-09-25 to fix the language the weapons
+  page uses to explain junk suggestions. The same session created #170, #171
+  (weapons page design, under #138) and #172 (#140 Child 5, blocked by #170),
+  and corrected #140's tracking comment.
+- **Decisions made:**
+  - Rules build a structured `ProposalExplanation` (label, why, keep instead,
+    what you give up, caveats) at the six weapon emit sites, from values those
+    sites already compute. The report layer appends context caveats (review
+    only, exotic, locked, in a loadout, keep-copy also proposed). Notes
+    clauses, `reason_slug`, decisions and `RULESET_VERSION` are untouched.
+  - Every user-facing string is fixed verbatim in the plan, including a
+    per-slug label that the grouped headings and the Reason filter show. Filter
+    values stay slugs, and armor/ghost headings stay byte-identical.
+  - Wishlist trash explanations name the matching source(s) and flag PvE-only
+    ratings when evidence is present, which covers #140's attribution
+    requirement without new parsing.
+  - `SNAPSHOT_SCHEMA_VERSION` goes from 2 to 3, and the golden is renamed to
+    `report_snapshot_v3.json`, following #106's precedent. Saved review
+    manifests pinned to schema 2 will be rejected. Durable vetoes and the
+    server session envelope are unaffected.
+  - Implementer `MAI-Code-1.1-Flash` (`n/a — adaptive`), Bounded rung. Review
+    path: independent adversarial review, because the rule modules and
+    snapshot schema change even though decisions must not.
+- **Surprises the next agent should know about:**
+  - The review UI's reason text is re-parsed from the Notes clause
+    (`report_run.py:309`), so every UI wording problem traced back to DIM-facing
+    note syntax. Separating the two was the whole design.
+  - A dupe survivor can in principle also carry a soft wishlist-trash review
+    decision (soft trash stays in the dupe pool), so "keep instead" is not
+    guaranteed retained. The plan adds a report-level caveat rather than
+    changing rules. Coverage partners provably cannot be dominated.
+  - Approving a *review* proposal writes its note but leaves the DIM tag
+    unchanged. The review-only caveat says exactly that.
+
 ## 2026-09-25 — #136 PR #169 review fixes and conflict resolution
 
 Updated branch `docs/issue-136-design-contract` after owner review. Refs #136.
