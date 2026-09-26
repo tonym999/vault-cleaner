@@ -67,6 +67,38 @@ Refs #171.
   code behaviour and are validated by reading it, and a prose test would pin
   sentences rather than behaviour.
 
+### Review-fix round 1 (PR #176)
+
+Owner review raised three findings and CodeRabbit two. All five were verified
+against the code and accepted.
+
+- **P1, source chips need data.** The row design's wishlist-source chips had no
+  structured source behind them: #170 puts sources only in the `why` prose, and
+  the snapshot's `wishlists` list is run-level. The chips are now a third
+  "needs snapshot data" row in 5.13.0 and are omitted until that data exists.
+- **P1, perk comparison identity.** Comparing raw `Perks N` cells would include
+  tracker, mod and masterwork cells and `*` markers, contradicting "an exact
+  duplicate never shows a perk row". 5.13.8.1 now requires Python to project
+  both tuples from `_exact_roll_prefix_parts` (normalized for comparison,
+  aligned display names for the labels) and to show "cannot be compared" when
+  either copy has no proven prefix.
+- **P2, copy button.** The prototype's icon-only copy control had been carried
+  in silently, against #150's exclusion of clipboard writes. **Owner decision
+  (2026-09-26):** generated DIM searches get one user-initiated Copy button per
+  chunk, for weapon proposals and for armor groups in both modes. That
+  behaviour was filed as
+  [#177](https://github.com/tonym999/vault-cleaner/issues/177) (enhancement,
+  M9 — Duplicate Review UX, project `Todo`; creating the issue was separately
+  authorised). #177 is its source of truth and amends #150 for click-initiated
+  copies only. 5.12, 5.13.5, the section 3 illustrative list and the inventory
+  now point to it.
+- **Minor, DIM scope wording.** The paraphrase of production's warning had
+  dropped "unless the current filters exclude them". It is restored, and the
+  scope line now names Action and Session verdict among the filters.
+- **Minor, capacity timing.** Open question 12 contradicted 5.13.4's "no card
+  until Child 6". Timing is now stated as settled; only the content stays open.
+- No product code, tests, schemas or dependencies changed.
+
 ## 2026-09-26 — #170 implementation: plain-English reasons for weapon proposals (PR 2)
 
 Implemented #170 on `feat/issue-170-proposal-explanations` branched from `main`

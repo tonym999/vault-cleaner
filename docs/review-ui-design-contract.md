@@ -140,8 +140,9 @@ More facts in the same category, found while capturing the design:
   ([5.13](#513-proposals-surface)).
 - **The #171 extension's data and behaviour.** Its ten sample proposals, their
   names, ids, hashes, perks, sources, counts and verdicts; the order of its
-  groups; its instant single and bulk verdicts; the "1 chunk" line; the copy
-  button that copies nothing; the URL parameters (`tab`, `view`, `expand`,
+  groups; its instant single and bulk verdicts; the "1 chunk" line; the single
+  icon-only copy button, which copies nothing and is superseded by per-chunk
+  Copy buttons ([5.13.5](#5135-dim-search-panel)); the URL parameters (`tab`, `view`, `expand`,
   `action`, `annotate`); and the "needs snapshot fields" annotations. None is a
   requirement. Group order, counts, chunking and verdict state are the server's
   ([5.13.3](#5133-scope-line-and-bulk-verdicts),
@@ -547,8 +548,10 @@ tokens and banner rules apply when either is restyled.
 - **DIM search text.** Visible, copy-able DIM `id:` search text for armor groups
   (#117) and for filtered weapon proposals (#150). The weapon-proposal search
   and the static loadout searches are designed in
-  [5.13.5](#5135-dim-search-panel). The armor-group search has no design and
-  stays as delivered.
+  [5.13.5](#5135-dim-search-panel). The armor-group search has no visual design and
+  stays as delivered, except that
+  [#177](https://github.com/tonym999/vault-cleaner/issues/177) adds a per-chunk
+  Copy button to it.
 - **Bulk verdicts.** The Proposals surface has **Approve all shown**, **Veto all
   shown** and **Unset all shown**, which act on the currently filtered proposals
   through the same acknowledged mutation path as a single verdict. Designed in
@@ -571,8 +574,9 @@ anatomy without it ([5.13.11](#51311-armor-and-ghost-rows)).
 
 #### 5.13.0 What data each part needs
 
-The design is not all presentation. Two panels need data the snapshot does not
-carry today, and a planner must treat them as schema work in a separate ticket.
+The design is not all presentation. Two panels and the source chips need data
+the snapshot does not carry today, and a planner must treat them as schema work
+in a separate ticket.
 
 | Part | Data source | Status |
 | --- | --- | --- |
@@ -580,14 +584,16 @@ carry today, and a planner must treat them as schema work in a separate ticket.
 | Action, protection, locked, equipped, in loadout, location, class, Tuning Mod Slot | Existing decision fields read by `itemsFromSnapshot` | Available |
 | "Keep copy also proposed" chip | #170's `partner_also_proposed` caveat; equivalently, `kept_id` has its own decision in the snapshot | Available |
 | "That copy is not proposed" line and "Go to copy" link | `kept_id` and whether it has its own decision | Available |
-| Comparison with the copy to keep ([5.13.8.1](#51381-comparison-with-the-copy-to-keep)) | Per-copy perks, tier, masterwork tier, crafted level, curated-match count and location for *both* copies | **Not in the snapshot.** Only `kept_id` and #170's prose `keep_instead` exist |
+| Wishlist-source chips on the row ([5.13.7](#5137-proposal-row)) | Structured per-decision source keys | **Not in the snapshot.** #170 puts source names only inside the `why` sentence; the snapshot's `wishlists` list names the run's configured sources, not a decision's |
+| Comparison with the copy to keep ([5.13.8.1](#51381-comparison-with-the-copy-to-keep)) | For *both* copies: the authoritative exact-roll perk identity projected by Python (see 5.13.8.1), tier, masterwork tier, crafted level, curated-match count and location | **Not in the snapshot.** Only `kept_id` and #170's prose `keep_instead` exist |
 | Wishlist evidence panel ([5.13.9](#5139-wishlist-evidence)) | `WishlistEntry` fields in `wishlist.py`: `source`, `family`, `polarity`, `tier`, `tier_status`, `activities`, `activity_basis` | **Not in the snapshot.** #170 renders only source names, inside the `why` sentence |
 | Capacity progress ([5.13.4](#5134-capacity-progress-slot)) | #140 Child 6 | Slot only; no issue exists yet |
 | Reserved reasons ([5.13.10](#51310-reserved-reason-slots)) | #140 Child 5, [#172](https://github.com/tonym999/vault-cleaner/issues/172) | Slot only |
 
 Until the missing data exists, an implementation shows the available parts and
-omits the comparison and evidence panels. It must not reconstruct them in the
-browser, for example by parsing `keep_instead` prose.
+omits the source chips and the comparison and evidence panels. It must not
+reconstruct any of them in the browser, for example by parsing the `why` or
+`keep_instead` prose, or by reading raw `Perks N` export cells.
 
 #### 5.13.1 Page order and the surface switch
 
@@ -687,22 +693,36 @@ defines its content.
 
 **Intent.** A card with a disclosure button, **"DIM search for the N shown
 weapon proposals"**, and a muted line at the far end stating how many chunks the
-search needs. Expanded, it shows the search text in a bordered monospace block
-that wraps anywhere, an icon-only copy button with an accessible name, and a
+search needs. Expanded, it shows each chunk of the search text in a bordered
+monospace block that wraps anywhere, a **Copy** button for each chunk, and a
 **"Loadout searches"** list of the three static DIM searches, each with its
 meaning.
+
+**Decision (owner, 2026-09-26): per-chunk Copy buttons.** Every chunk of every
+generated DIM search gets its own user-initiated Copy button: the weapon
+proposals search here, and each armor duplicate group's search in both modes.
+The behaviour, including accessible names with chunk position, the #148-style
+fallback that selects the chunk, a polite status, zero clipboard calls on
+render or filter, and no side effects, is owned by
+[#177](https://github.com/tonym999/vault-cleaner/issues/177). That issue
+explicitly amends #150's exclusion of clipboard writes for user-initiated copies
+only. The prototype's single icon-only button does not carry over: with several
+chunks it would be ambiguous.
 
 **Production semantics that stay** (the "Cross-check in DIM" panel,
 `review_server.js`):
 
-- The weapon search covers exactly the weapon proposals matching the current
-  filters, split into chunks of at most `DIM_QUERY_SAVEABLE_MAX` (2048)
-  characters with a split notice. Every chunk stays visible and selectable.
+- The weapon search covers exactly the weapon proposals matching **all** current
+  filters, including Action and Session verdict, split into chunks of at most
+  `DIM_QUERY_SAVEABLE_MAX` (2048) characters with a split notice. Every chunk
+  stays a visible, labelled, read-only `<textarea>`.
 - The copy that stays verbatim: the count line, the empty message ("No weapon
   proposals match the current filters."), the error message, the warning that
-  the search **includes junk and review, any verdict, and saved-veto-suppressed
-  items, so it is not an approved-junk list**, and the sentence that rendering
-  or selecting the text changes nothing. The prototype omits the warning and
+  the search **includes every matching proposal, junk and review, any session
+  verdict, and items still suppressed by an active saved veto, unless the
+  current filters exclude them, so it is not an approved-junk list**, and the
+  sentence that rendering or selecting the text changes nothing. Copying a chunk
+  (#177) keeps that sentence true. The prototype omits the warning and
   side-effect sentences; they stay.
 - The three static loadout searches keep their labels and queries, and each has
   a read-only field and a named Copy button. Loadout membership is never written
@@ -746,7 +766,9 @@ list separated by hairlines.
    full instance id in small monospace, then a muted "type · location" line.
 2. **Reason.** A wrapping line of chips: the **action badge** first, then flag
    chips for protection (`{level} protection — {reason}`), locked, in loadout,
-   the wishlist source(s), and Tuning Mod Slot for armor. Below that are the
+   the wishlist source(s) (only once structured source data exists; see
+   [5.13.0](#5130-what-data-each-part-needs)), and Tuning Mod Slot for armor.
+   Below that are the
    reason label (14px, medium) and the `why` sentence (12px, muted).
 3. **Verdict.** Approve, Veto and Unset buttons, with "Verdict: {text}" beneath,
    right-aligned from the large breakpoint.
@@ -830,11 +852,22 @@ level, Curated wishlist matches and Location.
 - Only **differing** axes get a row, with the axis name emphasised in the
   primary colour. Identical axes are summarised in one muted line: "Same on
   both: …".
-- In the Perk roll row, perks are small bordered cells in column order. A cell
-  that differs from the other copy's cell in the same position is highlighted
-  with a primary tint, primary border and medium weight, so it is not shown by
-  colour alone. For an exact duplicate the roll is identical by definition, so
-  that row never appears.
+- **Perk identity comes from Python, never from raw export cells.** For each
+  copy, Python projects the proven exact-roll prefix that duplicate grouping
+  uses (`_exact_roll_prefix_parts` in `rules/dupes.py`): the normalized tuple
+  behind `exact_roll_fingerprint`, and the positionally aligned display names
+  behind `exact_roll_display_prefix`. Cells at and after the first measured
+  tracker boundary (tracker, current socket, mod, masterwork and memento cells)
+  are excluded, and selected `*` markers are normalized away. The browser
+  compares the **normalized** values position by position and shows the
+  **display** names. If either copy has no proven prefix, the row says the rolls
+  cannot be compared and shows no perk cells.
+- In the Perk roll row, perks are small bordered cells in prefix order. A cell
+  whose normalized value differs from the other copy's in the same position is
+  highlighted with a primary tint, primary border and medium weight, so it is
+  not shown by colour alone. For an exact duplicate the normalized prefixes are
+  equal by definition, so that row never appears. The prototype's four sample
+  perk cells per copy are illustrative.
 - **Narrow containers:** below the small breakpoint each differing axis becomes
   its own bordered block ("This copy: …", "Keep instead: …"). The page never
   scrolls sideways. This follows production's container-width orientation rule
@@ -937,6 +970,7 @@ Every control on the delivered Proposals surface, and where it lands:
 | Detail definitions (why, keep instead, give up, caveats, note, tag, surviving copy, protection, existing tag and notes, flags, hash) | Designed (5.13.8); none removed |
 | Armor evaluation detail | **Unchanged** |
 | Weapon DIM search: count, chunks, warning, side-effect text, empty and error messages | Designed (5.13.5); copy unchanged |
+| Copy control on generated DIM search chunks | **New:** one Copy button per chunk (5.13.5), owned by #177; also on armor-group searches |
 | Static loadout DIM searches and Copy buttons | Designed (5.13.5); labels and queries unchanged |
 | Report tiles, fingerprint, overrides, reconciliation, session note | **Unchanged** ([5.3](#53-report-metric-cards-and-copy-hierarchy)) |
 | Session actions, uploads, status line | **Unchanged** ([5.1](#51-page-shell-header-and-status), [5.2](#52-upload-cards-and-session-actions)) |
@@ -1155,11 +1189,12 @@ Recorded, not decided. None blocks this ticket.
 
 Added by #171:
 
-7. **Snapshot data for the comparison and evidence panels.** Which fields carry
-   each copy's perks, tier, masterwork tier, crafted level, curated-match count
-   and location, and each proposal's `WishlistEntry` evidence? That is a
-   snapshot schema change for its own ticket
-   ([5.13.0](#5130-what-data-each-part-needs)).
+7. **Snapshot data for the source chips, comparison and evidence panels.**
+   Which fields carry each decision's structured wishlist source keys, each
+   copy's Python-projected exact-roll identity (normalized and display) plus
+   tier, masterwork tier, crafted level, curated-match count and location, and
+   each proposal's `WishlistEntry` evidence? That is a snapshot schema change
+   for its own ticket ([5.13.0](#5130-what-data-each-part-needs)).
 8. **"Go to copy" when the target is hidden.** If the current filters hide the
    copy to keep, or it sits in another group, does the link reset filters,
    expand the target, or say that it is filtered out?
@@ -1169,6 +1204,6 @@ Added by #171:
     use the grouped view's chip?
 11. **Reserved reasons.** Label, copy, action and order for the two #172 cases
     ([5.13.10](#51310-reserved-reason-slots)).
-12. **Capacity progress content.** What each of the four cells counts, and
-    whether the card shows before #140 Child 6 lands
+12. **Capacity progress content.** What each of the four cells counts. Timing
+    is settled: no capacity card ships until #140 Child 6 defines its content
     ([5.13.4](#5134-capacity-progress-slot)).
