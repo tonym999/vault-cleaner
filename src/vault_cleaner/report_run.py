@@ -11,6 +11,7 @@ import pandas as pd
 
 from vault_cleaner.config import ConfigError, load_config
 from vault_cleaner.duplicate_reference import tuning_mod_slot
+from vault_cleaner.explanation import ProposalExplanation, with_context
 from vault_cleaner.export_discovery import (
     EXPORT_FILENAMES,
     MissingExportError,
@@ -36,10 +37,11 @@ from vault_cleaner.rules.armor_close import ArmorSameStatGroup
 from vault_cleaner.rules.armor_dupes import ArmorExactDuplicateGroup
 from vault_cleaner.rules.dupes import Decision
 
-SNAPSHOT_SCHEMA_VERSION = 2
+SNAPSHOT_SCHEMA_VERSION = 3
 # Snapshot schema changes are independent of rule decision semantics and do
 # not change RULESET_VERSION; saved review manifests nevertheless pin and
-# reject mismatched schemas. Ruleset v5 adds the review-only weapon coverage pass.
+# reject mismatched schemas. Schema 3 adds the presentation-only per-decision
+# explanation. Ruleset v5 adds the review-only weapon coverage pass.
 RULESET_VERSION = 5
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
@@ -100,6 +102,7 @@ class ReportDecision:
     in_loadout: bool
     candidate_tuning_mod_slot: str | None = None
     selected_tuning_mod_slot: str | None = None
+    explanation: ProposalExplanation | None = None
 
     def import_row(self) -> dict[str, str]:
         return {
@@ -263,6 +266,7 @@ def _decision_records(
     crafted_level_protect: int,
 ) -> tuple[ReportDecision, ...]:
     rows = {str(row["Id"]): row for _, row in items.iterrows()}
+    decided_ids = {str(d.id) for d in decisions}
     records = []
     for decision in decisions:
         row = rows[str(decision.id)]
@@ -294,6 +298,22 @@ def _decision_records(
             level, protection_reason = rails.protection(
                 row, crafted_level_protect
             )
+        locked = rails.is_true(row.get("Locked", ""))
+        equipped = rails.is_true(row.get("Equipped", ""))
+        in_loadout = bool(str(row.get("Loadouts", "")).strip())
+        explanation = None
+        if decision.explanation is not None:
+            explanation = with_context(
+                decision.explanation,
+                action=decision.action,
+                protection_level=level,
+                protection_reason=protection_reason,
+                locked=locked,
+                in_loadout=in_loadout,
+                partner_also_proposed=bool(decision.kept_id)
+                and str(decision.kept_id) != str(decision.id)
+                and str(decision.kept_id) in decided_ids,
+            )
         records.append(
             ReportDecision(
                 id=str(decision.id),
@@ -311,11 +331,12 @@ def _decision_records(
                 original_notes=str(row["Notes"]),
                 protection_level=level,
                 protection_reason=protection_reason,
-                locked=rails.is_true(row.get("Locked", "")),
-                equipped=rails.is_true(row.get("Equipped", "")),
-                in_loadout=bool(str(row.get("Loadouts", "")).strip()),
+                locked=locked,
+                equipped=equipped,
+                in_loadout=in_loadout,
                 candidate_tuning_mod_slot=candidate_tuning,
                 selected_tuning_mod_slot=selected_tuning,
+                explanation=explanation,
             )
         )
     return tuple(records)
@@ -415,10 +436,18 @@ def snapshot_dict(run: ReportRun) -> dict:
     """Return the stable, JSON-safe schema consumed by later M7 tickets."""
     sections = []
     for section in run.sections:
+        decisions = []
+        for decision in section.decisions:
+            record = asdict(decision)
+            if record["explanation"] is not None:
+                record["explanation"]["caveats"] = list(
+                    record["explanation"]["caveats"]
+                )
+            decisions.append(record)
         section_data = {
             "kind": section.kind,
             "source": _snapshot_source(section.source),
-            "decisions": [asdict(decision) for decision in section.decisions],
+            "decisions": decisions,
         }
         if section.armor is not None:
             section_data["armor"] = {

@@ -1231,6 +1231,23 @@ def test_weapon_loadout_visibility_and_crosscheck_panel(
     expect(row_7006).to_be_visible()
     expect(row_7006.locator(".badge.loadout")).to_have_count(0)
 
+    # Proposal Reason cell shows explanation label and why line
+    expect(row_7004.locator("td.reason-cell .reason-label")).to_have_text(
+        "Duplicate roll, ranked lower"
+    )
+    expect(row_7004.locator("td.reason-cell .reason-why")).to_have_text(
+        "You own another copy with the same perk roll and a higher masterwork tier."
+    )
+
+    # Expanding the row shows why suggested, keep instead, and what you give up
+    row_7004.locator("td.namecell button").click()
+    detail_7004 = page.locator("#vc-detail-7004")
+    expect(detail_7004).to_be_visible()
+    expect(detail_7004).to_contain_text("why suggested")
+    expect(detail_7004).to_contain_text("keep instead")
+    expect(detail_7004).to_contain_text("what you give up")
+    row_7004.locator("td.namecell button").click()
+
     # All 5 proposals visible initially
     proposal_rows = page.locator("#vc-list tbody tr[data-id]")
     expect(proposal_rows).to_have_count(5)

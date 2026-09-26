@@ -21,6 +21,11 @@ from dataclasses import dataclass
 import pandas as pd
 
 from vault_cleaner.duplicate_reference import weapon_reference
+from vault_cleaner.explanation import (
+    coverage_dominated,
+    coverage_uncovered,
+    weapon_keep_reference,
+)
 from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.dupes import (
@@ -207,6 +212,16 @@ def analyse(
                     )
                     n = len(a["matched"])
                     m = len(best_b["matched"])
+                    keep_ref = weapon_keep_reference(
+                        best_b["row"],
+                        exact_roll_display_prefix(best_b["row"]),
+                        distinguish_from=partner_group_ids,
+                    )
+                    expl = coverage_dominated(
+                        n=n,
+                        m=m,
+                        keep_instead=keep_ref,
+                    )
                     hashtag = (
                         f"#vc-review: coverage-dominated by; compare {ref}; "
                         f"curated matches {n} vs {m}; partner {partner_reason}"
@@ -223,6 +238,7 @@ def analyse(
                             tag=str(a["row"]["Tag"]),
                             note=note,
                             kept_id=best_b["id"],
+                            explanation=expl,
                         )
                     )
                     dominated_count += 1
@@ -251,6 +267,15 @@ def analyse(
                         distinguish_from=partner_group_ids,
                     )
                     m = len(best_b["matched"])
+                    keep_ref = weapon_keep_reference(
+                        best_b["row"],
+                        exact_roll_display_prefix(best_b["row"]),
+                        distinguish_from=partner_group_ids,
+                    )
+                    expl = coverage_uncovered(
+                        m=m,
+                        keep_instead=keep_ref,
+                    )
                     hashtag = (
                         f"#vc-review: coverage-uncovered vs; compare {ref}; "
                         f"curated matches 0 vs {m}; partner {partner_reason}"
@@ -267,6 +292,7 @@ def analyse(
                             tag=str(a["row"]["Tag"]),
                             note=note,
                             kept_id=best_b["id"],
+                            explanation=expl,
                         )
                     )
                     uncovered_count += 1

@@ -24,6 +24,21 @@ def test_best_copy_survives_and_lower_plain_copy_is_junked():
     assert d["3002"].action == "junk"
     assert d["3002"].tag == "junk"
     assert d["3002"].kept_id == "3001"
+    assert d["3002"].explanation is not None
+    assert d["3002"].explanation.label == "Duplicate roll, ranked lower"
+    assert (
+        d["3002"].explanation.why
+        == "You own another copy with the same perk roll and a higher masterwork tier."
+    )
+    assert (
+        d["3002"].explanation.keep_instead
+        == "copy 3001 in the Vault, Tier 5, masterwork tier 10, roll Mag B / Trait A"
+    )
+    assert d["3002"].explanation.gives_up == (
+        "Nothing in the perk roll. Kill trackers, mods and mementos"
+        " are not compared."
+    )
+    assert d["3002"].explanation.caveats == ()
 
 
 def test_junk_note_appends_to_existing_notes():
@@ -70,6 +85,17 @@ def test_locked_dupe_is_review_not_junk():
     assert d["3003"].action == "review"
     assert d["3003"].tag == ""  # existing (empty) tag preserved
     assert "#vc-review: dupe-lower (locked); keep [id 3001" in d["3003"].note
+    assert d["3003"].explanation is not None
+    assert d["3003"].explanation.label == "Duplicate roll, ranked lower"
+    assert (
+        d["3003"].explanation.why
+        == "You own another copy with the same perk roll and a higher masterwork tier."
+    )
+    assert (
+        d["3003"].explanation.keep_instead
+        == "copy 3001 in the Vault, Tier 5, masterwork tier 10, roll Mag B / Trait A"
+    )
+    assert d["3003"].explanation.caveats == ()
 
 
 def test_hard_protected_copies_get_no_row():

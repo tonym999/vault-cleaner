@@ -3,6 +3,74 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-26 — #170 implementation: plain-English reasons for weapon proposals (PR 2)
+
+Implemented #170 on `feat/issue-170-proposal-explanations` branched from `main`
+at base SHA `fdedc691dde6bd022faf831e841529a1a60214e0`. Refs #170.
+
+- **Dispatch record:** orchestrator claude-opus-5-5 (effort not exposed by
+  runtime); plan-selected implementer MAI-Code-1.1-Flash (n/a — adaptive);
+  actual implementer gemini-3.8-flash (high), operator re-selection after
+  MAI looped on context limits; off-ladder, recorded.
+- **What landed:**
+  - `src/vault_cleaner/explanation.py`: defines `ProposalExplanation` dataclass
+    (frozen), canonical `LABELS` mapping for weapon reason slugs,
+    `weapon_keep_reference` helper using `safe_fragment`, builders for all 6
+    weapon emit passes (`dupe`, `wishlist_trash`, `coverage_dominated`,
+    `coverage_uncovered`), and `with_context` for appending report-level
+    caveats in canonical order (review-only, exotic soft protection, locked in
+    game, in a loadout, partner copy also proposed for junk/review).
+  - Rule passes (`src/vault_cleaner/rules/dupes.py`, `weapons.py`,
+    `coverage.py`): build and attach structured explanations to weapon
+    `Decision` objects. Decisions, ranking, `#vc-` note clauses, and
+    `RULESET_VERSION` (5) are strictly unchanged.
+  - Report and snapshot (`src/vault_cleaner/report_run.py`): bumped
+    `SNAPSHOT_SCHEMA_VERSION = 3`; `ReportDecision` includes `explanation`;
+    `_decision_records` checks `decided_ids` and applies `with_context`;
+    `snapshot_dict` serializes `caveats` as a JSON-safe list; regenerated
+    golden fixture `tests/fixtures/report_snapshot_v3.json` (renamed from v2).
+  - Review UI (`src/vault_cleaner/ui/`):
+    - `review_ui.js`: `itemsFromSnapshot` validates `explanation` and exposes
+      `reasonLabel`; `groupLabel` and `groupItems` display
+      `ACTION {reasonLabel} [{reason}] ({kind}) — N item(s)` when
+      `reasonLabel !== reason` (weapons) while staying byte-identical for
+      armor and ghosts; `createView` exports `reasonOptions(viewItems, allLabel)`
+      with `{reasonLabel} ({count})` labels and slug values; `detailRow`
+      prepends "why suggested", "keep instead", "what you give up", and
+      caveats list; Reason cell uses `.reason-cell` containing `.reason-label`
+      and `.sub.reason-why`.
+    - `review_server.js`: wires Reason filter dropdown to `view.reasonOptions`.
+    - `review.css`: adds layout and spacing for `.reason-cell .reason-why` and
+      detail list elements.
+  - Tests:
+    - `tests/test_explanation.py`: 13 tests covering builders, caveats,
+      formatting, and slug/label parity across all rule passes.
+    - `tests/test_dupes.py`, `tests/test_weapons_rules.py`, `tests/test_coverage.py`:
+      added assertions for explanations and wishlist PvE evidence.
+    - `tests/test_report_run.py`: updated for snapshot schema v3 and golden test.
+    - `tests/test_review_ui_js.py`: updated `test_grouping_matches_the_terminal_summary_exactly`
+      for explanation-labelled weapon groups; added 4 Node tests covering
+      `itemsFromSnapshot` validation, group label formatting, `reasonOptions`,
+      and hostile explanation rendering as inert text.
+    - `tests/test_server_ui_js.py`: updated `makeUi` stub with `reasonOptions`.
+    - `tests/test_server_browser.py`: added Chromium assertions verifying
+      Reason cell label/why text and expanded detail row definitions.
+- **Decisions made:**
+  - `snapshot_dict` serializes `caveats` as `list` so that the in-memory
+    snapshot equals `json.loads` results directly in Python assertions and
+    HTTP JSON responses without altering the frozen tuple on the dataclass.
+  - The golden diff against `report_snapshot_v2.json` on `main` is strictly
+    confined to `schema_version: 3` and the added `explanation` fields. All
+    hashes, names, fingerprints, and other decision fields are identical.
+- **Surprises the next agent should know about:**
+  - In `test_server_ui_js.py`, a client-side mock `makeUi` provides a mock
+    view object for failure-mode tests; adding `reasonOptions` to that mock
+    resolved browser adapter failure tests.
+  - Python's `dataclasses.asdict` does not coerce tuples to lists, so frozen
+    dataclass fields with tuple types remain tuples after `asdict()`; explicit
+    list conversion in `snapshot_dict` is necessary for structural equality
+    with deserialized JSON.
+
 ## 2026-09-25 — #170 planning: plain-English reasons for weapon proposals (PR 1)
 
 Planned #170 on `handoff/issue-170-implementation-plan` from `main` at

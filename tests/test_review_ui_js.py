@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from test_review import build_report, proposals
 
+from vault_cleaner.explanation import LABELS
 from vault_cleaner.report import summarize
 from vault_cleaner.report_run import run_report, snapshot_json
 from vault_cleaner.review import select_approved_proposals
@@ -1176,10 +1177,17 @@ def test_a_numeric_id_in_a_snapshot_is_refused_not_coerced(tmp_path):
 
 
 def test_grouping_matches_the_terminal_summary_exactly(plain):
-    expected = [
-        line for line in summarize(plain.run.summary_sections()).splitlines()
-        if line.startswith(("JUNK ", "REVIEW "))
-    ]
+    expected = []
+    for line in summarize(plain.run.summary_sections()).splitlines():
+        if not line.startswith(("JUNK ", "REVIEW ")):
+            continue
+        if "(weapons)" in line:
+            prefix, rest = line.split(" ", 1)
+            reason, count_part = rest.split(" (weapons) ", 1)
+            label = LABELS.get(reason, reason)
+            expected.append(f"{prefix} {label} [{reason}] (weapons) {count_part}")
+        else:
+            expected.append(line)
     assert plain.results["groupLabels"] == expected
 
 
@@ -2815,3 +2823,343 @@ process.stdout.write(JSON.stringify({
         "noSideEffectTogglesCount": 0,
         "noSideEffectVerdictsCount": 0,
     }
+
+
+def test_items_from_snapshot_explanation_validation(tmp_path: Path):
+    script = tmp_path / "explanation_validation.js"
+    script.write_text(
+        r'''
+var api = require(process.argv[2]);
+var baseDecision = { id: "1001", hash: "500", name: "Gun", kind: "weapons", action: "junk", reason: "dupe-lower" };
+
+// 1. null explanation is accepted
+var items1 = api.itemsFromSnapshot({
+  sections: [{ kind: "weapons", decisions: [Object.assign({}, baseDecision, { explanation: null })] }]
+});
+if (items1[0].explanation !== null) throw new Error("expected null explanation");
+if (items1[0].reasonLabel !== "dupe-lower") throw new Error("expected fallback reasonLabel");
+
+// 2. valid explanation is accepted
+var items2 = api.itemsFromSnapshot({
+  sections: [{
+    kind: "weapons",
+    decisions: [Object.assign({}, baseDecision, {
+      explanation: {
+        label: "Duplicate roll, ranked lower",
+        why: "Lower rank",
+        keep_instead: "copy 1002",
+        gives_up: "Nothing",
+        caveats: ["Review only"]
+      }
+    })]
+  }]
+});
+if (!items2[0].explanation) throw new Error("expected explanation object");
+if (items2[0].explanation.label !== "Duplicate roll, ranked lower") throw new Error("label mismatch");
+if (items2[0].explanation.why !== "Lower rank") throw new Error("why mismatch");
+if (items2[0].explanation.keepInstead !== "copy 1002") throw new Error("keepInstead mismatch");
+if (items2[0].explanation.givesUp !== "Nothing") throw new Error("givesUp mismatch");
+if (items2[0].explanation.caveats.length !== 1 || items2[0].explanation.caveats[0] !== "Review only") throw new Error("caveats mismatch");
+if (items2[0].reasonLabel !== "Duplicate roll, ranked lower") throw new Error("reasonLabel mismatch");
+
+// 3. non-object explanation throws
+var threwNonObj = false;
+try {
+  api.itemsFromSnapshot({
+    sections: [{ kind: "weapons", decisions: [Object.assign({}, baseDecision, { explanation: "not an object" })] }]
+  });
+} catch (e) {
+  if (e.message.indexOf("explanation must be an object or null") !== -1) threwNonObj = true;
+}
+if (!threwNonObj) throw new Error("expected throw for non-object explanation");
+
+// 4. non-array caveats throws
+var threwNonArr = false;
+try {
+  api.itemsFromSnapshot({
+    sections: [{
+      kind: "weapons",
+      decisions: [Object.assign({}, baseDecision, {
+        explanation: { label: "L", why: "W", caveats: "not an array" }
+      })]
+    }]
+  });
+} catch (e) {
+  if (e.message.indexOf("explanation.caveats must be an array") !== -1) threwNonArr = true;
+}
+if (!threwNonArr) throw new Error("expected throw for non-array caveats");
+
+process.stdout.write("OK");
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=True, timeout=60,
+        )
+    assert completed.stdout == "OK"
+
+
+def test_group_label_explanation_formatting(tmp_path: Path):
+    script = tmp_path / "group_label.js"
+    script.write_text(
+        r'''
+var api = require(process.argv[2]);
+// Item without explanation: byte-identical output
+var ghostItem = {
+  id: "6001", hash: "444001", name: "Ghost", kind: "ghosts",
+  action: "junk", reason: "ghost-unprotected-surplus",
+  reasonLabel: "ghost-unprotected-surplus"
+};
+var ghostGroups = api.groupItems([ghostItem]);
+if (ghostGroups.length !== 1) throw new Error("expected 1 group");
+if (ghostGroups[0].label !== "JUNK ghost-unprotected-surplus (ghosts) \u2014 1 item(s)") {
+  throw new Error("unexpected ghost group label: " + ghostGroups[0].label);
+}
+
+// Item with explanation: label [slug] format
+var weaponItem = {
+  id: "3002", hash: "100", name: "Rifle", kind: "weapons",
+  action: "junk", reason: "dupe-lower",
+  reasonLabel: "Duplicate roll, ranked lower",
+  explanation: {
+    label: "Duplicate roll, ranked lower",
+    why: "Lower MW",
+    caveats: []
+  }
+};
+var weaponGroups = api.groupItems([weaponItem]);
+if (weaponGroups.length !== 1) throw new Error("expected 1 weapon group");
+if (weaponGroups[0].label !== "JUNK Duplicate roll, ranked lower [dupe-lower] (weapons) \u2014 1 item(s)") {
+  throw new Error("unexpected weapon group label: " + weaponGroups[0].label);
+}
+process.stdout.write("OK");
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=True, timeout=60,
+        )
+    assert completed.stdout == "OK"
+
+
+def test_reason_options_text_and_values(tmp_path: Path):
+    script = tmp_path / "reason_options.js"
+    script.write_text(
+        r'''
+var api = require(process.argv[2]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase();
+  this.ownerDocument = document;
+  this.children = [];
+  this.attributes = Object.create(null);
+  this._text = "";
+  this.value = "";
+}
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () {
+    return this._text + this.children.map(function (c) { return c.textContent; }).join("");
+  },
+  set: function (v) { this._text = String(v); this.children = []; }
+});
+Node.prototype.appendChild = function (c) { this.children.push(c); return c; };
+Node.prototype.setAttribute = function (k, v) {
+  this.attributes[k] = String(v);
+  if (k === "value") this.value = String(v);
+};
+function Document() {}
+Document.prototype.createElement = function (t) { return new Node(t, this); };
+Document.prototype.createTextNode = function (t) { var n = new Node("#text", this); n.textContent = t; return n; };
+
+var items = [
+  { reason: "dupe-lower", reasonLabel: "Duplicate roll, ranked lower" },
+  { reason: "dupe-lower", reasonLabel: "Duplicate roll, ranked lower" },
+  { reason: "wishlist", reasonLabel: "Wishlist trash recommendation" },
+  { reason: "ghost-unprotected-surplus", reasonLabel: "ghost-unprotected-surplus" }
+];
+var view = api.createView({ document: new Document(), items: items });
+var options = view.reasonOptions(items, "any reason");
+var out = options.map(function (opt) {
+  return { value: opt.value, label: opt.textContent };
+});
+process.stdout.write(JSON.stringify(out));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=True, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    options = json.loads(completed.stdout)
+    assert options == [
+        {"value": "", "label": "any reason"},
+        {"value": "dupe-lower", "label": "Duplicate roll, ranked lower (2)"},
+        {"value": "ghost-unprotected-surplus", "label": "ghost-unprotected-surplus (1)"},
+        {"value": "wishlist", "label": "Wishlist trash recommendation (1)"},
+    ]
+
+
+def test_hostile_explanation_renders_inert(tmp_path: Path):
+    script = tmp_path / "hostile_explanation.js"
+    script.write_text(
+        r'''
+"use strict";
+var api = require(process.argv[2]);
+
+function Node(tag, document) {
+  this.tagName = String(tag).toUpperCase();
+  this.ownerDocument = document;
+  this.children = [];
+  this.parentNode = null;
+  this.attributes = Object.create(null);
+  this.listeners = Object.create(null);
+  this._text = "";
+  this.disabled = false;
+  this.value = "";
+}
+Object.defineProperty(Node.prototype, "className", {
+  get: function () { return this.attributes["class"] || ""; },
+  set: function (val) { this.attributes["class"] = String(val); }
+});
+Object.defineProperty(Node.prototype, "firstChild", {get: function () {
+  return this.children[0] || null;
+}});
+Object.defineProperty(Node.prototype, "textContent", {get: function () {
+  return this._text + this.children.map(function (child) { return child.textContent; }).join("");
+}, set: function (value) { this._text = String(value); this.children = []; }});
+Node.prototype.appendChild = function (child) {
+  child.parentNode = this;
+  this.children.push(child);
+  return child;
+};
+Node.prototype.setAttribute = function (key, value) { this.attributes[key] = String(value); };
+Node.prototype.getAttribute = function (key) { return this.attributes[key] === undefined ? null : this.attributes[key]; };
+Node.prototype.addEventListener = function (key, callback) { this.listeners[key] = callback; };
+Node.prototype.querySelector = function (selector) {
+  var found = null;
+  (function walk(n) {
+    if (found || !n.children) return;
+    for (var i = 0; i < n.children.length; i++) {
+      if (n.children[i].tagName.toLowerCase() === selector.toLowerCase()) {
+        found = n.children[i];
+        return;
+      }
+      walk(n.children[i]);
+      if (found) return;
+    }
+  })(this);
+  return found;
+};
+
+function Document() {}
+Document.prototype.createElement = function (tag) { return new Node(tag, this); };
+Document.prototype.createTextNode = function (text) { var node = new Node("#text", this); node.textContent = text; return node; };
+
+function hasClass(node, name) {
+  return (String(node.className || "")).split(/\s+/).indexOf(name) !== -1;
+}
+function collect(node, predicate) {
+  var result = [];
+  (function walk(n) {
+    if (predicate(n)) result.push(n);
+    (n.children || []).forEach(walk);
+  })(node);
+  return result;
+}
+
+var hostile = "<img src=x onerror=alert(1)>";
+var item = {
+  id: "1001",
+  hash: "500",
+  name: "Hostile Gun",
+  kind: "weapons",
+  location: "Vault",
+  guardianClass: "",
+  classFacet: "weapons",
+  action: "junk",
+  reason: "dupe-lower",
+  reasonLabel: hostile,
+  protectionLevel: "",
+  protectionReason: "",
+  tag: "junk",
+  note: "#vc-junk",
+  keptId: "1002",
+  originalTag: "",
+  originalNotes: "",
+  locked: false,
+  equipped: false,
+  inLoadout: false,
+  explanation: {
+    label: hostile,
+    why: hostile,
+    keepInstead: hostile,
+    givesUp: hostile,
+    caveats: [hostile]
+  }
+};
+
+var state = {
+  expanded: { "1001": true },
+  rows: Object.create(null),
+  verdicts: Object.create(null),
+  sort: { field: "name", direction: "asc" }
+};
+
+var view = api.createView({
+  document: new Document(),
+  state: state,
+  items: [item],
+  columns: api.COLUMNS,
+  toggleVerdict: function () {},
+  renderList: function () {}
+});
+
+var table = view.table([item]);
+var imgTags = collect(table, function (n) { return n.tagName === "IMG"; });
+var scriptTags = collect(table, function (n) { return n.tagName === "SCRIPT"; });
+
+var reasonCell = collect(table, function (n) { return hasClass(n, "reason-cell"); })[0];
+var reasonLabelSpan = collect(table, function (n) { return hasClass(n, "reason-label"); })[0];
+var reasonWhySpan = collect(table, function (n) { return hasClass(n, "reason-why"); })[0];
+
+var dts = collect(table, function (n) { return n.tagName === "DT"; }).map(function (n) { return n.textContent; });
+var lis = collect(table, function (n) { return n.tagName === "LI"; }).map(function (n) { return n.textContent; });
+
+process.stdout.write(JSON.stringify({
+  imgCount: imgTags.length,
+  scriptCount: scriptTags.length,
+  reasonCellFound: !!reasonCell,
+  reasonLabelText: reasonLabelSpan ? reasonLabelSpan.textContent : null,
+  reasonWhyText: reasonWhySpan ? reasonWhySpan.textContent : null,
+  dts: dts,
+  lis: lis,
+  tableContainsHostileText: table.textContent.indexOf(hostile) !== -1
+}));
+''',
+        encoding="utf-8",
+    )
+    resource = files("vault_cleaner.ui").joinpath("review_ui.js")
+    with as_file(resource) as app:
+        completed = subprocess.run(
+            [NODE, str(script), str(app)],
+            capture_output=True, encoding="utf-8", check=True, timeout=60,
+        )
+    assert completed.returncode == 0, completed.stderr
+    res = json.loads(completed.stdout)
+    assert res["imgCount"] == 0
+    assert res["scriptCount"] == 0
+    assert res["reasonCellFound"] is True
+    assert res["reasonLabelText"] == "<img src=x onerror=alert(1)>"
+    assert res["reasonWhyText"] == "<img src=x onerror=alert(1)>"
+    assert res["dts"][:4] == ["why suggested", "keep instead", "what you give up", "caveats"]
+    assert res["lis"] == ["<img src=x onerror=alert(1)>"]
+    assert res["tableContainsHostileText"] is True

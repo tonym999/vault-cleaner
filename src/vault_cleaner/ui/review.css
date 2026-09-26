@@ -177,6 +177,8 @@ tr.vetoed > td.namecell button { text-decoration: line-through; }
 }
 .detail dt { color: var(--muted); font-size: .82rem; }
 .detail dd { margin: 0; overflow-wrap: anywhere; }
+.detail dd ul { margin: 0; padding-left: 1.15rem; }
+.reason-cell .reason-why { display: block; overflow-wrap: anywhere; }
 .stats { display: flex; flex-wrap: wrap; gap: .4rem; }
 .err { color: var(--veto); font-weight: 600; }
 .ok { color: var(--approve); }
