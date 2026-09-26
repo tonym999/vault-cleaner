@@ -136,10 +136,14 @@ may re-select per `handoffs/README.md`.
   shapes: a trash-reviewed copy stays in the pool but cannot be survivor, or
   survivor selection skips proposed copies. Both reduce to "trash-decided
   copies do not take part", because a trash copy's own dupe decision is
-  already discarded at line 131. Keeping it in the pool only lets it distort
-  `best_key` and the `dupe-tie`/`dupe-lower` relation for the others. Pool
-  exclusion is the simplest correct form, and it holds regardless of how
-  perk matching is scoped.
+  already discarded at line 131. Keeping it in the pool lets it become the
+  survivor (the defect) and distort `best_key` and the
+  `dupe-tie`/`dupe-lower` relation for the others. Pool exclusion is the
+  simplest correct form, and it holds regardless of how perk matching is
+  scoped. Its decision effect goes beyond the survivor's identity: a copy
+  that used to lose to the trash copy may now survive with no decision, as
+  `U` does in the two-copy case, and a newly undecided copy can then fall
+  through to the coverage pass (see *Coverage interplay*).
 - **Matching-scope question (issue scope item 2): deliberately out of
   scope.** Restricting wishlist matching to the pre-tracker prefix would
   change wishlist semantics for every weapon, and would not be needed for the
@@ -152,10 +156,13 @@ may re-select per `handoffs/README.md`.
   yield loss. The alternative, proposing `U` against a copy that may itself
   leave, can destroy both copies, which is what #140's invariant forbids. The
   #170 "also proposed" caveat remains as a presentation safeguard.
-- **Versioning and sequencing.** `RULESET_VERSION` 5 → 6. The #140 tracking
-  comment puts #174 before step 5, so #172 (Child 5) takes 7. #172's body
-  still says "5 to 6", and its planner re-baselines. This plan does not edit
-  #172. The bump invalidates saved review manifests (fingerprint change).
+- **Versioning and sequencing.** This ticket takes `RULESET_VERSION` from
+  5 to 6. The #140 tracking comment puts #174 before step 5, so #172
+  (Child 5) then takes it from **6 to 7**. This supersedes two older
+  statements that Child 5 takes 5 → 6: #172's issue body and the #34 plan's
+  note (`handoffs/issue-34-implementation-plan.md:84`). Both are left as
+  historical records; #172's planner re-baselines. This plan does not edit
+  #172 or the #34 plan. The bump invalidates saved review manifests (fingerprint change).
   Durable vetoes are unaffected. `SNAPSHOT_SCHEMA_VERSION` stays 3, and the
   golden file name stays `report_snapshot_v3.json`.
 - **Coverage interplay.** Rows that previously got a dupe decision may now be
@@ -176,7 +183,9 @@ may re-select per `handoffs/README.md`.
   # Every wishlist-trash copy, junked or soft-reviewed, stays out of dupe
   # resolution: a proposed copy must never be the survivor other copies are
   # told to keep (#174). A trash copy's own dupe decision would be dropped
-  # below anyway, so excluding it changes only who survives.
+  # below anyway, but excluding it changes which copy survives: a copy that
+  # used to lose to it may now survive with no decision, or fall through to
+  # the coverage pass.
   ```
 - Keep line 131's `d.id not in trash_ids` filter unchanged (now defensive).
 - Nothing reads `trash_junk_ids` after this change. Remove its declaration

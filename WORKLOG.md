@@ -15,13 +15,17 @@ Planned #174 on `handoff/issue-174-implementation-plan` from `main` at
     leaves exact-dupe resolution (`weapons.py:127`, `trash_junk_ids` →
     `trash_ids`). The issue's two candidate shapes reduce to this, because a
     trash copy's own dupe decision is already discarded. Keeping it in the
-    pool only lets it win or distort `best_key`.
+    pool lets it win or distort `best_key`. Excluding it changes decisions
+    beyond the survivor: a copy that lost to it may now survive with no
+    decision, or fall through to the coverage pass.
   - The matching-scope question (should wishlist matching use only the
     pre-tracker prefix?) is deliberately out of scope. The pool fix makes
     the invariant independent of it, and #34 measured no keep-match
     difference on the real export.
-  - `RULESET_VERSION` 5 → 6. #172 takes 7; its planner re-baselines, and this
-    PR does not edit #172.
+  - `RULESET_VERSION` 5 → 6; #172 then takes 6 → 7. That supersedes the
+    older "Child 5 takes 5 → 6" statements in #172's body and the #34 plan,
+    both left as historical records. Its planner re-baselines, and this PR
+    edits neither.
   - Implementer `gemini-3.8-flash` (`high`), Bounded rung. It completed #170
     cleanly, while MAI's Copilot-app run looped. Review path: independent
     adversarial review.
@@ -56,6 +60,25 @@ Planned #174 on `handoff/issue-174-implementation-plan` from `main` at
     synthetic fixtures, and CI rejects tracked `data/`. Using real rows as
     committed fixtures needs an `AGENTS.md` amendment first; this PR does not
     make one.
+
+### Review-fix round 1 (PR #180)
+
+Three findings, all accepted after checking against the plan.
+
+- **Owner, inline: the verbatim `weapons.py` comment overstated.** It said
+  excluding reviewed trash copies "changes only who survives". The plan's own
+  two-copy case shows the clean lower copy also loses its dupe decision, and
+  a newly undecided copy can enter the coverage pass. The comment, the
+  fix-choice rationale and the decisions line above now state that effect.
+  A grep for every other statement of it ("only lets it", "changes only")
+  found none left.
+- **Owner, review: stale PR description.** Its "Open item" still said
+  real-export incidence was unmeasured. It now reports the measured counts.
+- **CodeRabbit: implicit version sequence.** The plan now says #174 takes
+  5 → 6 and #172 then 6 → 7, and names the older 5 → 6 statements it
+  supersedes. CodeRabbit suggested editing the merged #34 plan instead; that
+  was not done, because merged handoffs stay historical records.
+- No product code, tests, schemas, rules or versions changed.
 
 ## 2026-09-26 — Housekeeping: #170 dispatch record correction
 
