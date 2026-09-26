@@ -22,7 +22,7 @@ from vault_cleaner.report_run import run_report, snapshot_dict
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "tests" / "fixtures"
-GOLDEN = FIXTURES / "report_snapshot_v2.json"
+GOLDEN = FIXTURES / "report_snapshot_v3.json"
 
 
 def write_golden(path: Path = GOLDEN) -> Path:

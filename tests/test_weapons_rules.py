@@ -121,9 +121,28 @@ def test_whole_item_trash_junked_locked_copy_reviewed():
     decisions = {d.id: d for d in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
     assert decisions["B"].action == "review"
     assert "wishlist-trash whole-item (locked)" in decisions["B"].note
+    assert decisions["B"].explanation is not None
+    assert decisions["B"].explanation.label == "Wishlist rates this weapon trash"
+    assert (
+        decisions["B"].explanation.why
+        == "A wishlist you use rates every roll of this weapon as trash."
+    )
+    assert decisions["B"].explanation.caveats == ()
     junked = decisions["A"]
     assert junked.action == "junk"
     assert "#vc-junk: wishlist-trash whole-item" in junked.note
+    assert junked.explanation is not None
+    assert junked.explanation.label == "Wishlist rates this weapon trash"
+    assert (
+        junked.explanation.why
+        == "A wishlist you use rates every roll of this weapon as trash."
+    )
+    assert junked.explanation.keep_instead == ""
+    assert junked.explanation.gives_up == (
+        "This copy. No other copy is named as a replacement; the"
+        " suggestion rests on the wishlist rating alone."
+    )
+    assert junked.explanation.caveats == ()
 
 
 def test_keep_roll_protects_from_trash():
@@ -143,6 +162,44 @@ def test_roll_trash_only_hits_matching_roll():
     decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
     assert [(d.id, d.action) for d in decisions] == [("A", "junk")]
     assert "wishlist-trash roll" in decisions[0].note
+    assert decisions[0].explanation is not None
+    assert decisions[0].explanation.label == "Wishlist rates this roll trash"
+    assert (
+        decisions[0].explanation.why
+        == "A wishlist you use rates this perk roll as trash."
+    )
+    assert decisions[0].explanation.keep_instead == ""
+    assert decisions[0].explanation.gives_up == (
+        "This copy. No other copy is named as a replacement; the"
+        " suggestion rests on the wishlist rating alone."
+    )
+    assert decisions[0].explanation.caveats == ()
+
+
+def test_wishlist_trash_with_evidence_and_pve_activity():
+    from vault_cleaner.wishlist import WishlistSourceSpec
+
+    spec = WishlistSourceSpec(
+        name="voltron", url="https://example.test", family="voltron",
+        activity="pve", tier_format="none"
+    )
+    wl = parse_wishlist(
+        "dimwishlist:item=-200&perks=\n", name="voltron", spec=spec, evidence=True
+    )
+    weapons = df(weapon("A", 200))
+    decisions = run(weapons, wl, PERK_MAP, 10).decisions
+    assert len(decisions) == 1
+    d = decisions[0]
+    assert d.action == "junk"
+    assert d.explanation is not None
+    assert d.explanation.label == "Wishlist rates this weapon trash"
+    assert (
+        d.explanation.why
+        == "A wishlist you use rates every roll of this weapon as trash. Source: voltron."
+    )
+    assert d.explanation.caveats == (
+        "That rating is for PvE only and says nothing about PvP use.",
+    )
 
 
 def test_no_double_row_when_trash_and_dupe_lower():

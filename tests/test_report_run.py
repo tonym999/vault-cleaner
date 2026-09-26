@@ -6,6 +6,7 @@ import pytest
 
 from vault_cleaner import report_run
 from vault_cleaner.config import DEFAULTS, ConfigError, load_config
+from vault_cleaner.explanation import dupe
 from vault_cleaner.parse import load_armor
 from vault_cleaner.pipeline import (
     ManifestIdentity,
@@ -16,12 +17,14 @@ from vault_cleaner.pipeline import (
 from vault_cleaner.report_run import (
     NoExportsError,
     SourceReadError,
+    _decision_records,
     compute_fingerprint,
     run_report,
     snapshot_dict,
     snapshot_json,
 )
 from vault_cleaner.rules import armor as armor_rules
+from vault_cleaner.rules.dupes import Decision
 
 FIXTURES = Path(__file__).parent / "fixtures"
 WEAPONS = FIXTURES / "weapons_dupes.csv"
@@ -30,7 +33,7 @@ ARMOR_DUPES = FIXTURES / "armor_dupes.csv"
 CLASS_ARMOR = FIXTURES / "armor_classes.csv"
 GHOSTS = FIXTURES / "ghosts_cleanup.csv"
 HOSTILE = FIXTURES / "weapons_hostile.csv"
-GOLDEN = FIXTURES / "report_snapshot_v2.json"
+GOLDEN = FIXTURES / "report_snapshot_v3.json"
 
 
 def build_report():
@@ -263,7 +266,7 @@ def test_snapshot_serialization_is_deterministic():
     second = build_report()
     assert snapshot_json(first) == snapshot_json(second)
     document = json.loads(snapshot_json(first))
-    assert document["schema_version"] == 2
+    assert document["schema_version"] == 3
     assert document["ruleset_version"] == 5
     assert document["fingerprint"] == first.fingerprint
 
@@ -302,8 +305,108 @@ def test_regeneration_script_reproduces_the_committed_golden(tmp_path):
     assert regenerated.read_bytes() == GOLDEN.read_bytes()
 
 
-def test_snapshot_matches_schema_v2_golden():
-    assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text())
+def test_snapshot_matches_schema_v3_golden():
+    assert snapshot_dict(build_report()) == json.loads(GOLDEN.read_text(encoding="utf-8"))
+
+
+def test_golden_explanations_present_for_weapons_and_null_for_others():
+    doc = json.loads(GOLDEN.read_text(encoding="utf-8"))
+    for section in doc["sections"]:
+        if section["kind"] == "weapons":
+            assert len(section["decisions"]) > 0
+            for d in section["decisions"]:
+                assert d["explanation"] is not None
+                assert isinstance(d["explanation"]["label"], str)
+                assert isinstance(d["explanation"]["why"], str)
+                assert isinstance(d["explanation"]["gives_up"], str)
+                assert isinstance(d["explanation"]["caveats"], list)
+        else:
+            assert len(section["decisions"]) > 0
+            for d in section["decisions"]:
+                assert d["explanation"] is None
+
+
+def test_decision_records_context_caveats_and_proposed_partner():
+    # 1. Decision kept_id is itself decided -> partner_also_proposed caveat
+    row_loser = {
+        "Id": "1001", "Hash": "500", "Name": "Rifle A", "Owner": "Vault",
+        "Tag": "", "Notes": "", "Locked": "false", "Equipped": "false",
+        "Loadouts": "", "Tier": "5", "Masterwork Tier": "5",
+    }
+    row_survivor = {
+        "Id": "1002", "Hash": "500", "Name": "Rifle B", "Owner": "Vault",
+        "Tag": "", "Notes": "", "Locked": "false", "Equipped": "false",
+        "Loadouts": "", "Tier": "5", "Masterwork Tier": "10",
+    }
+    items_df = pd.DataFrame([row_loser, row_survivor])
+    expl = dupe(tie=False, winner="higher Masterwork Tier", keep_instead="copy 1002")
+    dec_loser = Decision(
+        id="1001", hash="500", name="Rifle A", location="Vault",
+        guardian_class="", action="junk", tag="junk",
+        note="#vc-junk: dupe-lower", kept_id="1002",
+        explanation=expl,
+    )
+    dec_survivor = Decision(
+        id="1002", hash="500", name="Rifle B", location="Vault",
+        guardian_class="", action="review", tag="",
+        note="#vc-review: wishlist-trash roll", kept_id="",
+        explanation=dupe(tie=False, winner="higher Masterwork Tier", keep_instead=""),
+    )
+    records = _decision_records(
+        "weapons", [dec_loser, dec_survivor], items_df, crafted_level_protect=10
+    )
+    assert records[0].explanation is not None
+    assert (
+        "The copy suggested to keep is also proposed in this report. Decide on both together."
+        in records[0].explanation.caveats
+    )
+
+    # 2. Soft-locked, in-loadout review decision -> caveats 1, 3 and 4 in order
+    row_soft_loadout = {
+        "Id": "2001", "Hash": "600", "Name": "Gun", "Owner": "Vault",
+        "Tag": "", "Notes": "", "Locked": "true", "Equipped": "false",
+        "Loadouts": "Raid Loadout", "Tier": "5", "Masterwork Tier": "10",
+    }
+    items_soft = pd.DataFrame([row_soft_loadout])
+    dec_soft = Decision(
+        id="2001", hash="600", name="Gun", location="Vault",
+        guardian_class="", action="review", tag="",
+        note="#vc-review: dupe-lower (locked)", kept_id="9999",
+        explanation=expl,
+    )
+    recs_soft = _decision_records(
+        "weapons", [dec_soft], items_soft, crafted_level_protect=10
+    )
+    assert recs_soft[0].explanation is not None
+    assert recs_soft[0].explanation.caveats == (
+        "Review only: approving adds a note in DIM and leaves its tag unchanged.",
+        "Locked in game: unlock it before dismantling.",
+        "In a DIM loadout: dismantling it breaks that loadout.",
+    )
+
+    # 3. Locked Exotic review decision -> caveats 1, 2 and 3 in order
+    row_locked_exotic = {
+        "Id": "3001", "Hash": "700", "Name": "Exotic Gun", "Owner": "Vault",
+        "Tag": "", "Notes": "", "Locked": "true", "Equipped": "false",
+        "Loadouts": "", "Tier": "5", "Masterwork Tier": "10",
+        "Rarity": "Exotic",
+    }
+    items_exotic = pd.DataFrame([row_locked_exotic])
+    dec_exotic = Decision(
+        id="3001", hash="700", name="Exotic Gun", location="Vault",
+        guardian_class="", action="review", tag="",
+        note="#vc-review: dupe-lower (exotic)", kept_id="9999",
+        explanation=expl,
+    )
+    recs_exotic = _decision_records(
+        "weapons", [dec_exotic], items_exotic, crafted_level_protect=10
+    )
+    assert recs_exotic[0].explanation is not None
+    assert recs_exotic[0].explanation.caveats == (
+        "Review only: approving adds a note in DIM and leaves its tag unchanged.",
+        "Exotic, so never tagged junk automatically.",
+        "Locked in game: unlock it before dismantling.",
+    )
 
 
 def test_snapshot_contains_authoritative_complete_armor_duplicate_groups():

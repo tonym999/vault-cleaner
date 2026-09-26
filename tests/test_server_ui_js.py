@@ -954,6 +954,7 @@ function makeUi(document) {
         clear: function (host) { host.children = []; },
         el: function () { return node(); },
         optionsFor: function () { return []; },
+        reasonOptions: function () { return []; },
         addSelect: function (host) { host.appendChild(node()); },
         select: function () {
           var outer = node();

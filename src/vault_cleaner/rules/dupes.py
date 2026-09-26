@@ -35,6 +35,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from vault_cleaner.duplicate_reference import weapon_reference
+from vault_cleaner.explanation import ProposalExplanation, dupe, weapon_keep_reference
 from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import rails
 from vault_cleaner.rules.id_order import instance_id_order
@@ -195,6 +196,7 @@ class Decision:
     # unprotected decision, as the armor exact pass does for complete exotic
     # class-item losers.
     effective_protection: tuple[str | None, str] | None = None
+    explanation: ProposalExplanation | None = None
 
 
 def rank_key(row) -> tuple:
@@ -245,6 +247,17 @@ def resolve(
                 continue
             # A tied copy isn't worse, just redundant — say so honestly.
             rel = "dupe-tie" if key == best_key else "dupe-lower"
+            winner = _winner_reason(best_key, key)
+            keep_ref = weapon_keep_reference(
+                best,
+                exact_roll_display_prefix(best),
+                distinguish_from=survivor_group_ids,
+            )
+            expl = dupe(
+                tie=(rel == "dupe-tie"),
+                winner=winner,
+                keep_instead=keep_ref,
+            )
             if level == rails.SOFT:
                 action = "review"
                 tag = row["Tag"]  # preserve whatever tag it has — import must not change it
@@ -268,6 +281,7 @@ def resolve(
                     location=row.get("Owner", ""), guardian_class="",
                     action=action, tag=tag,
                     note=note, kept_id=best["Id"],
+                    explanation=expl,
                 )
             )
     return decisions

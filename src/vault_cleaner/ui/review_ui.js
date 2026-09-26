@@ -65,6 +65,25 @@
     return "Candidate: " + String(candidate) + " · Selected: " + String(selected);
   }
 
+  function explanationOf(explanation, where) {
+    if (explanation === null || explanation === undefined) {
+      return null;
+    }
+    if (!isObject(explanation)) {
+      throw new Error(where + ".explanation must be an object or null");
+    }
+    if (!Array.isArray(explanation.caveats)) {
+      throw new Error(where + ".explanation.caveats must be an array");
+    }
+    return {
+      label: str(explanation.label),
+      why: str(explanation.why),
+      keepInstead: str(explanation.keep_instead),
+      givesUp: str(explanation.gives_up),
+      caveats: explanation.caveats.map(str)
+    };
+  }
+
   function itemsFromSnapshot(snapshot) {
     var items = [];
     var seen = emptyMap();
@@ -87,6 +106,8 @@
         requireIdString(decision.hash, where + ".hash");
         if (seen[id]) throw new Error("duplicate decision for id " + id + " at " + where);
         seen[id] = true;
+        var explanation = explanationOf(decision.explanation, where);
+        var reasonLabel = explanation && explanation.label ? explanation.label : str(decision.reason);
         items.push({
           id: id,
           hash: decision.hash,
@@ -99,6 +120,8 @@
           classFacet: str(decision.guardian_class) || str(decision.kind) || str(section.kind),
           action: str(decision.action),
           reason: str(decision.reason),
+          reasonLabel: reasonLabel,
+          explanation: explanation,
           tag: str(decision.tag),
           note: str(decision.note),
           keptId: str(decision.kept_id),
@@ -239,7 +262,11 @@
   }
 
   function groupLabel(group) {
-    return group.action.toUpperCase() + " " + group.reason + " (" + group.kind +
+    var reasonText = group.reason;
+    if (group.reasonLabel && group.reasonLabel !== group.reason) {
+      reasonText = group.reasonLabel + " [" + group.reason + "]";
+    }
+    return group.action.toUpperCase() + " " + reasonText + " (" + group.kind +
            ") — " + group.items.length + " item(s)";
   }
 
@@ -254,7 +281,9 @@
       var key = [item.action, item.kind, item.reason].join("\u0000");
       if (!byKey[key]) {
         byKey[key] = {
-          action: item.action, kind: item.kind, reason: item.reason, items: []
+          action: item.action, kind: item.kind, reason: item.reason,
+          reasonLabel: item.reasonLabel || item.reason,
+          items: []
         };
         order.push(key);
       }
@@ -922,6 +951,29 @@
       });
       return options;
     }
+    function reasonOptions(viewItems, allLabel) {
+      if (arguments.length < 2) {
+        allLabel = viewItems;
+        viewItems = items;
+      }
+      var labels = emptyMap();
+      for (var i = 0; i < viewItems.length; i++) {
+        var it = viewItems[i];
+        if (it && it.reason && !labels[it.reason]) {
+          labels[it.reason] = it.reasonLabel || it.reason;
+        }
+      }
+      var options = [el("option", { value: "", text: allLabel })];
+      countBy(viewItems, "reason").forEach(function (entry) {
+        if (entry.value === "") return;
+        var label = labels[entry.value] || entry.value;
+        options.push(el("option", {
+          value: entry.value,
+          text: label + " (" + entry.count + ")"
+        }));
+      });
+      return options;
+    }
     function addSelect(host, id, label, options, field, value, onChange) {
       var node = select(id, label, options, onChange ? onChange(field) : null);
       node.querySelector("select").value = value;
@@ -984,6 +1036,19 @@
     }
     function detailRow(item, detailId, columns) {
       var rows = [];
+      if (item.explanation) {
+        var expl = item.explanation;
+        rows = rows.concat(definition("why suggested", expl.why));
+        rows = rows.concat(definition("keep instead", expl.keepInstead));
+        rows = rows.concat(definition("what you give up", expl.givesUp));
+        if (expl.caveats && expl.caveats.length > 0) {
+          var lis = expl.caveats.map(function (c) {
+            return el("li", { text: c });
+          });
+          rows.push(el("dt", { text: "caveats" }));
+          rows.push(el("dd", null, [el("ul", null, lis)]));
+        }
+      }
       rows = rows.concat(definition("hash", item.hash));
       rows = rows.concat(definition("note vault-cleaner would write", item.note));
       rows = rows.concat(definition("DIM tag vault-cleaner would write", item.tag));
@@ -1075,7 +1140,10 @@
             text: "in loadout"
           }) : null
         ]),
-        el("td", { text: item.reason }),
+        el("td", { class: "reason-cell" }, [
+          el("span", { class: "reason-label", text: item.reasonLabel }),
+          item.explanation ? el("span", { class: "sub reason-why", text: item.explanation.why }) : null
+        ]),
         el("td", { text: item.tuningModSlot }),
         el("td", { text: item.protectionLevel || "—" }),
         el("td", null, [actions])
@@ -1750,6 +1818,7 @@
       el: el, clear: clear, byId: byId, headerRow: headerRow, definition: definition,
       armorDetail: armorDetail, detailRow: detailRow, itemRows: itemRows, table: table,
       tile: tile, select: select, addSelect: addSelect, optionsFor: optionsFor,
+      reasonOptions: reasonOptions,
       paintRow: paintRow, paintArmorMember: paintArmorMember,
       armorGroup: armorGroup, armorGroups: armorGroups, armorGroupHeader: armorGroupHeader,
       armorGroupTable: armorGroupTable, armorGroupDimQuery: armorGroupDimQuery,

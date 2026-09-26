@@ -251,6 +251,22 @@ def test_fixture_all_coverage_relations():
     assert d_10011.kept_id == "10012"
     assert "#vc-review: coverage-dominated by" in d_10011.note
     assert "curated matches 1 vs 3; partner largest coverage gain" in d_10011.note
+    assert d_10011.explanation is not None
+    assert d_10011.explanation.label == "Another copy covers its wishlist rolls"
+    assert (
+        d_10011.explanation.why
+        == "Another copy of this weapon matches every curated wishlist roll this one matches, and more (3 against 1)."
+    )
+    assert (
+        d_10011.explanation.keep_instead
+        == "copy …0012 in the Vault, Tier 5, masterwork tier 0, roll Perk B / Perk C"
+    )
+    assert d_10011.explanation.gives_up == (
+        "No wishlist-recommended roll. Perks no wishlist recommends may"
+        " differ, so compare them if you use this copy for something"
+        " specific."
+    )
+    assert d_10011.explanation.caveats == ()
 
     # Hash 1002: mutual trade-off -> neither in decisions
     assert "10021" not in decisions_by_id
@@ -270,6 +286,21 @@ def test_fixture_all_coverage_relations():
     assert d_10051.kept_id == "10052"
     assert "#vc-review: coverage-uncovered vs" in d_10051.note
     assert "curated matches 0 vs 1; partner most curated matches" in d_10051.note
+    assert d_10051.explanation is not None
+    assert d_10051.explanation.label == "No wishlist roll; another copy has some"
+    assert (
+        d_10051.explanation.why
+        == "This copy matches no curated wishlist roll, while another copy of the same weapon matches 1 curated roll."
+    )
+    assert (
+        d_10051.explanation.keep_instead
+        == "copy …0052 in the Vault, Tier 5, masterwork tier 0, roll Perk A / Perk B"
+    )
+    assert d_10051.explanation.gives_up == (
+        "No wishlist-recommended roll. Not being on a wishlist does not"
+        " make a roll bad, so check it if you use this copy."
+    )
+    assert d_10051.explanation.caveats == ()
 
     # Hash 1006: hard-protected copy 10062 acts as partner, never candidate
     assert "10062" not in decisions_by_id

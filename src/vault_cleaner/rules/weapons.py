@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from vault_cleaner.explanation import wishlist_trash
 from vault_cleaner.note_history import append_tool_clause
 from vault_cleaner.rules import coverage, dupes, rails
 from vault_cleaner.wishlist import Wishlist
@@ -83,6 +84,24 @@ def run(
         level, reason = rails.protection(row, crafted_level_protect)
         if level == rails.HARD:
             continue
+        if wl.trash_evidence is not None:
+            entries = [
+                e
+                for e in wl.trash_evidence.get(item_hash, [])
+                if not e.perks or e.perks <= perk_hashes
+            ]
+            sources = tuple(sorted({e.source for e in entries}))
+            pve_only = bool(entries) and all(
+                e.activities == frozenset({"pve"}) for e in entries
+            )
+        else:
+            sources = ()
+            pve_only = False
+        expl = wishlist_trash(
+            whole_item=(kind == "whole-item"),
+            sources=sources,
+            pve_only=pve_only,
+        )
         if level == rails.SOFT:
             action, tag = "review", row["Tag"]
             hashtag = f"#vc-review: wishlist-trash {kind} ({reason})"
@@ -96,6 +115,7 @@ def run(
                 location=row.get("Owner", ""), guardian_class="",
                 action=action, tag=tag,
                 note=append_tool_clause(row["Notes"], hashtag), kept_id="",
+                explanation=expl,
             )
         )
         trash_ids.add(row["Id"])

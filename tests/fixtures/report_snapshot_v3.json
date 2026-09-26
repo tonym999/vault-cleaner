@@ -54,7 +54,7 @@
   },
   "keep_trash_conflicts": 0,
   "ruleset_version": 5,
-  "schema_version": 2,
+  "schema_version": 3,
   "sections": [
     {
       "decisions": [
@@ -62,6 +62,16 @@
           "action": "review",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [
+              "Review only: approving adds a note in DIM and leaves its tag unchanged.",
+              "Locked in game: unlock it before dismantling."
+            ],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3001 in the Vault, Tier 5, masterwork tier 10, roll Mag B / Trait A",
+            "label": "Duplicate roll, ranked lower",
+            "why": "You own another copy with the same perk roll and a higher masterwork tier."
+          },
           "guardian_class": "",
           "hash": "500",
           "id": "3003",
@@ -84,6 +94,13 @@
           "action": "junk",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3001 in the Vault, Tier 5, masterwork tier 10, roll Mag B / Trait A",
+            "label": "Duplicate roll, ranked lower",
+            "why": "You own another copy with the same perk roll and a higher masterwork tier."
+          },
           "guardian_class": "",
           "hash": "500",
           "id": "3002",
@@ -106,6 +123,16 @@
           "action": "review",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [
+              "Review only: approving adds a note in DIM and leaves its tag unchanged.",
+              "Exotic, so never tagged junk automatically."
+            ],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3011 in the Vault, Tier 5, masterwork tier 8, roll Mag Exotic B / Trait Exotic",
+            "label": "Duplicate roll, ranked lower",
+            "why": "You own another copy with the same perk roll and a higher masterwork tier."
+          },
           "guardian_class": "",
           "hash": "600",
           "id": "3012",
@@ -128,6 +155,13 @@
           "action": "junk",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3020 in the Vault, Tier 5, masterwork tier 10, roll Mag B / Trait A",
+            "label": "Duplicate roll, ranked lower",
+            "why": "You own another copy with the same perk roll and a higher masterwork tier."
+          },
           "guardian_class": "",
           "hash": "800",
           "id": "3022",
@@ -150,6 +184,13 @@
           "action": "junk",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3031 in the Vault, Tier 5, masterwork tier 0, roll Mag B / Trait A",
+            "label": "Duplicate roll, ranked lower",
+            "why": "You own another copy with the same perk roll and a higher Tier."
+          },
           "guardian_class": "",
           "hash": "900",
           "id": "3032",
@@ -172,6 +213,13 @@
           "action": "junk",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3041 in the Vault, Tier 5, masterwork tier 0, roll Mag B / Trait A",
+            "label": "Duplicate roll, ranked equal",
+            "why": "You own another copy with the same perk roll that ranks equal on Tier, masterwork tier, crafted level and stat total. One copy is kept, chosen by a fixed ID order."
+          },
           "guardian_class": "",
           "hash": "950",
           "id": "3042",
@@ -194,6 +242,16 @@
           "action": "review",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": {
+            "caveats": [
+              "Review only: approving adds a note in DIM and leaves its tag unchanged.",
+              "Exotic, so never tagged junk automatically."
+            ],
+            "gives_up": "Nothing in the perk roll. Kill trackers, mods and mementos are not compared.",
+            "keep_instead": "copy 3051 in the Vault, Tier 5, masterwork tier 0, roll Mag Exotic B / Trait Exotic",
+            "label": "Duplicate roll, ranked equal",
+            "why": "You own another copy with the same perk roll that ranks equal on Tier, masterwork tier, crafted level and stat total. One copy is kept, chosen by a fixed ID order."
+          },
           "guardian_class": "",
           "hash": "960",
           "id": "3052",
@@ -578,6 +636,7 @@
           "action": "review",
           "candidate_tuning_mod_slot": "none/unknown",
           "equipped": false,
+          "explanation": null,
           "guardian_class": "Titan",
           "hash": "555001",
           "id": "4051",
@@ -600,6 +659,7 @@
           "action": "review",
           "candidate_tuning_mod_slot": "none/unknown",
           "equipped": false,
+          "explanation": null,
           "guardian_class": "Titan",
           "hash": "555001",
           "id": "4052",
@@ -622,6 +682,7 @@
           "action": "review",
           "candidate_tuning_mod_slot": "none/unknown",
           "equipped": false,
+          "explanation": null,
           "guardian_class": "Titan",
           "hash": "555001",
           "id": "4053",
@@ -644,6 +705,7 @@
           "action": "review",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": null,
           "guardian_class": "Titan",
           "hash": "102619",
           "id": "4005",
@@ -666,6 +728,7 @@
           "action": "review",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": null,
           "guardian_class": "Titan",
           "hash": "682991",
           "id": "4006",
@@ -699,6 +762,7 @@
           "action": "junk",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": null,
           "guardian_class": "",
           "hash": "953629",
           "id": "6001",
@@ -721,6 +785,7 @@
           "action": "junk",
           "candidate_tuning_mod_slot": null,
           "equipped": false,
+          "explanation": null,
           "guardian_class": "",
           "hash": "444005",
           "id": "6007",
