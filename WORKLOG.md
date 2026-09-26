@@ -8,9 +8,13 @@ surprises the next agent should know about.
 Implemented #170 on `feat/issue-170-proposal-explanations` branched from `main`
 at base SHA `fdedc691dde6bd022faf831e841529a1a60214e0`. Refs #170.
 
+- **Dispatch record:** orchestrator claude-opus-5-5 (effort not exposed by
+  runtime); plan-selected implementer MAI-Code-1.1-Flash (n/a — adaptive);
+  actual implementer gemini-3.8-flash (high), operator re-selection after
+  MAI looped on context limits; off-ladder, recorded.
 - **What landed:**
   - `src/vault_cleaner/explanation.py`: defines `ProposalExplanation` dataclass
-    (frozen, slotted), canonical `LABELS` mapping for weapon reason slugs,
+    (frozen), canonical `LABELS` mapping for weapon reason slugs,
     `weapon_keep_reference` helper using `safe_fragment`, builders for all 6
     weapon emit passes (`dupe`, `wishlist_trash`, `coverage_dominated`,
     `coverage_uncovered`), and `with_context` for appending report-level

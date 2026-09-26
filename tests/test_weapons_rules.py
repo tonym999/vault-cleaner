@@ -202,6 +202,116 @@ def test_wishlist_trash_with_evidence_and_pve_activity():
     )
 
 
+def test_wishlist_trash_evidence_mixed_activities_omits_pve_caveat():
+    from vault_cleaner.wishlist import WishlistSourceSpec
+
+    # (i) Two matching trash entries for the same hash: one PvE, one PvE+PvP / any ->
+    # pve_only caveat is absent.
+    spec_pve = WishlistSourceSpec(
+        name="s_pve", url="https://example.test/1", family="f1",
+        activity="pve", tier_format="none"
+    )
+    spec_any = WishlistSourceSpec(
+        name="s_any", url="https://example.test/2", family="f2",
+        activity="any", tier_format="none"
+    )
+
+    # Variant A: second entry has activity="any"
+    wl_a = parse_wishlist(
+        "dimwishlist:item=-200&perks=\n", name="s_pve", spec=spec_pve, evidence=True
+    )
+    wl_a.merge(
+        parse_wishlist(
+            "dimwishlist:item=-200&perks=\n", name="s_any", spec=spec_any, evidence=True
+        )
+    )
+    weapons = df(weapon("A", 200))
+    decisions_a = run(weapons, wl_a, PERK_MAP, 10).decisions
+    assert len(decisions_a) == 1
+    d_a = decisions_a[0]
+    assert d_a.action == "junk"
+    assert d_a.explanation is not None
+    assert d_a.explanation.label == "Wishlist rates this weapon trash"
+    assert (
+        d_a.explanation.why
+        == "A wishlist you use rates every roll of this weapon as trash. Source: s_any, s_pve."
+    )
+    assert d_a.explanation.caveats == ()
+
+    # Variant B: second entry has tags declaring activities {pve, pvp}
+    wl_b = parse_wishlist(
+        "dimwishlist:item=-200&perks=\n", name="s_pve", spec=spec_pve, evidence=True
+    )
+    wl_b.merge(
+        parse_wishlist(
+            "//notes:|tags:pve,pvp\ndimwishlist:item=-200&perks=\n",
+            name="s_both",
+            spec=spec_any,
+            evidence=True,
+        )
+    )
+    decisions_b = run(weapons, wl_b, PERK_MAP, 10).decisions
+    assert len(decisions_b) == 1
+    d_b = decisions_b[0]
+    assert d_b.action == "junk"
+    assert d_b.explanation is not None
+    assert (
+        d_b.explanation.why
+        == "A wishlist you use rates every roll of this weapon as trash. Source: s_both, s_pve."
+    )
+    assert d_b.explanation.caveats == ()
+
+
+def test_wishlist_trash_evidence_non_matching_perk_entry_excluded():
+    from vault_cleaner.wishlist import WishlistSourceSpec
+
+    # (ii) A trash entry whose perks are NOT a subset of the row's perks
+    # is excluded from "Source:" and from the PvE decision.
+    spec_matching = WishlistSourceSpec(
+        name="src_matching", url="https://example.test/1", family="f1",
+        activity="pve", tier_format="none"
+    )
+    spec_nonmatching = WishlistSourceSpec(
+        name="src_nonmatching", url="https://example.test/2", family="f2",
+        activity="pvp", tier_format="none"
+    )
+
+    wl = parse_wishlist(
+        "dimwishlist:item=-300&perks=3\n", name="src_matching", spec=spec_matching, evidence=True
+    )
+    wl.merge(
+        parse_wishlist(
+            "dimwishlist:item=-300&perks=1,2\n",
+            name="src_nonmatching",
+            spec=spec_nonmatching,
+            evidence=True,
+        )
+    )
+
+    # Row only carries "Bad Perk" (perk hash 3), not perks 1 or 2
+    weapons = df(weapon("W1", 300, perks=["Bad Perk"]))
+    decisions = run(weapons, wl, PERK_MAP, 10).decisions
+    assert len(decisions) == 1
+    d = decisions[0]
+    assert d.action == "junk"
+    assert d.explanation is not None
+    assert d.explanation.label == "Wishlist rates this roll trash"
+
+    # The non-matching perk entry is excluded from "Source:"
+    assert "src_nonmatching" not in d.explanation.why
+    assert (
+        d.explanation.why
+        == "A wishlist you use rates this perk roll as trash. Source: src_matching."
+    )
+
+    # The non-matching perk entry is excluded from the PvE decision; only the matching
+    # PvE entry is evaluated, so the PvE caveat is present (had the PvP entry been
+    # included, pve_only would be False and the caveat would be omitted).
+    assert d.explanation.caveats == (
+        "That rating is for PvE only and says nothing about PvP use.",
+    )
+
+
 def test_no_double_row_when_trash_and_dupe_lower():
     weapons = df(
         weapon("A", 200, **{"Masterwork Tier": "10"}),
