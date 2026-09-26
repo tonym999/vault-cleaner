@@ -3,6 +3,50 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
+
+Planned #174 on `handoff/issue-174-implementation-plan` from `main` at
+`dfe9113`. Planner `claude-opus-5-5`. Refs #174.
+
+- **What landed:** `handoffs/issue-174-implementation-plan.md`. No product
+  code, tests, schemas, rules or versions changed in this PR.
+- **Decisions made:**
+  - Fix at the pool boundary: every wishlist-trash copy (junk or review)
+    leaves exact-dupe resolution (`weapons.py:127`, `trash_junk_ids` →
+    `trash_ids`). The issue's two candidate shapes reduce to this, because a
+    trash copy's own dupe decision is already discarded. Keeping it in the
+    pool only lets it win or distort `best_key`.
+  - The matching-scope question (should wishlist matching use only the
+    pre-tracker prefix?) is deliberately out of scope. The pool fix makes
+    the invariant independent of it, and #34 measured no keep-match
+    difference on the real export.
+  - `RULESET_VERSION` 5 → 6. #172 takes 7; its planner re-baselines, and this
+    PR does not edit #172.
+  - Implementer `gemini-3.8-flash` (`high`), Bounded rung. It completed #170
+    cleanly, while MAI's Copilot-app run looped. Review path: independent
+    adversarial review.
+  - Deliberate prompt deviation from the planner template: the execution
+    prompt tells the implementer to read only the newest `WORKLOG.md` entries
+    and drops the browser suite, since no UI changes. This anticipates the
+    #144 request rather than waiting for it.
+- **Surprises the next agent should know about:**
+  - The defect was designed in: M3's
+    `test_soft_reviewed_trash_copy_still_competes_in_dupes` (#13, `f5a8804`)
+    asserts it, on the reasoning that a locked trash copy is "probably
+    staying". The plan rewrites that test's expectation. This is the one
+    intended decision change.
+  - Trial of the one-line fix in the planning session (reverted): the
+    reproduction and four variants go to 0 violations, and the full suite is
+    `1 failed, 1089 passed`, the failure being that pinned test. No committed
+    fixture triggers the defect (a sweep of every `weapons*.csv` × four
+    wishlists finds 0 violations on `main`), so the regression tests must
+    build it synthetically.
+  - Trade-off for the owner: in the two-copy case the clean lower copy now
+    gets no decision. If the trash review is vetoed, that duplicate goes
+    unproposed. The alternative risks losing both copies.
+  - Real-export incidence is not measured: #174 records no per-ticket
+    authorisation yet. The plan makes measurement conditional on one.
+
 ## 2026-09-26 — Housekeeping: #170 dispatch record correction
 
 Corrected the #170 implementation entry's dispatch record, which called
