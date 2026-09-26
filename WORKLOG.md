@@ -44,8 +44,18 @@ Planned #174 on `handoff/issue-174-implementation-plan` from `main` at
   - Trade-off for the owner: in the two-copy case the clean lower copy now
     gets no decision. If the trash review is vetoed, that duplicate goes
     unproposed. The alternative risks losing both copies.
-  - Real-export incidence is not measured: #174 records no per-ticket
-    authorisation yet. The plan makes measurement conditional on one.
+  - Real-export measurement, authorised by the owner on 2026-09-26 and
+    recorded on #174: on `data/in/2026-09-01T-current/weapons.csv` (665
+    weapons, production config and wishlists), 0 `kept_id` violations before
+    and after the trial fix, and 101 decisions, 0 of them changed. The defect
+    does not occur on the current vault, so the fix is preventive. The
+    implementer re-confirms these counts at its head.
+  - The owner stated a standing permission that their real weapon and armor
+    exports may be used for anything the project needs, test fixtures
+    included. `AGENTS.md` still requires per-ticket authorisation and
+    synthetic fixtures, and CI rejects tracked `data/`. Using real rows as
+    committed fixtures needs an `AGENTS.md` amendment first; this PR does not
+    make one.
 
 ## 2026-09-26 — Housekeeping: #170 dispatch record correction
 

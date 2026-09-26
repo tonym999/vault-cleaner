@@ -96,14 +96,28 @@ evidence} yields **0** `kept_id`-in-decided violations on `main`. No committed
 fixture exercises the defect, so the regression tests below must build the
 case directly.
 
-### Real-export incidence
+### Real-export incidence (measured)
 
-**Not measured in planning:** real-export measurement needs a per-ticket owner
-authorisation (`AGENTS.md`), which #174 does not yet record. Indirect
-evidence: #34 measured on `data/in/2026-09-01T-current/weapons.csv` that reading
-every `Perks N` cell versus only the pre-tracker prefix gives identical keep
-matches (0 rows differ; `WORKLOG.md`, #34 planning entry). That makes the
-trigger rare. See the conditional measurement step below.
+**Authorised by the owner on 2026-09-26**, recorded on #174
+(<https://github.com/tonym999/vault-cleaner/issues/174#issuecomment-5848899447>).
+Measured in planning on `data/in/2026-09-01T-current/weapons.csv` with the
+production config and wishlists, at this baseline and with the one-line fix
+applied temporarily (then reverted). Aggregate counts only:
+
+| | Before | After fix |
+|---|---|---|
+| Weapons | 665 | 665 |
+| Decisions | 101 | 101 |
+| `kept_id` names a decided copy | 0 | 0 |
+| Keep/trash conflicts | 13 | 13 |
+| Decisions changed | — | 0 |
+
+By action and reason, identical before and after: junk `wishlist-trash
+whole-item` 11; review `wishlist-trash whole-item` 8; review `dupe-lower` 2;
+review `coverage-dominated by` 30; review `coverage-uncovered vs` 50.
+
+The defect does not occur on the current real export. The fix is preventive,
+and the two-copy yield trade-off below costs nothing on this vault today.
 
 ### Model verification and selection
 
@@ -130,8 +144,8 @@ may re-select per `handoffs/README.md`.
   scope.** Restricting wishlist matching to the pre-tracker prefix would
   change wishlist semantics for every weapon, and would not be needed for the
   invariant once the pool is fixed. #34's measurement found no keep-match
-  difference on the real export. Revisit only if the conditional measurement
-  below finds differing matches.
+  difference on the real export, and the planning measurement above found
+  no `kept_id` violation. Revisit only if a later export shows one.
 - **Trade-off, stated plainly.** In the two-copy case, the clean lower copy
   (`U`, or `22`) now gets **no** decision. If the owner later vetoes the trash
   review and keeps `T`, `U` remains an unproposed duplicate, which is a small
@@ -209,20 +223,19 @@ the one kept.`
 `python scripts/regenerate_report_snapshot.py`. The diff must be exactly
 `ruleset_version` and `fingerprint`.
 
-### Conditional real-export measurement
+### Real-export confirmation at the implementation head
 
-Only if #174 records owner authorisation for it: run `weapons.run` with the
-production wishlists on `data/in/2026-09-01T-current/weapons.csv` at the base
-and head SHAs. Record in `WORKLOG.md` only aggregate counts: `kept_id`
-violations before and after, and decisions added, removed or changed by
-reason slug. No ids, rows or Notes. Without authorisation, record "real-export
-incidence: NOT MEASURED".
+Authorisation is recorded on #174. Re-run the same aggregate measurement at
+the implementation head: `resolve_weapons` with `config.toml` on
+`data/in/2026-09-01T-current/weapons.csv`, printing only counts. Confirm
+0 `kept_id` violations and the same 101 decisions by action and reason as
+the table above. Record the counts in `WORKLOG.md`: no ids, rows or Notes.
 
 #### [MODIFY] [WORKLOG.md](../WORKLOG.md)
 
 A dated entry justifying the rewritten test's changed expectation, the
-version bump and its manifest effect, and the measurement result or its
-absence.
+version bump and its manifest effect, and the real-export confirmation
+counts.
 
 ## Mechanical inclusion test
 
@@ -232,8 +245,8 @@ A proposed change is **in scope** if and only if it:
 - bumps `RULESET_VERSION` with its comment, updates the `== 5` assertion, and
   regenerates the golden;
 - updates PLAN.md rule 2 as specified;
-- adds or rewrites the tests listed above, or records `WORKLOG.md`
-  measurement.
+- adds or rewrites the tests listed above, or records the `WORKLOG.md`
+  real-export confirmation.
 
 Worked examples:
 - **IN SCOPE:** rewriting `test_soft_reviewed_trash_copy_still_competes_in_dupes`
@@ -253,9 +266,8 @@ Stop implementation and return to the orchestrator if:
   has anything beyond `ruleset_version` and `fingerprint`;
 - a weapon decision's `kept_id` is still decided in any case after the fix;
 - the fix appears to need a change in `dupes.py` or `coverage.py`;
-- a real-export measurement (if authorised) shows decisions changing for a
-  reason slug other than `dupe-lower`, `dupe-tie`, `coverage-dominated by` or
-  `coverage-uncovered vs`.
+- the real-export confirmation differs from the planning table (any
+  decision changed, or any `kept_id` violation).
 
 Escalation route: `implementer → orchestrator → planner`.
 
@@ -296,7 +308,7 @@ Rules:
 
 Make ordinary implementation decisions yourself (local structure, naming, helpers, test shape, following established patterns, fixing failures your own change caused) and explain notable ones in your completion handoff. If any stop condition is reached, or the work needs a design decision the plan did not settle, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope or silently redesign the solution.
 
-When complete, return to the orchestrator: the base and head SHAs, the changed-file list, the full output of each verification command, the golden diff, the output of the reverted-fix run of the invariant test, the real-export measurement or "NOT MEASURED", and any deviations from the plan.
+When complete, return to the orchestrator: the base and head SHAs, the changed-file list, the full output of each verification command, the golden diff, the output of the reverted-fix run of the invariant test, the real-export confirmation counts, and any deviations from the plan.
 
 # Ticket-specific review decision
 
@@ -320,7 +332,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] The invariant test covers the synthetic cases and fails with line 127 reverted (evidence in the handoff).
 - [ ] No other existing assertion changed; no change in `dupes.py`, `coverage.py`, rails, explanation or Notes code.
 - [ ] No stale "stays in the pool" rationale remains.
-- [ ] Real-export measurement is aggregate-only under recorded authorisation, or explicitly NOT MEASURED.
+- [ ] The real-export confirmation matches the planning table (0 violations, 101 unchanged decisions) and is aggregate-only.
 - [ ] `ruff`, `pytest`, `git diff --check`, empty `git ls-files data/`, and a `WORKLOG.md` entry all pass.
 
 # Dispatch comment draft
