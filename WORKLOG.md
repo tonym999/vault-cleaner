@@ -96,8 +96,19 @@ against the code and accepted.
   dropped "unless the current filters exclude them". It is restored, and the
   scope line now names Action and Session verdict among the filters.
 - **Minor, capacity timing.** Open question 12 contradicted 5.13.4's "no card
-  until Child 6". Timing is now stated as settled; only the content stays open.
+  until Child 6". Question 12 now treats timing as settled and leaves only the
+  content open. (5.13.4 still had the same contradiction; see round 2.)
 - No product code, tests, schemas or dependencies changed.
+
+### Review-fix round 2 (PR #176)
+
+- **P2, capacity timing (owner).** Round 1 fixed question 12 but left 5.13.4's
+  "not designed" list asking "whether the card appears before Child 6 lands",
+  right next to the rule that no card ships until Child 6. The round-1 worklog
+  line and PR reply both claimed more than the diff did. 5.13.4 now states
+  timing as settled. A grep confirms no other passage states capacity timing.
+- Lesson for the next agent: when a finding names one contradiction, grep for
+  every statement of the same fact before claiming it fixed.
 
 ## 2026-09-26 — #170 implementation: plain-English reasons for weapon proposals (PR 2)
 

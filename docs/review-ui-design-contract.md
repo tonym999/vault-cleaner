@@ -685,9 +685,8 @@ beneath: the four states are never merged into one number.
 
 **What is designed:** position (first thing below the filters) and the rule
 that the four states stay **visually separate**. **What is not designed:** what
-each cell counts, units, targets, progress bars, and whether the card appears
-before Child 6 lands. An implementation ships no capacity card until Child 6
-defines its content.
+each cell counts, units, targets and progress bars. **Timing is settled:** an
+implementation ships no capacity card until Child 6 defines its content.
 
 #### 5.13.5 DIM search panel
 
