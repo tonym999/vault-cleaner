@@ -3,6 +3,113 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-26 — #171 weapons Proposals design (direct docs PR)
+
+Designed the Proposals review surface and added it to
+[`docs/review-ui-design-contract.md`](docs/review-ui-design-contract.md) as
+section 5.13, on branch `docs/issue-171-weapons-proposals-design` from `main`
+at `aeaca71` (after #170's implementation, PR #175). Model `claude-opus-5-5`.
+Refs #171.
+
+- **Route (owner, 2026-09-26).** The owner explicitly authorised the direct
+  single-PR route for this documentation ticket. That authorises the route
+  only; opening and merging the PR are separate actions.
+- **How the design was made.** The #136 prototype archive was unpacked into a
+  session scratchpad outside the repository and extended with a new
+  `app/proposals.tsx` (705 lines) plus small `app/page.tsx` and
+  `next.config.mjs` edits. It was run locally and captured with the project's
+  Playwright at 1440px and 390px. The owner reviewed eight screenshots and
+  approved the look. Nothing from the prototype, its `node_modules` or its
+  build output is committed. Sample data uses invented weapon names and
+  obviously synthetic ids (`000000000000000NNNN`); no real vault data was used.
+- **Decisions (owner, 2026-09-26), recorded in 5.13:**
+  - Action filter as count chips, not a select.
+  - Bulk verdict buttons move next to the "Showing N of M proposals" line.
+  - The surface switch sits above the filter panel, on both surfaces.
+  - A collapsed row shows no `keep_instead` text; it shows an amber "keep copy
+    also proposed" chip only in the #174 case.
+- **Design decisions approved with the screenshots:** action badges are
+  outline-only (junk coral, review amber) so they cannot be read as a pressed
+  verdict; the expanded panel orders explanation → keep-copy status →
+  caveats → comparison → evidence → DIM note/tag/hash; the comparison shows
+  only differing axes and stacks per axis on narrow containers; wishlist
+  evidence always states *why* a tier or activity is unknown.
+- **Scope.** Documentation and design only. No renderer, server, report,
+  snapshot, schema, rule, lifecycle or dependency change. Section 1 precedence
+  is unchanged. Sections 3, 5.4, 5.12, 9, 10, 11 and 12 were updated so no
+  "placeholder" entry for Proposals remains.
+- **Surprises the next agent should know about:**
+  - **Two panels need data the snapshot does not have.** The comparison with
+    the copy to keep needs per-copy perks, tier, masterwork, crafted level,
+    curated-match count and location; the snapshot has only `kept_id` and
+    #170's prose `keep_instead`. The evidence panel needs #158's
+    `WishlistEntry` fields, which never reached the snapshot. Section 5.13.0
+    tabulates what is available now, and forbids reconstructing either panel
+    by parsing prose. Open question 7 asks for the schema ticket.
+  - The Proposals surface is not weapons-only: armor and ghost rows share it,
+    so 5.13.11 covers them and the inventory table covers the Tuning Mod Slot
+    column.
+  - #158's evidence model *does* carry curation tier with a parse status
+    (`parsed` / `not-declared` / `unrecognized`) and an activity basis. This
+    corrects an assumption made while scoping the ticket.
+  - Production verdict text includes persisted-veto wording
+    (`sessionVerdictText`) and the DIM search panel carries a "not an
+    approved-junk list" warning and a no-side-effect sentence. The prototype
+    shows neither; the contract keeps both verbatim.
+  - The original prototype's fingerprint `<code>` widened the page at 390px;
+    recorded in section 11.
+  - #170 merged mid-session. Its final strings were re-read from
+    `explanation.py` and match the prototype copy word for word.
+- **Checks run:** `git diff --check`; a byte-level scan for invisible
+  characters; every internal anchor link resolved against the headings (55
+  links, none broken); `ruff check`; the full pytest suite (unaffected by this
+  documentation-only diff). No test added: as for #136, the claims are about
+  code behaviour and are validated by reading it, and a prose test would pin
+  sentences rather than behaviour.
+
+### Review-fix round 1 (PR #176)
+
+Owner review raised three findings and CodeRabbit two. All five were verified
+against the code and accepted.
+
+- **P1, source chips need data.** The row design's wishlist-source chips had no
+  structured source behind them: #170 puts sources only in the `why` prose, and
+  the snapshot's `wishlists` list is run-level. The chips are now a third
+  "needs snapshot data" row in 5.13.0 and are omitted until that data exists.
+- **P1, perk comparison identity.** Comparing raw `Perks N` cells would include
+  tracker, mod and masterwork cells and `*` markers, contradicting "an exact
+  duplicate never shows a perk row". 5.13.8.1 now requires Python to project
+  both tuples from `_exact_roll_prefix_parts` (normalized for comparison,
+  aligned display names for the labels) and to show "cannot be compared" when
+  either copy has no proven prefix.
+- **P2, copy button.** The prototype's icon-only copy control had been carried
+  in silently, against #150's exclusion of clipboard writes. **Owner decision
+  (2026-09-26):** generated DIM searches get one user-initiated Copy button per
+  chunk, for weapon proposals and for armor groups in both modes. That
+  behaviour was filed as
+  [#177](https://github.com/tonym999/vault-cleaner/issues/177) (enhancement,
+  M9 — Duplicate Review UX, project `Todo`; creating the issue was separately
+  authorised). #177 is its source of truth and amends #150 for click-initiated
+  copies only. 5.12, 5.13.5, the section 3 illustrative list and the inventory
+  now point to it.
+- **Minor, DIM scope wording.** The paraphrase of production's warning had
+  dropped "unless the current filters exclude them". It is restored, and the
+  scope line now names Action and Session verdict among the filters.
+- **Minor, capacity timing.** Open question 12 contradicted 5.13.4's "no card
+  until Child 6". Question 12 now treats timing as settled and leaves only the
+  content open. (5.13.4 still had the same contradiction; see round 2.)
+- No product code, tests, schemas or dependencies changed.
+
+### Review-fix round 2 (PR #176)
+
+- **P2, capacity timing (owner).** Round 1 fixed question 12 but left 5.13.4's
+  "not designed" list asking "whether the card appears before Child 6 lands",
+  right next to the rule that no card ships until Child 6. The round-1 worklog
+  line and PR reply both claimed more than the diff did. 5.13.4 now states
+  timing as settled. A grep confirms no other passage states capacity timing.
+- Lesson for the next agent: when a finding names one contradiction, grep for
+  every statement of the same fact before claiming it fixed.
+
 ## 2026-09-26 — #170 implementation: plain-English reasons for weapon proposals (PR 2)
 
 Implemented #170 on `feat/issue-170-proposal-explanations` branched from `main`
