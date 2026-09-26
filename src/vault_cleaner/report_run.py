@@ -42,7 +42,9 @@ SNAPSHOT_SCHEMA_VERSION = 3
 # not change RULESET_VERSION; saved review manifests nevertheless pin and
 # reject mismatched schemas. Schema 3 adds the presentation-only per-decision
 # explanation. Ruleset v5 adds the review-only weapon coverage pass.
-RULESET_VERSION = 5
+# Ruleset v6 excludes every wishlist-trash copy from exact-duplicate
+# survivor selection (#174).
+RULESET_VERSION = 6
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
     kind: str(Path(DEFAULT_INPUT_DIR) / filename)

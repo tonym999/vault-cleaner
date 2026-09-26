@@ -1,12 +1,20 @@
-import pandas as pd
+from pathlib import Path
 
+import pandas as pd
+import pytest
+
+from vault_cleaner.parse import load_weapons
 from vault_cleaner.rules.weapons import (
     keep_match_count,
     row_perk_hashes,
     run,
     trash_match,
 )
-from vault_cleaner.wishlist import parse_wishlist
+from vault_cleaner.wishlist import (
+    Wishlist,
+    WishlistSourceSpec,
+    parse_wishlist,
+)
 
 PERK_MAP = {
     "perk a": frozenset({1}),
@@ -337,8 +345,9 @@ def test_trash_junked_copy_never_survives_as_best():
     # U survives untouched — the only remaining copy after T leaves.
 
 
-def test_soft_reviewed_trash_copy_still_competes_in_dupes():
-    # A locked trash-match is only flagged, so it stays in the dupe pool
+def test_soft_reviewed_trash_copy_is_not_a_dupe_survivor():
+    # A soft-reviewed trash copy must not survive dupe resolution and become
+    # the kept copy other duplicates are told to keep (#174).
     weapons = df(
         weapon(
             "T", 300, Locked="true",
@@ -346,11 +355,10 @@ def test_soft_reviewed_trash_copy_still_competes_in_dupes():
         ),
         weapon("U", 300),
     )
-    d = {x.id: x for x in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
-    assert d["T"].action == "review"
-    assert d["U"].action == "junk"  # same exact roll, below the staying copy
-    assert d["U"].kept_id == "T"
-    assert "dupe-lower" in d["U"].note
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action) for d in decisions] == [("T", "review")]
+    assert "wishlist-trash roll (locked)" in decisions[0].note
+    assert decisions[0].kept_id == ""
 
 
 def test_hard_protected_never_trash_tagged():
@@ -419,3 +427,173 @@ def test_no_conflicts_counts_zero():
     weapons = df(weapon("A", 300, perks=["Bad Perk"]), weapon("B", 999))
     result = run(weapons, WISHLIST, PERK_MAP, 10)
     assert result.keep_trash_conflicts == 0
+
+
+def test_trash_survivor_reproduction_174():
+    # Issue #174 reproduction: weapon 11 matches trash and is soft-protected by
+    # lock; weapon 22 shares its exact roll but matches keep after the tracker
+    # boundary. Weapon 11 must not be chosen as dupe survivor for 22 to keep.
+    wl = parse_wishlist("dimwishlist:item=-300&perks=3\ndimwishlist:item=300&perks=1")
+    s = weapon("11", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"})
+    l = weapon("22", 300, perks=["Bad Perk"], **{"Perks 7": "Perk A"})  # keep perk only after tracker boundary
+    decisions = run(df(s, l), wl, PERK_MAP, 10).decisions
+    assert [(d.id, d.action) for d in decisions] == [("11", "review")]
+    assert "wishlist-trash roll (locked)" in decisions[0].note
+    assert decisions[0].kept_id == ""
+
+
+def test_survivor_chosen_among_non_trash_copies():
+    # T is soft-reviewed trash (locked MW10). U (MW5) and V (MW0) are clean copies.
+    # Excluding T lets U survive and V be junked naming U as the kept survivor.
+    weapons = df(
+        weapon(
+            "T", 300, Locked="true",
+            **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"},
+        ),
+        weapon("U", 300, **{"Masterwork Tier": "5"}),
+        weapon("V", 300, **{"Masterwork Tier": "0"}),
+    )
+    decisions = {d.id: d for d in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
+    assert decisions["T"].action == "review"
+    assert "wishlist-trash roll (locked)" in decisions["T"].note
+    assert decisions["T"].kept_id == ""
+    assert "U" not in decisions
+    assert decisions["V"].action == "junk"
+    assert decisions["V"].kept_id == "U"
+    assert "dupe-lower" in decisions["V"].note
+    assert "higher Masterwork Tier" in decisions["V"].note
+
+    # Exotic tie variant: T is soft-reviewed exotic trash (MW10). U (MW5) and
+    # V (MW5) tie; U survives by id tie-break and V is junked with dupe-tie naming U.
+    exotic_weapons = df(
+        weapon(
+            "T", 300, Rarity="Exotic",
+            **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"},
+        ),
+        weapon("U", 300, **{"Masterwork Tier": "5"}),
+        weapon("V", 300, **{"Masterwork Tier": "5"}),
+    )
+    exotic_decisions = {d.id: d for d in run(exotic_weapons, WISHLIST, PERK_MAP, 10).decisions}
+    assert exotic_decisions["T"].action == "review"
+    assert "wishlist-trash roll (exotic)" in exotic_decisions["T"].note
+    assert exotic_decisions["T"].kept_id == ""
+    assert "U" not in exotic_decisions
+    assert exotic_decisions["V"].action == "junk"
+    assert exotic_decisions["V"].kept_id == "U"
+    assert "dupe-tie" in exotic_decisions["V"].note
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+_WEAPON_FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("weapons*.csv"))
+_COV_TEXT = (FIXTURES_DIR / "wishlist_coverage.txt").read_text(encoding="utf-8")
+_COV_SPEC = WishlistSourceSpec(
+    name="test_cov",
+    url="https://example.test/cov",
+    family="cov_family",
+    activity="any",
+    tier_format="none",
+)
+
+_FIXTURE_PERK_MAP = {
+    **PERK_MAP,
+    "frame": frozenset({1000}),
+    "perk c": frozenset({3}),
+    "perk d": frozenset({4}),
+    "perk e": frozenset({5}),
+    "perk f": frozenset({6}),
+    "bad perk": frozenset({3, 99}),
+}
+
+_SWEEP_WISHLISTS = [
+    ("no_wishlist", Wishlist(keep={}, trash={})),
+    ("weapons_rules_wishlist", WISHLIST),
+    ("coverage_wishlist_no_evidence", parse_wishlist(_COV_TEXT)),
+    (
+        "coverage_wishlist_with_evidence",
+        parse_wishlist(_COV_TEXT, name="test_cov", spec=_COV_SPEC, evidence=True),
+    ),
+]
+
+_SYNTHETIC_CASES = [
+    (
+        "reproduction_174",
+        lambda: df(
+            weapon("11", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"}),
+            weapon("22", 300, perks=["Bad Perk"], **{"Perks 7": "Perk A"}),
+        ),
+        parse_wishlist("dimwishlist:item=-300&perks=3\ndimwishlist:item=300&perks=1"),
+        PERK_MAP,
+    ),
+    (
+        "locked_trash_mw10_clean_mw0",
+        lambda: df(
+            weapon("T", 300, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 300),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "locked_trash_mw10_clean_mw5_clean_mw0",
+        lambda: df(
+            weapon("T", 300, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 300, **{"Masterwork Tier": "5"}),
+            weapon("V", 300, **{"Masterwork Tier": "0"}),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "exotic_trash_mw10_clean_mw5_clean_mw5",
+        lambda: df(
+            weapon("T", 300, Rarity="Exotic", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 300, **{"Masterwork Tier": "5"}),
+            weapon("V", 300, **{"Masterwork Tier": "5"}),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "locked_trash_mw10_favorite_mw0",
+        lambda: df(
+            weapon("T", 300, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("H", 300, Tag="favorite"),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+]
+
+_INVARIANT_PARAMS = [
+    pytest.param(
+        path, wl, _FIXTURE_PERK_MAP,
+        id=f"{path.stem}_{wl_name}",
+    )
+    for path in _WEAPON_FIXTURE_PATHS
+    for wl_name, wl in _SWEEP_WISHLISTS
+] + [
+    pytest.param(
+        factory, wl, pmap,
+        id=f"synthetic_{name}",
+    )
+    for name, factory, wl, pmap in _SYNTHETIC_CASES
+]
+
+
+@pytest.mark.parametrize("weapons_source,wl,perk_map", _INVARIANT_PARAMS)
+def test_no_kept_id_is_itself_decided(weapons_source, wl, perk_map):
+    if callable(weapons_source):
+        weapons_df = weapons_source()
+    elif isinstance(weapons_source, Path):
+        weapons_df = load_weapons(weapons_source)
+    else:
+        weapons_df = weapons_source.copy()
+
+    result = run(weapons_df, wl, perk_map, crafted_level_protect=10)
+    decided = {d.id for d in result.decisions}
+    for d in result.decisions:
+        if d.kept_id:
+            assert d.kept_id not in decided, (
+                f"Decision for {d.id} specifies kept_id {d.kept_id!r}, "
+                f"which is itself decided in the same run."
+            )
