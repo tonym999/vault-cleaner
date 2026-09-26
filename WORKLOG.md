@@ -3,6 +3,19 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-26 — Housekeeping: #170 dispatch record correction
+
+Corrected the #170 implementation entry's dispatch record, which called
+`gemini-3.8-flash` (high) "off-ladder". It is a listed permitted alternative
+on the Bounded rung in `handoffs/README.md`, so the re-selection stayed on the
+ladder. Model `claude-opus-5-5`. Refs #170.
+
+- Same session, outside the repository: ticked step 4b and added #174 (as 4c,
+  before step 5) plus #171, #177 and #178 in #140's tracking comment; closed
+  #136 as completed (its contract landed in PR #169, extended by PR #176);
+  asked on #144 for the implementer prompt to bound how much `WORKLOG.md` it
+  reads, after MAI's context loop on #170.
+
 ## 2026-09-26 — #171 weapons Proposals design (direct docs PR)
 
 Designed the Proposals review surface and added it to
@@ -118,7 +131,7 @@ at base SHA `fdedc691dde6bd022faf831e841529a1a60214e0`. Refs #170.
 - **Dispatch record:** orchestrator claude-opus-5-5 (effort not exposed by
   runtime); plan-selected implementer MAI-Code-1.1-Flash (n/a — adaptive);
   actual implementer gemini-3.8-flash (high), operator re-selection after
-  MAI looped on context limits; off-ladder, recorded.
+  MAI looped on context limits; a listed Bounded-rung alternative.
 - **What landed:**
   - `src/vault_cleaner/explanation.py`: defines `ProposalExplanation` dataclass
     (frozen), canonical `LABELS` mapping for weapon reason slugs,
