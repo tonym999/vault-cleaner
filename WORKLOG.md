@@ -3,6 +3,146 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
+
+Planned #181 on `handoff/issue-181-implementation-plan` from `main` at
+`a3f7767`. Planner `claude-opus-5-5`. Refs #181.
+
+- **What landed:** `handoffs/issue-181-implementation-plan.md`. No scripts,
+  tests, fixtures, CI or `AGENTS.md` changes in this PR.
+- **Real-export measurement.** Authorised by the owner's standing permission
+  in #181. Taken on snapshot `2026-09-01T-current` (665 weapons, 893 armor,
+  28 ghosts). Aggregates only are in the plan. Nothing from the export was
+  committed; prototype outputs stayed in the session scratch directory.
+- **Decisions made:**
+  - **Owner decision (2026-09-27):** weapons `Crafted Level` is play history
+    but is kept unchanged. It feeds the crafted rail and dupe ranking, so any
+    change breaks parity. This was the only unlisted column the column
+    re-check turned up.
+  - The sanitiser audits headers against a measured allowlist and refuses
+    any unclassified column. This makes the issue's "stop-and-ask" rule hold
+    for future DIM drift.
+  - Parity compares the whole `snapshot_dict` of raw and sanitised runs,
+    under an explicit id and short-id normalisation, in both no-wishlist and
+    wishlist modes.
+  - Implementer `gpt-5.6-luna` (`high`), the Judgement rung's primary;
+    `claude-sonnet-5` (`xhigh`) is the alternative. (The first version chose
+    Sonnet on a wrong availability claim; see round 1.) Review path:
+    independent adversarial review.
+- **Surprises the next agent should know about:**
+  - **The issue body is stale in five measured ways:**
+    - Notes hold legacy *full* 19-digit ids (`kept <id>`,
+      `armor-similar to <id>`) and no short-id references.
+    - 28 ids in Notes belong to dismantled items and are in no export. They
+      are still real, so the map covers them.
+    - Two weapon `Hash` values, and one fake-id window, share an 8-digit
+      window with a real id. The literal byte check could never pass, so the
+      plan exempts runs that are exactly a fake id or a raw Hash.
+    - Loadouts cells start with an undocumented `NNNNN:` prefix and use a
+      bare `,` separator.
+    - Five loadout names equal other columns' values, so the "not a cell
+      value" check is scoped to `Loadouts` and `Notes`.
+  - A throwaway prototype showed the design works on the real snapshot:
+    - 0 leaks;
+    - parity equal in both modes (weapons 2 / 100 decisions without and with
+      wishlists; armor 394; ghosts 16);
+    - a reversed id map refused (378 decisions differ);
+    - byte-identical reruns;
+    - 648 KB output, which is not a size problem.
+  - #181 is `Todo` on the project board, verified after the owner added
+    `read:project` to the `gh` token mid-session.
+  - The owner copied `data/` into the main checkout mid-session, after the
+    initial check found none there. The measurement used the identical copy
+    in `~/Downloads/data/`; the SHA-256s match. The plan now points at the
+    repo's gitignored `data/`.
+
+### Review-fix round 1 (PR #183)
+
+Four findings: three from the owner's review of `611057c`, and two CodeRabbit
+threads, one of which duplicates an owner finding. All were verified against
+the code or source and accepted.
+
+- **P1 (owner): clause-shaped owner text could survive.** Retention used
+  `strip_trailing_tool_clauses`, whose slots admit free text. Five
+  clause-shaped private strings were confirmed to pass it, including
+  `armor-similar to <id> (private note)` and `keep [id …; my address]`.
+  - The plan now retains a segment only if it fullmatches a strict
+    12-family grammar (`RETAINED_CLAUSE_RES`) whose every slot is fixed text,
+    a number, a fake id or a closed vocabulary. Retained references drop
+    their `roll`/`spirits` parts. Measured on the real snapshot: the grammar
+    retains all 1,050 real clauses, and only `#vc-test` becomes a
+    placeholder.
+  - New tests use owner text in clause form, plus emitter-driven coverage of
+    the 12 families.
+- **P2 (owner): `<SID>` normalisation masked wrong references.** Parity now
+  requires the sanitised Notes cell to equal the transform of the raw cell
+  exactly, and the preserved prefix to commute with `strip`. It normalises
+  only the appended clause and explanations, and checks that every short id
+  truthfully renders its own decision's `kept_id` (prefix, suffix, digest).
+  Every production reference renders the `kept_id` row. A new check, L9,
+  re-derives rewritten Notes references independently. New wrong-reference
+  tests cover both.
+- **P2 (owner) + Major (CodeRabbit): the CI guard and the review fallback
+  could not see text leaks.** The guard now validates every Notes, Loadouts
+  and Kill Tracker cell and `provenance.json`. It is the single source of the
+  grammars, and the sanitiser imports them from it. The review checklist now
+  requires regeneration from the raw snapshot, with no fallback.
+- **Minor (CodeRabbit): `gpt-5.6-luna` availability.** The finding was right
+  and the planning claim wrong. OpenAI's per-model page lists `gpt-5.6-luna`
+  with efforts `none` to `max`; the planning check read only the models index
+  summary. The implementer reverts to the rung primary, `gpt-5.6-luna`
+  (`high`), and the "roster may be stale" claim is removed here and from the
+  plan.
+- No scripts, tests, fixtures, CI or `AGENTS.md` changed in this PR; only
+  the plan and this entry.
+
+### Review-fix round 2 (PR #183)
+
+The owner re-reviewed `cfd5306`: the round-1 fixes resolve two of the three
+earlier findings, and CodeRabbit resolved both round-1 threads after checking
+them. Two new findings.
+
+- **P1 (owner) + Major (CodeRabbit), the same finding: owner numbers pass
+  the clause grammar.** Confirmed. The round-1 grammar retained
+  `armor-similar to <id> (max stat delta 3141592, total 1)`, because its
+  numeric slots were unbounded. Input numbers and reference parts reflect
+  historic vault state and cannot be verified as tool-generated.
+  - The plan now builds two forms from one set of family templates:
+    `INPUT_CLAUSE_RES` recognises a clause, and the sanitiser writes only the
+    canonical `RETAINED_CLAUSE_RES`. Every numeric slot becomes `0`, and
+    every reference becomes `[id <short_id(fake)>]`. The CI guard accepts
+    only the canonical form.
+  - Measured on the real snapshot: all 1,050 real clauses canonicalise, and
+    remain full clauses to `strip_trailing_tool_clauses`, so strip behaviour
+    and parity are unchanged.
+  - New planted owner-number cases, in both the sanitiser and the guard.
+  - Accepted residual: a kept clause still shows which closed-vocabulary word
+    was chosen.
+- **Minor (CodeRabbit): the short-id normaliser misses non-numeric
+  tokens.** Not applicable. `short_id` emits letters only for non-decimal
+  ids, and the sanitiser refuses those before parity. A non-numeric token in
+  raw Notes fails the input grammar, so its clause becomes a placeholder.
+  The plan now states this invariant and tests it; the pattern is unchanged.
+- Plan and this entry only.
+
+### Round 3 and merge preparation (PR #183)
+
+- **CodeRabbit Minor: the retained vocabulary disclosure needs
+  authorisation.** Kept clauses still copy closed-vocabulary words, so a
+  hand-typed clause-shaped note could pass word choices through, up to
+  about 10 bits per clause.
+  - **Owner decision (2026-09-27): accepted as a residual.** The channel can
+    carry only public game or tool terms, and it carries nothing on the
+    current snapshot. The plan records the acceptance; vocabulary slots stay
+    copied.
+- `main` moved on while the PR was open (#174 merged: PRs #182, #184,
+  #187). Merged `origin/main` into this branch:
+  - resolved the `WORKLOG.md` insertion conflict by keeping both sides;
+  - updated the plan's `report_run.py` and `coverage.py` citations, which
+    #174 shifted by three lines;
+  - noted the re-baseline, and that the prototype's decision counts predate
+    `RULESET_VERSION` 6.
+
 ## 2026-09-27 — #174 plan Amendment 2: accepted limitation #185
 
 Amended `handoffs/issue-174-implementation-plan.md` again, on
