@@ -1,5 +1,5 @@
 {
-  "fingerprint": "6202801d6667bbc00eeebdb537b3e7ed17e622d36ce282fcb19cbd4f56895433",
+  "fingerprint": "47e9834a0192f92ec69d5032e8de4c9c3cf6c2136ce4e7dfa8c62a8d855a45e0",
   "inputs": {
     "effective_config": {
       "armor": {
@@ -53,7 +53,7 @@
     "wishlists_used": false
   },
   "keep_trash_conflicts": 0,
-  "ruleset_version": 5,
+  "ruleset_version": 6,
   "schema_version": 3,
   "sections": [
     {

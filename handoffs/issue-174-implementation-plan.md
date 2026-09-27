@@ -18,6 +18,14 @@
 
 **Allocated implementation branch:** `fix/issue-174-trash-survivor`
 
+**Amendment 1:** 2026-09-27, on the implementation branch head
+`b8069974df4184d8b1df3190d72ca8891b4c2f28` (PR #182). Planner
+`claude-opus-5-5`. See [Amendment 1](#amendment-1-exact-dupe-survivors-are-partner-only-in-coverage).
+
+**Amendment 2:** 2026-09-27, on the implementation branch head
+`ba3e06117f64fe36d660692c99acec9217f1dbfc`. Planner `claude-opus-5-5`. See
+[Amendment 2](#amendment-2-accepted-limitation-185-and-worklogmd-merge).
+
 The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
 
 This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
@@ -29,6 +37,13 @@ itself proposed in the same run. The fix: every copy that receives a
 wishlist-trash decision, junk **or review**, is kept out of exact-duplicate
 resolution, so it can never be chosen as the survivor. This changes decisions,
 so `RULESET_VERSION` goes from 5 to 6.
+
+Amendment 1 closes the remaining path to the same invariant: a copy that an
+earlier decision names as its `kept_id` (an exact-dupe survivor) receives no
+coverage advice, but stays available as a coverage partner.
+
+Amendment 2 records one owner-accepted exception inside the coverage pass,
+tracked in #185, and narrows the documentation to match.
 
 ## Context & Measurement
 
@@ -170,6 +185,10 @@ may re-select per `handoffs/README.md`.
   ([weapons.py:132-135](../src/vault_cleaner/rules/weapons.py#L132-L135)).
   Coverage partners are always undecided rows, so the invariant still holds.
   The invariant test below covers the whole `run` output, coverage included.
+  **Corrected by Amendment 1:** this reasoning checked only the partner side.
+  An exact-dupe survivor is also undecided, so coverage can propose it as a
+  *subject* after another copy was told to keep it. That path existed before
+  this ticket and is fixed in Amendment 1.
 
 ## Proposed Plan & Scope
 
@@ -246,6 +265,316 @@ A dated entry justifying the rewritten test's changed expectation, the
 version bump and its manifest effect, and the real-export confirmation
 counts.
 
+## Amendment 1: exact-dupe survivors are partner-only in coverage
+
+**Status:** Round 1 above is implemented on `fix/issue-174-trash-survivor`
+at `b806997` (PR #182) and passed two independent adversarial reviews.
+Amendment 1 adds work on the same branch. Everything above still applies
+unless this section says otherwise.
+
+### Finding that triggered it
+
+PR #182 review, 2026-09-27: the owner (P1) and CodeRabbit (inline, same
+defect) reported that an exact-dupe survivor can still be proposed by the
+coverage pass in the same run. The orchestrator reproduced it and accepted it
+as one P1. The fix needs a `coverage.py` change, which the round-1 inclusion
+test and stop conditions excluded, so it came back to the planner. The owner
+chose the partner-only shape on 2026-09-27.
+
+### The defect
+
+- `weapons.run` passes coverage every row that has no decision yet
+  (`weapons.py:134-137` at `b806997`). The dupe pass decides only the
+  *losers*, so the survivor it names in their `kept_id` stays undecided.
+- `coverage.analyse` may then decide that survivor, for example
+  `coverage-dominated by` a distinct roll with more curated matches. The
+  losing copy's `kept_id` now names a copy proposed in the same run.
+- Coverage cannot do this to its own partners. A dominated copy's partner is
+  the superset with the most matches, so it has no strict superset of its
+  own. An uncovered copy's partner is the copy with the most matches, which
+  also has no strict superset. The survivor path is the only one left.
+  **Corrected by Amendment 2:** this argument assumed every coverage member
+  is an eligible partner. Coverage skips same-roll copies, and a
+  hard-protected dupe loser stays undecided, so a strict superset can exist
+  outside the partner list. See Amendment 2 and #185.
+- This predates #174. It exists since the coverage pass landed (`e27a8b2`,
+  #34, 2026-09-20) and needs no wishlist trash at all.
+
+### Reproduced at `b806997` (synthetic)
+
+Helpers from `tests/test_weapons_rules.py`, with
+`wl = parse_wishlist("dimwishlist:item=400&perks=1\ndimwishlist:item=400&perks=1,2\ndimwishlist:item=-400&perks=3")`:
+
+| Case | Rows | Result at `b806997` |
+|---|---|---|
+| `U/V/C` | `U` MW5 and `V` MW0, both `perks=["Perk A"]`; `C` `perks=["Perk A", "Perk B"]` | `V` junk `dupe-lower`, `kept_id U`; `U` review `coverage-dominated by`, `kept_id C` |
+| `T/U/V/C` | `T` locked MW10, `Perks 7` = `Bad Perk`; `U` MW5 and `V` MW0, `Perks 7` = `Perk A`; `C` as above | `T` review `wishlist-trash roll (locked)`; `V` junk, `kept_id U`; `U` review `coverage-dominated by`, `kept_id C` |
+| partner | `U` MW5 and `V` MW0, both `perks=["Perk A", "Perk B"]`; `X` `perks=["Perk A"]` | `V` junk, `kept_id U`; `X` review `coverage-dominated by`, `kept_id U` (correct; must be kept) |
+
+In `T/U/V/C`, `U` and `V` get their keep match from a post-tracker cell, as
+`22` does in the original reproduction, so that `T` is trash-only rather than
+a keep/trash conflict.
+
+### Fix (owner-chosen shape)
+
+A copy named as a `kept_id` by an earlier decision is **partner-only** in
+coverage. It receives no coverage advice but remains an eligible partner.
+This mirrors how `coverage.analyse` already treats hard-protected rows
+(`coverage.py:179-181`). The rejected alternative removes such copies from
+the coverage input entirely. That also removes them as partners, and in the
+trial it dropped `X`'s valid proposal in the partner case.
+
+#### [MODIFY] [coverage.py](../src/vault_cleaner/rules/coverage.py#L93-L98)
+
+- Add a keyword parameter after `crafted_level_protect: int,`:
+  ```python
+      partner_only_ids: frozenset[str] = frozenset(),
+  ```
+- Replace the comment and condition at `coverage.py:179-180` with:
+  ```python
+              # Hard-protected rows and partner-only ids (exact-dupe survivors
+              # another decision tells the owner to keep, #174) receive no
+              # advice, but remain eligible partners.
+              if a["protection_level"] == rails.HARD or a["id"] in partner_only_ids:
+  ```
+  The following `continue` is unchanged. Nothing else in `coverage.py`
+  changes: partner selection, counts, summaries and Notes clauses stay as
+  they are.
+
+#### [MODIFY] [weapons.py](../src/vault_cleaner/rules/weapons.py#L130-L139)
+
+Replace the `coverage.analyse(...)` call (`weapons.py:135-137` at `b806997`)
+with:
+
+```python
+    # A copy another decision names as its kept copy must not itself be
+    # proposed by coverage; it stays available as a coverage partner (#174).
+    kept_ids = frozenset(d.kept_id for d in decisions if d.kept_id)
+    analysis = coverage.analyse(
+        weapons[~weapons["Id"].isin(decided)],
+        wl,
+        perk_map,
+        crafted_level_protect,
+        partner_only_ids=kept_ids,
+    )
+```
+
+`decisions` at that point holds the wishlist-trash and dupe decisions, so
+`kept_ids` covers every earlier `kept_id`, not only dupe survivors.
+
+#### [MODIFY] [report_run.py](../src/vault_cleaner/report_run.py#L41-L47)
+
+Replace the two-line v6 comment added in round 1 with:
+
+```python
+# Ruleset v6 excludes every wishlist-trash copy from exact-duplicate
+# survivor selection, and makes exact-dupe survivors partner-only in the
+# coverage pass (#174).
+```
+
+`RULESET_VERSION` stays 6. Version 6 has not reached `main`, so both
+decision changes share one bump. The golden file does not change, because
+its fingerprint does not depend on rule code.
+
+#### [MODIFY] [PLAN.md](../PLAN.md)
+
+Rule 4 (the weapons coverage pass): append `A copy that an earlier decision
+names as its kept copy receives no coverage advice but remains an eligible
+partner, so a copy the tool says to keep is never itself proposed.`
+
+#### [MODIFY] [docs/weapon-coverage.md](../docs/weapon-coverage.md#L44)
+
+After the bullet at line 44 (`- Hard-protected items receive no coverage
+advice, but remain eligible comparison partners.`), add:
+`- Exact-dupe survivors that another decision names as the copy to keep receive no coverage advice, but remain eligible comparison partners (#174).`
+
+### Amendment 1 tests
+
+In `tests/test_weapons_rules.py`, define the wishlist above once as a
+module constant (for example `COVERAGE_SURVIVOR_WL`), then:
+
+- Add `test_dupe_survivor_is_partner_only_in_coverage` (`U/V/C`): the
+  complete decision list, in run order, is exactly
+  `[("V", "junk", "U")]` as `(id, action, kept_id)`. `V`'s note contains
+  `dupe-lower`.
+- Add `test_trash_then_dupe_survivor_is_partner_only_in_coverage`
+  (`T/U/V/C`): exactly `[("T", "review", ""), ("V", "junk", "U")]`. `T`'s
+  note contains `wishlist-trash roll (locked)`.
+- Add `test_dupe_survivor_remains_coverage_partner` (partner): exactly
+  `[("V", "junk", "U"), ("X", "review", "U")]`. `X`'s note contains
+  `coverage-dominated by`.
+- Add `U/V/C` and `T/U/V/C` to `_SYNTHETIC_CASES` in
+  `test_no_kept_id_is_itself_decided`.
+- No existing assertion changes, including every round-1 test.
+
+### Trial (planning session, reverted)
+
+The fix above, applied on `b806997` in a scratch worktree:
+
+- Full suite: `1117 passed`. No existing test pins the defect.
+- The three cases give exactly the lists above, with 0 `kept_id`
+  violations.
+- **Mutation 1:** without `partner_only_ids=kept_ids`, `U/V/C` and
+  `T/U/V/C` violate the invariant (the `b806997` results).
+- **Mutation 2:** with full exclusion
+  (`isin(decided | kept_ids)`, no partner-only), the partner case loses `X`'s
+  proposal: only `[("V", "junk", "U")]`. So the partner test is what tells
+  the two shapes apart.
+- Golden regeneration: unaffected.
+
+### Real-export measurement (owner-authorised on #174)
+
+`resolve_weapons` with the production `config.toml` on
+`data/in/2026-09-01T-current/weapons.csv`, run from the main checkout so
+all three states share the same wishlist and manifest caches: `main`
+(`a3f7767`), PR head (`b806997`) and the trial. All three give 665 weapons,
+101 decisions, 13 keep/trash conflicts, 0 `kept_id` violations, and the same
+by-action counts as the table under *Real-export incidence*. A SHA-256
+digest over the sorted `(id, action, tag, note, kept_id)` lists is identical
+in all three, so 0 decisions change. The fix is preventive on this vault.
+
+### Armor: measured, out of scope
+
+The same measurement on `data/in/2026-09-01T-current/armor.csv` with
+`resolve_armor` (aggregate only): 893 pieces, 394 decisions, 134 decisions
+whose `kept_id` names a decided piece.
+
+- 133 are `armor-similar to` reviews citing another `armor-similar to`
+  review. 124 of those are mutual pairs, which reflects the close pass's
+  symmetric design.
+- 1 is an `armor-exact-dupe-tie` junk whose survivor the close pass later
+  flags `armor-similar to`. That is the same survivor-then-proposed class
+  as this amendment's weapon defect.
+- `pipeline.resolve_armor` guards the score pass only against junking
+  close-cited partners, not exact-dupe survivors
+  (`src/vault_cleaner/pipeline.py:183-199`). That is the same class again,
+  but unmeasured.
+
+#140 is weapons-first and #174 is weapons-only, so armor stays out of scope.
+It needs its own issue, with the owner deciding whether mutual
+`armor-similar` citations are acceptable. This plan does not create it.
+
+### Implementer for Amendment 1
+
+Keep `gemini-3.8-flash` (`high`), Bounded rung. Amendment 1 is a specified
+parameter, call, comments and three exact-list tests, with no design choice
+delegated. Gemini completed round 1 and its review-fix round cleanly on this
+branch, and the fix round's hunk audit found no collateral edits. The
+execution prompt below keeps the PR #160 guard: it bounds the edit and names
+what must not move.
+
+### Amendment 1 real-export confirmation and `WORKLOG.md`
+
+Re-run the aggregate measurement at the new head, from the main checkout (or
+with the same caches). Expect exactly the counts above and 0 changed
+decisions. Append a `Review-fix round 2 (Amendment 1)` part to the existing
+#174 implementation entry in `WORKLOG.md`, in the round-1 format: what
+changed, the counts, and the mutation results. No ids, rows or Notes.
+
+## Amendment 2: accepted limitation #185 and `WORKLOG.md` merge
+
+**Status:** Amendment 1 is implemented at `ba3e061`. The orchestrator
+verified it and a fresh independent review found no P0 or P1 issues.
+Amendment 2 adds documentation, one test and a merge. No production code or
+decision changes.
+
+### Finding and owner decision
+
+The independent review of `ba3e061` (P2) found a second, pre-existing way
+for a coverage decision's `kept_id` to name a proposed copy. It lies inside
+the coverage pass. The orchestrator reproduced it at `ba3e061` and on `main`
+at `34dd6d4`.
+
+- `H` loses the exact-dupe comparison to `A` but is hard-protected, so
+  `dupes.resolve` gives it no decision (`src/vault_cleaner/rules/dupes.py:244-247`).
+  Both copies stay undecided.
+- Keep matching reads every `Perks N` cell, so `H` can match more keep rolls
+  than `A` through post-tracker cells.
+- Coverage skips same-roll partners, so `A` is paired with a weaker roll `B`,
+  and `H` then dominates `B`. Result: `A` review with `kept_id B`, and `B`
+  review with `kept_id H`.
+
+Both decisions are review-only. `H` is hard-protected and never proposed, so
+accepting both still keeps a copy that covers them. The #170 caveat ("The
+copy suggested to keep is also proposed in this report") already flags `A`
+in the review report, because it applies to any explained decision whose
+`kept_id` is decided (`src/vault_cleaner/report_run.py:308-319` at `ba3e061`). There are 0
+cases on the real export.
+
+**Owner decision, 2026-09-27:** accept this as a known limitation of #174,
+surfaced rather than suppressed. The fix is tracked in #185 (depends on
+#174), together with the deferred matching-scope question. Armor was split
+to #186. #174 now claims the invariant for every path except this one.
+
+### Reproduction (pinned as a test)
+
+Helpers from `tests/test_weapons_rules.py`:
+
+| Variant | Wishlist | Rows | Decisions (run order) |
+|---|---|---|---|
+| dominated | `item=500` keep rolls `perks=1`, `perks=1,2`, `perks=1,2,4` | `A` `perks=["Perk A"]` MW10; `H` `perks=["Perk A"]`, `Tag="favorite"`, `Perks 7="Perk B"`, `Perks 8="Nail, Meet Hammer"`; `B` `perks=["Perk A", "Perk B"]` | `("A", "review", "B")` `coverage-dominated by`; `("B", "review", "H")` `coverage-dominated by` |
+| uncovered | `item=600` keep rolls `perks=1`, `perks=1,2` | `A` `perks=["Bad Perk"]` MW10; `H` `perks=["Bad Perk"]`, `Tag="favorite"`, `Perks 7="Perk A"`, `Perks 8="Perk B"`; `B` `perks=["Perk A"]` | `("A", "review", "B")` `coverage-uncovered vs`; `("B", "review", "H")` `coverage-dominated by` |
+
+### Changes
+
+#### [MODIFY] [PLAN.md](../PLAN.md)
+
+In rule 4, replace the Amendment 1 sentence
+`A copy that an earlier decision names as its kept copy receives no coverage
+advice but remains an eligible partner, so a copy the tool says to keep is
+never itself proposed.` with:
+
+`A copy that an earlier decision names as its kept copy receives no coverage advice but remains an eligible partner, so coverage never proposes a copy an earlier pass says to keep. Known limitation (#185): coverage can still name as partner a copy it also proposes, when a hard-protected copy shares a roll but gains curated matches after the tracker; the review report flags that partner as also proposed.`
+
+#### [MODIFY] [docs/weapon-coverage.md](../docs/weapon-coverage.md#L45)
+
+After the Amendment 1 bullet (`- Exact-dupe survivors that another decision
+names as the copy to keep …`, line 45 at `ba3e061`), add:
+
+`- Known limitation (#185): when a hard-protected copy shares another copy's exact roll but gains curated matches from perk cells after the tracker, coverage can propose a copy and name as its partner a copy it also proposes. Both decisions are review-only, the hard-protected copy is never proposed, and the review report marks the partner as also proposed.`
+
+#### [MODIFY] tests/test_weapons_rules.py
+
+- Add `test_known_limitation_185_same_roll_hard_copy_chain`, which pins both
+  variants in the table above. It asserts:
+  - each variant's complete `(id, action, kept_id)` list, in run order,
+    exactly as the table gives it;
+  - each note's slug (`coverage-dominated by` or `coverage-uncovered vs`);
+  - `A`'s decision has a non-`None` `explanation`, so the report's
+    also-proposed caveat can attach.
+
+  Its comment, verbatim:
+  ```python
+      # Known limitation (#185), accepted in #174: H shares A's exact roll but
+      # gains curated matches after the tracker, so coverage pairs A with B and
+      # then proposes B against H. Update this test when #185 lands.
+  ```
+- Add this comment line directly above `test_no_kept_id_is_itself_decided`'s
+  `@pytest.mark.parametrize` decorator, verbatim:
+  ```python
+  # Known exception: the #185 chain, pinned in
+  # test_known_limitation_185_same_roll_hard_copy_chain.
+  ```
+- Do not add the #185 variants to `_SYNTHETIC_CASES`. No existing test or
+  assertion changes.
+
+#### Merge `main` and resolve `WORKLOG.md`
+
+The branch conflicts with `main` in `WORKLOG.md` only: both sides added
+entries at the top. Merge `origin/main` into the branch once (a merge
+commit; no rebase). Resolve by keeping both sides verbatim, with `main`'s
+2026-09-27 planning entries above the branch's 2026-09-26 #174
+implementation entry. No other file may conflict. If one does, stop.
+
+#### [MODIFY] [WORKLOG.md](../WORKLOG.md)
+
+After the merge, append a `Review-fix round 3 (Amendment 2)` part to the #174
+implementation entry, in the round-2 format: the dispatch record, what
+changed, the owner's acceptance of #185, and the verification output. Do
+not include ids, rows or Notes.
+
+No real-export re-run is needed, because no production code changes.
+
 ## Mechanical inclusion test
 
 A proposed change is **in scope** if and only if it:
@@ -255,7 +584,17 @@ A proposed change is **in scope** if and only if it:
   regenerates the golden;
 - updates PLAN.md rule 2 as specified;
 - adds or rewrites the tests listed above, or records the `WORKLOG.md`
-  real-export confirmation.
+  real-export confirmation;
+- **(Amendment 1)** adds the `partner_only_ids` parameter and its skip
+  condition and comment in `coverage.analyse`, the `kept_ids` computation and
+  call in `weapons.run`, the replacement `report_run.py` comment, the
+  PLAN.md rule 4 sentence, the `docs/weapon-coverage.md` bullet, the
+  Amendment 1 tests, or the round-2 `WORKLOG.md` record;
+- **(Amendment 2)** replaces the PLAN.md rule 4 sentence, adds the
+  `docs/weapon-coverage.md` limitation bullet, adds the #185 limitation test
+  and the comment above the invariant test, merges `origin/main` once with
+  the `WORKLOG.md` resolution specified, or appends the round-3 `WORKLOG.md`
+  record.
 
 Worked examples:
 - **IN SCOPE:** rewriting `test_soft_reviewed_trash_copy_still_competes_in_dupes`
@@ -263,20 +602,39 @@ Worked examples:
 - **IN SCOPE:** deleting the now-unread `trash_junk_ids` set and its `.add` call.
 - **OUT OF SCOPE:** restricting `row_perk_hashes`, `trash_match` or
   `keep_match_count` to the pre-tracker prefix.
+- **IN SCOPE (Amendment 1):** `partner_only_ids` in `coverage.analyse`,
+  exactly as specified.
 - **OUT OF SCOPE:** any change to `dupes.resolve`, ranking, `_winner_reason`,
-  rails, coverage, Notes clause text, or the #170 explanation/caveat code.
-- **OUT OF SCOPE:** armor or ghost passes; `SNAPSHOT_SCHEMA_VERSION`; editing
-  #172 or any issue.
+  rails, Notes clause text, or the #170 explanation/caveat code.
+- **OUT OF SCOPE (Amendment 1):** any other coverage change: partner
+  selection, tie-breaks, counts, `CoverageSummary`, the coverage candidate
+  set, or removing survivors from the coverage input (the rejected
+  full-exclusion shape).
+- **OUT OF SCOPE:** armor or ghost passes, including the armor measurements
+  in Amendment 1; `pipeline.py`; `SNAPSHOT_SCHEMA_VERSION`; another
+  `RULESET_VERSION` bump; editing #172 or any issue.
+- **OUT OF SCOPE (Amendment 2):** any production code change, including a fix
+  for #185 (partner selection, matching scope, or dropping coverage
+  decisions); adding the #185 variants to the invariant sweep; editing
+  `WORKLOG.md` entries beyond the merge resolution and the round-3 part.
 
 ### Stop conditions
 
 Stop implementation and return to the orchestrator if:
 - any test other than the rewritten one changes outcome, or the golden diff
   has anything beyond `ruleset_version` and `fingerprint`;
-- a weapon decision's `kept_id` is still decided in any case after the fix;
-- the fix appears to need a change in `dupes.py` or `coverage.py`;
+- a weapon decision's `kept_id` is still decided in any case after the fix,
+  other than the accepted #185 chain (Amendment 2);
+- the fix appears to need a change in `dupes.py`, or a `coverage.py` change
+  beyond the Amendment 1 parameter and skip condition;
 - the real-export confirmation differs from the planning table (any
-  decision changed, or any `kept_id` violation).
+  decision changed, or any `kept_id` violation);
+- **(Amendment 1)** any existing test changes outcome, the golden file
+  changes, or any Amendment 1 case gives a decision list other than the
+  one specified;
+- **(Amendment 2)** either #185 variant gives a decision list other than the
+  table's, the merge of `origin/main` conflicts in any file other than
+  `WORKLOG.md`, or the merge changes any file under `src/` or `tests/`.
 
 Escalation route: `implementer → orchestrator → planner`.
 
@@ -294,30 +652,49 @@ Escalation route: `implementer → orchestrator → planner`.
    `grep -rn "stays in the pool\|Soft-reviewed" src PLAN.md docs` should
    return nothing stale.
 4. **Version bump without a golden regeneration, or a hand-edited golden.**
+5. **(Amendment 1) Full exclusion instead of partner-only.** Removing
+   `kept_ids` from the coverage input also fixes the invariant but drops
+   valid proposals. `test_dupe_survivor_remains_coverage_partner` must
+   exist and fail under mutation 2.
+6. **(Amendment 1) Collateral edits in round 2.** The implementer has a
+   recorded collateral-edit incident (PR #160). Round-1 tests, comments and
+   `WORKLOG.md` text outside the new round-2 part must not move. Audit
+   `git diff b806997 <new_head>` hunk by hunk.
+7. **(Amendment 2) A lossy `WORKLOG.md` merge.** One side's entry is dropped,
+   reordered or edited while resolving the conflict. After the merge,
+   `git diff origin/main <new_head> -- WORKLOG.md` must show only the #174
+   implementation entry as added text.
+8. **(Amendment 2) The limitation test weakened into a sweep exception.**
+   Adding a skip or special case to `test_no_kept_id_is_itself_decided`
+   instead of a separate pinned test. That hides the chain rather than
+   naming it.
 
 # Reusable implementer execution prompt
 
-Implement issue #174 in `tonym999/vault-cleaner` using the committed handoff on `main` at:
+This is the Amendment 2 prompt. Earlier prompts are in this file's history:
+round 1 at `a3f7767`, Amendment 1 at `34dd6d4`.
+
+Continue issue #174 in `tonym999/vault-cleaner` on the existing branch `fix/issue-174-trash-survivor`, implementing **Amendment 2** of the committed handoff on `main` at:
 
 ```text
 handoffs/issue-174-implementation-plan.md
 ```
 
-Read the entire handoff, issue #174, `AGENTS.md`, `PLAN.md`, the newest few entries at the top of `WORKLOG.md` (not the whole file), and the code the handoff cites before editing.
+Read Amendment 2 in full, and skim the rest of the handoff for context. Also read `AGENTS.md`, the newest few entries at the top of `WORKLOG.md` (not the whole file), and the files Amendment 2 changes, before editing.
 
 Rules:
-- work on `fix/issue-174-trash-survivor`; branch from latest `main` and record the base SHA;
-- apply the plan's mechanical inclusion test to every production hunk;
-- copy every comment, docstring and PLAN.md sentence in the plan verbatim;
-- update `WORKLOG.md` with a dated entry;
-- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, and `git ls-files data/` (must print nothing);
-- confirm the new invariant test fails with the one-line fix reverted, then restore it;
-- commit and push the implementation branch; and
+- run `git fetch origin`, check out `fix/issue-174-trash-survivor`, and confirm its head is `ba3e06117f64fe36d660692c99acec9217f1dbfc`; append commits only (no rebase, amend or force-push);
+- merge `origin/main` into the branch exactly once, resolving only `WORKLOG.md` as Amendment 2 specifies; stop if any other file conflicts;
+- apply the plan's mechanical inclusion test to every hunk;
+- copy the PLAN.md sentence, docs bullet and test comments in Amendment 2 verbatim;
+- change no file under `src/`, no existing test or assertion, and no `WORKLOG.md` text apart from the merge resolution and the appended round-3 part;
+- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, `git ls-files data/` (must print nothing), and `git merge-tree --write-tree origin/main HEAD` (must report no conflict);
+- commit with `Refs #174` (no closing keywords) and push the implementation branch; and
 - **do not open a pull request.**
 
-Make ordinary implementation decisions yourself (local structure, naming, helpers, test shape, following established patterns, fixing failures your own change caused) and explain notable ones in your completion handoff. If any stop condition is reached, or the work needs a design decision the plan did not settle, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope or silently redesign the solution.
+Make ordinary implementation decisions yourself (test structure and naming within the plan's requirements) and explain notable ones in your completion handoff. If any stop condition is reached, or the work needs a design decision the plan did not settle, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope or silently redesign the solution.
 
-When complete, return to the orchestrator: the base and head SHAs, the changed-file list, the full output of each verification command, the golden diff, the output of the reverted-fix run of the invariant test, the real-export confirmation counts, and any deviations from the plan.
+When complete, return to the orchestrator: the previous and new head SHAs, the merge commit SHA, the changed-file list, a summary of every change, the full output of each verification command, and any deviations from the plan. Quote any PLAN.md or docs text from the committed files, not from memory.
 
 # Ticket-specific review decision
 
@@ -331,6 +708,18 @@ quiet. A vacuous invariant test would pass, and a loosened pinned test would
 hide a regression. #140 and #174 both call for independent adversarial review
 on this class of change.
 
+Amendment 1 keeps this path. It changes which copies the coverage pass may
+propose, and round 1's two reviews missed the defect, so the re-review must
+cover the complete `a3f7767...<new_head>` diff and audit the round-2 hunks
+(`b806997..<new_head>`) separately.
+
+Amendment 2 changes no production code. For this round the orchestrator may
+use a standard review of the round-3 hunks, provided it verifies that the
+merge brings in only `main`'s content (`git diff origin/main <new_head>`
+equals the branch's own changes) and that no file under `src/` changes since
+`ba3e061`. If either check fails, send the complete diff to an independent
+reviewer.
+
 The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
 # Review checklist
@@ -339,10 +728,18 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] `RULESET_VERSION` is 6; the golden diff is exactly `ruleset_version` and `fingerprint`; `SNAPSHOT_SCHEMA_VERSION` is still 3.
 - [ ] The rewritten pinned test asserts `T` review and no decision for `U`; the reproduction and `T`/`U`/`V` tests assert exact actions, slugs and `kept_id`s.
 - [ ] The invariant test covers the synthetic cases and fails with line 127 reverted (evidence in the handoff).
-- [ ] No other existing assertion changed; no change in `dupes.py`, `coverage.py`, rails, explanation or Notes code.
+- [ ] No other existing assertion changed; no change in `dupes.py`, rails, explanation or Notes code; the only `coverage.py` change is Amendment 1's parameter, comment and skip condition.
 - [ ] No stale "stays in the pool" rationale remains.
 - [ ] The real-export confirmation matches the planning table (0 violations, 101 unchanged decisions) and is aggregate-only.
 - [ ] `ruff`, `pytest`, `git diff --check`, empty `git ls-files data/`, and a `WORKLOG.md` entry all pass.
+- [ ] **(Amendment 1)** `coverage.py`, `weapons.py`, `report_run.py`, PLAN.md rule 4 and the `docs/weapon-coverage.md` bullet match Amendment 1 verbatim; `RULESET_VERSION` is still 6 and the golden file is unchanged since `b806997`.
+- [ ] **(Amendment 1)** The three new tests assert the exact decision lists; `U/V/C` and `T/U/V/C` are in the invariant sweep.
+- [ ] **(Amendment 1)** Mutation 1 fails the `U/V/C` and `T/U/V/C` tests and invariant cases; mutation 2 fails `test_dupe_survivor_remains_coverage_partner`.
+- [ ] **(Amendment 1)** `git diff b806997 <new_head>` contains only Amendment 1 hunks: no round-1 test, comment or `WORKLOG.md` text moved.
+- [ ] **(Amendment 1)** Real-export counts at the new head match (101 decisions, 0 violations, 0 changed) and are aggregate-only.
+- [ ] **(Amendment 2)** No file under `src/` changed since `ba3e061`; the PLAN.md rule 4 sentence and the docs bullet match Amendment 2 verbatim.
+- [ ] **(Amendment 2)** `test_known_limitation_185_same_roll_hard_copy_chain` pins both variants exactly, with the verbatim comment; the invariant test is unchanged apart from the comment above it.
+- [ ] **(Amendment 2)** The branch merges cleanly into `main`: `git merge-tree --write-tree origin/main <new_head>` reports no conflict, and `WORKLOG.md` keeps both sides verbatim.
 
 # Dispatch comment draft
 
@@ -352,3 +749,15 @@ Planned #174 in [handoffs/issue-174-implementation-plan.md](https://github.com/t
 - **Implementation branch:** `fix/issue-174-trash-survivor`
 - **Review path:** independent adversarial review
 - **Likely findings:** the pinned M3 test loosened instead of rewritten; an invariant test that cannot fail (fixtures never trigger the defect); stale "stays in the pool" rationale; version bump without a clean golden regeneration.
+
+Amendment 1 (2026-09-27) for PR #182's P1: exact-dupe survivors become partner-only in coverage, on the same branch from `b806997`.
+
+- **Implementer model & effort:** `gemini-3.8-flash` (`high`), Bounded rung, bounded fix prompt
+- **Review path:** independent adversarial review of the complete diff, plus a hunk audit of `b806997..<new_head>`
+- **Likely findings:** full exclusion instead of partner-only; collateral edits to round-1 text or tests
+
+Amendment 2 (2026-09-27): the owner accepted the same-roll coverage chain as a known limitation, tracked in #185. Documentation, one pinned test, and a `main` merge to clear the `WORKLOG.md` conflict. No production change.
+
+- **Implementer model & effort:** `gemini-3.8-flash` (`high`), Bounded rung, bounded fix prompt
+- **Review path:** standard review of round 3, provided the merge and `src/` checks pass; otherwise independent
+- **Likely findings:** a lossy `WORKLOG.md` merge; the limitation hidden in the invariant sweep instead of pinned

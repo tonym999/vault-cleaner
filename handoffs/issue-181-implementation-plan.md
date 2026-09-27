@@ -14,7 +14,7 @@
 
 **Implementation model selected:** `gpt-5.6-luna` (`high`) (Judgement rung; justified below)
 
-**Plan baseline:** `main` at `a3f7767909a36948e55c3c7d2ca36c40e1e31783` (2026-09-27)
+**Plan baseline:** `main` at `a3f7767909a36948e55c3c7d2ca36c40e1e31783` (2026-09-27), where the measurements were taken. `main` at `66589da` (#174 merged, `RULESET_VERSION` 6) was merged into this plan branch before PR 1 merged, and every source citation was re-verified there
 
 **Allocated implementation branch:** `feat/issue-181-sanitised-real-fixtures`
 
@@ -153,7 +153,7 @@ some cell value in another column (for example a loadout named like a weapon
 or an element). **So the issue's literal "no loadout name appears as a cell
 value" cannot hold over all columns.** It is scoped to the `Loadouts` column
 below. The code reads only emptiness:
-[report_run.py:303](../src/vault_cleaner/report_run.py#L303),
+[report_run.py:306](../src/vault_cleaner/report_run.py#L306),
 [armor_dupes.py:100](../src/vault_cleaner/rules/armor_dupes.py#L100),
 [armor_close.py:310](../src/vault_cleaner/rules/armor_close.py#L310),
 [ghosts.py:36](../src/vault_cleaner/rules/ghosts.py#L36).
@@ -182,7 +182,7 @@ are 19-digit decimals. Fake ids of one fixed length, assigned by rank in
 armor `group_id = min(...)`
 ([armor_dupes.py:249](../src/vault_cleaner/rules/armor_dupes.py#L249)) and
 the string-sorted `cited_ids`
-([report_run.py:463](../src/vault_cleaner/report_run.py#L463)). No real id
+([report_run.py:466](../src/vault_cleaner/report_run.py#L466)). No real id
 begins with `1000`.
 
 ### Prototype (planning session, throwaway, outside the repository)
@@ -283,10 +283,13 @@ silent privacy failure, so the Bounded rung is not chosen.
   gitignored. If the implementer works in a different checkout or worktree,
   the orchestrator copies `data/` into it first; never commit it. The
   `wishlists/` cache is fetched on demand (3 public files).
-- **Neighbouring work.** #174 (implementation pending) changes weapon
+- **Neighbouring work.** #174 is merged (PR #182; `RULESET_VERSION` 6,
+  with dupe survivors partner-only in coverage). It changes weapon
   decisions with wishlists. That does not affect this ticket: the fixtures
   are raw-equivalent inputs, and parity compares raw and sanitised under the
-  same code. The issue body notes that #174's bug cannot be triggered by
+  same code. The planning prototype's decision counts were taken at
+  `a3f7767`; the implementer's counts, at the ruleset of its base, may
+  differ, and only raw-versus-sanitised equality matters. The issue body notes that #174's bug cannot be triggered by
   committed fixtures; adopting these fixtures in rule tests is out of scope.
   #144 (template hardening) is unrelated.
 - **Project board.** #181 is `Todo` on the project board (verified
@@ -558,8 +561,8 @@ nothing is written.
 `run_report(config_path=--config, weapons_path=…, armor_path=…,
 ghosts_path=…, no_wishlists=mode)` on the raw and on the staged directory,
 and take `snapshot_dict` of each
-([report_run.py:435-495](../src/vault_cleaner/report_run.py#L435-L495),
-[:508](../src/vault_cleaner/report_run.py#L508)).
+([report_run.py:438-498](../src/vault_cleaner/report_run.py#L438-L498),
+[:511](../src/vault_cleaner/report_run.py#L511)).
 
 1. From both, drop `fingerprint`, `inputs.sources`, and each section's
    `source`. These hold file digests and paths, which must differ.
@@ -594,7 +597,7 @@ and take `snapshot_dict` of each
      ([dupes.py:266-283](../src/vault_cleaner/rules/dupes.py#L266-L283),
      [armor_dupes.py:375-414](../src/vault_cleaner/rules/armor_dupes.py#L375-L414),
      [armor_close.py:196-250](../src/vault_cleaner/rules/armor_close.py#L196-L250),
-     [coverage.py:208-294](../src/vault_cleaner/rules/coverage.py#L208-L294)).
+     [coverage.py:211-297](../src/vault_cleaner/rules/coverage.py#L211-L297)).
      A raw-side violation means that assumption broke: refuse, and treat it
      as a stop condition.
 4. Every other field, recursively: on the raw side, a whole-string member of

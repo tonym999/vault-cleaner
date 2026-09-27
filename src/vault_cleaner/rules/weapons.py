@@ -3,6 +3,8 @@
 Wishlist semantics (rule 2):
 - trash match (whole-item entry, or a roll subset of the item's perks) →
   candidate junk, unless hard-protected or the item also matches a keep roll.
+  Every trash-matched copy (junk or review) is excluded from exact-dupe
+  resolution, so a proposed copy is never the kept survivor.
 - keep-roll match → protected from wishlist-trash, but NOT blanket keep: exact
   dupes among matched copies still resolve by gear/rank/stat order.
 """
@@ -68,7 +70,6 @@ def run(
     result = RunResult()
     decisions = result.decisions
     trash_ids: set[str] = set()
-    trash_junk_ids: set[str] = set()
 
     for _, row in weapons.iterrows():
         item_hash = int(row["Hash"])
@@ -108,7 +109,6 @@ def run(
         else:
             action, tag = "junk", "junk"
             hashtag = f"#vc-junk: wishlist-trash {kind}"
-            trash_junk_ids.add(row["Id"])
         decisions.append(
             dupes.Decision(
                 id=row["Id"], hash=row["Hash"], name=row["Name"],
@@ -120,18 +120,27 @@ def run(
         )
         trash_ids.add(row["Id"])
 
-    # Trash-junked copies are leaving the vault, so they must not compete in
-    # dupe resolution — a trash copy winning "best" would junk every clean
-    # copy against it. Soft-reviewed trash stays in the pool: it's only
-    # flagged, and probably staying.
-    pool = weapons[~weapons["Id"].isin(trash_junk_ids)]
+    # Every wishlist-trash copy, junked or soft-reviewed, stays out of dupe
+    # resolution: a proposed copy must never be the survivor other copies are
+    # told to keep (#174). A trash copy's own dupe decision would be dropped
+    # below anyway, but excluding it changes which copy survives: a copy that
+    # used to lose to it may now survive with no decision, or fall through to
+    # the coverage pass.
+    pool = weapons[~weapons["Id"].isin(trash_ids)]
     dupe_decisions = dupes.resolve(
         pool, crafted_level_protect,
     )
     decisions.extend(d for d in dupe_decisions if d.id not in trash_ids)
     decided = {d.id for d in decisions}
+    # A copy another decision names as its kept copy must not itself be
+    # proposed by coverage; it stays available as a coverage partner (#174).
+    kept_ids = frozenset(d.kept_id for d in decisions if d.kept_id)
     analysis = coverage.analyse(
-        weapons[~weapons["Id"].isin(decided)], wl, perk_map, crafted_level_protect
+        weapons[~weapons["Id"].isin(decided)],
+        wl,
+        perk_map,
+        crafted_level_protect,
+        partner_only_ids=kept_ids,
     )
     decisions.extend(analysis.decisions)
     result.coverage = analysis.summary

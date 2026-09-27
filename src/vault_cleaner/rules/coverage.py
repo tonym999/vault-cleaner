@@ -95,6 +95,7 @@ def analyse(
     wl: Wishlist,
     perk_map: dict[str, frozenset[int]],
     crafted_level_protect: int,
+    partner_only_ids: frozenset[str] = frozenset(),
 ) -> CoverageAnalysis:
     """Analyse weapon rolls within each Hash group for combination coverage."""
     from vault_cleaner.rules.weapons import row_perk_hashes
@@ -176,8 +177,10 @@ def analyse(
         all_hash_ids = tuple(sorted((m["id"] for m in members), key=instance_id_order))
 
         for a in members:
-            # Hard-protected rows receive no advice, but remain eligible partners.
-            if a["protection_level"] == rails.HARD:
+            # Hard-protected rows and partner-only ids (exact-dupe survivors
+            # another decision tells the owner to keep, #174) receive no
+            # advice, but remain eligible partners.
+            if a["protection_level"] == rails.HARD or a["id"] in partner_only_ids:
                 continue
 
             # Compare only against distinct exact rolls.

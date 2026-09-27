@@ -125,6 +125,248 @@ them. Two new findings.
   The plan now states this invariant and tests it; the pattern is unchanged.
 - Plan and this entry only.
 
+## 2026-09-27 — #174 plan Amendment 2: accepted limitation #185
+
+Amended `handoffs/issue-174-implementation-plan.md` again, on
+`handoff/issue-174-implementation-plan` from `main` at `34dd6d4`. Planner
+`claude-opus-5-5`, the same session that orchestrates #174. Refs #174.
+
+- **What landed:** Amendment 2 in the plan, and corrections to Amendment 1's
+  claim that "the survivor path is the only one left". No product code,
+  tests, schemas, rules or versions changed in this PR.
+- **Trigger:** the independent review of Amendment 1 at `ba3e061` (P2) found
+  a pre-existing chain inside coverage. A hard-protected dupe loser `H`
+  stays undecided and gains keep matches after the tracker. Coverage skips
+  same-roll partners, so `A` is paired with `B`, and `H` then dominates `B`.
+  `A`'s `kept_id` names a proposed copy. The orchestrator reproduced both
+  variants at `ba3e061` and on `main`.
+- **Decisions made (owner, 2026-09-27):**
+  - Accept the chain as a known limitation of #174, surfaced rather than
+    suppressed. Both decisions are review-only, `H` is never proposed, the
+    #170 also-proposed caveat flags `A`, and the real export has 0 cases.
+    Fixing it would hide `A`'s proposal.
+  - Opened #185 for the fix (bug, M3, depends on #174 in text and as a
+    GitHub dependency), together with the deferred matching-scope question.
+    Opened #186 for the armor side (bug, M6). Both are on the board as Todo.
+  - Amendment 2 narrows PLAN.md rule 4 and `docs/weapon-coverage.md`, and
+    pins the chain in a named test rather than as a sweep exception. It
+    merges `main` once to clear the `WORKLOG.md` conflict. No production
+    change, so the review path may be standard if the merge and `src/`
+    checks pass.
+- **Surprises the next agent should know about:**
+  - Amendment 1's "no strict superset" argument assumed every coverage
+    member is an eligible partner. Coverage excludes same-roll copies, and
+    hard-protected dupe losers get no decision, so a superset can sit
+    outside the partner list. Both surprises on this ticket came from
+    reasoning about one pass in isolation.
+  - The implementer's round-2 summary misquoted the PLAN.md sentence,
+    although the committed text was verbatim. Treat summaries as intent and
+    check the tree. The Amendment 2 prompt now asks for quotes taken from the
+    committed files.
+
+## 2026-09-27 — #174 plan Amendment 1: dupe survivors partner-only in coverage
+
+Amended `handoffs/issue-174-implementation-plan.md` on
+`handoff/issue-174-implementation-plan` from `main` at `a3f7767`, after
+PR #182's review. Planner `claude-opus-5-5`, the same session that
+orchestrates #174 (the roles stay separate). Refs #174.
+
+- **What landed:** Amendment 1 in the plan, plus in-place corrections to its
+  objective, *Coverage interplay*, inclusion test, stop conditions, likely
+  findings, execution prompt, review checklist and dispatch draft. No
+  product code, tests, schemas, rules or versions changed in this PR.
+- **Trigger:** on PR #182 the owner (P1) and CodeRabbit (inline) found that
+  an exact-dupe survivor can still be proposed by the coverage pass: the
+  dupe pass decides only losers, so the survivor stays undecided and enters
+  `coverage.analyse`. The orchestrator reproduced it at `b806997` and on
+  `main`. It predates #174 (coverage pass, `e27a8b2`, #34) and needs no
+  wishlist trash. The fix touches `coverage.py`, which round 1's inclusion
+  test excluded, so it came back to the planner.
+- **Decisions made:**
+  - Owner, 2026-09-27: amend #174 rather than split, with the partner-only
+    shape. Copies named as a `kept_id` get no coverage advice but remain
+    partners, as hard-protected rows already do. Full exclusion was rejected:
+    in the trial it dropped a valid proposal whose best partner was the
+    survivor.
+  - No second bump: v6 has not reached `main`, so both changes share
+    `RULESET_VERSION` 6. The golden file does not change.
+  - Armor is out of scope and needs its own issue (not created here).
+- **Measured (reverted trial on `b806997`):** full suite 1117 passed; the
+  three new cases give exactly the planned decision lists; mutation 1 (no
+  partner-only) reproduces the violation and mutation 2 (full exclusion)
+  loses the partner proposal. Real export, owner-authorised on #174, all
+  aggregate: `weapons.csv` gives 101 decisions, 0 violations and an identical
+  decision digest at `main`, `b806997` and the trial. `armor.csv` gives 893
+  pieces, 394 decisions, and 134 decisions whose `kept_id` is decided: 133
+  `armor-similar to` reviews citing another such review (124 in mutual
+  pairs) and 1 `armor-exact-dupe-tie` junk whose survivor the close pass
+  later flags.
+- **Surprises the next agent should know about:**
+  - The round-1 plan argued the invariant held because coverage partners are
+    undecided. That checked only the partner side. Both independent reviews
+    and the orchestrator repeated the argument, and no fixture combines an
+    exact-dupe group with a better roll. When checking a "never names a
+    proposed copy" invariant, check every later pass that could make the
+    named copy a *subject*.
+  - Real-export comparisons must run from one checkout. Running
+    `resolve_weapons` with the main repo's `config.toml` but a different
+    working directory resolves `data/cache` relative to that directory,
+    fetches a fresh manifest there and changes the decision digest.
+
+## 2026-09-26 — #174 implementation: exclude wishlist-trash from dupe resolution
+
+Implemented #174 on `fix/issue-174-trash-survivor` from `main` at `a3f7767`.
+Refs #174.
+
+- **Dispatch record:**
+  - orchestrator claude-opus-5-5 (effort not exposed by runtime);
+  - plan-selected implementer gemini-3.8-flash (high); actual implementer
+    gemini-3.8-flash (high), no re-selection;
+  - launched manually by the owner (manual cross-provider execution: the
+    orchestrator runtime cannot instantiate Gemini); launch surface:
+    Antigravity;
+  - expected base: `main` at a3f7767909a36948e55c3c7d2ca36c40e1e31783.
+- **What landed:**
+  - `src/vault_cleaner/rules/weapons.py`: excluded every wishlist-trash copy
+    (junk or review) from exact-dupe resolution (`pool =
+    weapons[~weapons["Id"].isin(trash_ids)]`), preventing any proposed copy
+    from being chosen as the survivor for another duplicate to keep (#174).
+    Removed now-unused `trash_junk_ids`. Updated docstring and comment
+    verbatim per plan.
+  - `src/vault_cleaner/report_run.py`: bumped `RULESET_VERSION` from 5 to 6
+    with comment; regenerated snapshot golden
+    `tests/fixtures/report_snapshot_v3.json` (`ruleset_version` and
+    `fingerprint` updated, schema stays 3).
+  - `PLAN.md`: updated rule 2 verbatim to state that every trash-matched copy
+    (junk or review) is excluded from exact-dupe resolution.
+  - `tests/test_weapons_rules.py`:
+    - Rewrote `test_soft_reviewed_trash_copy_still_competes_in_dupes` ->
+      `test_soft_reviewed_trash_copy_is_not_a_dupe_survivor` to assert that
+      soft-reviewed trash copy `T` gets review and `U` receives no decision
+      (justified below).
+    - Added `test_trash_survivor_reproduction_174` asserting `11` is review and
+      `22` has no decision.
+    - Added `test_survivor_chosen_among_non_trash_copies` covering `T`/`U`/`V`
+      (MW5 `U` survives, MW0 `V` junk `dupe-lower` with `kept_id == "U"`) and
+      Exotic tie variant (`V` junk `dupe-tie` with `kept_id == "U"`).
+    - Added parameterized invariant test `test_no_kept_id_is_itself_decided`
+      covering all 5 weapon fixtures × 4 wishlists (20 combinations) plus 5
+      synthetic scenarios (25 tests total), asserting no decision's `kept_id` is
+      in the decided set.
+  - `tests/test_report_run.py`: updated expected `ruleset_version` to 6.
+- **Decisions & justifications:**
+  - *Rewritten test expectation:*
+    `test_soft_reviewed_trash_copy_still_competes_in_dupes` previously pinned
+    the old M3 assumption that soft-reviewed trash "probably stays" and should
+    compete in dupe resolution. In issue #174, that behaviour was recognized as
+    defective because it allowed a proposed copy to be the `kept_id` survivor
+    against another copy, risking the destruction of both copies if both
+    proposals are accepted. Rewriting to expect `T` review and no decision for
+    `U` aligns the test with the invariant.
+  - *Version bump and manifest effect:* `RULESET_VERSION` advanced from 5 to 6
+    because dupe survivor selection and proposal decisions change. This
+    intentionally changes the run fingerprint and invalidates prior persisted
+    review manifests, while durable vetoes remain unaffected.
+  - *Real-export confirmation:* Authorised by the owner on 2026-09-26 (recorded
+    on #174). Measured with `resolve_weapons` and `config.toml` on
+    `data/in/2026-09-01T-current/weapons.csv`, at base (ruleset 5) and head
+    (ruleset 6): 665 weapons, 101 decisions, 13 keep/trash conflicts, 0
+    `kept_id` violations, 0 decisions changed; by action and reason: junk
+    `wishlist-trash whole-item` 11; review `wishlist-trash whole-item` 8; review
+    `dupe-lower` 2; review `coverage-dominated by` 30; review
+    `coverage-uncovered vs` 50 — identical to the planning table.
+- **Verification:**
+  - Confirmed invariant test fails (4 failures across the synthetic trigger
+    cases) when the one-line fix is temporarily reverted, and passes (25 passed)
+    when restored.
+  - `.venv/bin/ruff check src tests scripts` passed.
+  - `.venv/bin/pytest -q` passed (1117 passed).
+  - `git diff --check origin/main...HEAD` passed.
+  - `git ls-files data/` empty.
+- **Review-fix round 1:**
+  - Replaced the real-export confirmation record with the planned measurement
+    on `data/in/2026-09-01T-current/weapons.csv` (deleting the unneeded
+    secondary export mention) and wrapped the entry at 80 columns.
+  - In `test_survivor_chosen_among_non_trash_copies`, pinned the complete
+    decision list in run order as `[(d.id, d.action, d.kept_id) ...]` for both
+    locked and Exotic variants.
+  - In `test_trash_survivor_reproduction_174`, renamed `s`/`l` to descriptive
+    names `trash_copy`/`clean_copy`.
+  - In `test_no_kept_id_is_itself_decided`, removed the unreachable
+    `else: weapons_df = weapons_source.copy()` branch.
+- **Review-fix round 2 (Amendment 1):**
+  - **Dispatch record for round 2:**
+    - orchestrator claude-opus-5-5 (effort not exposed by runtime);
+    - plan (Amendment 1, merged in #184 at 34dd6d4) selects gemini-3.8-flash
+      (high); actual implementer gemini-3.8-flash (high), no re-selection;
+    - launched manually by the owner (manual cross-provider execution: the
+      orchestrator runtime cannot instantiate Gemini); launch surface:
+      Antigravity;
+    - expected starting head: fix/issue-174-trash-survivor at
+      b8069974df4184d8b1df3190d72ca8891b4c2f28.
+  - **What changed:**
+    - `src/vault_cleaner/rules/coverage.py`: added `partner_only_ids` parameter
+      and skip check in `analyse()`, so kept copies receive no coverage advice
+      but remain eligible comparison partners (#174).
+    - `src/vault_cleaner/rules/weapons.py`: passed `kept_ids` as
+      `partner_only_ids` to `coverage.analyse()`.
+    - `src/vault_cleaner/report_run.py`: updated ruleset v6 comment verbatim;
+      `RULESET_VERSION` stays 6.
+    - `PLAN.md` & `docs/weapon-coverage.md`: updated rule 4 and section 4
+      verbatim per Amendment 1.
+    - `tests/test_weapons_rules.py`: added `COVERAGE_SURVIVOR_WL`, three new
+      coverage survivor tests, and added `U/V/C` and `T/U/V/C` to
+      `_SYNTHETIC_CASES`.
+  - **Mutation results:**
+    - Mutation 1 (without `partner_only_ids=kept_ids`): failed 4 tests
+      (`test_dupe_survivor_is_partner_only_in_coverage`,
+      `test_trash_then_dupe_survivor_is_partner_only_in_coverage`, and the two
+      new synthetic cases in `test_no_kept_id_is_itself_decided`).
+    - Mutation 2 (full exclusion `isin(decided | kept_ids)`): failed 1 test
+      (`test_dupe_survivor_remains_coverage_partner`, losing `X`'s proposal
+      because `U` was excluded as a partner).
+  - **Real-export confirmation:**
+    - Re-confirmed with `resolve_weapons` and `config.toml` on
+      `data/in/2026-09-01T-current/weapons.csv`: 665 weapons, 101 decisions,
+      13 keep/trash conflicts, 0 `kept_id` violations, 0 decisions changed
+      (identical to planning table and round 1).
+- **Review-fix round 3 (Amendment 2):**
+  - **Dispatch record:**
+    - orchestrator claude-opus-5-5 (effort not exposed by runtime);
+    - plan (Amendment 2, merged in #187 at f146df0) selects gemini-3.8-flash
+      (high); actual implementer gemini-3.8-flash (high), no re-selection;
+    - launched manually by the owner (manual cross-provider execution: the
+      orchestrator runtime cannot instantiate Gemini); launch surface:
+      Antigravity;
+    - expected starting head: fix/issue-174-trash-survivor at
+      ba3e06117f64fe36d660692c99acec9217f1dbfc.
+  - **What changed:**
+    - Merged `origin/main` into the branch (merge commit `8083c4b`), resolving
+      `WORKLOG.md` by placing `main`'s 2026-09-27 planning entries above the
+      branch's 2026-09-26 #174 implementation entry.
+    - `PLAN.md`: updated rule 4 verbatim to state that coverage never proposes
+      a copy an earlier pass says to keep, and recorded known limitation #185
+      for the same-roll hard-copy chain.
+    - `docs/weapon-coverage.md`: added bullet under section 4 documenting known
+      limitation #185 verbatim per Amendment 2.
+    - `tests/test_weapons_rules.py`: added
+      `test_known_limitation_185_same_roll_hard_copy_chain` pinning both
+      dominated and uncovered variants with verbatim comment, and added the
+      known exception comment above `test_no_kept_id_is_itself_decided`.
+    - No changes to any file under `src/`, schemas, or ruleset version.
+  - **Owner's acceptance of #185:**
+    - On 2026-09-27 the owner accepted the same-roll coverage chain as a known
+      limitation of #174, surfaced rather than suppressed. Both decisions are
+      review-only, the hard-protected copy is never proposed, and the #170
+      also-proposed caveat flags the proposal in the report. Fix tracked in
+      #185 (with #186 for armor).
+  - **Verification:**
+    - `.venv/bin/ruff check src tests scripts` passed.
+    - `.venv/bin/pytest -q` passed (1123 passed).
+    - `git diff --check origin/main...HEAD` passed.
+    - `git ls-files data/` empty.
+    - `git merge-tree --write-tree origin/main HEAD` clean.
+
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 
 Planned #174 on `handoff/issue-174-implementation-plan` from `main` at
