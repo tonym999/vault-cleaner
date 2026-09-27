@@ -10,29 +10,80 @@ Refs #174.
 
 - **Dispatch record:**
   - orchestrator claude-opus-5-5 (effort not exposed by runtime);
-  - plan-selected implementer gemini-3.8-flash (high); actual implementer gemini-3.8-flash (high), no re-selection;
-  - launched manually by the owner (manual cross-provider execution: the orchestrator runtime cannot instantiate Gemini); launch surface: Antigravity;
+  - plan-selected implementer gemini-3.8-flash (high); actual implementer
+    gemini-3.8-flash (high), no re-selection;
+  - launched manually by the owner (manual cross-provider execution: the
+    orchestrator runtime cannot instantiate Gemini); launch surface:
+    Antigravity;
   - expected base: `main` at a3f7767909a36948e55c3c7d2ca36c40e1e31783.
 - **What landed:**
-  - `src/vault_cleaner/rules/weapons.py`: excluded every wishlist-trash copy (junk or review) from exact-dupe resolution (`pool = weapons[~weapons["Id"].isin(trash_ids)]`), preventing any proposed copy from being chosen as the survivor for another duplicate to keep (#174). Removed now-unused `trash_junk_ids`. Updated docstring and comment verbatim per plan.
-  - `src/vault_cleaner/report_run.py`: bumped `RULESET_VERSION` from 5 to 6 with comment; regenerated snapshot golden `tests/fixtures/report_snapshot_v3.json` (`ruleset_version` and `fingerprint` updated, schema stays 3).
-  - `PLAN.md`: updated rule 2 verbatim to state that every trash-matched copy (junk or review) is excluded from exact-dupe resolution.
+  - `src/vault_cleaner/rules/weapons.py`: excluded every wishlist-trash copy
+    (junk or review) from exact-dupe resolution (`pool =
+    weapons[~weapons["Id"].isin(trash_ids)]`), preventing any proposed copy
+    from being chosen as the survivor for another duplicate to keep (#174).
+    Removed now-unused `trash_junk_ids`. Updated docstring and comment
+    verbatim per plan.
+  - `src/vault_cleaner/report_run.py`: bumped `RULESET_VERSION` from 5 to 6
+    with comment; regenerated snapshot golden
+    `tests/fixtures/report_snapshot_v3.json` (`ruleset_version` and
+    `fingerprint` updated, schema stays 3).
+  - `PLAN.md`: updated rule 2 verbatim to state that every trash-matched copy
+    (junk or review) is excluded from exact-dupe resolution.
   - `tests/test_weapons_rules.py`:
-    - Rewrote `test_soft_reviewed_trash_copy_still_competes_in_dupes` -> `test_soft_reviewed_trash_copy_is_not_a_dupe_survivor` to assert that soft-reviewed trash copy `T` gets review and `U` receives no decision (justified below).
-    - Added `test_trash_survivor_reproduction_174` asserting `11` is review and `22` has no decision.
-    - Added `test_survivor_chosen_among_non_trash_copies` covering `T`/`U`/`V` (MW5 `U` survives, MW0 `V` junk `dupe-lower` with `kept_id == "U"`) and Exotic tie variant (`V` junk `dupe-tie` with `kept_id == "U"`).
-    - Added parameterized invariant test `test_no_kept_id_is_itself_decided` covering all 5 weapon fixtures × 4 wishlists (20 combinations) plus 5 synthetic scenarios (25 tests total), asserting no decision's `kept_id` is in the decided set.
+    - Rewrote `test_soft_reviewed_trash_copy_still_competes_in_dupes` ->
+      `test_soft_reviewed_trash_copy_is_not_a_dupe_survivor` to assert that
+      soft-reviewed trash copy `T` gets review and `U` receives no decision
+      (justified below).
+    - Added `test_trash_survivor_reproduction_174` asserting `11` is review and
+      `22` has no decision.
+    - Added `test_survivor_chosen_among_non_trash_copies` covering `T`/`U`/`V`
+      (MW5 `U` survives, MW0 `V` junk `dupe-lower` with `kept_id == "U"`) and
+      Exotic tie variant (`V` junk `dupe-tie` with `kept_id == "U"`).
+    - Added parameterized invariant test `test_no_kept_id_is_itself_decided`
+      covering all 5 weapon fixtures × 4 wishlists (20 combinations) plus 5
+      synthetic scenarios (25 tests total), asserting no decision's `kept_id` is
+      in the decided set.
   - `tests/test_report_run.py`: updated expected `ruleset_version` to 6.
 - **Decisions & justifications:**
-  - *Rewritten test expectation:* `test_soft_reviewed_trash_copy_still_competes_in_dupes` previously pinned the old M3 assumption that soft-reviewed trash "probably stays" and should compete in dupe resolution. In issue #174, that behaviour was recognized as defective because it allowed a proposed copy to be the `kept_id` survivor against another copy, risking the destruction of both copies if both proposals are accepted. Rewriting to expect `T` review and no decision for `U` aligns the test with the invariant.
-  - *Version bump and manifest effect:* `RULESET_VERSION` advanced from 5 to 6 because dupe survivor selection and proposal decisions change. This intentionally changes the run fingerprint and invalidates prior persisted review manifests, while durable vetoes remain unaffected.
-  - *Real-export confirmation:* Authorised by the owner on 2026-09-26 (recorded on #174). Measured aggregate counts on local real export `data/in/destiny-weapon.csv` (649 weapons): 0 `kept_id` violations, 106 decisions (junk `wishlist-trash whole-item` 9, review `wishlist-trash whole-item` 8, review `dupe-lower` 1, review `dupe-tie` 1, review `coverage-dominated by` 21, review `coverage-uncovered vs` 66). Planning baseline on `data/in/2026-09-01T-current/weapons.csv` (665 weapons, 101 decisions, 0 violations) also confirmed 0 violations and 0 decision changes.
+  - *Rewritten test expectation:*
+    `test_soft_reviewed_trash_copy_still_competes_in_dupes` previously pinned
+    the old M3 assumption that soft-reviewed trash "probably stays" and should
+    compete in dupe resolution. In issue #174, that behaviour was recognized as
+    defective because it allowed a proposed copy to be the `kept_id` survivor
+    against another copy, risking the destruction of both copies if both
+    proposals are accepted. Rewriting to expect `T` review and no decision for
+    `U` aligns the test with the invariant.
+  - *Version bump and manifest effect:* `RULESET_VERSION` advanced from 5 to 6
+    because dupe survivor selection and proposal decisions change. This
+    intentionally changes the run fingerprint and invalidates prior persisted
+    review manifests, while durable vetoes remain unaffected.
+  - *Real-export confirmation:* Authorised by the owner on 2026-09-26 (recorded
+    on #174). Measured with `resolve_weapons` and `config.toml` on
+    `data/in/2026-09-01T-current/weapons.csv`, at base (ruleset 5) and head
+    (ruleset 6): 665 weapons, 101 decisions, 13 keep/trash conflicts, 0
+    `kept_id` violations, 0 decisions changed; by action and reason: junk
+    `wishlist-trash whole-item` 11; review `wishlist-trash whole-item` 8; review
+    `dupe-lower` 2; review `coverage-dominated by` 30; review
+    `coverage-uncovered vs` 50 — identical to the planning table.
 - **Verification:**
-  - Confirmed invariant test fails (4 failures across the synthetic trigger cases) when the one-line fix is temporarily reverted, and passes (25 passed) when restored.
+  - Confirmed invariant test fails (4 failures across the synthetic trigger
+    cases) when the one-line fix is temporarily reverted, and passes (25 passed)
+    when restored.
   - `.venv/bin/ruff check src tests scripts` passed.
   - `.venv/bin/pytest -q` passed (1117 passed).
   - `git diff --check origin/main...HEAD` passed.
   - `git ls-files data/` empty.
+- **Review-fix round 1:**
+  - Replaced the real-export confirmation record with the planned measurement
+    on `data/in/2026-09-01T-current/weapons.csv` (deleting the unneeded
+    secondary export mention) and wrapped the entry at 80 columns.
+  - In `test_survivor_chosen_among_non_trash_copies`, pinned the complete
+    decision list in run order as `[(d.id, d.action, d.kept_id) ...]` for both
+    locked and Exotic variants.
+  - In `test_trash_survivor_reproduction_174`, renamed `s`/`l` to descriptive
+    names `trash_copy`/`clean_copy`.
+  - In `test_no_kept_id_is_itself_decided`, removed the unreachable
+    `else: weapons_df = weapons_source.copy()` branch.
 
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 

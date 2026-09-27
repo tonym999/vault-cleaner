@@ -434,9 +434,9 @@ def test_trash_survivor_reproduction_174():
     # lock; weapon 22 shares its exact roll but matches keep after the tracker
     # boundary. Weapon 11 must not be chosen as dupe survivor for 22 to keep.
     wl = parse_wishlist("dimwishlist:item=-300&perks=3\ndimwishlist:item=300&perks=1")
-    s = weapon("11", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"})
-    l = weapon("22", 300, perks=["Bad Perk"], **{"Perks 7": "Perk A"})  # keep perk only after tracker boundary
-    decisions = run(df(s, l), wl, PERK_MAP, 10).decisions
+    trash_copy = weapon("11", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"})
+    clean_copy = weapon("22", 300, perks=["Bad Perk"], **{"Perks 7": "Perk A"})  # keep perk only after tracker boundary
+    decisions = run(df(trash_copy, clean_copy), wl, PERK_MAP, 10).decisions
     assert [(d.id, d.action) for d in decisions] == [("11", "review")]
     assert "wishlist-trash roll (locked)" in decisions[0].note
     assert decisions[0].kept_id == ""
@@ -453,7 +453,12 @@ def test_survivor_chosen_among_non_trash_copies():
         weapon("U", 300, **{"Masterwork Tier": "5"}),
         weapon("V", 300, **{"Masterwork Tier": "0"}),
     )
-    decisions = {d.id: d for d in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
+    raw_decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in raw_decisions] == [
+        ("T", "review", ""),
+        ("V", "junk", "U"),
+    ]
+    decisions = {d.id: d for d in raw_decisions}
     assert decisions["T"].action == "review"
     assert "wishlist-trash roll (locked)" in decisions["T"].note
     assert decisions["T"].kept_id == ""
@@ -473,7 +478,12 @@ def test_survivor_chosen_among_non_trash_copies():
         weapon("U", 300, **{"Masterwork Tier": "5"}),
         weapon("V", 300, **{"Masterwork Tier": "5"}),
     )
-    exotic_decisions = {d.id: d for d in run(exotic_weapons, WISHLIST, PERK_MAP, 10).decisions}
+    exotic_raw_decisions = run(exotic_weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in exotic_raw_decisions] == [
+        ("T", "review", ""),
+        ("V", "junk", "U"),
+    ]
+    exotic_decisions = {d.id: d for d in exotic_raw_decisions}
     assert exotic_decisions["T"].action == "review"
     assert "wishlist-trash roll (exotic)" in exotic_decisions["T"].note
     assert exotic_decisions["T"].kept_id == ""
@@ -586,8 +596,6 @@ def test_no_kept_id_is_itself_decided(weapons_source, wl, perk_map):
         weapons_df = weapons_source()
     elif isinstance(weapons_source, Path):
         weapons_df = load_weapons(weapons_source)
-    else:
-        weapons_df = weapons_source.copy()
 
     result = run(weapons_df, wl, perk_map, crafted_level_protect=10)
     decided = {d.id for d in result.decisions}
