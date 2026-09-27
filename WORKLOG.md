@@ -125,6 +125,24 @@ them. Two new findings.
   The plan now states this invariant and tests it; the pattern is unchanged.
 - Plan and this entry only.
 
+### Round 3 and merge preparation (PR #183)
+
+- **CodeRabbit Minor: the retained vocabulary disclosure needs
+  authorisation.** Kept clauses still copy closed-vocabulary words, so a
+  hand-typed clause-shaped note could pass word choices through, up to
+  about 10 bits per clause.
+  - **Owner decision (2026-09-27): accepted as a residual.** The channel can
+    carry only public game or tool terms, and it carries nothing on the
+    current snapshot. The plan records the acceptance; vocabulary slots stay
+    copied.
+- `main` moved on while the PR was open (#174 merged: PRs #182, #184,
+  #187). Merged `origin/main` into this branch:
+  - resolved the `WORKLOG.md` insertion conflict by keeping both sides;
+  - updated the plan's `report_run.py` and `coverage.py` citations, which
+    #174 shifted by three lines;
+  - noted the re-baseline, and that the prototype's decision counts predate
+    `RULESET_VERSION` 6.
+
 ## 2026-09-27 — #174 plan Amendment 2: accepted limitation #185
 
 Amended `handoffs/issue-174-implementation-plan.md` again, on

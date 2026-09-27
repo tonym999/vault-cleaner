@@ -366,8 +366,17 @@ sanitiser's writing rules and CI's acceptance rules therefore cannot drift.
 
   In a retained clause, the only digits are generated ones: fake ids,
   checked by L3/L4, and their 4-digit short ids, re-derived by L9.
-  Residual channel, accepted: which vocabulary word was chosen (e.g. one of
-  twelve archetypes), a few bits and not identifying.
+  **Residual channel, accepted by the owner on 2026-09-27** (PR #183, a
+  CodeRabbit round-3 Minor): which closed-vocabulary word was chosen in each
+  slot (archetype, stat, class, slot type, tuning slot, winner reason).
+  - The capacity is at most about 10 bits per clause. It exists only if the
+    owner hand-typed a note that exactly copies a clause shape, and it can
+    express only public game or tool terms, never names, numbers, ids or
+    free text.
+  - On the current snapshot it carries nothing: all 1,050 kept clauses have
+    the emitter's exact shapes, and the owner's own notes all become
+    placeholders.
+  - Vocabulary slots are therefore copied, not canonicalised.
 
   Canonical forms are still full clauses to `strip_trailing_tool_clauses`
   (its patterns take `[0-9]+` numbers and a free `[...]` body), so strip
