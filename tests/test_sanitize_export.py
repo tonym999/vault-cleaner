@@ -12,6 +12,7 @@ so these tests exercise the real objects, not copies.
 from __future__ import annotations
 
 import csv
+import hashlib
 import importlib.util
 import json
 import re
@@ -571,6 +572,27 @@ def test_refusal_unexpected_file_in_destination(tmp_path):
     assert [p.name for p in dest.iterdir()] == ["stray.txt"]
 
 
+def test_refusal_out_root_would_overwrite_the_snapshot_directory(tmp_path):
+    # #181 review finding C: --out-root resolving the destination onto the
+    # raw snapshot directory (here, the snapshot's own parent) must refuse
+    # before writing anything, never silently os.replace the raw input.
+    snap = _min_snapshot(tmp_path)
+    before = {p.name: p.read_bytes() for p in snap.iterdir()}
+    with pytest.raises(se.SanitiseError, match="snapshot directory"):
+        se.sanitise(snap, tmp_path, CONFIG, True, "2026-09-27")  # out_root == snap.parent
+    after = {p.name: p.read_bytes() for p in snap.iterdir()}
+    assert after == before
+
+
+def test_refusal_out_root_nested_inside_the_snapshot_directory(tmp_path):
+    snap = _min_snapshot(tmp_path)
+    before = {p.name: p.read_bytes() for p in snap.iterdir()}
+    with pytest.raises(se.SanitiseError, match="snapshot directory"):
+        se.sanitise(snap, snap / "nested-out", CONFIG, True, "2026-09-27")
+    after = {p.name: p.read_bytes() for p in snap.iterdir()}
+    assert after == before
+
+
 # ---------------------------------------------------------------------------
 # Planted leaks: for each, show it survives with its check bypassed
 # (monkeypatch the check away too, so the write succeeds despite the
@@ -595,7 +617,7 @@ def test_planted_leak_notes_id_left_unmapped_bypass_then_caught(tmp_path, monkey
     monkeypatch.undo()
     caught_snap, _, _ = _two_weapon_snapshot(tmp_path / "caught", f"references {id_a} directly")
     monkeypatch.setattr(se.SanitiserState, "sanitize_notes", lambda self, value: str(value))
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L[1245]:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -621,7 +643,7 @@ def test_planted_leak_id_map_returns_raw_id_bypass_then_caught(tmp_path, monkeyp
     monkeypatch.undo()
     caught_snap, _, _ = _two_weapon_snapshot(tmp_path / "caught", "")
     monkeypatch.setattr(se, "_build_id_map", bad_build)
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L[134]:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -639,7 +661,7 @@ def test_planted_leak_notes_returns_owner_text_bypass_then_caught(tmp_path, monk
     monkeypatch.undo()
     caught_snap = _min_snapshot(tmp_path / "caught", weapon_rows=[_min_weapon_row("6900000000000000001", Notes=secret)])
     monkeypatch.setattr(se.SanitiserState, "render_placeholder", lambda self, body: body)
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L5:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -661,7 +683,7 @@ def test_planted_leak_notes_keeps_clause_shaped_owner_note_bypass_then_caught(tm
     monkeypatch.undo()
     caught_snap = _min_snapshot(tmp_path / "caught", weapon_rows=[_min_weapon_row(id_a, Notes=owner_note)])
     monkeypatch.setattr(se, "recognise_and_canonicalise", fake_recognise)
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L5:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -685,7 +707,7 @@ def test_planted_leak_notes_copies_numeric_payload_bypass_then_caught(tmp_path, 
     monkeypatch.undo()
     caught_snap = _min_snapshot(tmp_path / "caught", weapon_rows=[_min_weapon_row(id_a, Notes=owner_clause)])
     monkeypatch.setattr(se, "recognise_and_canonicalise", fake_recognise)
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L5:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -707,7 +729,7 @@ def test_planted_leak_loadouts_returns_input_bypass_then_caught(tmp_path, monkey
         tmp_path / "caught", weapon_rows=[_min_weapon_row("6900000000000000001", Loadouts=secret_loadout)]
     )
     monkeypatch.setattr(se.SanitiserState, "sanitize_loadouts", lambda self, value: str(value))
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L6:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -728,7 +750,7 @@ def test_planted_leak_kill_tracker_left_unchanged_bypass_then_caught(tmp_path, m
         tmp_path / "caught", weapon_rows=[_min_weapon_row("6900000000000000001", **{"Kill Tracker": "255"})]
     )
     monkeypatch.setattr(se, "_sanitize_kill_tracker", lambda value: str(value))
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L7:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -753,7 +775,13 @@ def test_planted_leak_wrong_reference_fake_bypass_then_caught(tmp_path, monkeypa
     staged = (tmp_path / "out_bypass" / "snap" / "weapons.csv").read_text(encoding="utf-8")
     # id_a is first by rank, so the wrong resolver always points back at it —
     # the row referencing id_b ends up (wrongly) pointing at id_a's own fake.
-    assert "keep [id …" in staged
+    # Assert the *wrong* reference really survived, not merely that some
+    # well-formed reference exists.
+    id_map = se._build_id_map(sorted([id_a, id_b], key=instance_id_order))
+    wrong_suffix = id_map[id_a][-4:]
+    correct_suffix = id_map[id_b][-4:]
+    assert f"keep [id …{wrong_suffix}]" in staged
+    assert f"keep [id …{correct_suffix}]" not in staged
 
     monkeypatch.undo()
     caught_snap = _min_snapshot(
@@ -761,7 +789,7 @@ def test_planted_leak_wrong_reference_fake_bypass_then_caught(tmp_path, monkeypa
         weapon_rows=[_min_weapon_row(id_a, Notes=notes_a), _min_weapon_row(id_b)],
     )
     monkeypatch.setattr(se.SanitiserState, "resolve_ref_token", wrong_resolve)
-    with pytest.raises(se.SanitiseError):
+    with pytest.raises(se.SanitiseError, match=r"^L9:"):
         se.sanitise(caught_snap, tmp_path / "out_caught", CONFIG, True, "2026-09-27")
     assert not (tmp_path / "out_caught" / "snap").exists()
 
@@ -889,15 +917,380 @@ def test_byte_stability_same_run_date_identical_bytes(tmp_path):
 
 
 def test_provenance_json_shape(tmp_path):
-    snap, *_ = _build_snapshot(tmp_path)
+    snap, wmap, amap, gmap = _build_snapshot(tmp_path)
     se.sanitise(snap, tmp_path / "out", CONFIG, True, "2026-09-27")
     doc = json.loads((tmp_path / "out" / "snap" / "provenance.json").read_text(encoding="utf-8"))
     assert set(doc) == {"files", "parity_modes", "run_date", "script_version"}
     assert set(doc["files"]) == {"weapons.csv", "armor.csv", "ghosts.csv"}
-    for meta in doc["files"].values():
+    expected_rows = {"weapons.csv": len(wmap), "armor.csv": len(amap), "ghosts.csv": len(gmap)}
+    for name, meta in doc["files"].items():
         assert set(meta) == {"raw_sha256", "rows"}
         assert re.fullmatch(r"[0-9a-f]{64}", meta["raw_sha256"])
         assert isinstance(meta["rows"], int)
+        assert meta["rows"] == expected_rows[name]
+        assert meta["raw_sha256"] == hashlib.sha256((snap / name).read_bytes()).hexdigest()
     assert doc["parity_modes"] == ["no-wishlists"]
     assert doc["run_date"] == "2026-09-27"
     assert doc["script_version"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Direct check-function tests (#181 review finding A1): each calls the check
+# function itself on a tampered staged table/directory crafted so that only
+# the named check can catch it, plus a clean pass. This is stronger than
+# going through the full sanitise() pipeline, where several checks can
+# legitimately co-fire on the same defect.
+# ---------------------------------------------------------------------------
+
+
+def _write_simple_staged(
+    tmp_path: Path,
+    weapons_text: str = "Id\n1000000000000000001\n",
+    armor_text: str = "Id\n1000000000000000101\n",
+    ghosts_text: str = "Id\n1000000000000000201\n",
+) -> Path:
+    """A minimal staged directory for the checks that only read raw text or a
+    bare ``Id`` column (L1-L4). Not schema-complete — L8 needs its own
+    fixture, built separately below."""
+    tmp_path.mkdir(parents=True)
+    (tmp_path / "weapons.csv").write_text(weapons_text, encoding="utf-8", newline="")
+    (tmp_path / "armor.csv").write_text(armor_text, encoding="utf-8", newline="")
+    (tmp_path / "ghosts.csv").write_text(ghosts_text, encoding="utf-8", newline="")
+    return tmp_path
+
+
+def test_l1_direct_catches_a_verbatim_real_id(tmp_path):
+    real_id = "6900000000000000001"
+    bad = _write_simple_staged(tmp_path / "bad", weapons_text=f"Id\n{real_id}\n")
+    with pytest.raises(se.SanitiseError, match=r"^L1:"):
+        se._check_l1(bad, frozenset({real_id}))
+
+    clean = _write_simple_staged(tmp_path / "clean")
+    se._check_l1(clean, frozenset({real_id}))  # does not raise
+
+
+def test_l2_direct_catches_a_shared_8digit_window_and_respects_the_exemption(tmp_path):
+    # No digit runs at all in the companion files: the shared armor/ghosts
+    # defaults in _write_simple_staged are zero-padded fake-looking ids that
+    # could coincidentally share an 8-digit window with a hand-picked real
+    # id, so this test keeps them digit-free and puts everything on weapons.
+    real_id = "6900000000000012345"
+    windows = se._l2_windows(frozenset({real_id}))
+    fake = "1000" + real_id[-15:]  # shares real_id's trailing 8-digit window
+    raw_hash = "424242424242424242"  # an unrelated raw Hash value, also exempt
+
+    # Exemption: a run that is *exactly* a generated fake id passes even
+    # though it shares an 8-digit window with a real id.
+    exempt_fake = _write_simple_staged(
+        tmp_path / "exempt_fake", weapons_text=f"Id\n{fake}\n", armor_text="Id\nnoop\n", ghosts_text="Id\nnoop\n"
+    )
+    se._check_l2(exempt_fake, windows, {fake}, frozenset())
+
+    # Boundary: append one extra digit so the run is no longer *exactly* the
+    # fake id. It still contains the same shared window, so it must refuse.
+    extra_digit = _write_simple_staged(
+        tmp_path / "extra_digit", weapons_text=f"Id\n{fake}9\n", armor_text="Id\nnoop\n", ghosts_text="Id\nnoop\n"
+    )
+    with pytest.raises(se.SanitiseError, match=r"^L2:"):
+        se._check_l2(extra_digit, windows, {fake}, frozenset())
+
+    # Exemption: a run that is *exactly* a raw Hash value passes too.
+    hash_window_source = "6900000000000054321"
+    hash_windows = se._l2_windows(frozenset({hash_window_source}))
+    hash_run = raw_hash[:11] + hash_window_source[-8:]
+    exempt_hash = _write_simple_staged(
+        tmp_path / "exempt_hash", weapons_text=f"Id\n{hash_run}\n", armor_text="Id\nnoop\n", ghosts_text="Id\nnoop\n"
+    )
+    se._check_l2(exempt_hash, hash_windows, set(), frozenset({hash_run}))
+
+    # Boundary: one extra digit and the Hash exemption no longer applies.
+    extra_hash_digit = _write_simple_staged(
+        tmp_path / "extra_hash_digit",
+        weapons_text=f"Id\n{hash_run}9\n",
+        armor_text="Id\nnoop\n",
+        ghosts_text="Id\nnoop\n",
+    )
+    with pytest.raises(se.SanitiseError, match=r"^L2:"):
+        se._check_l2(extra_hash_digit, hash_windows, set(), frozenset({hash_run}))
+
+
+def test_l3_direct_catches_a_non_fake_id(tmp_path):
+    real_id = "6900000000000000001"
+    bad = _write_simple_staged(tmp_path / "bad", weapons_text=f'Id\n"{real_id}"\n')
+    with pytest.raises(se.SanitiseError, match=r"^L3:"):
+        se._check_l3(bad, frozenset())
+
+    clean = _write_simple_staged(tmp_path / "clean")
+    se._check_l3(clean, frozenset())  # does not raise
+
+
+def test_l4_direct_catches_a_long_run_not_in_all_fakes(tmp_path):
+    bad = _write_simple_staged(tmp_path / "bad", weapons_text="Id\n6900000000000000001\n")
+    with pytest.raises(se.SanitiseError, match=r"^L4:"):
+        se._check_l4(bad, set())
+
+    clean = _write_simple_staged(tmp_path / "clean")
+    se._check_l4(clean, {"1000000000000000001", "1000000000000000101", "1000000000000000201"})
+
+
+def test_l5_direct_owner_body_check(tmp_path):
+    # A pathological owner body whose literal text happens to look exactly
+    # like a placeholder isolates the *second* L5 check (an original owner
+    # body appearing verbatim in output) from the *first* (per-segment
+    # grammar check), which "note 1.0" already satisfies on its own.
+    headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
+    state = _state_for_ids([])
+    state.placeholder_map["note 1.0"] = 1
+    staged = {"weapons": [["1000000000000000001", "note 1.0"]], "armor": [], "ghosts": []}
+    with pytest.raises(se.SanitiseError, match=r"^L5:"):
+        se._check_l5(headers, staged, state)
+
+    clean_state = _state_for_ids([])  # nothing registered: nothing to leak
+    se._check_l5(headers, staged, clean_state)
+
+
+def test_l6_direct_reuse_check(tmp_path):
+    headers = {"weapons": ["Id", "Loadouts"], "armor": ["Id", "Loadouts"], "ghosts": ["Id", "Loadouts"]}
+    state = _state_for_ids([])
+    # An owner-typed raw loadout name that happens to already look like a
+    # sanitised token: isolates the reuse check from the format check (which
+    # this value satisfies) and the count check (one token both sides).
+    state.loadout_map["Loadout 5"] = 99
+    rows = {"weapons": [{"Loadouts": "Loadout 5"}], "armor": [], "ghosts": []}
+    staged = {"weapons": [["1000000000000000001", "Loadout 5"]], "armor": [], "ghosts": []}
+    with pytest.raises(se.SanitiseError, match=r"^L6:"):
+        se._check_l6(headers, rows, staged, state)
+
+    clean_state = _state_for_ids([])  # fresh: "Loadout 5" is not a registered raw token
+    clean_rows = {"weapons": [{"Loadouts": "something else"}], "armor": [], "ghosts": []}
+    se._check_l6(headers, clean_rows, staged, clean_state)
+
+
+def test_l6_direct_count_check():
+    headers = {"weapons": ["Id", "Loadouts"], "armor": ["Id", "Loadouts"], "ghosts": ["Id", "Loadouts"]}
+    state = _state_for_ids([])
+    # Raw has two tokens, staged only one: format passes (valid Loadout N)
+    # and reuse passes (no raw token registered), isolating the count check.
+    rows = {"weapons": [{"Loadouts": "A,B"}], "armor": [], "ghosts": []}
+    staged = {"weapons": [["1000000000000000001", "Loadout 1"]], "armor": [], "ghosts": []}
+    with pytest.raises(se.SanitiseError, match=r"^L6:"):
+        se._check_l6(headers, rows, staged, state)
+
+    clean_staged = {"weapons": [["1000000000000000001", "Loadout 1,Loadout 2"]], "armor": [], "ghosts": []}
+    se._check_l6(headers, rows, clean_staged, state)
+
+
+def test_l8_direct_catches_untreated_column_drift(tmp_path):
+    raw_id, fake_id = "6900000000000000001", "1000000000000000001"
+    raw_dir = _min_snapshot(tmp_path / "raw", weapon_rows=[_min_weapon_row(raw_id, Tag="favorite")])
+
+    id_map = {
+        raw_id: fake_id,
+        "6900000000000000101": "1000000000000000101",
+        "6900000000000000201": "1000000000000000201",
+    }
+
+    bad_staged = tmp_path / "staged_bad"
+    bad_staged.mkdir()
+    _write_min_csv(bad_staged / "weapons.csv", _MIN_WEAPON_HEADER, [_min_weapon_row(fake_id, Tag="junk")])
+    _write_min_csv(bad_staged / "armor.csv", _MIN_ARMOR_HEADER, [_min_armor_row("1000000000000000101")])
+    _write_min_csv(bad_staged / "ghosts.csv", _MIN_GHOST_HEADER, [_min_ghost_row("1000000000000000201")])
+    with pytest.raises(se.SanitiseError, match=r"^L8:"):
+        se._check_l8(raw_dir, bad_staged, id_map)
+
+    good_staged = tmp_path / "staged_good"
+    good_staged.mkdir()
+    _write_min_csv(good_staged / "weapons.csv", _MIN_WEAPON_HEADER, [_min_weapon_row(fake_id, Tag="favorite")])
+    _write_min_csv(good_staged / "armor.csv", _MIN_ARMOR_HEADER, [_min_armor_row("1000000000000000101")])
+    _write_min_csv(good_staged / "ghosts.csv", _MIN_GHOST_HEADER, [_min_ghost_row("1000000000000000201")])
+    se._check_l8(raw_dir, good_staged, id_map)  # does not raise
+
+
+# ---------------------------------------------------------------------------
+# End-to-end 3(b) refusal (#181 review finding A2): a clause-shaped owner
+# note on a decision-affected row. The legacy recogniser
+# (strip_trailing_tool_clauses) is loose and strips it as if it were a real
+# tool clause, so production's own clause boundary sees no owner text at
+# all — but the sanitiser's stricter grammar rejects "(private note)" and
+# placeholders the whole raw cell instead. The staged clause boundary and
+# the raw one then disagree, which only 3(b) can see.
+# ---------------------------------------------------------------------------
+
+
+def test_end_to_end_clause_shaped_owner_note_refuses_under_3b(tmp_path):
+    weapons = load_weapons(FIXTURES / "weapons_dupes.csv")
+    weapons, wmap = _remap_ids(weapons, base=1)
+    loser_id, winner_id = wmap["3002"], wmap["3001"]
+    weapons.loc[weapons["Id"] == loser_id, "Notes"] = (
+        f"#vc-review: armor-similar to {winner_id} (private note)"
+    )
+
+    snap = tmp_path / "snap"
+    snap.mkdir()
+    _write_raw_csv(snap / "weapons.csv", weapons)
+    armor, _ = _remap_ids(load_armor(FIXTURES / "armor_dupes.csv"), base=101)
+    _write_raw_csv(snap / "armor.csv", armor)
+    ghosts, _ = _remap_ids(load_ghosts(FIXTURES / "ghosts_cleanup.csv"), base=201)
+    _write_raw_csv(snap / "ghosts.csv", ghosts)
+
+    with pytest.raises(se.SanitiseError, match=r"^parity"):
+        se.sanitise(snap, tmp_path / "out", CONFIG, True, "2026-09-27")
+    assert not (tmp_path / "out" / "snap").exists()
+
+
+# ---------------------------------------------------------------------------
+# Parity unit tests (#181 review finding A3): _compare_decision /
+# _compare_sections flag each of these divergence categories.
+# ---------------------------------------------------------------------------
+
+
+def test_parity_compare_decision_flags_original_notes_mismatch():
+    state = _state_for_ids([])
+    raw_d = _decision_dict("", "owner text with no clause")
+    raw_d["original_notes"] = "owner text with no clause"
+    staged_d = _decision_dict("", "definitely wrong")
+    staged_d["original_notes"] = "definitely wrong"
+    assert se._compare_decision(raw_d, staged_d, state) is True
+
+
+def test_parity_compare_decision_flags_non_shortid_clause_mismatch():
+    state = _state_for_ids(["6900000000000000001"])
+    fake = state.id_map["6900000000000000001"]
+    raw_d = _decision_dict(
+        "6900000000000000001",
+        "#vc-junk: dupe-lower; keep [id …0001]; winner higher Power",
+    )
+    staged_d = _decision_dict(
+        fake,
+        f"#vc-junk: dupe-lower; keep [id …{fake[-4:]}]; winner higher Masterwork Tier",
+    )
+    # <SID> normalisation in 3(c) equates the two short-id tokens; the
+    # winner-reason text differs regardless, so this is not a short-id
+    # difference and must still be flagged.
+    assert se._compare_decision(raw_d, staged_d, state) is True
+
+
+def test_parity_compare_decision_flags_explanation_text_mismatch():
+    state = _state_for_ids([])
+    expl_raw = {"label": "L", "why": "raw why", "keep_instead": "", "gives_up": "G", "caveats": ()}
+    expl_staged = {"label": "L", "why": "staged why", "keep_instead": "", "gives_up": "G", "caveats": ()}
+    raw_d = _decision_dict("", "", expl_raw)
+    staged_d = _decision_dict("", "", expl_staged)
+    assert se._compare_decision(raw_d, staged_d, state) is True
+
+
+def test_parity_compare_decision_flags_wrong_kept_id():
+    state = _state_for_ids(["6900000000000000001", "6900000000000000002"])
+    raw_d = _decision_dict("6900000000000000001", "")
+    staged_d = _decision_dict(state.id_map["6900000000000000002"], "")  # wrong: should map ...0001
+    assert se._compare_decision(raw_d, staged_d, state) is True
+
+
+def test_parity_compare_decision_flags_wrong_tag():
+    state = _state_for_ids([])
+    raw_d = _decision_dict("", "")
+    raw_d["tag"] = "junk"
+    staged_d = _decision_dict("", "")
+    staged_d["tag"] = "keep"
+    assert se._compare_decision(raw_d, staged_d, state) is True
+
+
+def test_parity_compare_sections_flags_armor_block_group_id_mismatch():
+    state = _state_for_ids(["6900000000000000001"])
+
+    def section(group_id: str) -> dict:
+        return {
+            "kind": "armor", "source": {}, "decisions": [],
+            "armor": {
+                "scored": 0, "evaluations": [], "cited_ids": [], "kept_elsewhere": [],
+                "exact_duplicate_groups": [{"group_id": group_id, "hash": "1"}],
+                "same_stat_groups": [],
+            },
+        }
+
+    raw_sections = [section("6900000000000000001")]
+    staged_sections = [section("1000000000000000099")]  # wrong: not the mapped fake
+    counts = se._compare_sections(raw_sections, staged_sections, state)
+    assert counts.get("armor:armor") == 1
+
+
+def test_parity_unknown_decision_key_refuses():
+    state = _state_for_ids(["6900000000000000001"])
+    raw_d = _decision_dict("6900000000000000001", "")
+    staged_d = _decision_dict(state.id_map["6900000000000000001"], "")
+    staged_d["surprise_field"] = "new"
+    with pytest.raises(se.SanitiseError, match="does not handle"):
+        se._compare_decision(raw_d, staged_d, state)
+
+
+def test_parity_unknown_explanation_key_refuses():
+    state = _state_for_ids([])
+    expl_raw = {"label": "L", "why": "W", "keep_instead": "", "gives_up": "G", "caveats": ()}
+    expl_staged = dict(expl_raw, surprise="new")
+    raw_d = _decision_dict("", "", expl_raw)
+    staged_d = _decision_dict("", "", expl_staged)
+    with pytest.raises(se.SanitiseError, match="does not handle"):
+        se._compare_decision(raw_d, staged_d, state)
+
+
+# ---------------------------------------------------------------------------
+# Grammar-refactor test (#181 review finding E): each family's own template
+# renders text that its own retained pattern accepts, index-aligned.
+# ---------------------------------------------------------------------------
+
+
+def test_each_family_renders_to_its_own_retained_pattern():
+    fake = "1000000000000000001"
+    examples = [
+        f"#vc-junk: dupe-lower, kept {fake}",
+        "#vc-junk: dupe-lower; keep [id …0001]; winner lock",
+        f"#vc-review: armor-similar to {fake} (identical stats)",
+        f"#vc-review: armor-dominated by {fake} (+3 total)",
+        "#vc-review: armor-dominated by; compare [id …0001]; +3 total; partner largest stat surplus",
+        "#vc-review: armor-similar to; compare [id …0001]; identical stats; partner closest stat distance",
+        (
+            "#vc-review: coverage-dominated by; compare [id …0001]; "
+            "curated matches 1 vs 2; partner largest coverage gain"
+        ),
+        "#vc-junk: wishlist-trash whole-item",
+        "#vc-junk: armor-score 1 < floor 2 (best: melee_primary, rank 1/2 titan helmet)",
+        "#vc-review: armor-score 1 < floor 2 (best: melee_primary, rank 1/2 titan helmet) (locked)",
+        (
+            "#vc-review: armor-last-archetype (siegebreaker), armor-score 1 < floor 2 "
+            "(best: melee_primary, rank 1/2 titan helmet)"
+        ),
+        "#vc-junk: ghost-unprotected-surplus",
+    ]
+    assert len(examples) == len(grammar.CLAUSE_FAMILIES) == 12
+    for family, example in zip(grammar.CLAUSE_FAMILIES, examples, strict=True):
+        m = family.input_re.fullmatch(example)
+        assert m is not None, (family.name, example)
+        rendered = family.render(m, lambda token: "…0001")
+        assert family.retained_re.fullmatch(rendered), (family.name, rendered)
+
+
+# ---------------------------------------------------------------------------
+# main() never prints exception text (#181 review finding D): a malformed
+# raw export makes L8's loaders raise vault_cleaner.parse.SchemaError, whose
+# message embeds the real item name and id. Only the stage and exception
+# type may reach stderr.
+# ---------------------------------------------------------------------------
+
+
+def test_schema_error_refusal_never_prints_values(tmp_path, capsys):
+    synthetic_id = "6900000000000099999"
+    weapon = _min_weapon_row(
+        synthetic_id, Notes="", **{"Crafted": "crafted", "Crafted Level": "not-a-number"}
+    )
+    snap = _min_snapshot(tmp_path, weapon_rows=[weapon])
+    rc = se.main([
+        str(snap), "--out-root", str(tmp_path / "out"), "--config", str(CONFIG), "--no-wishlists",
+    ])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert captured.err.startswith("refused:")
+    assert "L8" in captured.err
+    assert "SchemaError" in captured.err
+    assert synthetic_id not in captured.err
+    assert "not-a-number" not in captured.err
+    assert not (tmp_path / "out" / "snap").exists()

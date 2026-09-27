@@ -93,8 +93,106 @@ Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
 - **Verification:** `ruff check src tests scripts`, `pytest -q` (1,180
   passed), `python3 scripts/check_real_fixtures.py` (clean), `git diff
   --check origin/main...HEAD` (clean), `git ls-files data/` (empty).
-- No deviations from the plan's scope; the two refactors above are ordinary
-  implementation structure, not design changes.
+- **The plan's own deviations from the issue text (plan lines 246-269),
+  carried through unchanged:**
+  1. The id map also covers every ≥16-digit run found in raw Notes (28 real
+     ids of dismantled items), not only export ids.
+  2. Short-id rewriting is implemented so a future export's current-format
+     clauses are handled, even though this snapshot only had legacy ones.
+  3. The 8-digit window scan (L2) exempts runs that are exactly a generated
+     fake id or exactly a raw `Hash` value.
+  4. "No loadout name / owner text appears as a cell value" is enforced on
+     the `Loadouts` and `Notes` columns specifically, backed by a positive
+     grammar for both, not a literal whole-export scan.
+  5. Loadouts are split on a bare `,` (DIM's separator), with the `NNNNN:`
+     prefix kept as part of the first token.
+  6. Parity compares the whole `snapshot_dict` under an explicit
+     normalisation, stricter than and subsuming the issue's field list.
+  7. "Keep `#vc-` clauses" is narrowed to the strict clause grammar in
+     `check_real_fixtures.py`, and each kept clause is re-rendered in
+     canonical form (numeric slots zeroed, references rewritten) rather than
+     copied.
+- Not a deviation from scope, but an unavoidable collateral edit: the
+  `tests/test_report_run.py` hunk (see above) is outside the plan's
+  mechanical inclusion test on its face, but adding
+  `tests/fixtures/real/<snapshot>/` — squarely in scope — breaks that
+  existing test's non-recursive fixture walk, so leaving it unfixed would
+  have left the suite red. The orchestrator accepted it as unavoidable
+  collateral pending the owner's acknowledgement.
+
+### Review-fix round 1 (orchestrator + independent review of `f25c019`)
+
+Fixed findings A-H on top of `f25c019`, no rebase/amend. `AGENTS.md`,
+`ci.yml` and `tests/test_report_run.py` untouched this round; committed
+fixture bytes unchanged (re-ran the sanitiser against the real snapshot with
+`--run-date 2026-09-27` and both parity modes, diffed byte-for-byte against
+`tests/fixtures/real/2026-09-01T-current/` — identical, so nothing was
+recommitted).
+
+- **A (tests not load-bearing):** added a direct unit test per check (L1,
+  L2 — plus the exemption boundary, L3, L4, L5's owner-body rule, L6's reuse
+  and count rules, L8) that calls the check function on a tampered
+  staged table/directory; an end-to-end 3(b) refusal
+  (`test_end_to_end_clause_shaped_owner_note_refuses_under_3b`) using a
+  clause-shaped owner note on a real `weapons_dupes.csv` decision row, where
+  the loose legacy recogniser strips it but the sanitiser's stricter grammar
+  placeholders it instead; six parity unit tests pinning 3(a)/3(c)/explanation
+  /armor-block/per-field mismatches; `match=` naming the check on every
+  planted-leak "caught" half; a stronger wrong-reference bypass assertion
+  (asserts the specific wrong suffix survived and the correct one is absent,
+  not just that some reference exists); and exact row-count/SHA-256
+  assertions in `test_provenance_json_shape`. Mutation evidence (each new
+  test monkeypatched back to a no-op/disabled check, confirmed red, then
+  restored) is in the round's completion report.
+- **B (guard rules must be separable):** added
+  `test_unmarked_15_digit_id_fails`,
+  `test_unmarked_long_digit_run_outside_notes_column_fails` (a stray digit
+  run in an unvalidated "Name" column) and
+  `test_valid_csv_under_a_stray_file_name_fails` to `test_real_fixtures.py`,
+  each crafted so only one guard rule can fire, plus an `_assert_only_rule`/
+  `_assert_rule_fires` pair so every existing guard test now asserts on the
+  specific rule text (two pre-existing cases legitimately co-trigger two
+  rules and use the weaker `_assert_rule_fires`).
+- **C (`--out-root` could overwrite the raw export):** added
+  `_check_destination_is_not_snapshot` in `sanitize_export.py`, called
+  before any read/write work, refusing when the resolved destination equals,
+  nests inside, or contains the resolved snapshot directory. Two new tests
+  cover both directions and assert the synthetic raw bytes are byte-identical
+  before and after the refusal.
+- **D (refusals must never print values):** extracted `_run_stage`, which
+  runs one stage (`L8`, each parity mode) and converts any non-`SanitiseError`
+  exception into a `SanitiseError` naming only the stage and
+  `type(exc).__name__`, never `str(exc)`; `main()` also gained a last-resort
+  `except Exception` (`# noqa: BLE001`, matching the project's existing
+  server-code convention for this pattern) that prints only the exception
+  type. New test: a synthetic export with `Crafted=crafted` and a malformed
+  `Crafted Level` reaches `vault_cleaner.parse.SchemaError` via L8; asserts
+  `main()`'s stderr never contains the synthetic id or the malformed value.
+- **E (one template per family):** rebuilt `check_real_fixtures.py`'s twelve
+  families around a `_T` slot builder and one template function per family,
+  called once with `mode="input"` and once with `mode="retained"` to produce
+  both compiled patterns from the same source; only `N`/`SCORE`/`REF` differ
+  by mode, every vocabulary slot is identical text in both. `ClauseFamily`
+  now carries `retained_re`, and `recognise_and_canonicalise`'s self-check
+  requires a match against that family's own pattern, not any of the twelve.
+  `INPUT_CLAUSE_RES`/`RETAINED_CLAUSE_RES`/`ID_MARKER` stay public with the
+  same accepted language (verified: the emitter-coverage test and the
+  committed real fixtures both still pass unchanged). New test
+  `test_each_family_renders_to_its_own_retained_pattern` pins the
+  per-family, index-aligned self-check.
+- **F (parity must not silently skip new fields):** added
+  `_require_exact_keys` plus `_TOP_KEYS`/`_INPUTS_KEYS`/
+  `_SECTION_KEYS_BASE`/`_SECTION_KEYS_ARMOR`/`_DECISION_KEYS`/
+  `_EXPLANATION_KEYS`/`_ARMOR_BLOCK_KEYS` constants mirroring
+  `report_run.snapshot_dict`'s current shape (src/ itself is untouched);
+  called at the top level, `inputs`, each section, each decision, each
+  present explanation and each armor block. A key outside the known set, on
+  either side, now refuses instead of being silently unchecked. Two new
+  tests plant an extra key on the staged side at decision and explanation
+  level.
+- **G (L4 should use membership):** `_check_l4` now takes `state.all_fakes`
+  and requires membership in it, rather than a `FAKE_ID` regex match.
+- **H (this entry).**
 
 ## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
 

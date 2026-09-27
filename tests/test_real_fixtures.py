@@ -82,11 +82,15 @@ def _write_csv(
     notes: str = "",
     loadouts: str = "",
     kill_tracker: str = "0",
+    name: str = "N",
 ) -> None:
+    # "Name" is a column the guard never validates the format of, only used
+    # here to plant a byte-level-only defect in a non-Notes, non-Loadouts,
+    # non-Id column.
     with path.open("w", encoding="utf-8", newline="") as fh:
         writer = csv.writer(fh, lineterminator="\n")
-        writer.writerow(["Id", "Notes", "Loadouts", "Kill Tracker"])
-        writer.writerow([f'"{id_}"', notes, loadouts, kill_tracker])
+        writer.writerow(["Id", "Name", "Notes", "Loadouts", "Kill Tracker"])
+        writer.writerow([f'"{id_}"', name, notes, loadouts, kill_tracker])
 
 
 def _write_tree(root: Path, *, snapshot: str = "snap", provenance: dict | None = None, **csv_kwargs) -> Path:
@@ -111,6 +115,26 @@ def _write_tree(root: Path, *, snapshot: str = "snap", provenance: dict | None =
     return root
 
 
+def _assert_rule_fires(errors: list[str], expected_substring: str) -> None:
+    """Assert at least one reported error names ``expected_substring``."""
+    assert any(expected_substring in e for e in errors), (expected_substring, errors)
+
+
+def _assert_only_rule(errors: list[str], expected_substring: str) -> None:
+    """Assert the guard trips on ``expected_substring`` and *only* that rule.
+
+    Stricter than ``_assert_rule_fires``: the crafted input for this case
+    must be clean everywhere except the one defect under test, so no other
+    rule can also fire on it. A test that could be caught by a different
+    rule too would still pass a bare ``!= []`` assertion even if the
+    specific rule under test were disabled by a mutation — this pins which
+    rule fired, keeping the guard's rules independently exercised and
+    separable (#181 review finding B).
+    """
+    assert errors, f"expected an error containing {expected_substring!r}, got none"
+    assert all(expected_substring in e for e in errors), (expected_substring, errors)
+
+
 def test_a_valid_tree_passes(tmp_path):
     root = _write_tree(tmp_path)
     assert grammar.check(root) == []
@@ -121,25 +145,49 @@ def test_missing_root_passes(tmp_path):
 
 
 def test_unmarked_id_fails(tmp_path):
+    # A full 19-digit unmarked id also trips the byte-level long-digit-run
+    # rule on the same cell — both rules legitimately co-fire here, so this
+    # case only asserts the Id rule is among them (see the 15-digit case
+    # below for a single-rule Id trip).
     root = _write_tree(tmp_path, id_="6900000000000000001")
-    assert grammar.check(root) != []
+    _assert_rule_fires(grammar.check(root), "Id lacks the")
+
+
+def test_unmarked_15_digit_id_fails(tmp_path):
+    # Too short to be a fake id at all (FAKE_ID is exactly 19 digits): must
+    # still trip the Id rule, not silently pass as "not long enough to
+    # check" or be caught only by the byte-level long-digit-run scan.
+    root = _write_tree(tmp_path, id_="123456789012345")
+    _assert_only_rule(grammar.check(root), "Id lacks the")
 
 
 def test_unmarked_long_digit_run_in_notes_fails(tmp_path):
+    # This unmarked id in free-form Notes text also trips the Notes-grammar
+    # rule (it isn't a placeholder either) — both legitimately co-fire; the
+    # column-specific case below is the clean single-rule byte-level trip.
     root = _write_tree(tmp_path, notes="see 6900000000000000099 for history")
-    assert grammar.check(root) != []
+    _assert_rule_fires(grammar.check(root), "unmarked long digit run")
+
+
+def test_unmarked_long_digit_run_outside_notes_column_fails(tmp_path):
+    # The byte-level >=16-digit scan covers the whole file, not just Notes:
+    # a leaked real id in some other, unvalidated column (here Name), with a
+    # correctly-marked Id and empty Notes/Loadouts, must still trip the
+    # byte-level rule specifically — no other rule can see this column.
+    root = _write_tree(tmp_path, name="6900000000000000099")
+    _assert_only_rule(grammar.check(root), "unmarked long digit run")
 
 
 def test_raw_multiline_owner_text_in_notes_fails(tmp_path):
     root = _write_tree(tmp_path, notes="line one\nline two, owner's own words")
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Notes contains text outside")
 
 
 def test_clause_shaped_owner_note_fails(tmp_path):
     root = _write_tree(
         tmp_path, notes="#vc-review: armor-similar to 1000000000000000001 (private note)"
     )
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Notes contains text outside")
 
 
 def test_owner_number_in_max_stat_delta_slot_fails(tmp_path):
@@ -147,7 +195,7 @@ def test_owner_number_in_max_stat_delta_slot_fails(tmp_path):
         tmp_path,
         notes="#vc-review: armor-similar to 1000000000000000001 (max stat delta 3141592, total 1)",
     )
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Notes contains text outside")
 
 
 def test_owner_number_in_curated_matches_slot_fails(tmp_path):
@@ -158,7 +206,7 @@ def test_owner_number_in_curated_matches_slot_fails(tmp_path):
             "curated matches 123456789 vs 1; partner largest coverage gain"
         ),
     )
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Notes contains text outside")
 
 
 def test_non_zero_armor_score_fails(tmp_path):
@@ -166,7 +214,7 @@ def test_non_zero_armor_score_fails(tmp_path):
         tmp_path,
         notes="#vc-junk: armor-score 64.2857 < floor 65 (best: melee_primary, rank 7/9 titan helmet)",
     )
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Notes contains text outside")
 
 
 def test_reference_with_extra_part_fails(tmp_path):
@@ -174,17 +222,17 @@ def test_reference_with_extra_part_fails(tmp_path):
         tmp_path,
         notes="#vc-junk: dupe-lower; keep [id …0001; location Vault]; winner lock",
     )
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Notes contains text outside")
 
 
 def test_raw_loadout_name_fails(tmp_path):
     root = _write_tree(tmp_path, loadouts="My Real Loadout Name")
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Loadouts is not a sanitised format")
 
 
 def test_non_zero_kill_tracker_fails(tmp_path):
     root = _write_tree(tmp_path, kill_tracker="42")
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "Kill Tracker is not zeroed")
 
 
 def test_provenance_extra_key_fails(tmp_path):
@@ -199,7 +247,7 @@ def test_provenance_extra_key_fails(tmp_path):
         "extra_key": "surprise",
     }
     root = _write_tree(tmp_path, provenance=doc)
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "must have exactly the keys")
 
 
 def test_provenance_wrong_row_count_fails(tmp_path):
@@ -213,13 +261,23 @@ def test_provenance_wrong_row_count_fails(tmp_path):
         "script_version": 1,
     }
     root = _write_tree(tmp_path, provenance=doc)
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "does not match the CSV's data-row count")
 
 
 def test_stray_file_fails(tmp_path):
     root = _write_tree(tmp_path)
     (root / "snap" / "stray.txt").write_text("not ours", encoding="utf-8")
-    assert grammar.check(root) != []
+    _assert_only_rule(grammar.check(root), "unexpected file")
+
+
+def test_valid_csv_under_a_stray_file_name_fails(tmp_path):
+    # A file that is a byte-for-byte-valid sanitised CSV under a name the
+    # guard doesn't recognise: content-level rules must not paper over a
+    # filename that isn't one of the four known names.
+    root = _write_tree(tmp_path)
+    good_bytes = (root / "snap" / "weapons.csv").read_bytes()
+    (root / "snap" / "weapons_extra.csv").write_bytes(good_bytes)
+    _assert_only_rule(grammar.check(root), "unexpected file")
 
 
 # No rule-decision assertions on the real fixtures: out of scope for #181

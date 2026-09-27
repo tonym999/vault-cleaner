@@ -32,6 +32,7 @@ import os
 import re
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -411,11 +412,11 @@ def _check_l3(tmp_path: Path, all_real_ids: frozenset[str]) -> None:
                 raise SanitiseError(f"L3: {name} row {row_number} Id collides with a real id")
 
 
-def _check_l4(tmp_path: Path) -> None:
+def _check_l4(tmp_path: Path, all_fakes: set[str]) -> None:
     for name in KINDS_FILES.values():
         text = _staged_text(tmp_path, name)
         for m in re.finditer(r"[0-9]{16,}", text):
-            if not re.fullmatch(FAKE_ID, m.group(0)):
+            if m.group(0) not in all_fakes:
                 raise SanitiseError(
                     f"L4: {name} contains a long digit run that is not a generated fake id"
                 )
@@ -562,6 +563,41 @@ def _check_format(path: Path) -> None:
 _SID_NO_LOOKBEHIND_RE = re.compile(RAWSID)
 _SKIP_DECISION_KEYS = {"note", "original_notes", "explanation"}
 
+# Exact key sets this comparator knows how to handle at each snapshot_dict
+# level (report_run.py:438-498). A key outside these sets — added or
+# removed on either side — refuses rather than being silently skipped, so a
+# future snapshot_dict field cannot slip past parity unchecked (#181 review
+# finding F). These mirror report_run.py's current shape; src/ is untouched
+# by this ticket, so they are asserted here rather than imported.
+_TOP_KEYS = {
+    "schema_version", "ruleset_version", "fingerprint", "inputs",
+    "keep_trash_conflicts", "warnings", "sections",
+}
+_INPUTS_KEYS = {"sources", "effective_config", "wishlists_used", "wishlist_sources", "manifest"}
+_SECTION_KEYS_BASE = {"kind", "source", "decisions"}
+_SECTION_KEYS_ARMOR = _SECTION_KEYS_BASE | {"armor"}
+_DECISION_KEYS = {
+    "id", "kind", "hash", "name", "location", "guardian_class", "action", "tag",
+    "note", "kept_id", "reason", "original_tag", "original_notes",
+    "protection_level", "protection_reason", "locked", "equipped", "in_loadout",
+    "candidate_tuning_mod_slot", "selected_tuning_mod_slot", "explanation",
+}
+_EXPLANATION_KEYS = {"label", "why", "keep_instead", "gives_up", "caveats"}
+_ARMOR_BLOCK_KEYS = {
+    "scored", "evaluations", "cited_ids", "kept_elsewhere",
+    "exact_duplicate_groups", "same_stat_groups",
+}
+
+
+def _require_exact_keys(raw: dict, staged: dict, expected: set[str], context: str) -> None:
+    raw_keys, staged_keys = set(raw), set(staged)
+    if raw_keys != expected or staged_keys != expected:
+        raise SanitiseError(
+            f"parity: {context} has a key this comparator does not handle "
+            f"(raw-extra={sorted(raw_keys - expected)}, staged-extra={sorted(staged_keys - expected)}, "
+            f"missing={sorted(expected - (raw_keys & staged_keys))})"
+        )
+
 
 def _map_value(value: object, state: SanitiserState) -> object:
     if isinstance(value, str):
@@ -652,8 +688,12 @@ def _compare_notes(raw_d: dict, staged_d: dict, state: SanitiserState) -> bool:
         mismatch = True
 
     r_expl, s_expl = raw_d["explanation"], staged_d["explanation"]
-    if (r_expl is None) != (s_expl is None) or r_expl is not None and _normalize_explanation(r_expl) != _normalize_explanation(s_expl):
+    if (r_expl is None) != (s_expl is None):
         mismatch = True
+    elif r_expl is not None:
+        _require_exact_keys(r_expl, s_expl, _EXPLANATION_KEYS, "explanation")
+        if _normalize_explanation(r_expl) != _normalize_explanation(s_expl):
+            mismatch = True
 
     r_texts = [clause_r] + (_explanation_texts(r_expl) if r_expl else [])
     s_texts = [clause_s] + (_explanation_texts(s_expl) if s_expl else [])
@@ -669,6 +709,7 @@ def _compare_notes(raw_d: dict, staged_d: dict, state: SanitiserState) -> bool:
 
 
 def _compare_decision(raw_d: dict, staged_d: dict, state: SanitiserState) -> bool:
+    _require_exact_keys(raw_d, staged_d, _DECISION_KEYS, "decision")
     mismatch = False
     for key, raw_val in raw_d.items():
         if key in _SKIP_DECISION_KEYS:
@@ -690,6 +731,8 @@ def _compare_sections(
         kind = r_sec["kind"]
         if kind != s_sec["kind"]:
             raise SanitiseError("parity: section kind order differs")
+        expected_section_keys = _SECTION_KEYS_ARMOR if "armor" in r_sec or "armor" in s_sec else _SECTION_KEYS_BASE
+        _require_exact_keys(r_sec, s_sec, expected_section_keys, f"section {kind}")
         r_decisions, s_decisions = r_sec["decisions"], s_sec["decisions"]
         if len(r_decisions) != len(s_decisions):
             raise SanitiseError(f"parity: {kind} decision count differs")
@@ -700,21 +743,24 @@ def _compare_sections(
         )
         counts[kind] = mismatched
         r_armor, s_armor = r_sec.get("armor"), s_sec.get("armor")
-        if (r_armor is None) != (s_armor is None):
-            raise SanitiseError(f"parity: {kind} armor block presence differs")
-        if r_armor is not None and _map_value(r_armor, state) != s_armor:
-            counts[f"{kind}:armor"] = 1
+        if r_armor is not None:
+            _require_exact_keys(r_armor, s_armor, _ARMOR_BLOCK_KEYS, f"section {kind} armor block")
+            if _map_value(r_armor, state) != s_armor:
+                counts[f"{kind}:armor"] = 1
     return counts
 
 
 def _compare_snapshots(raw: dict, staged: dict, state: SanitiserState) -> dict[str, int]:
+    _require_exact_keys(raw, staged, _TOP_KEYS, "top level")
+    _require_exact_keys(raw["inputs"], staged["inputs"], _INPUTS_KEYS, "inputs")
     if raw["schema_version"] != staged["schema_version"]:
         raise SanitiseError("parity: schema_version differs")
     if raw["ruleset_version"] != staged["ruleset_version"]:
         raise SanitiseError("parity: ruleset_version differs")
     # fingerprint and inputs.sources/each section.source are file digests and
-    # paths, which must differ between raw and staged, so they are dropped by
-    # never being compared here.
+    # paths, which must differ between raw and staged, so their VALUES are
+    # dropped by never being compared here (their presence is still required
+    # by the key-set checks above/in _compare_sections).
     if raw["inputs"]["effective_config"] != staged["inputs"]["effective_config"]:
         raise SanitiseError("parity: effective_config differs")
     if raw["inputs"]["wishlists_used"] != staged["inputs"]["wishlists_used"]:
@@ -768,10 +814,52 @@ def _check_destination(dest: Path) -> None:
             raise SanitiseError(f"destination {dest} already contains an unexpected entry")
 
 
+def _check_destination_is_not_snapshot(dest: Path, snapshot_dir: Path) -> None:
+    """Refuse before writing anything if the destination would ever touch the
+    raw snapshot: AGENTS.md bars deleting or overwriting user-owned inputs,
+    and ``os.replace`` inside ``_atomic_write`` would silently do exactly
+    that if ``--out-root`` resolved the destination onto the snapshot
+    directory (for example, passing the snapshot's own parent)."""
+    dest_r = dest.resolve()
+    snap_r = snapshot_dir.resolve()
+    if dest_r == snap_r:
+        raise SanitiseError(
+            "destination equals the raw snapshot directory — refusing to overwrite user-owned input"
+        )
+    if snap_r in dest_r.parents:
+        raise SanitiseError(
+            "destination is inside the raw snapshot directory — refusing to overwrite user-owned input"
+        )
+    if dest_r in snap_r.parents:
+        raise SanitiseError(
+            "destination contains the raw snapshot directory — refusing to overwrite user-owned input"
+        )
+
+
 def _atomic_write(dest_path: Path, data: bytes) -> None:
     tmp_path = dest_path.parent / (dest_path.name + ".tmp")
     tmp_path.write_bytes(data)
     os.replace(tmp_path, dest_path)
+
+
+def _run_stage(stage: str, func: Callable[..., None], *args: object) -> None:
+    """Run one stage, converting any non-``SanitiseError`` exception into a
+    ``SanitiseError`` that names only the stage and the exception's type.
+
+    A malformed raw export can make ``vault_cleaner.parse`` (via L8's
+    loaders, or ``run_report`` during parity) raise ``SchemaError`` or a
+    decode/``ValueError`` whose message embeds real item names and ids.
+    Only the stage and the exception type are ever propagated — never
+    ``str(exc)`` — so a refusal here can never leak fixture content.
+    """
+    try:
+        func(*args)
+    except SanitiseError:
+        raise
+    except Exception as exc:
+        raise SanitiseError(
+            f"{stage}: refused — {type(exc).__name__} (value suppressed)"
+        ) from exc
 
 
 def sanitise(
@@ -789,6 +877,9 @@ def sanitise(
     snapshot_name = snapshot_dir.name
     if not re.fullmatch(r"[0-9A-Za-z._-]+", snapshot_name):
         raise SanitiseError("snapshot directory name has invalid characters")
+
+    dest = out_root / snapshot_name
+    _check_destination_is_not_snapshot(dest, snapshot_dir)
 
     headers: dict[str, list[str]] = {}
     rows: dict[str, list[dict[str, str]]] = {}
@@ -824,11 +915,11 @@ def sanitise(
         windows = _l2_windows(all_real_ids)
         _check_l2(tmp_path, windows, state.all_fakes, raw_hash_values)
         _check_l3(tmp_path, all_real_ids)
-        _check_l4(tmp_path)
+        _check_l4(tmp_path, state.all_fakes)
         _check_l5(headers, staged, state)
         _check_l6(headers, rows, staged, state)
         _check_l7(headers, staged)
-        _check_l8(snapshot_dir, tmp_path, id_map)
+        _run_stage("L8", _check_l8, snapshot_dir, tmp_path, id_map)
         _check_l9(headers, rows, staged, state)
         for name in KINDS_FILES.values():
             _check_format(tmp_path / name)
@@ -837,13 +928,16 @@ def sanitise(
         # already registered while staging the rows above, so a new
         # registration attempt here signals a real bug, not a legitimate case.
         state.frozen = True
-        _run_parity(snapshot_dir, tmp_path, config_path, True, state)
+        _run_stage(
+            "parity (no-wishlists)", _run_parity, snapshot_dir, tmp_path, config_path, True, state
+        )
         parity_modes = ["no-wishlists"]
         if not no_wishlists_only:
-            _run_parity(snapshot_dir, tmp_path, config_path, False, state)
+            _run_stage(
+                "parity (wishlists)", _run_parity, snapshot_dir, tmp_path, config_path, False, state
+            )
             parity_modes.append("wishlists")
 
-        dest = out_root / snapshot_name
         _check_destination(dest)
         dest.mkdir(parents=True, exist_ok=True)
 
@@ -891,6 +985,15 @@ def main(argv: list[str] | None = None) -> int:
         sanitise(args.snapshot_dir, args.out_root, args.config, args.no_wishlists, run_date)
     except SanitiseError as exc:
         print(f"refused: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - never let raw exception text leak real content
+        # Last-resort safety net: every exception type this script knows how
+        # to trigger deliberately is already wrapped as a SanitiseError by
+        # _run_stage before it reaches here (see its docstring). Anything
+        # still uncaught is unanticipated, so print only its type, never
+        # str(exc) — a raw traceback here could otherwise print real item
+        # names or ids straight from a malformed export.
+        print(f"refused: unexpected {type(exc).__name__} during sanitisation", file=sys.stderr)
         return 1
     return 0
 

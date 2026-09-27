@@ -109,17 +109,56 @@ _WINNER = (
 )
 
 
-def _tuning_opt_input(label: str) -> str:
-    return (
-        r"(?:; Candidate Tuning Mod Slot: (?P<tuning1>" + _TUNING + r")"
-        r"; " + label + r" Tuning Mod Slot: (?P<tuning2>" + _TUNING + r"))?"
-    )
+class _T:
+    """Builds one family's regex text, in either mode, from its slots.
+
+    Each family is written as a single template *function* (below) that
+    calls these slot methods in a fixed order and interleaves literal regex
+    text. Calling that one function twice — once with ``mode="input"``, once
+    with ``mode="retained"`` — produces the input-recognition pattern and
+    the canonical-output pattern from the same source, so they cannot drift
+    apart. Only ``n()``/``score()``/``ref()`` differ by mode (a digit
+    pattern vs. the literal zeroed/rewritten form); every vocabulary slot
+    (``vocab()``, ``id_()``) uses the identical pattern text in both modes.
+    """
+
+    def __init__(self, mode: str) -> None:
+        assert mode in ("input", "retained")
+        self.mode = mode
+
+    def vocab(self, name: str, pattern: str) -> str:
+        """A closed-vocabulary slot: identical pattern text in both modes."""
+        return f"(?P<{name}>{pattern})"
+
+    def id_(self, name: str = "id") -> str:
+        """An already-mapped legacy full id: copied verbatim in both modes."""
+        return self.vocab(name, FAKE_ID)
+
+    def n(self, name: str) -> str:
+        """A count/rank/delta/total/curated-match number: zeroed when retained."""
+        pattern = _N if self.mode == "input" else "0"
+        return f"(?P<{name}>{pattern})"
+
+    def score(self, name: str) -> str:
+        """An armor score or floor: zeroed when retained."""
+        pattern = _SCORE if self.mode == "input" else "0"
+        return f"(?P<{name}>{pattern})"
+
+    def ref(self, name: str = "ref") -> str:
+        """A ``[id ...]`` reference: any reference part beyond the rewritten
+        short id is accepted on input and dropped entirely when retained."""
+        if self.mode == "input":
+            return r"\[id (?P<" + name + r">" + RAWSID + r")(?:; [^;\]\r\n]*)*\]"
+        return r"\[id …(?P<" + name + r">[0-9]{4})\]"
+
+    def opt(self, inner: str) -> str:
+        return f"(?:{inner})?"
 
 
-def _tuning_opt_retained(label: str) -> str:
-    return (
-        r"(?:; Candidate Tuning Mod Slot: " + _TUNING
-        + r"; " + label + r" Tuning Mod Slot: " + _TUNING + r")?"
+def _tuning_suffix_template(t: _T, label: str) -> str:
+    return t.opt(
+        r"; Candidate Tuning Mod Slot: " + t.vocab("tuning1", _TUNING)
+        + r"; " + label + r" Tuning Mod Slot: " + t.vocab("tuning2", _TUNING)
     )
 
 
@@ -132,15 +171,12 @@ def _tuning_suffix(m: re.Match, label: str) -> str:
     )
 
 
-_SCOREC_INPUT = (
-    r"armor-score (?P<score1>" + _SCORE + r") < floor (?P<score2>" + _SCORE + r") "
-    r"\(best: (?P<profile>" + _PROFILE + r"), rank (?P<n1>" + _N + r")/(?P<n2>" + _N + r") "
-    r"(?P<cls>" + _CLASS + r") (?P<vcslot>" + _SLOT + r")\)"
-)
-_SCOREC_RETAINED = (
-    r"armor-score 0 < floor 0 \(best: " + _PROFILE + r", rank 0/0 "
-    + _CLASS + r" " + _SLOT + r"\)"
-)
+def _scorec_template(t: _T) -> str:
+    return (
+        r"armor-score " + t.score("score1") + r" < floor " + t.score("score2") + r" "
+        r"\(best: " + t.vocab("profile", _PROFILE) + r", rank " + t.n("n1") + r"/" + t.n("n2")
+        + r" " + t.vocab("cls", _CLASS) + r" " + t.vocab("vcslot", _SLOT) + r"\)"
+    )
 
 
 def _render_scorec(m: re.Match) -> str:
@@ -151,18 +187,34 @@ def _render_scorec(m: re.Match) -> str:
 
 
 # ---------------------------------------------------------------------------
-# The twelve clause families
+# The twelve clause families: one template function + one render function
+# each. The template function is called with mode="input" to build the
+# recognition pattern and with mode="retained" to build the canonical-output
+# validation pattern — see _T above.
 # ---------------------------------------------------------------------------
 
 
 class ClauseFamily(NamedTuple):
     name: str
     input_re: re.Pattern[str]
+    retained_re: re.Pattern[str]
     render: Callable[[re.Match, Callable[[str], str]], str]
+
+
+def _template_1(t: _T) -> str:
+    return r"#vc-" + t.vocab("kind", r"junk|review") + r": " + t.vocab("exact", _EXACT) + r", kept " + t.id_()
 
 
 def _render_1(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return f"#vc-{m.group('kind')}: {m.group('exact')}, kept {m.group('id')}"
+
+
+def _template_2(t: _T) -> str:
+    base = (
+        r"#vc-" + t.vocab("kind", r"junk|review") + r": " + t.vocab("exact", _EXACT)
+        + r"; keep " + t.ref() + r"; winner " + t.vocab("winner", _WINNER)
+    )
+    return base + _tuning_suffix_template(t, "Survivor")
 
 
 def _render_2(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
@@ -171,6 +223,17 @@ def _render_2(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
         f"keep [id {resolve_ref(m.group('ref'))}]; winner {m.group('winner')}"
     )
     return base + _tuning_suffix(m, "Survivor")
+
+
+def _template_3(t: _T) -> str:
+    alt_identical = r"identical stats" + t.opt(
+        r", tuning " + t.vocab("stat1", _STAT) + r" vs " + t.vocab("stat2", _STAT)
+    )
+    alt_delta = r"max stat delta " + t.n("n1") + r", total " + t.n("n2")
+    return (
+        r"#vc-review: armor-similar to " + t.id_() + r" \("
+        + f"(?:{alt_identical}|{alt_delta})" + r"\)"
+    )
 
 
 def _render_3(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
@@ -183,8 +246,20 @@ def _render_3(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return f"#vc-review: armor-similar to {m.group('id')} ({detail})"
 
 
+def _template_4(t: _T) -> str:
+    return r"#vc-review: armor-dominated by " + t.id_() + r" \(\+" + t.n("n") + r" total\)"
+
+
 def _render_4(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return f"#vc-review: armor-dominated by {m.group('id')} (+0 total)"
+
+
+def _template_5(t: _T) -> str:
+    base = (
+        r"#vc-review: armor-dominated by; compare " + t.ref() + r"; \+" + t.n("n")
+        + r" total; partner " + t.vocab("partner", r"largest stat surplus|deterministic id tie-break")
+    )
+    return base + _tuning_suffix_template(t, "Partner")
 
 
 def _render_5(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
@@ -193,6 +268,16 @@ def _render_5(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
         f"+0 total; partner {m.group('partner')}"
     )
     return base + _tuning_suffix(m, "Partner")
+
+
+def _template_6(t: _T) -> str:
+    detail_pattern = "identical stats|max stat delta " + t.n("n1") + ", total " + t.n("n2")
+    base = (
+        r"#vc-review: armor-similar to; compare " + t.ref() + r"; "
+        + t.vocab("detail", detail_pattern) + r"; partner "
+        + t.vocab("partner", r"closest stat distance|deterministic id tie-break")
+    )
+    return base + _tuning_suffix_template(t, "Partner")
 
 
 def _render_6(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
@@ -204,12 +289,28 @@ def _render_6(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return base + _tuning_suffix(m, "Partner")
 
 
+def _template_7(t: _T) -> str:
+    return (
+        r"#vc-review: coverage-" + t.vocab("dir", r"dominated by|uncovered vs") + r"; compare "
+        + t.ref() + r"; curated matches " + t.n("n1") + r" vs " + t.n("n2") + r"; partner "
+        + t.vocab(
+            "partner",
+            r"largest coverage gain|most curated matches|most combinations|deterministic id tie-break",
+        )
+    )
+
+
 def _render_7(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return (
         f"#vc-review: coverage-{m.group('dir')}; "
         f"compare [id {resolve_ref(m.group('ref'))}]; curated matches 0 vs 0; "
         f"partner {m.group('partner')}"
     )
+
+
+def _template_8(t: _T) -> str:
+    base = r"#vc-" + t.vocab("kind", r"junk|review") + r": wishlist-trash " + t.vocab("w", r"whole-item|roll")
+    return base + t.opt(r" \(" + t.vocab("paren", r"locked|exotic") + r"\)")
 
 
 def _render_8(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
@@ -219,154 +320,65 @@ def _render_8(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return base
 
 
+def _template_9(t: _T) -> str:
+    return r"#vc-junk: " + _scorec_template(t)
+
+
 def _render_9(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return f"#vc-junk: {_render_scorec(m)}"
+
+
+def _template_10(t: _T) -> str:
+    return r"#vc-review: " + _scorec_template(t) + r" \(" + t.vocab("paren", r"locked|exotic") + r"\)"
 
 
 def _render_10(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return f"#vc-review: {_render_scorec(m)} ({m.group('paren')})"
 
 
+def _template_11(t: _T) -> str:
+    return r"#vc-review: armor-last-archetype \(" + t.vocab("arch", _ARCH) + r"\), " + _scorec_template(t)
+
+
 def _render_11(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return f"#vc-review: armor-last-archetype ({m.group('arch')}), {_render_scorec(m)}"
+
+
+def _template_12(t: _T) -> str:
+    return "#vc-junk: ghost-unprotected-surplus"
 
 
 def _render_12(m: re.Match, resolve_ref: Callable[[str], str]) -> str:
     return "#vc-junk: ghost-unprotected-surplus"
 
 
-CLAUSE_FAMILIES: tuple[ClauseFamily, ...] = (
-    ClauseFamily(
-        "exact-legacy-kept",
-        re.compile(
-            r"#vc-(?P<kind>junk|review): (?P<exact>" + _EXACT + r"), kept (?P<id>" + FAKE_ID + r")"
-        ),
-        _render_1,
-    ),
-    ClauseFamily(
-        "exact-current",
-        re.compile(
-            r"#vc-(?P<kind>junk|review): (?P<exact>" + _EXACT + r"); keep " + _REF_INPUT
-            + r"; winner (?P<winner>" + _WINNER + r")" + _tuning_opt_input("Survivor")
-        ),
-        _render_2,
-    ),
-    ClauseFamily(
-        "close-similar-legacy",
-        re.compile(
-            r"#vc-review: armor-similar to (?P<id>" + FAKE_ID + r") \("
-            r"(?:identical stats(?:, tuning (?P<stat1>" + _STAT + r") vs (?P<stat2>" + _STAT + r"))?"
-            r"|max stat delta (?P<n1>" + _N + r"), total (?P<n2>" + _N + r"))\)"
-        ),
-        _render_3,
-    ),
-    ClauseFamily(
-        "close-dominated-legacy",
-        re.compile(
-            r"#vc-review: armor-dominated by (?P<id>" + FAKE_ID + r") \(\+(?P<n>" + _N + r") total\)"
-        ),
-        _render_4,
-    ),
-    ClauseFamily(
-        "close-dominated-current",
-        re.compile(
-            r"#vc-review: armor-dominated by; compare " + _REF_INPUT + r"; \+(?P<n>" + _N + r") total; "
-            r"partner (?P<partner>largest stat surplus|deterministic id tie-break)"
-            + _tuning_opt_input("Partner")
-        ),
-        _render_5,
-    ),
-    ClauseFamily(
-        "close-similar-current",
-        re.compile(
-            r"#vc-review: armor-similar to; compare " + _REF_INPUT + r"; "
-            r"(?P<detail>identical stats|max stat delta " + _N + r", total " + _N + r"); "
-            r"partner (?P<partner>closest stat distance|deterministic id tie-break)"
-            + _tuning_opt_input("Partner")
-        ),
-        _render_6,
-    ),
-    ClauseFamily(
-        "coverage",
-        re.compile(
-            r"#vc-review: coverage-(?P<dir>dominated by|uncovered vs); compare " + _REF_INPUT
-            + r"; curated matches (?P<n1>" + _N + r") vs (?P<n2>" + _N + r"); "
-            r"partner (?P<partner>largest coverage gain|most curated matches|most combinations|deterministic id tie-break)"
-        ),
-        _render_7,
-    ),
-    ClauseFamily(
-        "wishlist-trash",
-        re.compile(
-            r"#vc-(?P<kind>junk|review): wishlist-trash (?P<w>whole-item|roll)"
-            r"(?: \((?P<paren>locked|exotic)\))?"
-        ),
-        _render_8,
-    ),
-    ClauseFamily(
-        "armor-score-junk",
-        re.compile(r"#vc-junk: " + _SCOREC_INPUT),
-        _render_9,
-    ),
-    ClauseFamily(
-        "armor-score-review",
-        re.compile(r"#vc-review: " + _SCOREC_INPUT + r" \((?P<paren>locked|exotic)\)"),
-        _render_10,
-    ),
-    ClauseFamily(
-        "armor-last-archetype",
-        re.compile(
-            r"#vc-review: armor-last-archetype \((?P<arch>" + _ARCH + r")\), " + _SCOREC_INPUT
-        ),
-        _render_11,
-    ),
-    ClauseFamily(
-        "ghost-unprotected-surplus",
-        re.compile(r"#vc-junk: ghost-unprotected-surplus"),
-        _render_12,
-    ),
+_TEMPLATES: tuple[tuple[str, Callable[[_T], str], Callable[[re.Match, Callable[[str], str]], str]], ...] = (
+    ("exact-legacy-kept", _template_1, _render_1),
+    ("exact-current", _template_2, _render_2),
+    ("close-similar-legacy", _template_3, _render_3),
+    ("close-dominated-legacy", _template_4, _render_4),
+    ("close-dominated-current", _template_5, _render_5),
+    ("close-similar-current", _template_6, _render_6),
+    ("coverage", _template_7, _render_7),
+    ("wishlist-trash", _template_8, _render_8),
+    ("armor-score-junk", _template_9, _render_9),
+    ("armor-score-review", _template_10, _render_10),
+    ("armor-last-archetype", _template_11, _render_11),
+    ("ghost-unprotected-surplus", _template_12, _render_12),
 )
 
-INPUT_CLAUSE_RES: tuple[re.Pattern[str], ...] = tuple(
-    family.input_re for family in CLAUSE_FAMILIES
+CLAUSE_FAMILIES: tuple[ClauseFamily, ...] = tuple(
+    ClauseFamily(
+        name,
+        re.compile(template_fn(_T("input"))),
+        re.compile(template_fn(_T("retained"))),
+        render_fn,
+    )
+    for name, template_fn, render_fn in _TEMPLATES
 )
 
-RETAINED_CLAUSE_RES: tuple[re.Pattern[str], ...] = (
-    re.compile(r"#vc-(?:junk|review): " + _EXACT + r", kept " + FAKE_ID),
-    re.compile(
-        r"#vc-(?:junk|review): " + _EXACT + r"; keep " + _REF_RETAINED
-        + r"; winner " + _WINNER + _tuning_opt_retained("Survivor")
-    ),
-    re.compile(
-        r"#vc-review: armor-similar to " + FAKE_ID + r" \("
-        r"(?:identical stats(?:, tuning " + _STAT + r" vs " + _STAT + r")?"
-        r"|max stat delta 0, total 0)\)"
-    ),
-    re.compile(r"#vc-review: armor-dominated by " + FAKE_ID + r" \(\+0 total\)"),
-    re.compile(
-        r"#vc-review: armor-dominated by; compare " + _REF_RETAINED + r"; \+0 total; "
-        r"partner (?:largest stat surplus|deterministic id tie-break)"
-        + _tuning_opt_retained("Partner")
-    ),
-    re.compile(
-        r"#vc-review: armor-similar to; compare " + _REF_RETAINED + r"; "
-        r"(?:identical stats|max stat delta 0, total 0); "
-        r"partner (?:closest stat distance|deterministic id tie-break)"
-        + _tuning_opt_retained("Partner")
-    ),
-    re.compile(
-        r"#vc-review: coverage-(?:dominated by|uncovered vs); compare " + _REF_RETAINED
-        + r"; curated matches 0 vs 0; "
-        r"partner (?:largest coverage gain|most curated matches|most combinations|deterministic id tie-break)"
-    ),
-    re.compile(
-        r"#vc-(?:junk|review): wishlist-trash (?:whole-item|roll)(?: \((?:locked|exotic)\))?"
-    ),
-    re.compile(r"#vc-junk: " + _SCOREC_RETAINED),
-    re.compile(r"#vc-review: " + _SCOREC_RETAINED + r" \((?:locked|exotic)\)"),
-    re.compile(r"#vc-review: armor-last-archetype \(" + _ARCH + r"\), " + _SCOREC_RETAINED),
-    re.compile(r"#vc-junk: ghost-unprotected-surplus"),
-)
+INPUT_CLAUSE_RES: tuple[re.Pattern[str], ...] = tuple(family.input_re for family in CLAUSE_FAMILIES)
+RETAINED_CLAUSE_RES: tuple[re.Pattern[str], ...] = tuple(family.retained_re for family in CLAUSE_FAMILIES)
 
 
 def is_retained_or_placeholder(stripped_body: str) -> bool:
@@ -385,19 +397,20 @@ def recognise_and_canonicalise(
     replaced by its fake id. Returns the canonical (``RETAINED_CLAUSE_RES``)
     text, or ``None`` if no family recognises it — the caller must then
     replace the whole original body with a placeholder. The canonicalised
-    result always fullmatches one of ``RETAINED_CLAUSE_RES`` (asserted here
-    as a self-check, since a rendering bug must fail loudly rather than emit
-    an unrecognised clause shape).
+    result must fullmatch the *same family's own* retained pattern (asserted
+    here as a self-check, since a rendering bug must fail loudly rather than
+    emit a clause shape a different family's pattern merely happens to also
+    accept).
     """
     for family in CLAUSE_FAMILIES:
         m = family.input_re.fullmatch(body)
         if m is None:
             continue
         rendered = family.render(m, resolve_ref)
-        if not any(pattern.fullmatch(rendered) for pattern in RETAINED_CLAUSE_RES):
+        if not family.retained_re.fullmatch(rendered):
             raise AssertionError(
                 f"internal error: family {family.name!r} rendered a clause "
-                "that does not match RETAINED_CLAUSE_RES"
+                "that does not match its own retained pattern"
             )
         return rendered
     return None
