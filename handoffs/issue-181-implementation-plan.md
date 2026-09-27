@@ -41,9 +41,9 @@ No product code under `src/` changes. `RULESET_VERSION` and
 
 All measurements were taken in this planning session on the owner's snapshot
 `2026-09-01T-current`. The owner's standing permission is recorded in #181.
-The snapshot is held outside the repository; on the planning machine it is
-at `~/Downloads/data/in/2026-09-01T-current/`. Only aggregates are recorded
-here.
+The snapshot is in the owner's gitignored `data/in/2026-09-01T-current/` in
+the main checkout (also held at `~/Downloads/data/`; the bytes are identical).
+Only aggregates are recorded here.
 
 Raw SHA-256 (identifies the snapshot; the orchestrator confirms these before
 dispatch):
@@ -256,19 +256,19 @@ silent privacy failure, so the Bounded rung is not chosen.
   working directory (`config.toml` `[paths]`;
   [pipeline.py:141-159](../src/vault_cleaner/pipeline.py#L141-L159)).
   Without a fresh `data/cache/perk-name-map.json`, the manifest step
-  downloads about 200 MB. The orchestrator makes sure the implementer's
-  checkout has the snapshot and, ideally, the owner's cached perk map. On the
-  planning machine that is `~/Downloads/data/cache/perk-name-map.json`; it
-  goes into the checkout's gitignored `data/cache/`. The `wishlists/` cache
-  is fetched on demand (3 public files).
+  downloads about 200 MB. The owner's main checkout already has
+  `data/cache/perk-name-map.json` and the snapshot in `data/in/`, both
+  gitignored. If the implementer works in a different checkout or worktree,
+  the orchestrator copies `data/` into it first; never commit it. The
+  `wishlists/` cache is fetched on demand (3 public files).
 - **Neighbouring work.** #174 (implementation pending) changes weapon
   decisions with wishlists. That does not affect this ticket: the fixtures
   are raw-equivalent inputs, and parity compares raw and sanitised under the
   same code. The issue body notes that #174's bug cannot be triggered by
   committed fixtures; adopting these fixtures in rule tests is out of scope.
   #144 (template hardening) is unrelated.
-- **Project board.** The planning session's `gh` token lacks `read:project`,
-  so #181's board status was not verified. The owner or orchestrator checks it.
+- **Project board.** #181 is `Todo` on the project board (verified
+  2026-09-27).
 
 ## Proposed Plan & Scope
 

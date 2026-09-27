@@ -50,8 +50,12 @@ Planned #181 on `handoff/issue-181-implementation-plan` from `main` at
   - OpenAI's models page (checked 2026-09-27) lists GPT-6 Astra/Sol/Luna and
     no `gpt-5.6-luna`. The `handoffs/README.md` roster may be stale; this PR
     does not edit it.
-  - The session's `gh` token lacks `read:project`, so #181's board status
-    was not verified.
+  - #181 is `Todo` on the project board, verified after the owner added
+    `read:project` to the `gh` token mid-session.
+  - The owner copied `data/` into the main checkout mid-session, after the
+    initial check found none there. The measurement used the identical copy
+    in `~/Downloads/data/`; the SHA-256s match. The plan now points at the
+    repo's gitignored `data/`.
 
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 
