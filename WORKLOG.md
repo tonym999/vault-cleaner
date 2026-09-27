@@ -3,6 +3,48 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #188 planning: stale workflow and plan facts (PR 1)
+
+Planned #188 on `handoff/issue-188-implementation-plan` from `main` at
+`1ab2eae`. Planner `claude-opus-5-5`. Refs #188.
+
+- **What landed:** `handoffs/issue-188-implementation-plan.md`. No changes
+  to `AGENTS.md`, `PLAN.md`, `handoffs/README.md` or `.gitignore` in this PR.
+- **Context:** #188 is one of nine issues (#188–#196) opened on 2026-09-27
+  from the owner's review of how shared agent documentation goes stale.
+- **Decisions made:**
+  - Every edit (E1–E9) is given as verbatim old and new text, located by
+    old text rather than line number, because #181's implementation also
+    edits `AGENTS.md`.
+  - Opus becomes `claude-opus-5-5` in the planner roster, the Independent
+    Review row and a new catalog row. This was verified on 2026-09-27
+    against Anthropic's models and effort pages. `claude-opus-5` stays in
+    the catalog, labelled legacy, until #191 prunes unused rows.
+  - `PLAN.md`'s repo layout names the modules the plan relies on (adding
+    `review.py`, `server/` and `ui/`) and says other modules exist, rather
+    than listing all 17 and drifting again.
+  - Implementer `MAI-Code-1.1-Flash` (`n/a — adaptive`), with the prompt
+    limited to the newest three `WORKLOG.md` entries, as a test of whether
+    bounded reading avoids its #170 context loop. The re-selection
+    fallback is `claude-sonnet-5` (`high`), not Gemini, because this is
+    all Markdown next to citations (PR #160). Review path: standard.
+- **Surprises the next agent should know about:**
+  - Opus 5.5 defaults to `medium` effort, not `high` like Opus 5 and the
+    other current models. A dispatch that omits effort runs one level lower
+    than the same dispatch did on Opus 5.
+  - `.gitignore:4` repeats the wishlists "TBD" as a comment. It was added
+    as a sibling edit (E9), since correcting only `PLAN.md` would leave the
+    pointer stale.
+  - `rails.py` implements rule 1, so it is not a mere helper. The
+    `AGENTS.md` wording says so.
+  - Out of scope, recorded for the owner:
+    - `PLAN.md` *Milestones* stops at M8, although there is an M9 section
+      and an M9 GitHub milestone.
+    - 10 of the 11 remote `handoff/*` branches belong to closed issues.
+      Deleting them needs separate authorisation.
+  - The time-bound sweep command and the classification of every hit are in
+    the plan, so #190 can reuse the denylist.
+
 ## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
 
 Planned #181 on `handoff/issue-181-implementation-plan` from `main` at

@@ -1,0 +1,428 @@
+# Issue #188 — implementation handoff
+
+# Ticket
+
+**Repository:** `tonym999/vault-cleaner`
+
+**Issue:** `#188 — Fix stale facts in AGENTS.md, PLAN.md and handoffs/README.md`
+
+**Milestone:** none (workflow documentation; no feature milestone fits, as for #141 and #144)
+
+**Implementation topology:** `planner → orchestrator → implementer → orchestrator-managed review (standard or independent adversarial) → PR`
+
+**Planner model:** `claude-opus-5-5` (Anthropic, Claude Code session; the runtime does not expose a native effort setting for this session)
+
+**Implementation model selected:** `MAI-Code-1.1-Flash` (`n/a — adaptive`) (Bounded rung; justified below)
+
+**Plan baseline:** `main` at `1ab2eaed9c327e98fa8c8b169f9cc9b39a64f372` (2026-09-27)
+
+**Allocated implementation branch:** `fix/issue-188-stale-doc-facts`
+
+The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
+
+This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
+
+## Objective
+
+Correct the facts in `AGENTS.md`, `PLAN.md`, `handoffs/README.md` and one
+sibling `.gitignore` comment that no longer match the repository. Every role
+reads these files as current truth at session start, so a stale line can
+cause a wrong action. The edits are fully specified below as verbatim text;
+nothing is left to the implementer's judgement except mechanical application.
+
+No product code, tests, schemas, rules, config or versions change.
+
+## Context & Measurement
+
+All line numbers are at the plan baseline `1ab2eae`.
+
+### Facts listed in the issue, re-measured
+
+| Id | Location | Stale text | Measured reality | Command |
+|---|---|---|---|---|
+| F1 | `handoffs/README.md:77` | "The 10 dangling remote `handoff/*` branches remain active on GitHub until this workflow PR merges to `main`." | The workflow PR merged long ago. There are 11 remote `handoff/*` branches: 10 belong to closed issues, 1 (`#181`) to an open issue, and none has an open PR. | `git fetch origin && git branch -r \| grep -c 'origin/handoff/'` |
+| F2 | `handoffs/README.md:166` | #124's pilot "runs after this workflow is available from `main`". | #124 is `CLOSED`. The pilot ran on subject issue #119; its [outcome comment](https://github.com/tonym999/vault-cleaner/issues/124#issuecomment-5533463758) has sections *Acceptance criteria* and *Usability gaps found*. | `gh issue view 124 --json state` |
+| F3 | `handoffs/README.md:184`, `:217`, `:230` | Opus is named `claude-opus-5` in the planner roster, the Independent Review row and the catalog. | The current Opus is `claude-opus-5-5`; `claude-opus-5` is listed under "Legacy models (still available)". See *Model verification* below. | `WebFetch` of the two Anthropic URLs below |
+| F4 | `AGENTS.md:189-192` | Rules modules: `weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py, ghosts.py`. | `src/vault_cleaner/rules/` also holds `coverage.py` (docstring: "Weapon coverage rule pass (PLAN.md rule 4)"), `rails.py` ("Safety rails (PLAN.md rule 1)") and `id_order.py` ("Deterministic ordering for opaque DIM instance ids"). | `ls src/vault_cleaner/rules/ && head -1 src/vault_cleaner/rules/{coverage,rails,id_order}.py` |
+| F5 | `PLAN.md:73` | `wishlists/  # cached downloads (gitignored or committed — TBD)` | `wishlists/` is gitignored (`.gitignore:5`), and no wishlist file is tracked. | `git check-ignore -v wishlists/ && git ls-files wishlists/` |
+| F6 | `PLAN.md:62-78` | The repo layout lists 7 modules. | `src/vault_cleaner/` has 17 modules plus `rules/`, `server/` and `ui/`. PLAN.md itself relies on the review manifest (M7) and the server (M8), which are absent from the tree. | `ls src/vault_cleaner/` |
+
+### Sibling found during measurement
+
+| Id | Location | Stale text | Why in scope |
+|---|---|---|---|
+| F7 | `.gitignore:4` | `# Cached wishlist downloads (committed-or-not still TBD, see PLAN.md)` | Same fact as F5, and it points at the PLAN.md line being corrected. `AGENTS.md` asks for sibling divergences to be fixed in the same change. |
+
+### Time-bound sweep
+
+Command, run at the baseline:
+
+```bash
+grep -nEi '\buntil\b|\bTBD\b|not yet|will be|\bpending\b|\bcurrently\b|runs after|once (this|the)|this (workflow|PR)\b|for now|temporar|follow-up|\bsoon\b|next (PR|ticket)|remain active' AGENTS.md PLAN.md handoffs/README.md
+```
+
+Every hit was classified. Only F1, F2 and F5 are stale. The others are durable
+and stay unchanged:
+
+| Hit | Classification |
+|---|---|
+| `PLAN.md:91` "…produced in Python as an M8 follow-up" | Spec for open issue #38; accurate. |
+| `PLAN.md:171` "dry-run mode default until `--write` is passed" | Behaviour, not time. |
+| `PLAN.md:177` "out of scope for now" | Deliberate spec wording. |
+| `AGENTS.md:55`, `:156`, `README.md:47`, `:147` "temporary" | Filesystem terminology. |
+| `AGENTS.md:101` "remain identity cells until a later measured boundary" | Rule semantics. |
+| `AGENTS.md:177` "must fail until the key is projected" | Test semantics. |
+| `README.md:153` "follow-up reference" | Policy wording. |
+| `README.md:164` "this workflow" | Durable reference to the current workflow. |
+| `README.md:219` "currently `MAI-Code-1.1-Flash`" | Accurate; #191 restructures this table. |
+
+### Model verification (F3)
+
+Checked on 2026-09-27 against:
+
+- [Anthropic Models overview](https://platform.claude.com/docs/en/models/overview): current Claude API IDs are `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5` and `claude-haiku-4-5-20251001`. "Legacy models (still available)" includes Claude Opus 5. Default effort: Fable 5.1 `high`, Opus 5.5 `medium`, Sonnet 5 `high`, Haiku 4.5 "Not supported".
+- [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort): the parameter is `output_config.effort`. "Claude Opus 5.5 supports all five effort levels, and `medium` is the default (Claude Opus 5 and earlier Opus models default to `high` …)". `xhigh` and `max` are listed for Fable 5.1, Opus 5.5, Opus 5 and Sonnet 5.
+
+So the existing Fable 5.1, Sonnet 5 and Haiku 4.5 catalog rows are correct
+as written. The Opus 5 row is correct apart from its stability label. A
+`claude-opus-5-5` row is missing, and its default differs (`medium`).
+
+The owner's recent tickets already record `claude-opus-5-5` as planner and
+orchestrator (#170, #174 and #181 in `WORKLOG.md`), so moving the roster to
+`claude-opus-5-5` records actual practice rather than changing it.
+
+### Trial (planning session, discarded)
+
+E1–E9 were applied mechanically, from this document's own old/new blocks, in
+a detached worktree at `1ab2eae`, then the worktree was discarded:
+
+- every old text matched exactly once;
+- the diff was 4 files, +20/−12, with `git diff --check` clean;
+- `git check-ignore wishlists/` still matched.
+
+### Model selection
+
+Rung: **Bounded.** Every edit is given verbatim below, with its exact
+location; there is no design choice, no code and no test. Selected the
+primary, `MAI-Code-1.1-Flash` (`n/a — adaptive`).
+
+- On #170, MAI looped on context limits in the Copilot Windows app
+  (`WORKLOG.md`, #170 implementation entry). This ticket is small, and the
+  execution prompt below bounds reading to the newest entries of
+  `WORKLOG.md`, which is the fix requested on #144 and used by the #181 plan.
+  The run is a fair test of whether bounded reading resolves the loop.
+- If the orchestrator re-selects, prefer `claude-sonnet-5` (`high`) or
+  `gpt-5.6-terra` (`medium`). Avoid `gemini-3.8-flash` for this ticket: its
+  recorded collateral-edit incident (PR #160) was silently repointing
+  Markdown citations, and this ticket consists entirely of Markdown edits
+  next to citations.
+
+The orchestrator verifies whether its runtime can instantiate MAI and
+otherwise uses manual cross-provider execution from a local Copilot surface
+(`handoffs/README.md`, *Manual Cross-Provider Execution (v1)*).
+
+## Dependencies and assumptions
+
+- **No blocking dependency.** #188 has no GitHub `blocked_by` links. It
+  blocks #190 (doc-drift tests) and #191 (structured model roster).
+- **#181 also edits `AGENTS.md`** (its plan: `AGENTS.md#L38-L48`, Hard
+  rules). It does not overlap E7's lines, but either PR merging first shifts
+  line numbers for the other. The implementer locates E7 by its old text,
+  never by line number alone.
+- **#191 will replace the model tables with a data file.** E3–E6 are the
+  minimum correction until then. Do not restructure the tables here.
+- **Issue body divergence:** the issue said "11 remote `handoff/*` branches".
+  That is still the count, but one of them is now #181's open plan branch
+  rather than a finished one. The issue listed F1–F6; F7 was found during
+  measurement and is added as a sibling.
+- **Out-of-scope observations** (recorded, not changed):
+  - `PLAN.md` *Milestones* stops at M8, although PLAN.md has an *M9 duplicate
+    presentation and review UX* section and GitHub has an M9 milestone.
+    Adding M9 to the milestone list is a spec edit for the owner, not a stale
+    fact correction.
+  - Deleting the 10 closed-issue `handoff/*` branches is an external mutation
+    that needs separate owner authorisation. It is not implementer work.
+  - Historical plans and `WORKLOG.md` entries that name `claude-opus-5` are
+    point-in-time records and stay unchanged.
+
+## Proposed Plan & Scope
+
+Each edit gives the exact old text and the exact new text. Match the old
+text exactly (including backticks and em dashes) and replace it with the new
+text exactly. Nothing else in these files changes.
+
+### Workflow README
+
+#### [MODIFY] [handoffs/README.md](../handoffs/README.md#L77) — E1 (F1)
+
+Old line:
+
+```text
+- The 10 dangling remote `handoff/*` branches remain active on GitHub until this workflow PR merges to `main`. Deleting a `handoff/*` branch is a post-merge cleanup operation.
+```
+
+New line:
+
+```text
+- Deleting a `handoff/*` branch is a post-merge cleanup operation.
+```
+
+#### [MODIFY] [handoffs/README.md](../handoffs/README.md#L166) — E2 (F2)
+
+Old paragraph (one line):
+
+```text
+The first complete real-issue pilot of this workflow is tracked in [#124](https://github.com/tonym999/vault-cleaner/issues/124). It runs after this workflow is available from `main`, because the orchestrator contract requires a merged plan rather than an unmerged integration-PR artifact.
+```
+
+New paragraph (one line):
+
+```text
+The first complete real-issue pilot of this workflow ran in [#124](https://github.com/tonym999/vault-cleaner/issues/124), on subject issue #119. Its [outcome comment](https://github.com/tonym999/vault-cleaner/issues/124#issuecomment-5533463758) records which acceptance criteria were met and the usability gaps found.
+```
+
+#### [MODIFY] [handoffs/README.md](../handoffs/README.md#L170) — E3 (F3)
+
+Old line:
+
+```text
+*(Verified 2026-09-03; Microsoft row verified 2026-09-19)*
+```
+
+New line:
+
+```text
+*(Verified 2026-09-03; Microsoft row verified 2026-09-19; Anthropic rows verified 2026-09-27)*
+```
+
+#### [MODIFY] [handoffs/README.md](../handoffs/README.md#L184) — E4 (F3)
+
+In the **Planner** roster row, replace exactly this fragment:
+
+```text
+Opus (`claude-opus-5`), `xhigh` effort for planning
+```
+
+with:
+
+```text
+Opus (`claude-opus-5-5`), `xhigh` effort for planning
+```
+
+#### [MODIFY] [handoffs/README.md](../handoffs/README.md#L217) — E5 (F3)
+
+In the **Independent Review** row, replace exactly this fragment:
+
+```text
+`claude-opus-5` (`high`), `gpt-5.6-sol` (`high`)
+```
+
+with:
+
+```text
+`claude-opus-5-5` (`high`), `gpt-5.6-sol` (`high`)
+```
+
+#### [MODIFY] [handoffs/README.md](../handoffs/README.md#L230) — E6 (F3)
+
+Replace the single `claude-opus-5` catalog row:
+
+```text
+| **Anthropic** | Claude | `claude-opus-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `high`) | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
+```
+
+with these two rows, in this order:
+
+```text
+| **Anthropic** | Claude | `claude-opus-5-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `medium`) | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
+| **Anthropic** | Claude | `claude-opus-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `high`) | Legacy, still available — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
+```
+
+### Agent guide
+
+#### [MODIFY] [AGENTS.md](../AGENTS.md#L189-L192) — E7 (F4)
+
+Old bullet:
+
+```text
+- Rules live in `src/vault_cleaner/rules/`, one module per pass
+  (weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py,
+  ghosts.py — a new pass gets a new module); ordering is defined in
+  PLAN.md and earlier rules win.
+```
+
+New bullet:
+
+```text
+- Rules live in `src/vault_cleaner/rules/`, one module per pass
+  (weapons.py, dupes.py, coverage.py, armor.py, armor_dupes.py,
+  armor_close.py, ghosts.py — a new pass gets a new module); rails.py
+  implements rule 1's safety rails and id_order.py is a shared ordering
+  helper. Ordering is defined in PLAN.md and earlier rules win.
+```
+
+### Spec
+
+#### [MODIFY] [PLAN.md](../PLAN.md#L62-L78) — E8 (F5, F6)
+
+Old fenced block (inside the `## Repo layout` section):
+
+```text
+vault-cleaner/
+├── src/vault_cleaner/
+│   ├── parse.py          # DIM CSV ingestion, header-name mapping
+│   ├── wishlist.py       # download, cache, parse wishlist files
+│   ├── rules/            # one module per ordered rule pass
+│   ├── pipeline.py       # reusable ordered weapons/armor pipelines
+│   ├── report_run.py     # all-passes result + versioned snapshot/fingerprint
+│   ├── report.py         # output CSV + human-readable summary
+│   └── cli.py            # presentation and explicit --write boundary
+├── wishlists/            # cached downloads (gitignored or committed — TBD)
+├── data/                 # in/ and out/ — gitignored, personal vault data
+├── config.toml
+├── tests/                # fixture CSVs with fake items
+└── PLAN.md               # this file
+```
+
+New fenced block:
+
+```text
+vault-cleaner/
+├── src/vault_cleaner/
+│   ├── parse.py          # DIM CSV ingestion, header-name mapping
+│   ├── wishlist.py       # download, cache, parse wishlist files
+│   ├── rules/            # one module per ordered rule pass, plus shared helpers
+│   ├── pipeline.py       # reusable ordered weapons/armor pipelines
+│   ├── report_run.py     # all-passes result + versioned snapshot/fingerprint
+│   ├── report.py         # output CSV + human-readable summary
+│   ├── review.py         # review manifest validation and the reviewed export
+│   ├── server/           # M8 loopback-only review server
+│   ├── ui/               # review page assets served by the server
+│   └── cli.py            # presentation and explicit --write boundary
+├── wishlists/            # cached downloads, gitignored
+├── data/                 # in/ and out/ — gitignored, personal vault data
+├── config.toml
+├── tests/                # fixture CSVs with fake items
+└── PLAN.md               # this file
+```
+
+Directly after the closing fence of that block, before the existing line
+that begins `Public repo;`, insert this paragraph followed by one blank
+line:
+
+```text
+The tree names the modules this plan relies on; `src/vault_cleaner/` holds
+further supporting modules.
+```
+
+### Ignore file
+
+#### [MODIFY] [.gitignore](../.gitignore#L4) — E9 (F7)
+
+Old line:
+
+```text
+# Cached wishlist downloads (committed-or-not still TBD, see PLAN.md)
+```
+
+New line:
+
+```text
+# Cached wishlist downloads
+```
+
+Do not change any ignore pattern.
+
+### Worklog
+
+#### [MODIFY] [WORKLOG.md](../WORKLOG.md) — E10
+
+Add a dated entry at the top, headed
+`## YYYY-MM-DD — #188 implementation: stale workflow and plan facts (PR 2)`,
+recording: the base SHA; the dispatch record supplied by the orchestrator;
+that E1–E9 were applied verbatim (or any deviation and why); and the
+verification output summary. Refs #188.
+
+## Mechanical inclusion test
+
+A hunk in `git diff <base_sha>...HEAD` is **in scope** if and only if it is:
+
+- one of edits E1–E9, applied exactly as specified above; or
+- the E10 `WORKLOG.md` entry.
+
+Worked examples:
+
+- **IN SCOPE:** replacing `claude-opus-5` with `claude-opus-5-5` in the Planner roster row (E4).
+- **IN SCOPE:** inserting the `claude-opus-5-5` catalog row above the `claude-opus-5` row, and relabelling the latter (E6).
+- **OUT OF SCOPE:** rewording any other roster, ladder or catalog cell, or restructuring the model tables (that is #191).
+- **OUT OF SCOPE:** changing `claude-opus-5` in historical plans (`handoffs/issue-*.md`) or older `WORKLOG.md` entries.
+- **OUT OF SCOPE:** adding M9 to `PLAN.md` *Milestones*, or any other PLAN.md spec edit.
+- **OUT OF SCOPE:** reflowing, re-wrapping or "tidying" neighbouring lines, links or citations in any touched file.
+- **OUT OF SCOPE:** deleting remote `handoff/*` branches or any other GitHub mutation.
+
+### Stop conditions
+
+Stop implementation and return to the orchestrator if:
+
+- an edit's old text is not found exactly once in its file on the branch base (for example, #181 or another PR changed it first);
+- applying an edit would require changing any text not shown in that edit;
+- `ruff`, `pytest` or `git diff --check` fails for a reason not caused by this change.
+
+Escalation route: `implementer → orchestrator → planner`.
+
+## Likely findings
+
+1. **Collateral Markdown edits.** Neighbouring lines, table cells or link targets reflowed or "improved" while applying an edit. Check the word diff for every changed line against E1–E9.
+2. **Partial Opus replacement.** One of the three F3 locations missed, or the E6 row order or default (`medium` for `claude-opus-5-5`, `high` for `claude-opus-5`) swapped.
+3. **Fence or table breakage.** E6 inserted without a leading `|` or with a blank line inside the table, or E8's insertion placed inside the code fence rather than after it. Render-check both.
+4. **Worklog missing the dispatch record** that the orchestrator must verify before opening PR 2.
+
+# Reusable implementer execution prompt
+
+Implement issue #188 in `tonym999/vault-cleaner` using the committed handoff on `main` at:
+
+```text
+handoffs/issue-188-implementation-plan.md
+```
+
+Read the entire handoff, issue #188, `AGENTS.md`, and only the newest three entries at the top of `WORKLOG.md` (not the whole file) before editing. You do not need to read `PLAN.md` beyond the `## Repo layout` section, or any source code.
+
+Rules:
+- work on `fix/issue-188-stale-doc-facts`; branch from latest `main` and record the base SHA;
+- apply edits E1–E9 exactly as written in the handoff, locating each by its old text, not by line number;
+- change nothing else in any file; apply the plan's mechanical inclusion test to every hunk;
+- update `WORKLOG.md` with the dated entry described in E10, including the dispatch record you were given;
+- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, `test -z "$(git ls-files data/)"`; the browser suite is not required because no UI file changes;
+- commit and push the implementation branch, with `Refs #188` in every commit message; and
+- **do not open a pull request.**
+
+If any edit's old text is missing or appears more than once, or any stop condition is reached, stop and return to the orchestrator with the exact conflict; do not improvise replacement text.
+
+When complete, report: branch, base SHA, head SHA, the list of edits applied (E1–E10), any deviation, and the verification output.
+
+# Ticket-specific review decision
+
+**Review path:** `standard orchestrator review`
+
+**Reason:**
+Documentation-only change with verbatim text. It touches no parser, rule, rail, schema, server lifecycle or security boundary. The risk is collateral editing of neighbouring Markdown, which the orchestrator's word-diff audit against E1–E9 catches directly.
+
+The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
+
+# Review checklist
+
+- [ ] `git diff --word-diff=plain <base_sha>...HEAD -- AGENTS.md PLAN.md handoffs/README.md .gitignore` shows exactly E1–E9 and nothing else.
+- [ ] All three F3 locations now read `claude-opus-5-5`; the catalog has both Opus rows in the E6 order and defaults.
+- [ ] The `handoffs/README.md` catalog table and the `PLAN.md` layout fence render correctly on GitHub.
+- [ ] `grep -n 'TBD' PLAN.md .gitignore` returns nothing; `grep -n 'dangling\|It runs after' handoffs/README.md` returns nothing.
+- [ ] Every link added in E2 resolves (the #124 issue and the outcome comment anchor).
+- [ ] `WORKLOG.md` entry present, dated, with the dispatch record and `Refs #188`.
+- [ ] `ruff`, `pytest -q`, `git diff --check` and `test -z "$(git ls-files data/)"` pass.
+
+# Dispatch comment draft
+
+Planned #188 in [handoffs/issue-188-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-188-implementation-plan.md) on `main`.
+
+- **Implementer model & effort:** `MAI-Code-1.1-Flash` (`n/a — adaptive`); re-selection fallback `claude-sonnet-5` (`high`), not Gemini (PR #160).
+- **Implementation branch:** `fix/issue-188-stale-doc-facts`
+- **Likely findings:** collateral Markdown edits beside E1–E9; a missed Opus location or swapped default; table or fence breakage in E6/E8; missing dispatch record in `WORKLOG.md`.
