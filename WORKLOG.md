@@ -3,6 +3,94 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #174 plan Amendment 2: accepted limitation #185
+
+Amended `handoffs/issue-174-implementation-plan.md` again, on
+`handoff/issue-174-implementation-plan` from `main` at `34dd6d4`. Planner
+`claude-opus-5-5`, the same session that orchestrates #174. Refs #174.
+
+- **What landed:** Amendment 2 in the plan, and corrections to Amendment 1's
+  claim that "the survivor path is the only one left". No product code,
+  tests, schemas, rules or versions changed in this PR.
+- **Trigger:** the independent review of Amendment 1 at `ba3e061` (P2) found
+  a pre-existing chain inside coverage. A hard-protected dupe loser `H`
+  stays undecided and gains keep matches after the tracker. Coverage skips
+  same-roll partners, so `A` is paired with `B`, and `H` then dominates `B`.
+  `A`'s `kept_id` names a proposed copy. The orchestrator reproduced both
+  variants at `ba3e061` and on `main`.
+- **Decisions made (owner, 2026-09-27):**
+  - Accept the chain as a known limitation of #174, surfaced rather than
+    suppressed. Both decisions are review-only, `H` is never proposed, the
+    #170 also-proposed caveat flags `A`, and the real export has 0 cases.
+    Fixing it would hide `A`'s proposal.
+  - Opened #185 for the fix (bug, M3, depends on #174 in text and as a
+    GitHub dependency), together with the deferred matching-scope question.
+    Opened #186 for the armor side (bug, M6). Both are on the board as Todo.
+  - Amendment 2 narrows PLAN.md rule 4 and `docs/weapon-coverage.md`, and
+    pins the chain in a named test rather than as a sweep exception. It
+    merges `main` once to clear the `WORKLOG.md` conflict. No production
+    change, so the review path may be standard if the merge and `src/`
+    checks pass.
+- **Surprises the next agent should know about:**
+  - Amendment 1's "no strict superset" argument assumed every coverage
+    member is an eligible partner. Coverage excludes same-roll copies, and
+    hard-protected dupe losers get no decision, so a superset can sit
+    outside the partner list. Both surprises on this ticket came from
+    reasoning about one pass in isolation.
+  - The implementer's round-2 summary misquoted the PLAN.md sentence,
+    although the committed text was verbatim. Treat summaries as intent and
+    check the tree. The Amendment 2 prompt now asks for quotes taken from the
+    committed files.
+
+## 2026-09-27 — #174 plan Amendment 1: dupe survivors partner-only in coverage
+
+Amended `handoffs/issue-174-implementation-plan.md` on
+`handoff/issue-174-implementation-plan` from `main` at `a3f7767`, after
+PR #182's review. Planner `claude-opus-5-5`, the same session that
+orchestrates #174 (the roles stay separate). Refs #174.
+
+- **What landed:** Amendment 1 in the plan, plus in-place corrections to its
+  objective, *Coverage interplay*, inclusion test, stop conditions, likely
+  findings, execution prompt, review checklist and dispatch draft. No
+  product code, tests, schemas, rules or versions changed in this PR.
+- **Trigger:** on PR #182 the owner (P1) and CodeRabbit (inline) found that
+  an exact-dupe survivor can still be proposed by the coverage pass: the
+  dupe pass decides only losers, so the survivor stays undecided and enters
+  `coverage.analyse`. The orchestrator reproduced it at `b806997` and on
+  `main`. It predates #174 (coverage pass, `e27a8b2`, #34) and needs no
+  wishlist trash. The fix touches `coverage.py`, which round 1's inclusion
+  test excluded, so it came back to the planner.
+- **Decisions made:**
+  - Owner, 2026-09-27: amend #174 rather than split, with the partner-only
+    shape. Copies named as a `kept_id` get no coverage advice but remain
+    partners, as hard-protected rows already do. Full exclusion was rejected:
+    in the trial it dropped a valid proposal whose best partner was the
+    survivor.
+  - No second bump: v6 has not reached `main`, so both changes share
+    `RULESET_VERSION` 6. The golden file does not change.
+  - Armor is out of scope and needs its own issue (not created here).
+- **Measured (reverted trial on `b806997`):** full suite 1117 passed; the
+  three new cases give exactly the planned decision lists; mutation 1 (no
+  partner-only) reproduces the violation and mutation 2 (full exclusion)
+  loses the partner proposal. Real export, owner-authorised on #174, all
+  aggregate: `weapons.csv` gives 101 decisions, 0 violations and an identical
+  decision digest at `main`, `b806997` and the trial. `armor.csv` gives 893
+  pieces, 394 decisions, and 134 decisions whose `kept_id` is decided: 133
+  `armor-similar to` reviews citing another such review (124 in mutual
+  pairs) and 1 `armor-exact-dupe-tie` junk whose survivor the close pass
+  later flags.
+- **Surprises the next agent should know about:**
+  - The round-1 plan argued the invariant held because coverage partners are
+    undecided. That checked only the partner side. Both independent reviews
+    and the orchestrator repeated the argument, and no fixture combines an
+    exact-dupe group with a better roll. When checking a "never names a
+    proposed copy" invariant, check every later pass that could make the
+    named copy a *subject*.
+  - Real-export comparisons must run from one checkout. Running
+    `resolve_weapons` with the main repo's `config.toml` but a different
+    working directory resolves `data/cache` relative to that directory,
+    fetches a fresh manifest there and changes the decision digest.
+
 ## 2026-09-26 — #174 implementation: exclude wishlist-trash from dupe resolution
 
 Implemented #174 on `fix/issue-174-trash-survivor` from `main` at `a3f7767`.
