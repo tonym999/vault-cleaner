@@ -1,0 +1,22 @@
+{
+  "files": {
+    "armor.csv": {
+      "raw_sha256": "104fc23186327257304607342140dd21007ec05a612b3089c4f94c0c20e191bb",
+      "rows": 893
+    },
+    "ghosts.csv": {
+      "raw_sha256": "8cd3851b0346021719ebf0d16d20d6c5894ce84473b83a8a08e6f860233635f4",
+      "rows": 28
+    },
+    "weapons.csv": {
+      "raw_sha256": "d7b6af183720edf40d37e82ca06da2b683e536029557f9f21ed2040cefd928e6",
+      "rows": 665
+    }
+  },
+  "parity_modes": [
+    "no-wishlists",
+    "wishlists"
+  ],
+  "run_date": "2026-09-27",
+  "script_version": 1
+}

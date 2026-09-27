@@ -3,6 +3,99 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #181 implementation: sanitised real-export test fixtures (PR 2)
+
+Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
+`1ab2eae`, following `handoffs/issue-181-implementation-plan.md`. Refs #181.
+
+- **Dispatch record:** orchestrator `claude-opus-5-5` (effort not exposed by
+  runtime); plan-selected implementer `gpt-5.6-luna` (`high`), actual
+  implementer `claude-sonnet-5` (effort not settable from the orchestrator
+  runtime; runtime default), owner-approved re-selection to the plan's
+  listed Judgement-rung alternative because the orchestrator runtime cannot
+  instantiate `gpt-5.6-luna`; launch surface Claude Code subagent dispatched
+  by the orchestrator; expected base `main` at `1ab2eae` (confirmed via
+  `git rev-parse main`).
+- **What landed:** `scripts/sanitize_export.py` (the sanitiser),
+  `scripts/check_real_fixtures.py` (the shared grammar and CI guard),
+  `tests/test_sanitize_export.py`, `tests/test_real_fixtures.py`, the CI
+  hygiene step in `.github/workflows/ci.yml`, the verbatim `AGENTS.md`
+  amendment, and the committed `tests/fixtures/real/2026-09-01T-current/`
+  fixtures (`weapons.csv`, `armor.csv`, `ghosts.csv`, `provenance.json`).
+  One incidental fix: `test_report_run.py`'s
+  `test_fixture_bytes_are_checked_out_verbatim` iterated `tests/fixtures/`
+  non-recursively and broke on the new `real/` subdirectory; it now walks
+  `rglob("*")` filtered to files, which also extends the CR-byte check to
+  the new nested fixtures.
+- **Real-export measurement.** Re-confirmed the plan's raw SHA-256s against
+  `data/in/2026-09-01T-current/` before sanitising (all three matched).
+  Authorised by the owner's standing permission recorded in #181 and the
+  amended `AGENTS.md` rule. Aggregates only, matching the plan's
+  measurements: 665/893/28 rows; 1,614 ids mapped (1,586 export ids + 28
+  Notes-only ids from dismantled items); both parity modes (`no-wishlists`
+  and `wishlists`, the latter using the repo's cached
+  `data/cache/perk-name-map.json` and a live fetch of the three wishlist
+  sources) passed with zero differing decisions on the first sanitiser run
+  that reached parity. Committed output: weapons.csv 342,792 B, armor.csv
+  307,053 B, ghosts.csv 5,365 B, provenance.json 530 B (≈ 656 KB total,
+  well under the plan's 2 MB stop-condition limit; the armor byte count
+  differs slightly from the planning prototype's 309,432 B estimate,
+  expected since the prototype predated the review-fix rounds' clause
+  canonicalisation). Two runs with the same `--run-date` produced
+  byte-identical output (`tests/test_sanitize_export.py`'s byte-stability
+  test pins this on synthetic data; verified manually on the real snapshot
+  during implementation).
+- **Owner decision carried over from planning (2026-09-27):** `Crafted
+  Level` stays unchanged (play history, but feeds the crafted hard rail and
+  exact-dupe ranking). No new unlisted columns turned up on re-measurement;
+  the column audit allowlists match the measured headers exactly and
+  refused nothing on the real snapshot.
+- **Design notes not spelled out in the plan, resolved during
+  implementation:**
+  - `ArmorEvaluation.original_notes` (armor.py:51) is a second place raw
+    Notes text reaches the snapshot, outside the per-decision fields the
+    plan's parity comparator names. The comparator's generic field mapper
+    now special-cases any `original_notes` key (wherever nested) through
+    the full `sanitize_notes()` transform rather than the generic
+    digit-run mapper; the generic mapper is otherwise scoped to
+    `inputs`/`warnings` (which carry no export-derived ids and are compared
+    by direct equality) plus decision fields and the armor block (ids only,
+    checked via `_map_value`'s exact whole-string-membership path).
+  - Extracted `_build_id_map` and `_sanitize_kill_tracker` as small
+    named functions (were inline) so the planted-leak tests' "monkeypatch
+    one transform" instruction has a clean seam to patch.
+  - `sanitize_export.py` now reuses an already-loaded `check_real_fixtures`
+    module from `sys.modules` if present, instead of unconditionally
+    re-executing the file; this makes the "sanitiser uses the guard's own
+    grammar objects, not copies" test in `test_real_fixtures.py` a genuine
+    identity check rather than a structural-equality one.
+  - The fake-id scheme (marker `1000` + rank zero-padded to 15 digits, rank
+    always ≤ a few thousand) makes every fake id's default 4-digit
+    `short_id()` suffix globally unique by construction, so `RETAINED_REF`
+    never needs the wider-suffix, prefix+suffix, or digest forms in
+    practice; the sanitiser still asserts this invariant at write time
+    (`SanitiserState._short_id_for_fake`) and fails closed if it ever
+    breaks (for example, if a future export pushed the id count past
+    10,000).
+- **Bypass evidence.** Every planted-leak, mapping-error and wrong-reference
+  test in `tests/test_sanitize_export.py` monkeypatches the relevant check(s)
+  alongside the transform bug first, asserts the write *succeeds* with the
+  leak verbatim in the output, then restores the check(s) and asserts the
+  same transform bug is refused with nothing written. Grammar coverage
+  (`test_all_twelve_families_have_emitter_or_handwritten_coverage`) drives 9
+  of the 12 `#vc-` clause families through the real rule emitters (weapon
+  and armor exact-dupe, close-dominated/similar, armor score junk/review/
+  last-archetype, ghost cleanup, weapon coverage dominated/uncovered,
+  wishlist-trash) on synthetic 19-digit-id copies of existing rule-test
+  fixtures, and hand-writes the three migration-only legacy families (exact
+  `kept <id>`, `armor-similar to <id> (...)`, `armor-dominated by <id>
+  (...)`) that no current emitter reaches.
+- **Verification:** `ruff check src tests scripts`, `pytest -q` (1,180
+  passed), `python3 scripts/check_real_fixtures.py` (clean), `git diff
+  --check origin/main...HEAD` (clean), `git ls-files data/` (empty).
+- No deviations from the plan's scope; the two refactors above are ordinary
+  implementation structure, not design changes.
+
 ## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
 
 Planned #181 on `handoff/issue-181-implementation-plan` from `main` at
