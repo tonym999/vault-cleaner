@@ -132,8 +132,15 @@ def run(
     )
     decisions.extend(d for d in dupe_decisions if d.id not in trash_ids)
     decided = {d.id for d in decisions}
+    # A copy another decision names as its kept copy must not itself be
+    # proposed by coverage; it stays available as a coverage partner (#174).
+    kept_ids = frozenset(d.kept_id for d in decisions if d.kept_id)
     analysis = coverage.analyse(
-        weapons[~weapons["Id"].isin(decided)], wl, perk_map, crafted_level_protect
+        weapons[~weapons["Id"].isin(decided)],
+        wl,
+        perk_map,
+        crafted_level_protect,
+        partner_only_ids=kept_ids,
     )
     decisions.extend(analysis.decisions)
     result.coverage = analysis.summary

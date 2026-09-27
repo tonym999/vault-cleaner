@@ -42,6 +42,7 @@ Coverage advice is strictly `#vc-review` only:
 - Preserves the existing DIM `Tag`.
 - Never bypasses existing safety rails.
 - Hard-protected items receive no coverage advice, but remain eligible comparison partners.
+- Exact-dupe survivors that another decision names as the copy to keep receive no coverage advice, but remain eligible comparison partners (#174).
 - Graduation to automatic junk tagging is explicitly out of scope and requires measured output and separate owner approval.
 
 ### 5. Pairwise, deterministic partner selection

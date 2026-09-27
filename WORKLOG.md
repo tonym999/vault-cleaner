@@ -84,6 +84,42 @@ Refs #174.
     names `trash_copy`/`clean_copy`.
   - In `test_no_kept_id_is_itself_decided`, removed the unreachable
     `else: weapons_df = weapons_source.copy()` branch.
+- **Review-fix round 2 (Amendment 1):**
+  - **Dispatch record for round 2:**
+    - orchestrator claude-opus-5-5 (effort not exposed by runtime);
+    - plan (Amendment 1, merged in #184 at 34dd6d4) selects gemini-3.8-flash
+      (high); actual implementer gemini-3.8-flash (high), no re-selection;
+    - launched manually by the owner (manual cross-provider execution: the
+      orchestrator runtime cannot instantiate Gemini); launch surface:
+      Antigravity;
+    - expected starting head: fix/issue-174-trash-survivor at
+      b8069974df4184d8b1df3190d72ca8891b4c2f28.
+  - **What changed:**
+    - `src/vault_cleaner/rules/coverage.py`: added `partner_only_ids` parameter
+      and skip check in `analyse()`, so kept copies receive no coverage advice
+      but remain eligible comparison partners (#174).
+    - `src/vault_cleaner/rules/weapons.py`: passed `kept_ids` as
+      `partner_only_ids` to `coverage.analyse()`.
+    - `src/vault_cleaner/report_run.py`: updated ruleset v6 comment verbatim;
+      `RULESET_VERSION` stays 6.
+    - `PLAN.md` & `docs/weapon-coverage.md`: updated rule 4 and section 4
+      verbatim per Amendment 1.
+    - `tests/test_weapons_rules.py`: added `COVERAGE_SURVIVOR_WL`, three new
+      coverage survivor tests, and added `U/V/C` and `T/U/V/C` to
+      `_SYNTHETIC_CASES`.
+  - **Mutation results:**
+    - Mutation 1 (without `partner_only_ids=kept_ids`): failed 4 tests
+      (`test_dupe_survivor_is_partner_only_in_coverage`,
+      `test_trash_then_dupe_survivor_is_partner_only_in_coverage`, and the two
+      new synthetic cases in `test_no_kept_id_is_itself_decided`).
+    - Mutation 2 (full exclusion `isin(decided | kept_ids)`): failed 1 test
+      (`test_dupe_survivor_remains_coverage_partner`, losing `X`'s proposal
+      because `U` was excluded as a partner).
+  - **Real-export confirmation:**
+    - Re-confirmed with `resolve_weapons` and `config.toml` on
+      `data/in/2026-09-01T-current/weapons.csv`: 665 weapons, 101 decisions,
+      13 keep/trash conflicts, 0 `kept_id` violations, 0 decisions changed
+      (identical to planning table and round 1).
 
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 

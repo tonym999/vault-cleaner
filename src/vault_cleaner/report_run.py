@@ -43,7 +43,8 @@ SNAPSHOT_SCHEMA_VERSION = 3
 # reject mismatched schemas. Schema 3 adds the presentation-only per-decision
 # explanation. Ruleset v5 adds the review-only weapon coverage pass.
 # Ruleset v6 excludes every wishlist-trash copy from exact-duplicate
-# survivor selection (#174).
+# survivor selection, and makes exact-dupe survivors partner-only in the
+# coverage pass (#174).
 RULESET_VERSION = 6
 DEFAULT_INPUT_DIR = "data/in"
 DEFAULT_EXPORT_PATHS = {
