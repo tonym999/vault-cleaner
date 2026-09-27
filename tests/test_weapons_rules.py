@@ -1,12 +1,20 @@
-import pandas as pd
+from pathlib import Path
 
+import pandas as pd
+import pytest
+
+from vault_cleaner.parse import load_weapons
 from vault_cleaner.rules.weapons import (
     keep_match_count,
     row_perk_hashes,
     run,
     trash_match,
 )
-from vault_cleaner.wishlist import parse_wishlist
+from vault_cleaner.wishlist import (
+    Wishlist,
+    WishlistSourceSpec,
+    parse_wishlist,
+)
 
 PERK_MAP = {
     "perk a": frozenset({1}),
@@ -24,6 +32,12 @@ WISHLIST = parse_wishlist(
     "dimwishlist:item=100&perks=1,2\n"  # keep roll for hash 100
     "dimwishlist:item=-200&perks=\n"  # whole-item trash
     "dimwishlist:item=-300&perks=3"  # roll-specific trash
+)
+
+COVERAGE_SURVIVOR_WL = parse_wishlist(
+    "dimwishlist:item=400&perks=1\n"
+    "dimwishlist:item=400&perks=1,2\n"
+    "dimwishlist:item=-400&perks=3"
 )
 
 
@@ -337,8 +351,9 @@ def test_trash_junked_copy_never_survives_as_best():
     # U survives untouched — the only remaining copy after T leaves.
 
 
-def test_soft_reviewed_trash_copy_still_competes_in_dupes():
-    # A locked trash-match is only flagged, so it stays in the dupe pool
+def test_soft_reviewed_trash_copy_is_not_a_dupe_survivor():
+    # A soft-reviewed trash copy must not survive dupe resolution and become
+    # the kept copy other duplicates are told to keep (#174).
     weapons = df(
         weapon(
             "T", 300, Locked="true",
@@ -346,11 +361,10 @@ def test_soft_reviewed_trash_copy_still_competes_in_dupes():
         ),
         weapon("U", 300),
     )
-    d = {x.id: x for x in run(weapons, WISHLIST, PERK_MAP, 10).decisions}
-    assert d["T"].action == "review"
-    assert d["U"].action == "junk"  # same exact roll, below the staying copy
-    assert d["U"].kept_id == "T"
-    assert "dupe-lower" in d["U"].note
+    decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action) for d in decisions] == [("T", "review")]
+    assert "wishlist-trash roll (locked)" in decisions[0].note
+    assert decisions[0].kept_id == ""
 
 
 def test_hard_protected_never_trash_tagged():
@@ -419,3 +433,302 @@ def test_no_conflicts_counts_zero():
     weapons = df(weapon("A", 300, perks=["Bad Perk"]), weapon("B", 999))
     result = run(weapons, WISHLIST, PERK_MAP, 10)
     assert result.keep_trash_conflicts == 0
+
+
+def test_trash_survivor_reproduction_174():
+    # Issue #174 reproduction: weapon 11 matches trash and is soft-protected by
+    # lock; weapon 22 shares its exact roll but matches keep after the tracker
+    # boundary. Weapon 11 must not be chosen as dupe survivor for 22 to keep.
+    wl = parse_wishlist("dimwishlist:item=-300&perks=3\ndimwishlist:item=300&perks=1")
+    trash_copy = weapon("11", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"})
+    clean_copy = weapon("22", 300, perks=["Bad Perk"], **{"Perks 7": "Perk A"})  # keep perk only after tracker boundary
+    decisions = run(df(trash_copy, clean_copy), wl, PERK_MAP, 10).decisions
+    assert [(d.id, d.action) for d in decisions] == [("11", "review")]
+    assert "wishlist-trash roll (locked)" in decisions[0].note
+    assert decisions[0].kept_id == ""
+
+
+def test_survivor_chosen_among_non_trash_copies():
+    # T is soft-reviewed trash (locked MW10). U (MW5) and V (MW0) are clean copies.
+    # Excluding T lets U survive and V be junked naming U as the kept survivor.
+    weapons = df(
+        weapon(
+            "T", 300, Locked="true",
+            **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"},
+        ),
+        weapon("U", 300, **{"Masterwork Tier": "5"}),
+        weapon("V", 300, **{"Masterwork Tier": "0"}),
+    )
+    raw_decisions = run(weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in raw_decisions] == [
+        ("T", "review", ""),
+        ("V", "junk", "U"),
+    ]
+    decisions = {d.id: d for d in raw_decisions}
+    assert decisions["T"].action == "review"
+    assert "wishlist-trash roll (locked)" in decisions["T"].note
+    assert decisions["T"].kept_id == ""
+    assert "U" not in decisions
+    assert decisions["V"].action == "junk"
+    assert decisions["V"].kept_id == "U"
+    assert "dupe-lower" in decisions["V"].note
+    assert "higher Masterwork Tier" in decisions["V"].note
+
+    # Exotic tie variant: T is soft-reviewed exotic trash (MW10). U (MW5) and
+    # V (MW5) tie; U survives by id tie-break and V is junked with dupe-tie naming U.
+    exotic_weapons = df(
+        weapon(
+            "T", 300, Rarity="Exotic",
+            **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"},
+        ),
+        weapon("U", 300, **{"Masterwork Tier": "5"}),
+        weapon("V", 300, **{"Masterwork Tier": "5"}),
+    )
+    exotic_raw_decisions = run(exotic_weapons, WISHLIST, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in exotic_raw_decisions] == [
+        ("T", "review", ""),
+        ("V", "junk", "U"),
+    ]
+    exotic_decisions = {d.id: d for d in exotic_raw_decisions}
+    assert exotic_decisions["T"].action == "review"
+    assert "wishlist-trash roll (exotic)" in exotic_decisions["T"].note
+    assert exotic_decisions["T"].kept_id == ""
+    assert "U" not in exotic_decisions
+    assert exotic_decisions["V"].action == "junk"
+    assert exotic_decisions["V"].kept_id == "U"
+    assert "dupe-tie" in exotic_decisions["V"].note
+
+
+def test_dupe_survivor_is_partner_only_in_coverage():
+    # U (MW5) beats V (MW0) in exact dupes; C has a superset keep roll.
+    # U is partner-only in coverage because V was told to keep it (#174).
+    weapons = df(
+        weapon("U", 400, perks=["Perk A"], **{"Masterwork Tier": "5"}),
+        weapon("V", 400, perks=["Perk A"], **{"Masterwork Tier": "0"}),
+        weapon("C", 400, perks=["Perk A", "Perk B"]),
+    )
+    decisions = run(weapons, COVERAGE_SURVIVOR_WL, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions] == [("V", "junk", "U")]
+    assert "dupe-lower" in decisions[0].note
+
+
+def test_trash_then_dupe_survivor_is_partner_only_in_coverage():
+    # T is soft-reviewed trash (locked MW10). U (MW5) beats V (MW0) in exact dupes;
+    # C has a superset keep roll. U must not be proposed by coverage (#174).
+    weapons = df(
+        weapon(
+            "T", 400, Locked="true",
+            **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"},
+        ),
+        weapon("U", 400, **{"Perks 7": "Perk A", "Masterwork Tier": "5"}),
+        weapon("V", 400, **{"Perks 7": "Perk A", "Masterwork Tier": "0"}),
+        weapon("C", 400, perks=["Perk A", "Perk B"]),
+    )
+    decisions = run(weapons, COVERAGE_SURVIVOR_WL, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions] == [
+        ("T", "review", ""),
+        ("V", "junk", "U"),
+    ]
+    assert "wishlist-trash roll (locked)" in decisions[0].note
+
+
+def test_dupe_survivor_remains_coverage_partner():
+    # U (MW5) beats V (MW0) in exact dupes; X has a subset roll.
+    # U is partner-only for its own advice, but remains an eligible partner
+    # to dominate X (#174).
+    weapons = df(
+        weapon("U", 400, perks=["Perk A", "Perk B"], **{"Masterwork Tier": "5"}),
+        weapon("V", 400, perks=["Perk A", "Perk B"], **{"Masterwork Tier": "0"}),
+        weapon("X", 400, perks=["Perk A"]),
+    )
+    decisions = run(weapons, COVERAGE_SURVIVOR_WL, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions] == [
+        ("V", "junk", "U"),
+        ("X", "review", "U"),
+    ]
+    assert "coverage-dominated by" in decisions[1].note
+
+
+def test_known_limitation_185_same_roll_hard_copy_chain():
+    # Known limitation (#185), accepted in #174: H shares A's exact roll but
+    # gains curated matches after the tracker, so coverage pairs A with B and
+    # then proposes B against H. Update this test when #185 lands.
+    wl_dom = parse_wishlist(
+        "dimwishlist:item=500&perks=1\n"
+        "dimwishlist:item=500&perks=1,2\n"
+        "dimwishlist:item=500&perks=1,2,4"
+    )
+    weapons_dom = df(
+        weapon("A", 500, perks=["Perk A"], **{"Masterwork Tier": "10"}),
+        weapon(
+            "H", 500, perks=["Perk A"], Tag="favorite",
+            **{"Perks 7": "Perk B", "Perks 8": "Nail, Meet Hammer"},
+        ),
+        weapon("B", 500, perks=["Perk A", "Perk B"]),
+    )
+    decisions_dom = run(weapons_dom, wl_dom, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions_dom] == [
+        ("A", "review", "B"),
+        ("B", "review", "H"),
+    ]
+    assert "coverage-dominated by" in decisions_dom[0].note
+    assert "coverage-dominated by" in decisions_dom[1].note
+    assert decisions_dom[0].explanation is not None
+
+    wl_unc = parse_wishlist(
+        "dimwishlist:item=600&perks=1\n"
+        "dimwishlist:item=600&perks=1,2"
+    )
+    weapons_unc = df(
+        weapon("A", 600, perks=["Bad Perk"], **{"Masterwork Tier": "10"}),
+        weapon(
+            "H", 600, perks=["Bad Perk"], Tag="favorite",
+            **{"Perks 7": "Perk A", "Perks 8": "Perk B"},
+        ),
+        weapon("B", 600, perks=["Perk A"]),
+    )
+    decisions_unc = run(weapons_unc, wl_unc, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions_unc] == [
+        ("A", "review", "B"),
+        ("B", "review", "H"),
+    ]
+    assert "coverage-uncovered vs" in decisions_unc[0].note
+    assert "coverage-dominated by" in decisions_unc[1].note
+    assert decisions_unc[0].explanation is not None
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+_WEAPON_FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("weapons*.csv"))
+_COV_TEXT = (FIXTURES_DIR / "wishlist_coverage.txt").read_text(encoding="utf-8")
+_COV_SPEC = WishlistSourceSpec(
+    name="test_cov",
+    url="https://example.test/cov",
+    family="cov_family",
+    activity="any",
+    tier_format="none",
+)
+
+_FIXTURE_PERK_MAP = {
+    **PERK_MAP,
+    "frame": frozenset({1000}),
+    "perk c": frozenset({3}),
+    "perk d": frozenset({4}),
+    "perk e": frozenset({5}),
+    "perk f": frozenset({6}),
+    "bad perk": frozenset({3, 99}),
+}
+
+_SWEEP_WISHLISTS = [
+    ("no_wishlist", Wishlist(keep={}, trash={})),
+    ("weapons_rules_wishlist", WISHLIST),
+    ("coverage_wishlist_no_evidence", parse_wishlist(_COV_TEXT)),
+    (
+        "coverage_wishlist_with_evidence",
+        parse_wishlist(_COV_TEXT, name="test_cov", spec=_COV_SPEC, evidence=True),
+    ),
+]
+
+_SYNTHETIC_CASES = [
+    (
+        "reproduction_174",
+        lambda: df(
+            weapon("11", 300, perks=["Bad Perk"], Locked="true", **{"Masterwork Tier": "10"}),
+            weapon("22", 300, perks=["Bad Perk"], **{"Perks 7": "Perk A"}),
+        ),
+        parse_wishlist("dimwishlist:item=-300&perks=3\ndimwishlist:item=300&perks=1"),
+        PERK_MAP,
+    ),
+    (
+        "locked_trash_mw10_clean_mw0",
+        lambda: df(
+            weapon("T", 300, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 300),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "locked_trash_mw10_clean_mw5_clean_mw0",
+        lambda: df(
+            weapon("T", 300, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 300, **{"Masterwork Tier": "5"}),
+            weapon("V", 300, **{"Masterwork Tier": "0"}),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "exotic_trash_mw10_clean_mw5_clean_mw5",
+        lambda: df(
+            weapon("T", 300, Rarity="Exotic", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 300, **{"Masterwork Tier": "5"}),
+            weapon("V", 300, **{"Masterwork Tier": "5"}),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "locked_trash_mw10_favorite_mw0",
+        lambda: df(
+            weapon("T", 300, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("H", 300, Tag="favorite"),
+        ),
+        WISHLIST,
+        PERK_MAP,
+    ),
+    (
+        "coverage_survivor_u_v_c",
+        lambda: df(
+            weapon("U", 400, perks=["Perk A"], **{"Masterwork Tier": "5"}),
+            weapon("V", 400, perks=["Perk A"], **{"Masterwork Tier": "0"}),
+            weapon("C", 400, perks=["Perk A", "Perk B"]),
+        ),
+        COVERAGE_SURVIVOR_WL,
+        PERK_MAP,
+    ),
+    (
+        "coverage_survivor_t_u_v_c",
+        lambda: df(
+            weapon("T", 400, Locked="true", **{"Perks 7": "Bad Perk", "Masterwork Tier": "10"}),
+            weapon("U", 400, **{"Perks 7": "Perk A", "Masterwork Tier": "5"}),
+            weapon("V", 400, **{"Perks 7": "Perk A", "Masterwork Tier": "0"}),
+            weapon("C", 400, perks=["Perk A", "Perk B"]),
+        ),
+        COVERAGE_SURVIVOR_WL,
+        PERK_MAP,
+    ),
+]
+
+_INVARIANT_PARAMS = [
+    pytest.param(
+        path, wl, _FIXTURE_PERK_MAP,
+        id=f"{path.stem}_{wl_name}",
+    )
+    for path in _WEAPON_FIXTURE_PATHS
+    for wl_name, wl in _SWEEP_WISHLISTS
+] + [
+    pytest.param(
+        factory, wl, pmap,
+        id=f"synthetic_{name}",
+    )
+    for name, factory, wl, pmap in _SYNTHETIC_CASES
+]
+
+
+# Known exception: the #185 chain, pinned in
+# test_known_limitation_185_same_roll_hard_copy_chain.
+@pytest.mark.parametrize("weapons_source,wl,perk_map", _INVARIANT_PARAMS)
+def test_no_kept_id_is_itself_decided(weapons_source, wl, perk_map):
+    if callable(weapons_source):
+        weapons_df = weapons_source()
+    elif isinstance(weapons_source, Path):
+        weapons_df = load_weapons(weapons_source)
+
+    result = run(weapons_df, wl, perk_map, crafted_level_protect=10)
+    decided = {d.id for d in result.decisions}
+    for d in result.decisions:
+        if d.kept_id:
+            assert d.kept_id not in decided, (
+                f"Decision for {d.id} specifies kept_id {d.kept_id!r}, "
+                f"which is itself decided in the same run."
+            )

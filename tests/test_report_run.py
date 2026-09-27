@@ -267,7 +267,7 @@ def test_snapshot_serialization_is_deterministic():
     assert snapshot_json(first) == snapshot_json(second)
     document = json.loads(snapshot_json(first))
     assert document["schema_version"] == 3
-    assert document["ruleset_version"] == 5
+    assert document["ruleset_version"] == 6
     assert document["fingerprint"] == first.fingerprint
 
 
