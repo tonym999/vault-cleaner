@@ -71,12 +71,13 @@ Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
     identity check rather than a structural-equality one.
   - The fake-id scheme (marker `1000` + rank zero-padded to 15 digits, rank
     always ≤ a few thousand) makes every fake id's default 4-digit
-    `short_id()` suffix globally unique by construction, so `RETAINED_REF`
-    never needs the wider-suffix, prefix+suffix, or digest forms in
-    practice; the sanitiser still asserts this invariant at write time
-    (`SanitiserState._short_id_for_fake`) and fails closed if it ever
-    breaks (for example, if a future export pushed the id count past
-    10,000).
+    `short_id()` suffix globally unique by construction, so the retained
+    reference pattern (`_T.ref()`'s retained-mode output in
+    `check_real_fixtures.py`) never needs the wider-suffix, prefix+suffix,
+    or digest forms in practice; the sanitiser still asserts this invariant
+    at write time (`SanitiserState._short_id_for_fake`) and fails closed if
+    it ever breaks (for example, if a future export pushed the id count
+    past 10,000).
 - **Bypass evidence.** Every planted-leak, mapping-error and wrong-reference
   test in `tests/test_sanitize_export.py` monkeypatches the relevant check(s)
   alongside the transform bug first, asserts the write *succeeds* with the
@@ -93,7 +94,7 @@ Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
 - **Verification:** `ruff check src tests scripts`, `pytest -q` (1,180
   passed), `python3 scripts/check_real_fixtures.py` (clean), `git diff
   --check origin/main...HEAD` (clean), `git ls-files data/` (empty).
-- **The plan's own deviations from the issue text (plan lines 246-269),
+- **The plan's own deviations from the issue text (plan lines 247-270),
   carried through unchanged:**
   1. The id map also covers every ≥16-digit run found in raw Notes (28 real
      ids of dismantled items), not only export ids.
@@ -141,9 +142,23 @@ recommitted).
   planted-leak "caught" half; a stronger wrong-reference bypass assertion
   (asserts the specific wrong suffix survived and the correct one is absent,
   not just that some reference exists); and exact row-count/SHA-256
-  assertions in `test_provenance_json_shape`. Mutation evidence (each new
-  test monkeypatched back to a no-op/disabled check, confirmed red, then
-  restored) is in the round's completion report.
+  assertions in `test_provenance_json_shape`. Mutation evidence: for every
+  new direct-check test, `unittest.mock.patch.object` disabled the named
+  check function (`_check_l1`/`_check_l2`/`_check_l3`/`_check_l4`/
+  `_check_l5`/`_check_l6`/`_check_l8`) and confirmed the test's own
+  `pytest.raises(...)` failed with "DID NOT RAISE SanitiseError" (all 8
+  confirmed red, then restored). For the 3(b) end-to-end test, a
+  `_compare_notes` variant with the 3(b) line removed made `sanitise()`
+  succeed and write fixtures instead of refusing, and the test went red.
+  For finding C, disabling `_check_destination_is_not_snapshot` let
+  `sanitise()` write into the snapshot directory itself; the test went red.
+  For finding D, calling `vault_cleaner.parse.load_weapons` directly on the
+  malformed export confirmed the raw `SchemaError` message does contain the
+  synthetic id, while the wrapped `SanitiseError` from the real code path
+  does not. For finding F, disabling `_require_exact_keys` made both new
+  key-mismatch tests go red. All mutation testing used in-memory
+  monkeypatching only; production files were verified byte-unchanged
+  (`md5sum`) before and after.
 - **B (guard rules must be separable):** added
   `test_unmarked_15_digit_id_fails`,
   `test_unmarked_long_digit_run_outside_notes_column_fails` (a stray digit
@@ -193,6 +208,100 @@ recommitted).
 - **G (L4 should use membership):** `_check_l4` now takes `state.all_fakes`
   and requires membership in it, rather than a `FAKE_ID` regex match.
 - **H (this entry).**
+- **Verification (round 1):** `ruff check src tests scripts` (clean);
+  `pytest -q` — 1,204 passed; `python3 scripts/check_real_fixtures.py`
+  (clean); `git diff --check origin/main...HEAD` (clean); `git ls-files
+  data/` (empty). Fixture bytes unchanged (see above).
+
+### Review-fix round 2 (independent re-review of `0127206`; P3-3 elevated)
+
+No P0/P1/P2 findings; fixed all six routed P3s on top of `0127206`, no
+rebase/amend. `AGENTS.md`, `ci.yml` and `tests/test_report_run.py`
+untouched this round too; committed fixture bytes unchanged (re-ran the
+sanitiser with `--run-date 2026-09-27` and both parity modes, diffed
+byte-for-byte against the committed fixtures — identical).
+
+- **R1 (L5 owner-body check used substring, not equality):** a substring
+  scan across the whole joined Notes text refused short owner notes such as
+  `junk`/`keep`/`lock`/`1` — they occur inside legitimate retained clauses
+  and placeholder numbering. `_check_l5` (`sanitize_export.py`) now compares
+  for equality only: an output Notes *cell*, or a stripped output *segment
+  body*, equal to an original owner body. New tests: short owner notes pass
+  alongside a retained clause containing them as substrings; a verbatim
+  owner body left in place still refuses. Mutation evidence: reverting
+  `_check_l5` to the old substring scan made the new "short notes pass"
+  test raise `SanitiseError` where it expected none — red as expected.
+- **R2 (L9 paired tokens per cell, not per retained segment):** owner text
+  containing `id …0001`, or an unrecognised `#vc-` clause with a reference,
+  became placeholders with no "id " tokens, but the old whole-cell token
+  scan still found the raw side's incidental token and refused with a false
+  "reference token count changed". `_check_l9` now collects expected tokens
+  only from raw segments that independently fullmatch
+  `grammar.INPUT_CLAUSE_RES` (after its own, separately-implemented
+  id-mapping — `_l9_independent_map_long_ids` — never the writer's
+  `recognise_and_canonicalise` or `SanitiserState._map_long_ids`), and
+  compares that flat, ordered list against every token actually found in
+  the staged cell — the staged side is not re-split into segments, since a
+  placeholder consumes its own `#vc-` marker and the two sides' segment
+  counts need not match. Token resolution (`_l9_independent_resolve`) was
+  already independent and is unchanged. New tests: two direct `_check_l9`
+  unit tests (a wrong reference still refuses; both false-refusal cases
+  pass) plus two end-to-end `sanitise()` tests reproducing the exact bug;
+  also added direct `_check_l7` and `_check_l8`-adjacent-style tests for
+  L7 (L8's own direct test was already added in round 1). Mutation
+  evidence: reverting `_check_l9` to the old whole-cell scan made all four
+  new tests raise the old false "reference token count changed" — red as
+  expected.
+- **R3 (P3-3, elevated; `--out-root` could overwrite an unrelated raw
+  export sharing the snapshot's name):** round 1's guard only compared the
+  destination with the snapshot actually being read; reading from one
+  location while `--out-root` pointed at a different directory that
+  already held CSVs under the same snapshot name (for example a real raw
+  export) was not caught. `_check_destination_is_not_snapshot` now also
+  refuses whenever the destination already holds any of the three CSVs
+  unless `_existing_destination_is_valid_fixture` confirms it: a copied,
+  isolated check (via a scratch `tempfile.TemporaryDirectory`, so a sibling
+  snapshot under the same `--out-root` can never influence the answer) that
+  `provenance.json` is present and `check_real_fixtures.check` reports no
+  errors for that snapshot alone. New tests: the reviewer's two-location
+  case (asserts the other copy's raw bytes and absence of a `provenance.json`
+  are unchanged after the refusal); re-running the sanitiser over its own
+  prior output still succeeds and reproduces the same bytes. Mutation
+  evidence: forcing `_existing_destination_is_valid_fixture` to always
+  return `True` made the two-location test's `sanitise()` call succeed
+  instead of refusing — red as expected.
+- **R4 (provenance values unvalidated):** sanitiser: new `_validate_run_date`
+  (`sanitize_export.py`) requires `^[0-9]{4}-[0-9]{2}-[0-9]{2}$` and
+  `datetime.date.fromisoformat`, called first thing in `sanitise()`, refusing
+  without ever echoing the value. Guard (`check_real_fixtures.py`,
+  `_validate_provenance`): the same `run_date` rule; `parity_modes` must be
+  exactly `["no-wishlists"]` or `["no-wishlists", "wishlists"]`;
+  `script_version` must be the `int` `1` and not `bool` (Python's `bool` is
+  an `int` subclass, so `True == 1` needed an explicit exclusion). Every new
+  message names the rule, never the value. New tests: two sanitiser refusal
+  tests (bad format; syntactically-shaped but invalid calendar date, e.g.
+  `2026-13-45`) asserting the bad value never appears in the exception text;
+  five guard tests, one per rule (bad format, bad calendar date, bad
+  `parity_modes`, non-int `script_version`, `True` as `script_version`).
+  Mutation evidence: disabling `_validate_run_date` made both sanitiser
+  tests' `sanitise()` calls succeed instead of refusing; patching
+  `_validate_provenance` to skip the new value checks made all five guard
+  tests fail with "expected an error ... got none" — all red as expected.
+- **R5 (dead duplicate grammar):** deleted the unused module-level
+  `_REF_INPUT`/`_REF_RETAINED` constants from `check_real_fixtures.py` — a
+  leftover from before the template refactor, superseded by (and duplicating)
+  `_T.ref()`'s own inline construction, which is now the pattern's only
+  definition. No behaviour change (verified: `recognise_and_canonicalise`
+  output identical before/after on a manual regex spot-check, and the
+  committed real fixtures still pass the guard unchanged). Also fixed this
+  entry's own now-stale mention of `RETAINED_REF` (never existed under that
+  name; it referred to `_T.ref()`'s retained-mode output).
+- **R6 (this entry, and round 1's verification/mutation evidence recorded
+  above instead of pointed at elsewhere).**
+- **Verification (round 2):** `ruff check src tests scripts` (clean);
+  `pytest -q` — 1,221 passed; `python3 scripts/check_real_fixtures.py`
+  (clean); `git diff --check origin/main...HEAD` (clean); `git ls-files
+  data/` (empty).
 
 ## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
 

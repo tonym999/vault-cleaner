@@ -30,11 +30,12 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from vault_cleaner.note_history import strip_trailing_tool_clauses
@@ -320,6 +321,22 @@ def _l9_independent_resolve(
     return f"…{fake[-4:]}"
 
 
+def _l9_independent_map_long_ids(stripped_body: str, id_map: dict[str, str]) -> str:
+    """Re-derive one segment's id-mapped body, independently of
+    ``SanitiserState._map_long_ids``, so L9 can decide for itself (via the
+    public ``INPUT_CLAUSE_RES`` grammar) which raw segments the writer would
+    have retained."""
+
+    def repl(m: re.Match) -> str:
+        real = m.group(0)
+        fake = id_map.get(real)
+        if fake is None:
+            raise SanitiseError("L9: raw Notes contains an unmapped long digit run")
+        return fake
+
+    return _ID_RUN_RE.sub(repl, stripped_body)
+
+
 def _build_id_map(sorted_ids: list[str]) -> dict[str, str]:
     """Assign each real id its order-preserving fake, by rank (1-based)."""
     return {real: f"{ID_MARKER}{i:015d}" for i, real in enumerate(sorted_ids, start=1)}
@@ -427,10 +444,22 @@ def _check_l5(
     staged: dict[str, list[list[str]]],
     state: SanitiserState,
 ) -> None:
+    # Owner bodies are compared for *equality*, never substring: a short
+    # owner note ("junk", "keep", "lock", "1", ...) is a legitimate
+    # substring of many retained clauses and placeholder numbers, so a
+    # substring scan across the whole Notes text produces false leak
+    # refusals (#181 review R1). Only an output Notes cell, or a stripped
+    # output segment body, that *equals* an original owner body is a leak.
+    owner_bodies = {body for body in state.placeholder_map if body}
     for kind, name in KINDS_FILES.items():
         notes_idx = headers[kind].index("Notes")
         for row_number, out_row in enumerate(staged[kind], start=2):
-            for segment in re.split(r"(?=#vc-)", out_row[notes_idx]):
+            cell = out_row[notes_idx]
+            if cell in owner_bodies:
+                raise SanitiseError(
+                    f"L5: {name} row {row_number} Notes cell equals an original owner Notes segment"
+                )
+            for segment in re.split(r"(?=#vc-)", cell):
                 stripped = segment.strip()
                 if not stripped:
                     continue
@@ -438,15 +467,10 @@ def _check_l5(
                     raise SanitiseError(
                         f"L5: {name} row {row_number} Notes segment is outside the sanitised grammar"
                     )
-    owner_bodies = {body for body in state.placeholder_map if body}
-    all_notes_text = "\n".join(
-        out_row[headers[kind].index("Notes")]
-        for kind in KINDS_FILES
-        for out_row in staged[kind]
-    )
-    for body in owner_bodies:
-        if body in all_notes_text:
-            raise SanitiseError("L5: an original owner Notes segment appears verbatim in output")
+                if stripped in owner_bodies:
+                    raise SanitiseError(
+                        f"L5: {name} row {row_number} Notes segment equals an original owner Notes segment"
+                    )
 
 
 def _check_l6(
@@ -512,22 +536,53 @@ _ID_TOKEN_AFTER_ID_RE = re.compile(r"(?<=\bid )" + RAWSID)
 _STAGED_ID_TOKEN_RE = re.compile(r"(?<=\bid )…[0-9]{4}")
 
 
+_SEGMENT_SPLIT_RE = re.compile(r"(?=#vc-)")
+
+
 def _check_l9(
     headers: dict[str, list[str]],
     rows: dict[str, list[dict[str, str]]],
     staged: dict[str, list[list[str]]],
     state: SanitiserState,
 ) -> None:
+    # Pair raw and output reference tokens by order *within each raw
+    # segment that would be retained* (#181 review R2), not across the
+    # whole Notes cell: a raw segment that is owner text or an unrecognised
+    # `#vc-` clause becomes a placeholder with no "id " tokens at all, and
+    # pairing its incidental "id …NNNN"-shaped text against nothing would
+    # refuse a false leak. Recognition uses only the public INPUT_CLAUSE_RES
+    # grammar on the independently id-mapped raw body — never the writer's
+    # recognise_and_canonicalise or SanitiserState._map_long_ids — so L9
+    # stays independent of the writer; token resolution already was.
+    #
+    # Only the *raw* side is re-split into segments: a placeholder's "#vc-"
+    # marker is consumed along with the rest of its segment (the placeholder
+    # text itself never starts with "#vc-"), so splitting the staged cell
+    # the same way would not, in general, yield the same segment count as
+    # the raw cell. Instead, the expected tokens are collected in order from
+    # only the retained raw segments, and compared as one flat, ordered list
+    # against every token actually found in the staged cell — which is
+    # exactly the retained segments' contribution, since a placeholder's
+    # fixed "note K.J" text can never itself look like an "id …NNNN" token.
     for kind, name in KINDS_FILES.items():
         notes_idx = headers[kind].index("Notes")
         for row_number, (raw_row, out_row) in enumerate(
             zip(rows[kind], staged[kind], strict=True), start=2
         ):
-            raw_tokens = [m.group(0) for m in _ID_TOKEN_AFTER_ID_RE.finditer(raw_row["Notes"])]
+            expected_tokens: list[str] = []
+            for raw_seg in _SEGMENT_SPLIT_RE.split(raw_row["Notes"]):
+                raw_stripped = raw_seg.strip()
+                if not raw_stripped.startswith("#vc-"):
+                    continue  # owner text: no clause, so no reference to pair
+                mapped_body = _l9_independent_map_long_ids(raw_stripped, state.id_map)
+                if not any(pattern.fullmatch(mapped_body) for pattern in grammar.INPUT_CLAUSE_RES):
+                    continue  # not a recognised clause: became a placeholder
+                expected_tokens.extend(m.group(0) for m in _ID_TOKEN_AFTER_ID_RE.finditer(raw_seg))
+
             out_tokens = [m.group(0) for m in _STAGED_ID_TOKEN_RE.finditer(out_row[notes_idx])]
-            if len(raw_tokens) != len(out_tokens):
+            if len(expected_tokens) != len(out_tokens):
                 raise SanitiseError(f"L9: {name} row {row_number} reference token count changed")
-            for raw_token, out_token in zip(raw_tokens, out_tokens, strict=True):
+            for raw_token, out_token in zip(expected_tokens, out_tokens, strict=True):
                 expected = _l9_independent_resolve(
                     raw_token, state.export_ids, state.id_map, state.fresh_token_map
                 )
@@ -814,12 +869,47 @@ def _check_destination(dest: Path) -> None:
             raise SanitiseError(f"destination {dest} already contains an unexpected entry")
 
 
+def _existing_destination_is_valid_fixture(dest: Path) -> bool:
+    """True only if ``dest`` already holds a valid sanitised fixture for
+    this exact snapshot: ``provenance.json`` is present, and the CI guard
+    reports no errors when it validates that snapshot alone. Re-running the
+    sanitiser to regenerate an existing fixture must still work; anything
+    else already sitting at ``dest`` might be an unrelated raw export
+    (#181 review R3) and must not be silently overwritten.
+
+    The guard is run against an isolated copy of just this snapshot's
+    current files, in a scratch directory, so an unrelated sibling snapshot
+    under the same ``--out-root`` can never influence the answer.
+    """
+    if not (dest / "provenance.json").exists():
+        return False
+    with tempfile.TemporaryDirectory() as scratch:
+        scratch_snap = Path(scratch) / dest.name
+        scratch_snap.mkdir()
+        for name in ("weapons.csv", "armor.csv", "ghosts.csv", "provenance.json"):
+            src = dest / name
+            if src.is_file():
+                shutil.copy2(src, scratch_snap / name)
+        return grammar.check(Path(scratch)) == []
+
+
 def _check_destination_is_not_snapshot(dest: Path, snapshot_dir: Path) -> None:
-    """Refuse before writing anything if the destination would ever touch the
-    raw snapshot: AGENTS.md bars deleting or overwriting user-owned inputs,
-    and ``os.replace`` inside ``_atomic_write`` would silently do exactly
-    that if ``--out-root`` resolved the destination onto the snapshot
-    directory (for example, passing the snapshot's own parent)."""
+    """Refuse before writing anything if the destination would overwrite any
+    user-owned raw export: AGENTS.md bars deleting or overwriting user-owned
+    inputs. Two distinct ways that can happen, both refused here:
+
+    - the destination resolves onto, into, or around the raw snapshot
+      directory itself (for example, ``--out-root`` given as the snapshot's
+      own parent), which ``os.replace`` inside ``_atomic_write`` would
+      otherwise silently overwrite;
+    - the destination already holds export CSVs from a *different* raw
+      export that merely shares this snapshot's directory name under a
+      different ``--out-root`` (#181 review R3) — for example, reading from
+      one location while ``--out-root`` points at another that already has
+      its own, unrelated ``<name>/weapons.csv``. The only pre-existing state
+      this allows through is an already-valid sanitised fixture for this
+      exact snapshot, so re-running the sanitiser to regenerate still works.
+    """
     dest_r = dest.resolve()
     snap_r = snapshot_dir.resolve()
     if dest_r == snap_r:
@@ -833,6 +923,13 @@ def _check_destination_is_not_snapshot(dest: Path, snapshot_dir: Path) -> None:
     if dest_r in snap_r.parents:
         raise SanitiseError(
             "destination contains the raw snapshot directory — refusing to overwrite user-owned input"
+        )
+
+    existing_csvs = any((dest / name).exists() for name in ("weapons.csv", "armor.csv", "ghosts.csv"))
+    if existing_csvs and not _existing_destination_is_valid_fixture(dest):
+        raise SanitiseError(
+            "destination already holds export CSVs that are not a valid sanitised fixture for "
+            "this snapshot — refusing to overwrite what may be a different raw export"
         )
 
 
@@ -862,6 +959,21 @@ def _run_stage(stage: str, func: Callable[..., None], *args: object) -> None:
         ) from exc
 
 
+_RUN_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def _validate_run_date(run_date: str) -> None:
+    """Refuse a malformed ``--run-date`` without ever echoing the value
+    (#181 review R4): the guard enforces the same rule on what gets
+    committed, so a bad value must never reach ``provenance.json``."""
+    if not _RUN_DATE_RE.fullmatch(run_date):
+        raise SanitiseError("run_date does not match YYYY-MM-DD")
+    try:
+        date.fromisoformat(run_date)
+    except ValueError as exc:
+        raise SanitiseError("run_date is not a valid calendar date") from exc
+
+
 def sanitise(
     snapshot_dir: Path,
     out_root: Path,
@@ -870,6 +982,7 @@ def sanitise(
     run_date: str,
 ) -> None:
     """Sanitise one snapshot directory, writing only if every check passes."""
+    _validate_run_date(run_date)
     for name in KINDS_FILES.values():
         if not (snapshot_dir / name).exists():
             raise SanitiseError(f"missing {name} in {snapshot_dir}")

@@ -24,6 +24,7 @@ import json
 import re
 import sys
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 from typing import NamedTuple
 
@@ -71,12 +72,6 @@ RAWSID_PARTS_RE = re.compile(
     r"(?P<prefix>[0-9]*)…(?P<suffix>[0-9]+)"
     r"(?:~(?P<rank>[0-9a-f]+)-(?P<digest>[0-9a-f]{8}))?"
 )
-
-_REF_INPUT = r"\[id (?P<ref>" + RAWSID + r")(?:; [^;\]\r\n]*)*\]"
-# The only form the sanitiser ever writes: no reference part survives beyond
-# the rewritten id, and the fake-id scheme (see sanitize_export.py) makes the
-# plain 4-digit suffix the only short-id form that can ever occur.
-_REF_RETAINED = r"\[id …[0-9]{4}\]"
 
 # ---------------------------------------------------------------------------
 # Closed vocabularies
@@ -146,7 +141,10 @@ class _T:
 
     def ref(self, name: str = "ref") -> str:
         """A ``[id ...]`` reference: any reference part beyond the rewritten
-        short id is accepted on input and dropped entirely when retained."""
+        short id is accepted on input and dropped entirely when retained.
+        The retained form is the *only* form the sanitiser ever writes: the
+        fake-id scheme (see sanitize_export.py) makes the plain 4-digit
+        suffix the only short-id form that can ever occur."""
         if self.mode == "input":
             return r"\[id (?P<" + name + r">" + RAWSID + r")(?:; [^;\]\r\n]*)*\]"
         return r"\[id …(?P<" + name + r">[0-9]{4})\]"
@@ -425,6 +423,8 @@ _KNOWN_NAMES = {"weapons.csv", "armor.csv", "ghosts.csv", "provenance.json"}
 _PROVENANCE_KEYS = {"files", "parity_modes", "run_date", "script_version"}
 _PROVENANCE_FILE_KEYS = {"raw_sha256", "rows"}
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_RUN_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+_VALID_PARITY_MODES = (["no-wishlists"], ["no-wishlists", "wishlists"])
 
 
 def _validate_notes_cell(value: str) -> str | None:
@@ -504,6 +504,23 @@ def _validate_provenance(
     if not isinstance(doc, dict) or set(doc) != _PROVENANCE_KEYS:
         errors.append(f"{label}: must have exactly the keys {sorted(_PROVENANCE_KEYS)}")
         return
+
+    run_date = doc.get("run_date")
+    if not isinstance(run_date, str) or not _RUN_DATE_RE.fullmatch(run_date):
+        errors.append(f"{label}: run_date does not match YYYY-MM-DD")
+    else:
+        try:
+            date.fromisoformat(run_date)
+        except ValueError:
+            errors.append(f"{label}: run_date is not a valid calendar date")
+
+    if doc.get("parity_modes") not in _VALID_PARITY_MODES:
+        errors.append(f"{label}: parity_modes is not one of the accepted forms")
+
+    script_version = doc.get("script_version")
+    if not isinstance(script_version, int) or isinstance(script_version, bool) or script_version != 1:
+        errors.append(f"{label}: script_version is not the integer 1")
+
     files = doc.get("files")
     if not isinstance(files, dict) or set(files) != {"weapons.csv", "armor.csv", "ghosts.csv"}:
         errors.append(f"{label}: 'files' must name exactly the three CSVs")

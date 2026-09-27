@@ -264,6 +264,46 @@ def test_provenance_wrong_row_count_fails(tmp_path):
     _assert_only_rule(grammar.check(root), "does not match the CSV's data-row count")
 
 
+def _valid_provenance_except(**override) -> dict:
+    doc = {
+        "files": {
+            name: {"raw_sha256": "0" * 64, "rows": 1}
+            for name in ("weapons.csv", "armor.csv", "ghosts.csv")
+        },
+        "parity_modes": ["no-wishlists"],
+        "run_date": "2026-09-27",
+        "script_version": 1,
+    }
+    doc.update(override)
+    return doc
+
+
+def test_provenance_run_date_bad_format_fails(tmp_path):
+    root = _write_tree(tmp_path, provenance=_valid_provenance_except(run_date="09/27/2026"))
+    _assert_only_rule(grammar.check(root), "run_date does not match YYYY-MM-DD")
+
+
+def test_provenance_run_date_invalid_calendar_date_fails(tmp_path):
+    root = _write_tree(tmp_path, provenance=_valid_provenance_except(run_date="2026-13-45"))
+    _assert_only_rule(grammar.check(root), "run_date is not a valid calendar date")
+
+
+def test_provenance_parity_modes_not_an_accepted_form_fails(tmp_path):
+    root = _write_tree(tmp_path, provenance=_valid_provenance_except(parity_modes=["wishlists"]))
+    _assert_only_rule(grammar.check(root), "parity_modes is not one of the accepted forms")
+
+
+def test_provenance_script_version_wrong_type_fails(tmp_path):
+    root = _write_tree(tmp_path, provenance=_valid_provenance_except(script_version="1"))
+    _assert_only_rule(grammar.check(root), "script_version is not the integer 1")
+
+
+def test_provenance_script_version_bool_fails(tmp_path):
+    # bool is a subclass of int in Python: True == 1 must still be rejected.
+    root = _write_tree(tmp_path, provenance=_valid_provenance_except(script_version=True))
+    _assert_only_rule(grammar.check(root), "script_version is not the integer 1")
+
+
 def test_stray_file_fails(tmp_path):
     root = _write_tree(tmp_path)
     (root / "snap" / "stray.txt").write_text("not ours", encoding="utf-8")

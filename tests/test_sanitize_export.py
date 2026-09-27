@@ -593,6 +593,56 @@ def test_refusal_out_root_nested_inside_the_snapshot_directory(tmp_path):
     assert after == before
 
 
+def test_refusal_out_root_would_overwrite_a_different_raw_export_same_name(tmp_path):
+    # #181 review R3: reading from one location while --out-root points at
+    # a *different* directory that already holds CSVs under the same
+    # snapshot name (for example a real raw export, not a sanitised
+    # fixture) must refuse before writing, and must not touch that other
+    # copy's bytes at all.
+    location_a = tmp_path / "location_a"
+    snap = _min_snapshot(location_a, weapon_rows=[_min_weapon_row("6900000000000000001")])
+    snapshot_name = snap.name
+
+    location_b = tmp_path / "location_b"
+    other_export_dir = location_b / snapshot_name
+    other_export_dir.mkdir(parents=True)
+    other_bytes = b'Id,Notes\n"9999999999999999999",unrelated raw export\n'
+    (other_export_dir / "weapons.csv").write_bytes(other_bytes)
+
+    with pytest.raises(se.SanitiseError, match="valid sanitised fixture"):
+        se.sanitise(snap, location_b, CONFIG, True, "2026-09-27")
+
+    assert (other_export_dir / "weapons.csv").read_bytes() == other_bytes
+    assert not (other_export_dir / "provenance.json").exists()
+
+
+def test_rerunning_over_an_existing_valid_fixture_still_works(tmp_path):
+    snap, *_ = _build_snapshot(tmp_path)
+    out_root = tmp_path / "out"
+    se.sanitise(snap, out_root, CONFIG, True, "2026-09-27")
+    first_bytes = {p.name: p.read_bytes() for p in (out_root / "snap").iterdir()}
+
+    se.sanitise(snap, out_root, CONFIG, True, "2026-09-27")  # re-run over its own output
+    second_bytes = {p.name: p.read_bytes() for p in (out_root / "snap").iterdir()}
+    assert first_bytes == second_bytes
+
+
+def test_refusal_bad_run_date_format(tmp_path):
+    snap = _min_snapshot(tmp_path)
+    with pytest.raises(se.SanitiseError, match="does not match YYYY-MM-DD") as excinfo:
+        se.sanitise(snap, tmp_path / "out", CONFIG, True, "not-a-date")
+    assert "not-a-date" not in str(excinfo.value)
+    assert not (tmp_path / "out" / "snap").exists()
+
+
+def test_refusal_run_date_shape_ok_but_invalid_calendar_date(tmp_path):
+    snap = _min_snapshot(tmp_path)
+    with pytest.raises(se.SanitiseError, match="not a valid calendar date") as excinfo:
+        se.sanitise(snap, tmp_path / "out", CONFIG, True, "2026-13-45")
+    assert "2026-13-45" not in str(excinfo.value)
+    assert not (tmp_path / "out" / "snap").exists()
+
+
 # ---------------------------------------------------------------------------
 # Planted leaks: for each, show it survives with its check bypassed
 # (monkeypatch the check away too, so the write succeeds despite the
@@ -1049,6 +1099,38 @@ def test_l5_direct_owner_body_check(tmp_path):
     se._check_l5(headers, staged, clean_state)
 
 
+def test_l5_short_owner_notes_pass_when_only_a_substring_of_retained_text(tmp_path):
+    # #181 review R1: L5's owner-body check compares for equality, not
+    # substring. Short owner notes such as "junk"/"keep"/"lock"/"1" are
+    # legitimate substrings of a normal retained clause and of placeholder
+    # numbering, and must not cause a false leak refusal.
+    headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
+    state = _state_for_ids([])
+    for body in ("junk", "keep", "lock", "1"):
+        state.placeholder_map[body] = len(state.placeholder_map) + 1
+    staged = {
+        "weapons": [
+            ["1000000000000000001", "#vc-junk: dupe-lower; keep [id …0001]; winner lock"],
+            ["1000000000000000002", "note 1.0"],
+        ],
+        "armor": [],
+        "ghosts": [],
+    }
+    se._check_l5(headers, staged, state)  # does not raise
+
+
+def test_l5_verbatim_owner_body_left_in_place_still_refuses(tmp_path):
+    headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
+    state = _state_for_ids([])
+    state.placeholder_map["my secret diary entry"] = 1
+    staged = {
+        "weapons": [["1000000000000000001", "my secret diary entry"]],
+        "armor": [], "ghosts": [],
+    }
+    with pytest.raises(se.SanitiseError, match=r"^L5:"):
+        se._check_l5(headers, staged, state)
+
+
 def test_l6_direct_reuse_check(tmp_path):
     headers = {"weapons": ["Id", "Loadouts"], "armor": ["Id", "Loadouts"], "ghosts": ["Id", "Loadouts"]}
     state = _state_for_ids([])
@@ -1104,6 +1186,77 @@ def test_l8_direct_catches_untreated_column_drift(tmp_path):
     _write_min_csv(good_staged / "armor.csv", _MIN_ARMOR_HEADER, [_min_armor_row("1000000000000000101")])
     _write_min_csv(good_staged / "ghosts.csv", _MIN_GHOST_HEADER, [_min_ghost_row("1000000000000000201")])
     se._check_l8(raw_dir, good_staged, id_map)  # does not raise
+
+
+def test_l7_direct_catches_nonzero_kill_tracker():
+    headers = {
+        "weapons": ["Id", "Kill Tracker"], "armor": ["Id", "Kill Tracker"], "ghosts": ["Id", "Kill Tracker"],
+    }
+    bad_staged = {"weapons": [["1000000000000000001", "42"]], "armor": [], "ghosts": []}
+    with pytest.raises(se.SanitiseError, match=r"^L7:"):
+        se._check_l7(headers, bad_staged)
+
+    clean_staged = {"weapons": [["1000000000000000001", "0"]], "armor": [], "ghosts": []}
+    se._check_l7(headers, clean_staged)  # does not raise
+
+
+def test_l9_direct_catches_a_wrong_reference():
+    headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
+    id_a, id_b = "6900000000000000001", "6900000000000000002"
+    id_map = se._build_id_map(sorted([id_a, id_b], key=instance_id_order))
+    state = se.SanitiserState(id_map=id_map, export_ids=frozenset({id_a, id_b}), next_fresh_rank=3)
+    raw_notes = f"#vc-junk: dupe-lower; keep [id …{id_b[-4:]}]; winner lock"
+    rows = {"weapons": [{"Notes": raw_notes}], "armor": [], "ghosts": []}
+
+    wrong_out_notes = f"#vc-junk: dupe-lower; keep [id …{id_map[id_a][-4:]}]; winner lock"
+    bad_staged = {"weapons": [["1000000000000000001", wrong_out_notes]], "armor": [], "ghosts": []}
+    with pytest.raises(se.SanitiseError, match=r"^L9:"):
+        se._check_l9(headers, rows, bad_staged, state)
+
+    correct_out_notes = f"#vc-junk: dupe-lower; keep [id …{id_map[id_b][-4:]}]; winner lock"
+    clean_staged = {"weapons": [["1000000000000000001", correct_out_notes]], "armor": [], "ghosts": []}
+    se._check_l9(headers, rows, clean_staged, state)  # does not raise
+
+
+def test_l9_owner_text_with_id_shaped_fragment_is_not_paired(tmp_path):
+    # #181 review R2: owner prose containing "id …0001" must not be paired
+    # against the placeholder it becomes — the old whole-cell token scan
+    # would have refused this with a false "reference token count changed".
+    headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
+    state = _state_for_ids([])
+    rows = {"weapons": [{"Notes": "remember id …0001 for later"}], "armor": [], "ghosts": []}
+    staged = {"weapons": [["1000000000000000001", "note 1.0"]], "armor": [], "ghosts": []}
+    se._check_l9(headers, rows, staged, state)  # does not raise
+
+
+def test_l9_unrecognised_vc_clause_with_reference_is_not_paired(tmp_path):
+    headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
+    state = _state_for_ids([])
+    rows = {
+        "weapons": [{"Notes": "#vc-mystery: something with a reference id …0001 in it"}],
+        "armor": [], "ghosts": [],
+    }
+    staged = {"weapons": [["1000000000000000001", "note 1.0"]], "armor": [], "ghosts": []}
+    se._check_l9(headers, rows, staged, state)  # does not raise
+
+
+def test_owner_text_with_id_shaped_fragment_sanitises_cleanly_end_to_end(tmp_path):
+    snap = _min_snapshot(
+        tmp_path, weapon_rows=[_min_weapon_row("6900000000000000001", Notes="remember id …0001 for later")]
+    )
+    se.sanitise(snap, tmp_path / "out", CONFIG, True, "2026-09-27")
+    assert (tmp_path / "out" / "snap" / "provenance.json").exists()
+
+
+def test_unrecognised_vc_clause_with_reference_sanitises_cleanly_end_to_end(tmp_path):
+    snap = _min_snapshot(
+        tmp_path,
+        weapon_rows=[
+            _min_weapon_row("6900000000000000001", Notes="#vc-mystery: has a reference id …0001 in it")
+        ],
+    )
+    se.sanitise(snap, tmp_path / "out", CONFIG, True, "2026-09-27")
+    assert (tmp_path / "out" / "snap" / "provenance.json").exists()
 
 
 # ---------------------------------------------------------------------------
