@@ -13,7 +13,7 @@ Planned #188 on `handoff/issue-188-implementation-plan` from `main` at
 - **Context:** #188 is one of nine issues (#188–#196) opened on 2026-09-27
   from the owner's review of how shared agent documentation goes stale.
 - **Decisions made:**
-  - Every edit (E1–E9) is given as verbatim old and new text, located by
+  - Every edit (E1–E10) is given as verbatim old and new text, located by
     old text rather than line number, because #181's implementation also
     edits `AGENTS.md`.
   - Opus becomes `claude-opus-5-5` in the planner roster, the Independent
@@ -37,13 +37,34 @@ Planned #188 on `handoff/issue-188-implementation-plan` from `main` at
     pointer stale.
   - `rails.py` implements rule 1, so it is not a mere helper. The
     `AGENTS.md` wording says so.
-  - Out of scope, recorded for the owner:
-    - `PLAN.md` *Milestones* stops at M8, although there is an M9 section
-      and an M9 GitHub milestone.
-    - 10 of the 11 remote `handoff/*` branches belong to closed issues.
-      Deleting them needs separate authorisation.
   - The time-bound sweep command and the classification of every hit are in
     the plan, so #190 can reuse the denylist.
+
+### Revision before merge and owner-authorised cleanup (same session)
+
+The first version recorded three items as owner decisions. The owner
+approved all of the recommendations:
+
+- **E10 added to the plan (F8):** `PLAN.md` *Milestones* gains item 9 (M9),
+  because the M9 section and the GitHub milestone (16 issues) already exist.
+  M10 is not added; it has no milestone or PLAN.md section. The worklog edit
+  is renumbered to E11. A rerun of the trial with E1–E10 gave 4 files,
+  +21/−12, with `git diff --check` clean.
+- **Deleted 10 remote plan branches:** `handoff/issue-{34,117,119,142,148,150,155,158,170,174}-implementation-plan`.
+  Each was re-checked right before deletion: issue closed, no open PR, and
+  the branch head is an ancestor of `main`. The exception is #119, which
+  PR #125 squash-merged; its plan file is byte-identical on `main`. The
+  branches for #181 (open) and #188 remain. Local copies of the deleted
+  branches in the owner's checkout were left alone.
+- **Removed 3 review worktrees:** one for PR #182 under `~/.codex/worktrees/`
+  and two for #158 beside the repository. All were clean, with heads in
+  `main`.
+- **Commented on #144**
+  ([comment](https://github.com/tonym999/vault-cleaner/issues/144#issuecomment-5857915516)):
+  the orchestrator template creates disposable checkouts but never removes
+  them, so the removal step belongs in #144's template scope.
+- The owner may enable GitHub's "Automatically delete head branches"
+  setting; that is a repository setting left to the owner.
 
 ## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
 

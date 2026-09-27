@@ -53,6 +53,12 @@ All line numbers are at the plan baseline `1ab2eae`.
 |---|---|---|---|
 | F7 | `.gitignore:4` | `# Cached wishlist downloads (committed-or-not still TBD, see PLAN.md)` | Same fact as F5, and it points at the PLAN.md line being corrected. `AGENTS.md` asks for sibling divergences to be fixed in the same change. |
 
+### Added on owner approval (2026-09-27, before PR #197 merged)
+
+| Id | Location | Stale text | Why in scope |
+|---|---|---|---|
+| F8 | `PLAN.md` *Milestones* (`PLAN.md:82-91`) | The numbered list stops at item 8 (M8). | PLAN.md has an *M9 duplicate presentation and review UX* section (`PLAN.md:103`), and GitHub milestone "M9 — Duplicate Review UX" holds 16 issues (11 closed). M9 is adopted; only the list is behind. M10 is not added: #137 and #138 have no milestone and PLAN.md has no M10 section. |
+
 ### Time-bound sweep
 
 Command, run at the baseline:
@@ -93,11 +99,11 @@ orchestrator (#170, #174 and #181 in `WORKLOG.md`), so moving the roster to
 
 ### Trial (planning session, discarded)
 
-E1–E9 were applied mechanically, from this document's own old/new blocks, in
+E1–E10 were applied mechanically, from this document's own old/new blocks, in
 a detached worktree at `1ab2eae`, then the worktree was discarded:
 
 - every old text matched exactly once;
-- the diff was 4 files, +20/−12, with `git diff --check` clean;
+- the diff was 4 files, +21/−12, with `git diff --check` clean;
 - `git check-ignore wishlists/` still matched.
 
 ### Model selection
@@ -134,12 +140,10 @@ otherwise uses manual cross-provider execution from a local Copilot surface
 - **Issue body divergence:** the issue said "11 remote `handoff/*` branches".
   That is still the count, but one of them is now #181's open plan branch
   rather than a finished one. The issue listed F1–F6; F7 was found during
-  measurement and is added as a sibling.
+  measurement and is added as a sibling, and F8 was added on owner approval.
 - **Out-of-scope observations** (recorded, not changed):
-  - `PLAN.md` *Milestones* stops at M8, although PLAN.md has an *M9 duplicate
-    presentation and review UX* section and GitHub has an M9 milestone.
-    Adding M9 to the milestone list is a spec edit for the owner, not a stale
-    fact correction.
+  - `PLAN.md` *Milestones* stopping at M8 was first recorded here as an
+    owner decision; the owner approved correcting it, and it is now F8/E10.
   - Deleting the 10 closed-issue `handoff/*` branches is an external mutation
     that needs separate owner authorisation. It is not implementer work.
   - Historical plans and `WORKLOG.md` entries that name `claude-opus-5` are
@@ -333,22 +337,36 @@ New line:
 
 Do not change any ignore pattern.
 
+### Spec milestones
+
+#### [MODIFY] [PLAN.md](../PLAN.md#L91) — E10 (F8)
+
+Directly after the numbered item that begins
+`8. **M8 — Local review server:**` (one long line), insert this line, with no
+blank line between the two items:
+
+```text
+9. **M9 — Duplicate review UX:** authoritative duplicate comparison data and review UX; see *M9 duplicate presentation and review UX* below.
+```
+
+Change nothing in item 8 or the rest of the list.
+
 ### Worklog
 
-#### [MODIFY] [WORKLOG.md](../WORKLOG.md) — E10
+#### [MODIFY] [WORKLOG.md](../WORKLOG.md) — E11
 
 Add a dated entry at the top, headed
 `## YYYY-MM-DD — #188 implementation: stale workflow and plan facts (PR 2)`,
 recording: the base SHA; the dispatch record supplied by the orchestrator;
-that E1–E9 were applied verbatim (or any deviation and why); and the
+that E1–E10 were applied verbatim (or any deviation and why); and the
 verification output summary. Refs #188.
 
 ## Mechanical inclusion test
 
 A hunk in `git diff <base_sha>...HEAD` is **in scope** if and only if it is:
 
-- one of edits E1–E9, applied exactly as specified above; or
-- the E10 `WORKLOG.md` entry.
+- one of edits E1–E10, applied exactly as specified above; or
+- the E11 `WORKLOG.md` entry.
 
 Worked examples:
 
@@ -356,7 +374,8 @@ Worked examples:
 - **IN SCOPE:** inserting the `claude-opus-5-5` catalog row above the `claude-opus-5` row, and relabelling the latter (E6).
 - **OUT OF SCOPE:** rewording any other roster, ladder or catalog cell, or restructuring the model tables (that is #191).
 - **OUT OF SCOPE:** changing `claude-opus-5` in historical plans (`handoffs/issue-*.md`) or older `WORKLOG.md` entries.
-- **OUT OF SCOPE:** adding M9 to `PLAN.md` *Milestones*, or any other PLAN.md spec edit.
+- **IN SCOPE:** inserting item 9 (M9) after item 8 in `PLAN.md` *Milestones* (E10).
+- **OUT OF SCOPE:** adding M10, rewording other milestone items, or any other PLAN.md spec edit.
 - **OUT OF SCOPE:** reflowing, re-wrapping or "tidying" neighbouring lines, links or citations in any touched file.
 - **OUT OF SCOPE:** deleting remote `handoff/*` branches or any other GitHub mutation.
 
@@ -372,9 +391,9 @@ Escalation route: `implementer → orchestrator → planner`.
 
 ## Likely findings
 
-1. **Collateral Markdown edits.** Neighbouring lines, table cells or link targets reflowed or "improved" while applying an edit. Check the word diff for every changed line against E1–E9.
+1. **Collateral Markdown edits.** Neighbouring lines, table cells or link targets reflowed or "improved" while applying an edit. Check the word diff for every changed line against E1–E10.
 2. **Partial Opus replacement.** One of the three F3 locations missed, or the E6 row order or default (`medium` for `claude-opus-5-5`, `high` for `claude-opus-5`) swapped.
-3. **Fence or table breakage.** E6 inserted without a leading `|` or with a blank line inside the table, or E8's insertion placed inside the code fence rather than after it. Render-check both.
+3. **Fence, table or list breakage.** E6 inserted without a leading `|` or with a blank line inside the table, E8's insertion placed inside the code fence rather than after it, or E10 separated from item 8 by a blank line. Render-check all three.
 4. **Worklog missing the dispatch record** that the orchestrator must verify before opening PR 2.
 
 # Reusable implementer execution prompt
@@ -389,31 +408,32 @@ Read the entire handoff, issue #188, `AGENTS.md`, and only the newest three entr
 
 Rules:
 - work on `fix/issue-188-stale-doc-facts`; branch from latest `main` and record the base SHA;
-- apply edits E1–E9 exactly as written in the handoff, locating each by its old text, not by line number;
+- apply edits E1–E10 exactly as written in the handoff, locating each by its old text, not by line number;
 - change nothing else in any file; apply the plan's mechanical inclusion test to every hunk;
-- update `WORKLOG.md` with the dated entry described in E10, including the dispatch record you were given;
+- update `WORKLOG.md` with the dated entry described in E11, including the dispatch record you were given;
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `git diff --check origin/main...HEAD`, `test -z "$(git ls-files data/)"`; the browser suite is not required because no UI file changes;
 - commit and push the implementation branch, with `Refs #188` in every commit message; and
 - **do not open a pull request.**
 
 If any edit's old text is missing or appears more than once, or any stop condition is reached, stop and return to the orchestrator with the exact conflict; do not improvise replacement text.
 
-When complete, report: branch, base SHA, head SHA, the list of edits applied (E1–E10), any deviation, and the verification output.
+When complete, report: branch, base SHA, head SHA, the list of edits applied (E1–E11), any deviation, and the verification output.
 
 # Ticket-specific review decision
 
 **Review path:** `standard orchestrator review`
 
 **Reason:**
-Documentation-only change with verbatim text. It touches no parser, rule, rail, schema, server lifecycle or security boundary. The risk is collateral editing of neighbouring Markdown, which the orchestrator's word-diff audit against E1–E9 catches directly.
+Documentation-only change with verbatim text. It touches no parser, rule, rail, schema, server lifecycle or security boundary. The risk is collateral editing of neighbouring Markdown, which the orchestrator's word-diff audit against E1–E10 catches directly.
 
 The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
 # Review checklist
 
-- [ ] `git diff --word-diff=plain <base_sha>...HEAD -- AGENTS.md PLAN.md handoffs/README.md .gitignore` shows exactly E1–E9 and nothing else.
+- [ ] `git diff --word-diff=plain <base_sha>...HEAD -- AGENTS.md PLAN.md handoffs/README.md .gitignore` shows exactly E1–E10 and nothing else.
 - [ ] All three F3 locations now read `claude-opus-5-5`; the catalog has both Opus rows in the E6 order and defaults.
 - [ ] The `handoffs/README.md` catalog table and the `PLAN.md` layout fence render correctly on GitHub.
+- [ ] `PLAN.md` *Milestones* has item 9 (M9) directly after item 8, with no blank line between them.
 - [ ] `grep -n 'TBD' PLAN.md .gitignore` returns nothing; `grep -n 'dangling\|It runs after' handoffs/README.md` returns nothing.
 - [ ] Every link added in E2 resolves (the #124 issue and the outcome comment anchor).
 - [ ] `WORKLOG.md` entry present, dated, with the dispatch record and `Refs #188`.
@@ -425,4 +445,4 @@ Planned #188 in [handoffs/issue-188-implementation-plan.md](https://github.com/t
 
 - **Implementer model & effort:** `MAI-Code-1.1-Flash` (`n/a — adaptive`); re-selection fallback `claude-sonnet-5` (`high`), not Gemini (PR #160).
 - **Implementation branch:** `fix/issue-188-stale-doc-facts`
-- **Likely findings:** collateral Markdown edits beside E1–E9; a missed Opus location or swapped default; table or fence breakage in E6/E8; missing dispatch record in `WORKLOG.md`.
+- **Likely findings:** collateral Markdown edits beside E1–E10; a missed Opus location or swapped default; table or fence breakage in E6/E8, or a blank line before the E10 item; missing dispatch record in `WORKLOG.md`.
