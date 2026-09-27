@@ -3,6 +3,56 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
+
+Planned #181 on `handoff/issue-181-implementation-plan` from `main` at
+`a3f7767`. Planner `claude-opus-5-5`. Refs #181.
+
+- **What landed:** `handoffs/issue-181-implementation-plan.md`. No scripts,
+  tests, fixtures, CI or `AGENTS.md` changes in this PR.
+- **Real-export measurement.** Authorised by the owner's standing permission
+  in #181. Taken on snapshot `2026-09-01T-current` (665 weapons, 893 armor,
+  28 ghosts). Aggregates only are in the plan. Nothing from the export was
+  committed; prototype outputs stayed in the session scratch directory.
+- **Decisions made:**
+  - **Owner decision (2026-09-27):** weapons `Crafted Level` is play history
+    but is kept unchanged. It feeds the crafted rail and dupe ranking, so any
+    change breaks parity. This was the only unlisted column the column
+    re-check turned up.
+  - The sanitiser audits headers against a measured allowlist and refuses
+    any unclassified column. This makes the issue's "stop-and-ask" rule hold
+    for future DIM drift.
+  - Parity compares the whole `snapshot_dict` of raw and sanitised runs,
+    under an explicit id and short-id normalisation, in both no-wishlist and
+    wishlist modes.
+  - Implementer `claude-sonnet-5` (`xhigh`), Judgement rung. Review path:
+    independent adversarial review.
+- **Surprises the next agent should know about:**
+  - **The issue body is stale in five measured ways:**
+    - Notes hold legacy *full* 19-digit ids (`kept <id>`,
+      `armor-similar to <id>`) and no short-id references.
+    - 28 ids in Notes belong to dismantled items and are in no export. They
+      are still real, so the map covers them.
+    - Two weapon `Hash` values, and one fake-id window, share an 8-digit
+      window with a real id. The literal byte check could never pass, so the
+      plan exempts runs that are exactly a fake id or a raw Hash.
+    - Loadouts cells start with an undocumented `NNNNN:` prefix and use a
+      bare `,` separator.
+    - Five loadout names equal other columns' values, so the "not a cell
+      value" check is scoped to `Loadouts` and `Notes`.
+  - A throwaway prototype showed the design works on the real snapshot:
+    - 0 leaks;
+    - parity equal in both modes (weapons 2 / 100 decisions without and with
+      wishlists; armor 394; ghosts 16);
+    - a reversed id map refused (378 decisions differ);
+    - byte-identical reruns;
+    - 648 KB output, which is not a size problem.
+  - OpenAI's models page (checked 2026-09-27) lists GPT-6 Astra/Sol/Luna and
+    no `gpt-5.6-luna`. The `handoffs/README.md` roster may be stale; this PR
+    does not edit it.
+  - The session's `gh` token lacks `read:project`, so #181's board status
+    was not verified.
+
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 
 Planned #174 on `handoff/issue-174-implementation-plan` from `main` at
