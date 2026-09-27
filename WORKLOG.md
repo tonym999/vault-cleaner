@@ -25,7 +25,9 @@ Planned #181 on `handoff/issue-181-implementation-plan` from `main` at
   - Parity compares the whole `snapshot_dict` of raw and sanitised runs,
     under an explicit id and short-id normalisation, in both no-wishlist and
     wishlist modes.
-  - Implementer `claude-sonnet-5` (`xhigh`), Judgement rung. Review path:
+  - Implementer `gpt-5.6-luna` (`high`), the Judgement rung's primary;
+    `claude-sonnet-5` (`xhigh`) is the alternative. (The first version chose
+    Sonnet on a wrong availability claim; see round 1.) Review path:
     independent adversarial review.
 - **Surprises the next agent should know about:**
   - **The issue body is stale in five measured ways:**
@@ -47,15 +49,52 @@ Planned #181 on `handoff/issue-181-implementation-plan` from `main` at
     - a reversed id map refused (378 decisions differ);
     - byte-identical reruns;
     - 648 KB output, which is not a size problem.
-  - OpenAI's models page (checked 2026-09-27) lists GPT-6 Astra/Sol/Luna and
-    no `gpt-5.6-luna`. The `handoffs/README.md` roster may be stale; this PR
-    does not edit it.
   - #181 is `Todo` on the project board, verified after the owner added
     `read:project` to the `gh` token mid-session.
   - The owner copied `data/` into the main checkout mid-session, after the
     initial check found none there. The measurement used the identical copy
     in `~/Downloads/data/`; the SHA-256s match. The plan now points at the
     repo's gitignored `data/`.
+
+### Review-fix round 1 (PR #183)
+
+Four findings: three from the owner's review of `611057c`, and two CodeRabbit
+threads, one of which duplicates an owner finding. All were verified against
+the code or source and accepted.
+
+- **P1 (owner): clause-shaped owner text could survive.** Retention used
+  `strip_trailing_tool_clauses`, whose slots admit free text. Five
+  clause-shaped private strings were confirmed to pass it, including
+  `armor-similar to <id> (private note)` and `keep [id …; my address]`.
+  - The plan now retains a segment only if it fullmatches a strict
+    12-family grammar (`RETAINED_CLAUSE_RES`) whose every slot is fixed text,
+    a number, a fake id or a closed vocabulary. Retained references drop
+    their `roll`/`spirits` parts. Measured on the real snapshot: the grammar
+    retains all 1,050 real clauses, and only `#vc-test` becomes a
+    placeholder.
+  - New tests use owner text in clause form, plus emitter-driven coverage of
+    the 12 families.
+- **P2 (owner): `<SID>` normalisation masked wrong references.** Parity now
+  requires the sanitised Notes cell to equal the transform of the raw cell
+  exactly, and the preserved prefix to commute with `strip`. It normalises
+  only the appended clause and explanations, and checks that every short id
+  truthfully renders its own decision's `kept_id` (prefix, suffix, digest).
+  Every production reference renders the `kept_id` row. A new check, L9,
+  re-derives rewritten Notes references independently. New wrong-reference
+  tests cover both.
+- **P2 (owner) + Major (CodeRabbit): the CI guard and the review fallback
+  could not see text leaks.** The guard now validates every Notes, Loadouts
+  and Kill Tracker cell and `provenance.json`. It is the single source of the
+  grammars, and the sanitiser imports them from it. The review checklist now
+  requires regeneration from the raw snapshot, with no fallback.
+- **Minor (CodeRabbit): `gpt-5.6-luna` availability.** The finding was right
+  and the planning claim wrong. OpenAI's per-model page lists `gpt-5.6-luna`
+  with efforts `none` to `max`; the planning check read only the models index
+  summary. The implementer reverts to the rung primary, `gpt-5.6-luna`
+  (`high`), and the "roster may be stale" claim is removed here and from the
+  plan.
+- No scripts, tests, fixtures, CI or `AGENTS.md` changed in this PR; only
+  the plan and this entry.
 
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 
