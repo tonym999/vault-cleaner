@@ -96,6 +96,35 @@ the code or source and accepted.
 - No scripts, tests, fixtures, CI or `AGENTS.md` changed in this PR; only
   the plan and this entry.
 
+### Review-fix round 2 (PR #183)
+
+The owner re-reviewed `cfd5306`: the round-1 fixes resolve two of the three
+earlier findings, and CodeRabbit resolved both round-1 threads after checking
+them. Two new findings.
+
+- **P1 (owner) + Major (CodeRabbit), the same finding: owner numbers pass
+  the clause grammar.** Confirmed. The round-1 grammar retained
+  `armor-similar to <id> (max stat delta 3141592, total 1)`, because its
+  numeric slots were unbounded. Input numbers and reference parts reflect
+  historic vault state and cannot be verified as tool-generated.
+  - The plan now builds two forms from one set of family templates:
+    `INPUT_CLAUSE_RES` recognises a clause, and the sanitiser writes only the
+    canonical `RETAINED_CLAUSE_RES`. Every numeric slot becomes `0`, and
+    every reference becomes `[id <short_id(fake)>]`. The CI guard accepts
+    only the canonical form.
+  - Measured on the real snapshot: all 1,050 real clauses canonicalise, and
+    remain full clauses to `strip_trailing_tool_clauses`, so strip behaviour
+    and parity are unchanged.
+  - New planted owner-number cases, in both the sanitiser and the guard.
+  - Accepted residual: a kept clause still shows which closed-vocabulary word
+    was chosen.
+- **Minor (CodeRabbit): the short-id normaliser misses non-numeric
+  tokens.** Not applicable. `short_id` emits letters only for non-decimal
+  ids, and the sanitiser refuses those before parity. A non-numeric token in
+  raw Notes fails the input grammar, so its clause becomes a placeholder.
+  The plan now states this invariant and tests it; the pattern is unchanged.
+- Plan and this entry only.
+
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 
 Planned #174 on `handoff/issue-174-implementation-plan` from `main` at

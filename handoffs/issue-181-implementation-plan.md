@@ -205,10 +205,12 @@ went to the session's scratch directory, and no output was committed.
 The whole sanitised export is committed; 648 KB is not a size problem (the
 repository pack is 6.0 MiB).
 
-The prototype predates review-fix round 1. It retained clauses using the
-recogniser and compared short ids with `<SID>` only. Round 1 measured the
-strict grammar separately: it retains all 1,050 real clauses, so the
-prototype's retention and parity results still hold. Reference
+The prototype predates review-fix rounds 1 and 2. It retained clauses using
+the recogniser, copied their numbers, and compared short ids with `<SID>`
+only. Round 2 measured the final grammar separately: all 1,050 real clauses
+are recognised, and after canonicalisation they are still full clauses to
+`strip_trailing_tool_clauses`. Strip behaviour is therefore unchanged, so
+the prototype's retention and parity results still hold. Reference
 truthfulness (3(d)) was not prototyped. Every real reference is a legacy
 full id, which the id map, not `<SID>`, checks.
 
@@ -228,9 +230,10 @@ silent privacy failure, so the Bounded rung is not chosen.
   `low`, `medium` (default), `high`, `xhigh` and `max`.
 - Permitted alternative on the same rung: `claude-sonnet-5` (`xhigh`).
 - The orchestrator may re-select under `handoffs/README.md`.
-- Review-fix round 1 widened the specification (a strict clause grammar,
-  reference-truthfulness checks, a text-validating CI guard) but settled
-  every design choice. The rung is unchanged.
+- Review-fix rounds 1 and 2 widened the specification (a two-form clause
+  grammar with canonical re-rendering, reference-truthfulness checks, a
+  text-validating CI guard) but settled every design choice. The rung is
+  unchanged.
 
 ## Dependencies and assumptions
 
@@ -259,15 +262,17 @@ silent privacy failure, so the Bounded rung is not chosen.
      subsumes it (decisions, armor exact and same-stat groups, evaluations,
      per-section counts). Every short id that parity normalises must also be
      a truthful rendering of its decision's `kept_id`.
-  7. "Keep `#vc-` clauses" is narrowed to clauses that fullmatch the strict
-     retained-clause grammar below. Anything else, including owner text
-     written in clause form, becomes a placeholder. Retained current-format
-     references drop their `roll …` and `spirits …` parts.
+  7. "Keep `#vc-` clauses" is narrowed to clauses that match the strict
+     clause grammar below, and each kept clause is re-rendered in canonical
+     form: every numeric slot becomes `0`, and every reference becomes
+     `[id <short_id(fake)>]`. Anything else, including owner text written in
+     clause form, becomes a placeholder.
 
-  Deviation 7 comes from PR #183 review. `strip_trailing_tool_clauses`
-  accepts arbitrary text in its free slots, for example
-  `#vc-review: armor-similar to <id> (private note)`, so it cannot decide
-  what is safe to keep.
+  Deviation 7 comes from PR #183 review, rounds 1 and 2.
+  `strip_trailing_tool_clauses` accepts arbitrary text in its free slots,
+  for example `#vc-review: armor-similar to <id> (private note)`, so it
+  cannot decide what is safe to keep. Numeric slots can carry owner-typed
+  numbers that cannot be verified, for example `max stat delta 3141592`.
 - **Wishlist-mode parity needs the owner's caches or network.**
   `run_report` resolves `wishlists/` and `data/cache/` relative to the
   working directory (`config.toml` `[paths]`;
@@ -302,32 +307,41 @@ sanitiser's writing rules and CI's acceptance rules therefore cannot drift.
   `(?:note [0-9]+\.[0-9]+(?:, x)?(?: "q")?)?(?:\n(?:note [0-9]+\.[0-9]+(?:, x)?(?: "q")?)?)*`,
   non-empty.
 - `LOADOUTS_RE = r"Loadout [1-9][0-9]*(?:,Loadout [1-9][0-9]*)*"`.
-- `RETAINED_CLAUSE_RES`: the **retained-clause grammar**, one fullmatch
-  pattern per clause family. The building blocks:
+- **Clause grammar: two compiled forms of one set of family templates.**
+  - `INPUT_CLAUSE_RES` is permissive in numeric and reference slots. The
+    sanitiser uses it only to *recognise* a candidate clause.
+  - `RETAINED_CLAUSE_RES` is canonical. The sanitiser *writes* this form,
+    and it is the only form L5 and the CI guard accept.
 
-  | Name | Pattern |
-  |---|---|
-  | `SID` | `…[0-9]{4}` (always the form `short_id(fake)` renders with no distinguishing group) |
-  | `N` | `[0-9]+` |
-  | `SCORE` | `-?[0-9]+(?:\.[0-9]+)?` |
-  | `STAT` | `(?:weapons\|health\|class\|grenade\|super\|melee)` |
-  | `TUNING` | `(?:Weapons\|Health\|Class\|Grenade\|Super\|Melee\|none/unknown)` |
-  | `CLASS` | `(?:hunter\|titan\|warlock)` |
-  | `SLOT` | `(?:helmet\|gauntlets\|chest armor\|leg armor\|hunter cloak\|titan mark\|warlock bond)` |
-  | `ARCH` | the twelve Destiny archetypes of [armor-archetypes.md](../docs/armor-archetypes.md#L33-L44), lowercase, or `no archetype` |
-  | `PROFILE` | `(?:melee_primary)`: an explicit allowlist, not an identifier pattern |
-  | `LOC` | `(?:Vault\|(?:Hunter\|Titan\|Warlock)\([0-9]+\))` |
-  | `REF` | `\[id SID(?:; location LOC)?(?:; Tier N)?(?:; MWN)?(?:; crafted lvN)?(?:; power N)?\]` (`MWN` is `MW` directly followed by `N`, e.g. `MW10`) |
-  | `EXACT` | `(?:dupe-(?:lower\|tie)\|armor-exact-dupe(?:-tie)?\|armor-exotic-class-dupe)(?: \((?:loadout\|locked\|exotic)\))?` |
-  | `WINNER` | the closed list at [note_history.py:21-26](../src/vault_cleaner/note_history.py#L21-L26) |
-  | `SCOREC` | `armor-score SCORE < floor SCORE \(best: PROFILE, rank N/N CLASS SLOT\)` ([armor.py:187-191](../src/vault_cleaner/rules/armor.py#L187-L191)) |
+  Both are built from the same templates, one per family, so the two forms
+  cannot drift. The slot types:
 
-  The clause families:
+  | Slot | `INPUT_CLAUSE_RES` | `RETAINED_CLAUSE_RES` |
+  |---|---|---|
+  | `N` (count, rank, delta, total, surplus, curated matches) | `[0-9]+` | `0` |
+  | `SCORE` (armor score, floor) | `-?[0-9]+(?:\.[0-9]+)?` | `0` |
+  | `ID` (legacy full id, already mapped) | `FAKE_ID` | `FAKE_ID` |
+  | `REF` | `\[id RAWSID(?:; [^;\]\r\n]*)*\]` | `\[id …[0-9]{4}\]` |
+  | `STAT` | `(?:weapons\|health\|class\|grenade\|super\|melee)` | same |
+  | `TUNING` | `(?:Weapons\|Health\|Class\|Grenade\|Super\|Melee\|none/unknown)` | same |
+  | `CLASS` | `(?:hunter\|titan\|warlock)` | same |
+  | `SLOT` | `(?:helmet\|gauntlets\|chest armor\|leg armor\|hunter cloak\|titan mark\|warlock bond)` | same |
+  | `ARCH` | the twelve Destiny archetypes of [armor-archetypes.md](../docs/armor-archetypes.md#L33-L44), lowercase, or `no archetype` | same |
+  | `PROFILE` | `(?:melee_primary)`: an explicit allowlist, not an identifier pattern | same |
+  | `EXACT` | `(?:dupe-(?:lower\|tie)\|armor-exact-dupe(?:-tie)?\|armor-exotic-class-dupe)(?: \((?:loadout\|locked\|exotic)\))?` | same |
+  | `WINNER` | the closed list at [note_history.py:21-26](../src/vault_cleaner/note_history.py#L21-L26) | same |
 
-  1. `#vc-(?:junk|review): EXACT, kept FAKE_ID` (legacy)
+  `RAWSID` is the short-id token pattern
+  `[0-9]*…[0-9]+(?:~[0-9a-f]+-[0-9a-f]{8})?`. The template
+  `SCOREC = armor-score SCORE < floor SCORE \(best: PROFILE, rank N/N CLASS SLOT\)`
+  follows [armor.py:187-191](../src/vault_cleaner/rules/armor.py#L187-L191).
+
+  The family templates:
+
+  1. `#vc-(?:junk|review): EXACT, kept ID` (legacy)
   2. `#vc-(?:junk|review): EXACT; keep REF; winner WINNER(?:; Candidate Tuning Mod Slot: TUNING; Survivor Tuning Mod Slot: TUNING)?`
-  3. `#vc-review: armor-similar to FAKE_ID \((?:identical stats(?:, tuning STAT vs STAT)?|max stat delta N, total N)\)` (legacy)
-  4. `#vc-review: armor-dominated by FAKE_ID \(\+N total\)` (legacy)
+  3. `#vc-review: armor-similar to ID \((?:identical stats(?:, tuning STAT vs STAT)?|max stat delta N, total N)\)` (legacy)
+  4. `#vc-review: armor-dominated by ID \(\+N total\)` (legacy)
   5. `#vc-review: armor-dominated by; compare REF; \+N total; partner (?:largest stat surplus|deterministic id tie-break)(?:; Candidate Tuning Mod Slot: TUNING; Partner Tuning Mod Slot: TUNING)?`
   6. `#vc-review: armor-similar to; compare REF; (?:identical stats|max stat delta N, total N); partner (?:closest stat distance|deterministic id tie-break)(?:; Candidate Tuning Mod Slot: TUNING; Partner Tuning Mod Slot: TUNING)?` ([armor_close.py:59-62](../src/vault_cleaner/rules/armor_close.py#L59-L62))
   7. `#vc-review: coverage-(?:dominated by|uncovered vs); compare REF; curated matches N vs N; partner (?:largest coverage gain|most curated matches|most combinations|deterministic id tie-break)`
@@ -337,14 +351,38 @@ sanitiser's writing rules and CI's acceptance rules therefore cannot drift.
   11. `#vc-review: armor-last-archetype \(ARCH\), SCOREC`
   12. `#vc-junk: ghost-unprotected-surplus`
 
-  Every slot is a fixed string, a number, a fake id, a fake short id or a
-  closed vocabulary. None admits free text.
+  **Why canonicalise (PR #183 round 2).** Numeric and reference payloads
+  in input Notes reflect historic vault state, so the sanitiser cannot
+  verify them as tool-generated. An owner-typed
+  `armor-similar to <id> (max stat delta 3141592, total 1)` fits the
+  family's shape. So no input number, and no reference part other than the
+  rewritten id, is ever written:
+  - every numeric slot becomes `0`;
+  - every reference becomes `[id <short_id(fake)>]`;
+  - the only copied slots are fixed words from the closed vocabularies.
 
-  Measured in the round-1 review fix: with ids already mapped, this grammar
-  retains **all 1,050** real `#vc-` segments. Only the `#vc-test: …` segment
-  fails, and it becomes a placeholder as intended. Every retained clause is
-  also accepted by `strip_trailing_tool_clauses`, because the grammar is a
-  subset of that recogniser. A test pins this.
+  In a retained clause, the only digits are generated ones: fake ids,
+  checked by L3/L4, and their 4-digit short ids, re-derived by L9.
+  Residual channel, accepted: which vocabulary word was chosen (e.g. one of
+  twelve archetypes), a few bits and not identifying.
+
+  Canonical forms are still full clauses to `strip_trailing_tool_clauses`
+  (its patterns take `[0-9]+` numbers and a free `[...]` body), so strip
+  behaviour, and therefore parity, is unchanged. A test pins this subset
+  relation for every family.
+
+  **Non-numeric short-id tokens** (a CodeRabbit round-2 question). `short_id`
+  emits letters only for non-decimal ids, and the sanitiser refuses every
+  non-decimal export id before parity runs. So every token that `N` or L9
+  meets is decimal. A raw Notes token such as `[id …AB12` does not match
+  `RAWSID`, so its clause matches no input form and becomes a placeholder
+  (fail-closed).
+
+  **Measured in round 2** on the real snapshot, with ids already mapped:
+  - all **1,050** real `#vc-` segments match `INPUT_CLAUSE_RES`;
+  - after canonicalisation, all 1,050 match `RETAINED_CLAUSE_RES` and are
+    accepted by `strip_trailing_tool_clauses`;
+  - only the `#vc-test: …` segment becomes a placeholder.
 
 ### Sanitiser
 
@@ -405,12 +443,18 @@ future DIM drift.
    work on the stripped body. Empty bodies pass through.
 3. A body that starts with `#vc-` is a clause candidate:
    - replace every maximal digit run of length ≥ 16 with its fake;
-   - in every `[...]` reference, rewrite the short-id token (next step) and
-     drop every `; `-separated part that begins `roll ` or `spirits `. These
-     parts carry perk names, which the grammar cannot vouch for;
-   - keep the result only if it fullmatches one of `RETAINED_CLAUSE_RES`;
-   - otherwise replace the **whole** body with a placeholder. The
-     recogniser `strip_trailing_tool_clauses`
+   - fullmatch the result against `INPUT_CLAUSE_RES`. If no family matches,
+     replace the **whole** body with a placeholder;
+   - if a family matches, **re-render** the clause from that family's
+     `RETAINED_CLAUSE_RES` form. Closed-vocabulary words and fake ids are
+     copied from the match; every `N` and `SCORE` slot is written as `0`;
+     every `REF` is written as `[id <short_id(fake)>]`, with the token
+     resolved as in the next step and every other reference part dropped
+     (`location`, `Tier`, `MW`, `crafted lv`, `power`, `roll`, `spirits`).
+     Never copy a numeric or reference payload from the input;
+   - assert that the re-rendered clause fullmatches its
+     `RETAINED_CLAUSE_RES` pattern;
+   - the recogniser `strip_trailing_tool_clauses`
      ([note_history.py:87-104](../src/vault_cleaner/note_history.py#L87-L104))
      must not be used to decide retention: it accepts free text in its
      slots.
@@ -666,14 +710,27 @@ beginning `69`; they are invented. Parity runs in tests use
   - `#vc-review: armor-similar to <id> (private note)`;
   - `#vc-junk: dupe-lower, kept secret-text`;
   - `#vc-junk: armor-score 1 < floor 2 (best: my secret, rank 1/2 anything)`;
-  - `#vc-review: armor-last-archetype (private words), armor-score …`;
-  - `#vc-junk: dupe-lower; keep [id …1234; my address]; winner lock`.
+  - `#vc-review: armor-last-archetype (private words), armor-score …`.
 
   The planning session confirmed that `strip_trailing_tool_clauses` accepts
   every one of them;
-- a current-format `keep [id …NNNN; location Vault; …; roll A / B]` resolves
-  to `short_id(fake)` and loses its `roll` part. An ambiguous token gets a
-  fresh fake with no digest left;
+- **owner numbers and reference payloads never survive (round 2).** Each
+  clause keeps its family but comes out canonical:
+  - `#vc-review: armor-similar to <id> (max stat delta 3141592, total 1)`
+    becomes `… (max stat delta 0, total 0)`;
+  - `#vc-review: coverage-dominated by; compare [id …NNNN]; curated matches
+    123456789 vs 1; partner largest coverage gain` becomes `… curated
+    matches 0 vs 0 …`;
+  - `#vc-junk: armor-score 64.2857 < floor 65 (best: melee_primary, rank
+    7/9 titan helmet)` becomes `armor-score 0 < floor 0 (… rank 0/0 …)`;
+  - `#vc-junk: dupe-lower; keep [id …1234; my address]; winner lock`
+    becomes `keep [id <short_id(fake)>]` with the address dropped.
+
+  Assert that no input digit other than a mapped id's survives;
+- a current-format `keep [id …NNNN; location Vault; Tier 5; MW10; roll A /
+  B]` resolves to `[id <short_id(fake)>]`, and every other part is dropped.
+  An ambiguous token gets a fresh fake with no digest left. A non-numeric
+  token (`[id …AB12]`) makes the whole clause a placeholder;
 - **grammar coverage and subset:**
   - every one of the 12 clause families has at least one example produced by
     the production emitter. Run the passes on synthetic 19-digit-id copies of
@@ -681,8 +738,9 @@ beginning `69`; they are invented. Parity runs in tests use
     each decision's appended clause through `sanitize_notes` as input Notes,
     and assert it is retained, not replaced. Use a handwritten example only
     for a family that no fixture reaches, and name it in the test;
-  - every retained example is also accepted by
-    `strip_trailing_tool_clauses`;
+  - every retained (canonical) example matches `RETAINED_CLAUSE_RES` and is
+    also accepted by `strip_trailing_tool_clauses`. Both forms of each family
+    come from the same template;
 - loadouts keep token count, including the `NNNNN:` prefix token, and empty
   stays empty;
 - Kill Tracker becomes `0`;
@@ -706,6 +764,8 @@ transform so the leak survives:
 - `sanitize_notes` returns owner text (L5 refuses);
 - `sanitize_notes` keeps a clause-shaped owner note such as
   `armor-similar to <fake> (private note)` (L5 refuses);
+- `sanitize_notes` copies numeric payloads instead of canonicalising, for
+  example `max stat delta 3141592, total 1` (L5 refuses);
 - `sanitize_loadouts` returns the input (L6 refuses);
 - Kill Tracker is left unchanged (L7 refuses);
 - the short-id rewriter renders a **wrong** fake, a real but different one
@@ -756,14 +816,18 @@ row counts and SHA-256s.
   - with every id marked, each of these fails:
     - raw multi-line owner text in `Notes`;
     - a clause-shaped owner note (`armor-similar to <fake> (private note)`);
+    - an owner number in a numeric slot (`armor-similar to <fake> (max stat
+      delta 3141592, total 1)`, `curated matches 123456789 vs 1`, and a
+      non-zero `armor-score`);
+    - a reference with any part besides `id` (`[id …0001; location Vault]`);
     - a raw loadout name in `Loadouts`;
     - a non-zero `Kill Tracker`;
     - a `provenance.json` with an extra key, or a wrong row count;
   - a stray file fails;
   - a missing root passes;
   - the sanitiser uses the guard's grammar objects: the loaded module's
-    `RETAINED_CLAUSE_RES` and `ID_MARKER` are the guard's own objects, not
-    copies.
+    `INPUT_CLAUSE_RES`, `RETAINED_CLAUSE_RES` and `ID_MARKER` are the
+    guard's own objects, not copies.
 - No rule-decision assertions on the real fixtures (out of scope).
 
 ### Documentation
@@ -880,8 +944,9 @@ Stop implementation and return to the orchestrator if:
 - a planted-leak or mapping-error test cannot be made to fail when its check
   is bypassed;
 - a real `#vc-` segment other than the `#vc-test: …` one fails
-  `RETAINED_CLAUSE_RES`, or a production-emitted clause family cannot be
-  retained. Do not widen the grammar with a free-text slot;
+  `INPUT_CLAUSE_RES`, or a production-emitted clause family cannot be
+  retained. Do not widen the grammar with a free-text slot, and never let a
+  canonical slot accept anything but `0` or the rewritten id;
 - parity check 3(d) fails on the **raw** side, which would mean a reference
   does not render its decision's `kept_id`.
 
@@ -900,11 +965,14 @@ Escalation route: `implementer → orchestrator → planner`.
    wrong references. The comparator must equal the specification above.
 3. **Clause retention decided by the recogniser.** Retaining a segment
    because `strip_trailing_tool_clauses` accepts it, or a grammar slot
-   loosened to `[^…]+`, lets clause-shaped owner text through. Retention must
-   be `RETAINED_CLAUSE_RES` only.
+   loosened to `[^…]+`, lets clause-shaped owner text through. So does
+   copying a numeric or reference payload from the input instead of
+   re-rendering it canonically. Recognition must be `INPUT_CLAUSE_RES`, and
+   output must be the canonical `RETAINED_CLAUSE_RES` form.
 4. **Leak in a side channel.** Real ids, Notes text or loadout names printed
    in refusal messages or exceptions; Notes-only ids left unmapped; a
-   short-id digest or `roll`/`spirits` part kept; or `provenance.json`
+   short-id digest, a numeric payload or a reference part other than `id`
+   kept; or `provenance.json`
    carrying more than specified.
 5. **CI guard that cannot see the failure.** A guard that validates only
    ids misses raw owner Notes or loadout names while every id is marked. The
@@ -929,7 +997,7 @@ Rules:
 - confirm the raw snapshot's SHA-256s match the plan before running the sanitiser; never print or commit raw rows, real ids, Notes text or loadout names, and never commit anything under `data/`;
 - generate the committed fixtures only by running `python scripts/sanitize_export.py <snapshot_dir>` from the repository root, with both parity modes;
 - for every planted-leak, mapping-error and wrong-reference test, show it fails with its check bypassed, then restore;
-- decide clause retention with `RETAINED_CLAUSE_RES` from `scripts/check_real_fixtures.py` only, never with `strip_trailing_tool_clauses`;
+- recognise clauses with `INPUT_CLAUSE_RES` and write only their canonical `RETAINED_CLAUSE_RES` form (numeric slots `0`, references `[id …NNNN]`), both from `scripts/check_real_fixtures.py`; never decide retention with `strip_trailing_tool_clauses`, and never copy an input number or reference part;
 - update `WORKLOG.md` with a dated entry;
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `python3 scripts/check_real_fixtures.py`, `git diff --check origin/main...HEAD`, and `git ls-files data/` (must print nothing);
 - commit and push the implementation branch; and
@@ -968,10 +1036,10 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] No file under `src/` changed; `RULESET_VERSION` and `SNAPSHOT_SCHEMA_VERSION` unchanged; `git ls-files data/` empty.
 - [ ] **Required, no fallback:** the reviewer regenerates the fixtures from the raw snapshot in the owner's gitignored `data/in/2026-09-01T-current/`, after confirming the plan's SHA-256s, running the reviewed head's sanitiser with the committed `--run-date` and both parity modes. The committed files must be byte-identical to the output. If the snapshot is unavailable, the review is incomplete: report it and do not substitute `check_real_fixtures`.
 - [ ] `check_real_fixtures` passes on the committed tree and rejects the planted cases (owner Notes, clause-shaped owner note, loadout name, non-zero Kill Tracker, bad provenance, unmarked id), with every id marked.
-- [ ] A byte scan of the committed fixtures finds no ≥ 16-digit run without the `1000` marker, no short-id digest (`~…-xxxxxxxx`), no `roll`/`spirits` reference part, no Notes segment outside `RETAINED_CLAUSE_RES`/`PLACEHOLDER_RE`, and no Loadouts cell outside `LOADOUTS_RE`.
+- [ ] A byte scan of the committed fixtures finds no ≥ 16-digit run without the `1000` marker, no short-id digest (`~…-xxxxxxxx`), no reference part other than `id`, no non-zero numeric slot in a retained clause, no Notes segment outside `RETAINED_CLAUSE_RES`/`PLACEHOLDER_RE`, and no Loadouts cell outside `LOADOUTS_RE`.
 - [ ] Column audit allowlists match the measured headers exactly; an unclassified column refuses.
 - [ ] Notes-only ids are in the map; short-id rewriting never keeps a digest; L9 re-derives references independently of the rewriter.
-- [ ] Clause retention uses `RETAINED_CLAUSE_RES` only, defined once in `check_real_fixtures.py`; no slot admits free text; the 12 families have emitter-driven coverage; the grammar is a subset of `strip_trailing_tool_clauses`.
+- [ ] Clauses are recognised with `INPUT_CLAUSE_RES` and re-rendered canonically: numeric slots `0`, references `[id …NNNN]` only, no payload copied from the input. Both forms come from one set of templates in `check_real_fixtures.py`; no slot admits free text; the 12 families have emitter-driven coverage; the canonical forms are a subset of `strip_trailing_tool_clauses`. The owner-number planted cases fail in both the sanitiser and the guard.
 - [ ] L1–L9, P and F exist as specified, and exemptions are exactly "whole fake id" and "whole raw Hash value".
 - [ ] The parity comparator matches the specification: whole snapshot, only the three digest/path drops, `N` only on appended clauses and explanations, 3(a)–3(d) all enforced; the wrong-reference tests fail with 3(d) bypassed.
 - [ ] Every planted-leak and mapping-error test has bypass evidence.
