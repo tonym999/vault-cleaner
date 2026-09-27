@@ -3,6 +3,45 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #174 plan Amendment 2: accepted limitation #185
+
+Amended `handoffs/issue-174-implementation-plan.md` again, on
+`handoff/issue-174-implementation-plan` from `main` at `34dd6d4`. Planner
+`claude-opus-5-5`, the same session that orchestrates #174. Refs #174.
+
+- **What landed:** Amendment 2 in the plan, and corrections to Amendment 1's
+  claim that "the survivor path is the only one left". No product code,
+  tests, schemas, rules or versions changed in this PR.
+- **Trigger:** the independent review of Amendment 1 at `ba3e061` (P2) found
+  a pre-existing chain inside coverage. A hard-protected dupe loser `H`
+  stays undecided and gains keep matches after the tracker. Coverage skips
+  same-roll partners, so `A` is paired with `B`, and `H` then dominates `B`.
+  `A`'s `kept_id` names a proposed copy. The orchestrator reproduced both
+  variants at `ba3e061` and on `main`.
+- **Decisions made (owner, 2026-09-27):**
+  - Accept the chain as a known limitation of #174, surfaced rather than
+    suppressed. Both decisions are review-only, `H` is never proposed, the
+    #170 also-proposed caveat flags `A`, and the real export has 0 cases.
+    Fixing it would hide `A`'s proposal.
+  - Opened #185 for the fix (bug, M3, depends on #174 in text and as a
+    GitHub dependency), together with the deferred matching-scope question.
+    Opened #186 for the armor side (bug, M6). Both are on the board as Todo.
+  - Amendment 2 narrows PLAN.md rule 4 and `docs/weapon-coverage.md`, and
+    pins the chain in a named test rather than as a sweep exception. It
+    merges `main` once to clear the `WORKLOG.md` conflict. No production
+    change, so the review path may be standard if the merge and `src/`
+    checks pass.
+- **Surprises the next agent should know about:**
+  - Amendment 1's "no strict superset" argument assumed every coverage
+    member is an eligible partner. Coverage excludes same-roll copies, and
+    hard-protected dupe losers get no decision, so a superset can sit
+    outside the partner list. Both surprises on this ticket came from
+    reasoning about one pass in isolation.
+  - The implementer's round-2 summary misquoted the PLAN.md sentence,
+    although the committed text was verbatim. Treat summaries as intent and
+    check the tree. The Amendment 2 prompt now asks for quotes taken from the
+    committed files.
+
 ## 2026-09-27 — #174 plan Amendment 1: dupe survivors partner-only in coverage
 
 Amended `handoffs/issue-174-implementation-plan.md` on
