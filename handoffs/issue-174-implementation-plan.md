@@ -24,7 +24,7 @@
 
 **Amendment 2:** 2026-09-27, on the implementation branch head
 `ba3e06117f64fe36d660692c99acec9217f1dbfc`. Planner `claude-opus-5-5`. See
-[Amendment 2](#amendment-2-accepted-limitation-185-and-worklog-merge).
+[Amendment 2](#amendment-2-accepted-limitation-185-and-worklogmd-merge).
 
 The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
 
