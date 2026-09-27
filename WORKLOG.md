@@ -208,6 +208,42 @@ Refs #174.
       `data/in/2026-09-01T-current/weapons.csv`: 665 weapons, 101 decisions,
       13 keep/trash conflicts, 0 `kept_id` violations, 0 decisions changed
       (identical to planning table and round 1).
+- **Review-fix round 3 (Amendment 2):**
+  - **Dispatch record:**
+    - orchestrator claude-opus-5-5 (effort not exposed by runtime);
+    - plan (Amendment 2, merged in #187 at f146df0) selects gemini-3.8-flash
+      (high); actual implementer gemini-3.8-flash (high), no re-selection;
+    - launched manually by the owner (manual cross-provider execution: the
+      orchestrator runtime cannot instantiate Gemini); launch surface:
+      Antigravity;
+    - expected starting head: fix/issue-174-trash-survivor at
+      ba3e06117f64fe36d660692c99acec9217f1dbfc.
+  - **What changed:**
+    - Merged `origin/main` into the branch (merge commit `8083c4b`), resolving
+      `WORKLOG.md` by placing `main`'s 2026-09-27 planning entries above the
+      branch's 2026-09-26 #174 implementation entry.
+    - `PLAN.md`: updated rule 4 verbatim to state that coverage never proposes
+      a copy an earlier pass says to keep, and recorded known limitation #185
+      for the same-roll hard-copy chain.
+    - `docs/weapon-coverage.md`: added bullet under section 4 documenting known
+      limitation #185 verbatim per Amendment 2.
+    - `tests/test_weapons_rules.py`: added
+      `test_known_limitation_185_same_roll_hard_copy_chain` pinning both
+      dominated and uncovered variants with verbatim comment, and added the
+      known exception comment above `test_no_kept_id_is_itself_decided`.
+    - No changes to any file under `src/`, schemas, or ruleset version.
+  - **Owner's acceptance of #185:**
+    - On 2026-09-27 the owner accepted the same-roll coverage chain as a known
+      limitation of #174, surfaced rather than suppressed. Both decisions are
+      review-only, the hard-protected copy is never proposed, and the #170
+      also-proposed caveat flags the proposal in the report. Fix tracked in
+      #185 (with #186 for armor).
+  - **Verification:**
+    - `.venv/bin/ruff check src tests scripts` passed.
+    - `.venv/bin/pytest -q` passed (1123 passed).
+    - `git diff --check origin/main...HEAD` passed.
+    - `git ls-files data/` empty.
+    - `git merge-tree --write-tree origin/main HEAD` clean.
 
 ## 2026-09-26 — #174 planning: dupe survivor proposed as wishlist trash (PR 1)
 

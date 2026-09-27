@@ -549,6 +549,54 @@ def test_dupe_survivor_remains_coverage_partner():
     assert "coverage-dominated by" in decisions[1].note
 
 
+def test_known_limitation_185_same_roll_hard_copy_chain():
+    # Known limitation (#185), accepted in #174: H shares A's exact roll but
+    # gains curated matches after the tracker, so coverage pairs A with B and
+    # then proposes B against H. Update this test when #185 lands.
+    wl_dom = parse_wishlist(
+        "dimwishlist:item=500&perks=1\n"
+        "dimwishlist:item=500&perks=1,2\n"
+        "dimwishlist:item=500&perks=1,2,4"
+    )
+    weapons_dom = df(
+        weapon("A", 500, perks=["Perk A"], **{"Masterwork Tier": "10"}),
+        weapon(
+            "H", 500, perks=["Perk A"], Tag="favorite",
+            **{"Perks 7": "Perk B", "Perks 8": "Nail, Meet Hammer"},
+        ),
+        weapon("B", 500, perks=["Perk A", "Perk B"]),
+    )
+    decisions_dom = run(weapons_dom, wl_dom, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions_dom] == [
+        ("A", "review", "B"),
+        ("B", "review", "H"),
+    ]
+    assert "coverage-dominated by" in decisions_dom[0].note
+    assert "coverage-dominated by" in decisions_dom[1].note
+    assert decisions_dom[0].explanation is not None
+
+    wl_unc = parse_wishlist(
+        "dimwishlist:item=600&perks=1\n"
+        "dimwishlist:item=600&perks=1,2"
+    )
+    weapons_unc = df(
+        weapon("A", 600, perks=["Bad Perk"], **{"Masterwork Tier": "10"}),
+        weapon(
+            "H", 600, perks=["Bad Perk"], Tag="favorite",
+            **{"Perks 7": "Perk A", "Perks 8": "Perk B"},
+        ),
+        weapon("B", 600, perks=["Perk A"]),
+    )
+    decisions_unc = run(weapons_unc, wl_unc, PERK_MAP, 10).decisions
+    assert [(d.id, d.action, d.kept_id) for d in decisions_unc] == [
+        ("A", "review", "B"),
+        ("B", "review", "H"),
+    ]
+    assert "coverage-uncovered vs" in decisions_unc[0].note
+    assert "coverage-dominated by" in decisions_unc[1].note
+    assert decisions_unc[0].explanation is not None
+
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _WEAPON_FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("weapons*.csv"))
 _COV_TEXT = (FIXTURES_DIR / "wishlist_coverage.txt").read_text(encoding="utf-8")
@@ -667,6 +715,8 @@ _INVARIANT_PARAMS = [
 ]
 
 
+# Known exception: the #185 chain, pinned in
+# test_known_limitation_185_same_roll_hard_copy_chain.
 @pytest.mark.parametrize("weapons_source,wl,perk_map", _INVARIANT_PARAMS)
 def test_no_kept_id_is_itself_decided(weapons_source, wl, perk_map):
     if callable(weapons_source):
