@@ -119,7 +119,7 @@ Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
   `tests/fixtures/real/<snapshot>/` — squarely in scope — breaks that
   existing test's non-recursive fixture walk, so leaving it unfixed would
   have left the suite red. The orchestrator accepted it as unavoidable
-  collateral pending the owner's acknowledgement.
+  collateral; the owner acknowledged it on 2026-10-02.
 
 ### Review-fix round 1 (orchestrator + independent review of `f25c019`)
 
