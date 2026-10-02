@@ -76,6 +76,52 @@ an entry; both entries are kept, with this one on top. #198 changed
 at `40c1c91`: the trial still gives +21/−12, and the time-bound sweep found
 no new hits.
 
+### Review-fix round 1 (PR #197, 2026-10-02)
+
+Four findings at `1bb7a65`: two from the owner and two from CodeRabbit. All
+were verified against the code or Anthropic's pages and accepted. The
+planner also found one more stale line.
+
+- **P2 (owner): stale `PLAN.md:174` contract sentence.** It said the
+  browser/server boundary "still needs a contract … Specify them before
+  implementation". The server validates each request strictly and binds
+  verdict and finalize requests to report revision, verdict revision and
+  fingerprint (`server/app.py:184-258`); seven `tests/test_server_*.py` suites
+  pin the schemas. Added E11, which keeps the risk and states the current
+  mitigation. The sweep missed it because its keyword list had neither
+  `still` nor `before implementation`. Both terms are added, and PLAN.md
+  *Non-goals* and *Risks* were then read in full.
+- **P2 (owner): E8 used neither form the issue allowed.** It kept a partial
+  module tree plus a note that other modules exist. E8 now uses the pointer
+  form: one `src/vault_cleaner/` line. PLAN.md's prose already names the
+  modules it relies on.
+- **Minor (CodeRabbit): Sonnet 5.5 missing.** `claude-sonnet-5-5` was not
+  listed at the 2026-09-27 verification. On 2026-10-02 it is current
+  (default `high`, levels "recalibrated" from Sonnet 5), and Sonnet 5 is
+  legacy, still available.
+  - Owner decision: swap the five roster and ladder IDs (E12) and keep
+    their effort levels.
+  - E13 splits the catalog row into a 5.5 row and a legacy row. E3's
+    verified date becomes 2026-10-02.
+  - The fallback implementer becomes `claude-sonnet-5-5` (`medium`), per
+    Anthropic's guidance for well-specified agentic coding.
+- **Minor (CodeRabbit): WORKLOG scope check.** The checklist only checked
+  that an entry exists. It now requires a `--numstat` diff with 0 deletions
+  and exactly one added `## ` heading. The worklog edit is now labelled `W`,
+  so adding content edits never renumbers it again.
+- **Planner (F11): `PLAN.md:77` "fixture CSVs with fake items".** #181's
+  `tests/fixtures/real/` made this false. It is fixed inside E8.
+- **Trial at `40c1c91`:** E1–E13 apply once each (E12: exactly five tokens
+  above the catalog heading), 4 files, +23/−26, `git diff --check` clean.
+- **Surprises the next agent should know about:**
+  - The catalog went stale within a day of verification (Sonnet 5.5). This
+    is direct evidence for #191's per-row `verified` dates and re-verifying
+    at dispatch.
+  - Three of the five fixes (F9, F11 and the Sonnet change) were caused by
+    the world moving after the plan was written, not by planning errors. A
+    fully verbatim plan needs re-verifying against `main` right before
+    dispatch, not only when it is written.
+
 ## 2026-09-27 — #181 implementation: sanitised real-export test fixtures (PR 2)
 
 Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
