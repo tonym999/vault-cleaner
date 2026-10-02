@@ -66,6 +66,452 @@ approved all of the recommendations:
 - The owner may enable GitHub's "Automatically delete head branches"
   setting; that is a repository setting left to the owner.
 
+### Merge of `main` after #181 landed (2026-10-02)
+
+PR #198 (#181's implementation) merged to `main` at `40c1c91`, which made
+PR #197 unmergeable. The only conflict was this file, where both PRs prepend
+an entry; both entries are kept, with this one on top. #198 changed
+`AGENTS.md` but did not touch E7's text, which moved from lines 189–192 to
+208–211. The plan now cites both line ranges and records a re-verification
+at `40c1c91`: the trial still gives +21/−12, and the time-bound sweep found
+no new hits.
+
+## 2026-09-27 — #181 implementation: sanitised real-export test fixtures (PR 2)
+
+Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
+`1ab2eae`, following `handoffs/issue-181-implementation-plan.md`. Refs #181.
+
+- **Dispatch record:** orchestrator `claude-opus-5-5` (effort not exposed by
+  runtime); plan-selected implementer `gpt-5.6-luna` (`high`), actual
+  implementer `claude-sonnet-5` (effort not settable from the orchestrator
+  runtime; runtime default), owner-approved re-selection to the plan's
+  listed Judgement-rung alternative because the orchestrator runtime cannot
+  instantiate `gpt-5.6-luna`; launch surface Claude Code subagent dispatched
+  by the orchestrator; expected base `main` at `1ab2eae` (confirmed via
+  `git rev-parse main`).
+- **What landed:** `scripts/sanitize_export.py` (the sanitiser),
+  `scripts/check_real_fixtures.py` (the shared grammar and CI guard),
+  `tests/test_sanitize_export.py`, `tests/test_real_fixtures.py`, the CI
+  hygiene step in `.github/workflows/ci.yml`, the verbatim `AGENTS.md`
+  amendment, and the committed `tests/fixtures/real/2026-09-01T-current/`
+  fixtures (`weapons.csv`, `armor.csv`, `ghosts.csv`, `provenance.json`).
+  One incidental fix: `test_report_run.py`'s
+  `test_fixture_bytes_are_checked_out_verbatim` iterated `tests/fixtures/`
+  non-recursively and broke on the new `real/` subdirectory; it now walks
+  `rglob("*")` filtered to files, which also extends the CR-byte check to
+  the new nested fixtures.
+- **Real-export measurement.** Re-confirmed the plan's raw SHA-256s against
+  `data/in/2026-09-01T-current/` before sanitising (all three matched).
+  Authorised by the owner's standing permission recorded in #181 and the
+  amended `AGENTS.md` rule. Aggregates only, matching the plan's
+  measurements: 665/893/28 rows; 1,614 ids mapped (1,586 export ids + 28
+  Notes-only ids from dismantled items); both parity modes (`no-wishlists`
+  and `wishlists`, the latter using the repo's cached
+  `data/cache/perk-name-map.json` and a live fetch of the three wishlist
+  sources) passed with zero differing decisions on the first sanitiser run
+  that reached parity. Committed output: weapons.csv 342,792 B, armor.csv
+  307,053 B, ghosts.csv 5,365 B, provenance.json 530 B (≈ 656 KB total,
+  well under the plan's 2 MB stop-condition limit; the armor byte count
+  differs slightly from the planning prototype's 309,432 B estimate,
+  expected since the prototype predated the review-fix rounds' clause
+  canonicalisation). Two runs with the same `--run-date` produced
+  byte-identical output (`tests/test_sanitize_export.py`'s byte-stability
+  test pins this on synthetic data; verified manually on the real snapshot
+  during implementation).
+- **Owner decision carried over from planning (2026-09-27):** `Crafted
+  Level` stays unchanged (play history, but feeds the crafted hard rail and
+  exact-dupe ranking). No new unlisted columns turned up on re-measurement;
+  the column audit allowlists match the measured headers exactly and
+  refused nothing on the real snapshot.
+- **Design notes not spelled out in the plan, resolved during
+  implementation:**
+  - `ArmorEvaluation.original_notes` (armor.py:51) is a second place raw
+    Notes text reaches the snapshot, outside the per-decision fields the
+    plan's parity comparator names. The comparator's generic field mapper
+    now special-cases any `original_notes` key (wherever nested) through
+    the full `sanitize_notes()` transform rather than the generic
+    digit-run mapper; the generic mapper is otherwise scoped to
+    `inputs`/`warnings` (which carry no export-derived ids and are compared
+    by direct equality) plus decision fields and the armor block (ids only,
+    checked via `_map_value`'s exact whole-string-membership path).
+  - Extracted `_build_id_map` and `_sanitize_kill_tracker` as small
+    named functions (were inline) so the planted-leak tests' "monkeypatch
+    one transform" instruction has a clean seam to patch.
+  - `sanitize_export.py` now reuses an already-loaded `check_real_fixtures`
+    module from `sys.modules` if present, instead of unconditionally
+    re-executing the file; this makes the "sanitiser uses the guard's own
+    grammar objects, not copies" test in `test_real_fixtures.py` a genuine
+    identity check rather than a structural-equality one.
+  - The fake-id scheme (marker `1000` + rank zero-padded to 15 digits, rank
+    always ≤ a few thousand) makes every fake id's default 4-digit
+    `short_id()` suffix globally unique by construction, so the retained
+    reference pattern (`_T.ref()`'s retained-mode output in
+    `check_real_fixtures.py`) never needs the wider-suffix, prefix+suffix,
+    or digest forms in practice; the sanitiser still asserts this invariant
+    at write time (`SanitiserState._short_id_for_fake`) and fails closed if
+    it ever breaks (for example, if a future export pushed the id count
+    past 10,000).
+- **Bypass evidence.** Every planted-leak, mapping-error and wrong-reference
+  test in `tests/test_sanitize_export.py` monkeypatches the relevant check(s)
+  alongside the transform bug first, asserts the write *succeeds* with the
+  leak verbatim in the output, then restores the check(s) and asserts the
+  same transform bug is refused with nothing written. Grammar coverage
+  (`test_all_twelve_families_have_emitter_or_handwritten_coverage`) drives 9
+  of the 12 `#vc-` clause families through the real rule emitters (weapon
+  and armor exact-dupe, close-dominated/similar, armor score junk/review/
+  last-archetype, ghost cleanup, weapon coverage dominated/uncovered,
+  wishlist-trash) on synthetic 19-digit-id copies of existing rule-test
+  fixtures, and hand-writes the three migration-only legacy families (exact
+  `kept <id>`, `armor-similar to <id> (...)`, `armor-dominated by <id>
+  (...)`) that no current emitter reaches.
+- **Verification:** `ruff check src tests scripts`, `pytest -q` (1,180
+  passed), `python3 scripts/check_real_fixtures.py` (clean), `git diff
+  --check origin/main...HEAD` (clean), `git ls-files data/` (empty).
+- **The plan's own deviations from the issue text (plan lines 247-270),
+  carried through unchanged:**
+  1. The id map also covers every ≥16-digit run found in raw Notes (28 real
+     ids of dismantled items), not only export ids.
+  2. Short-id rewriting is implemented so a future export's current-format
+     clauses are handled, even though this snapshot only had legacy ones.
+  3. The 8-digit window scan (L2) exempts runs that are exactly a generated
+     fake id or exactly a raw `Hash` value.
+  4. "No loadout name / owner text appears as a cell value" is enforced on
+     the `Loadouts` and `Notes` columns specifically, backed by a positive
+     grammar for both, not a literal whole-export scan.
+  5. Loadouts are split on a bare `,` (DIM's separator), with the `NNNNN:`
+     prefix kept as part of the first token.
+  6. Parity compares the whole `snapshot_dict` under an explicit
+     normalisation, stricter than and subsuming the issue's field list.
+  7. "Keep `#vc-` clauses" is narrowed to the strict clause grammar in
+     `check_real_fixtures.py`, and each kept clause is re-rendered in
+     canonical form (numeric slots zeroed, references rewritten) rather than
+     copied.
+- Not a deviation from scope, but an unavoidable collateral edit: the
+  `tests/test_report_run.py` hunk (see above) is outside the plan's
+  mechanical inclusion test on its face, but adding
+  `tests/fixtures/real/<snapshot>/` — squarely in scope — breaks that
+  existing test's non-recursive fixture walk, so leaving it unfixed would
+  have left the suite red. The orchestrator accepted it as unavoidable
+  collateral; the owner acknowledged it on 2026-10-02.
+
+### Review-fix round 1 (orchestrator + independent review of `f25c019`)
+
+Fixed findings A-H on top of `f25c019`, no rebase/amend. `AGENTS.md`,
+`ci.yml` and `tests/test_report_run.py` untouched this round; committed
+fixture bytes unchanged (re-ran the sanitiser against the real snapshot with
+`--run-date 2026-09-27` and both parity modes, diffed byte-for-byte against
+`tests/fixtures/real/2026-09-01T-current/` — identical, so nothing was
+recommitted).
+
+- **A (tests not load-bearing):** added a direct unit test per check (L1,
+  L2 — plus the exemption boundary, L3, L4, L5's owner-body rule, L6's reuse
+  and count rules, L8) that calls the check function on a tampered
+  staged table/directory; an end-to-end 3(b) refusal
+  (`test_end_to_end_clause_shaped_owner_note_refuses_under_3b`) using a
+  clause-shaped owner note on a real `weapons_dupes.csv` decision row, where
+  the loose legacy recogniser strips it but the sanitiser's stricter grammar
+  placeholders it instead; six parity unit tests pinning 3(a)/3(c)/explanation
+  /armor-block/per-field mismatches; `match=` naming the check on every
+  planted-leak "caught" half; a stronger wrong-reference bypass assertion
+  (asserts the specific wrong suffix survived and the correct one is absent,
+  not just that some reference exists); and exact row-count/SHA-256
+  assertions in `test_provenance_json_shape`. Mutation evidence: for every
+  new direct-check test, `unittest.mock.patch.object` disabled the named
+  check function (`_check_l1`/`_check_l2`/`_check_l3`/`_check_l4`/
+  `_check_l5`/`_check_l6`/`_check_l8`) and confirmed the test's own
+  `pytest.raises(...)` failed with "DID NOT RAISE SanitiseError" (all 8
+  confirmed red, then restored). For the 3(b) end-to-end test, a
+  `_compare_notes` variant with the 3(b) line removed made `sanitise()`
+  succeed and write fixtures instead of refusing, and the test went red.
+  For finding C, disabling `_check_destination_is_not_snapshot` let
+  `sanitise()` write into the snapshot directory itself; the test went red.
+  For finding D, calling `vault_cleaner.parse.load_weapons` directly on the
+  malformed export confirmed the raw `SchemaError` message does contain the
+  synthetic id, while the wrapped `SanitiseError` from the real code path
+  does not. For finding F, disabling `_require_exact_keys` made both new
+  key-mismatch tests go red. All mutation testing used in-memory
+  monkeypatching only; production files were verified byte-unchanged
+  (`md5sum`) before and after.
+- **B (guard rules must be separable):** added
+  `test_unmarked_15_digit_id_fails`,
+  `test_unmarked_long_digit_run_outside_notes_column_fails` (a stray digit
+  run in an unvalidated "Name" column) and
+  `test_valid_csv_under_a_stray_file_name_fails` to `test_real_fixtures.py`,
+  each crafted so only one guard rule can fire, plus an `_assert_only_rule`/
+  `_assert_rule_fires` pair so every existing guard test now asserts on the
+  specific rule text (two pre-existing cases legitimately co-trigger two
+  rules and use the weaker `_assert_rule_fires`).
+- **C (`--out-root` could overwrite the raw export):** added
+  `_check_destination_is_not_snapshot` in `sanitize_export.py`, called
+  before any read/write work, refusing when the resolved destination equals,
+  nests inside, or contains the resolved snapshot directory. Two new tests
+  cover both directions and assert the synthetic raw bytes are byte-identical
+  before and after the refusal.
+- **D (refusals must never print values):** extracted `_run_stage`, which
+  runs one stage (`L8`, each parity mode) and converts any non-`SanitiseError`
+  exception into a `SanitiseError` naming only the stage and
+  `type(exc).__name__`, never `str(exc)`; `main()` also gained a last-resort
+  `except Exception` (`# noqa: BLE001`, matching the project's existing
+  server-code convention for this pattern) that prints only the exception
+  type. New test: a synthetic export with `Crafted=crafted` and a malformed
+  `Crafted Level` reaches `vault_cleaner.parse.SchemaError` via L8; asserts
+  `main()`'s stderr never contains the synthetic id or the malformed value.
+- **E (one template per family):** rebuilt `check_real_fixtures.py`'s twelve
+  families around a `_T` slot builder and one template function per family,
+  called once with `mode="input"` and once with `mode="retained"` to produce
+  both compiled patterns from the same source; only `N`/`SCORE`/`REF` differ
+  by mode, every vocabulary slot is identical text in both. `ClauseFamily`
+  now carries `retained_re`, and `recognise_and_canonicalise`'s self-check
+  requires a match against that family's own pattern, not any of the twelve.
+  `INPUT_CLAUSE_RES`/`RETAINED_CLAUSE_RES`/`ID_MARKER` stay public with the
+  same accepted language (verified: the emitter-coverage test and the
+  committed real fixtures both still pass unchanged). New test
+  `test_each_family_renders_to_its_own_retained_pattern` pins the
+  per-family, index-aligned self-check.
+- **F (parity must not silently skip new fields):** added
+  `_require_exact_keys` plus `_TOP_KEYS`/`_INPUTS_KEYS`/
+  `_SECTION_KEYS_BASE`/`_SECTION_KEYS_ARMOR`/`_DECISION_KEYS`/
+  `_EXPLANATION_KEYS`/`_ARMOR_BLOCK_KEYS` constants mirroring
+  `report_run.snapshot_dict`'s current shape (src/ itself is untouched);
+  called at the top level, `inputs`, each section, each decision, each
+  present explanation and each armor block. A key outside the known set, on
+  either side, now refuses instead of being silently unchecked. Two new
+  tests plant an extra key on the staged side at decision and explanation
+  level.
+- **G (L4 should use membership):** `_check_l4` now takes `state.all_fakes`
+  and requires membership in it, rather than a `FAKE_ID` regex match.
+- **H (this entry).**
+- **Verification (round 1):** `ruff check src tests scripts` (clean);
+  `pytest -q` — 1,204 passed; `python3 scripts/check_real_fixtures.py`
+  (clean); `git diff --check origin/main...HEAD` (clean); `git ls-files
+  data/` (empty). Fixture bytes unchanged (see above).
+
+### Review-fix round 2 (independent re-review of `0127206`; P3-3 elevated)
+
+No P0/P1/P2 findings; fixed all six routed P3s on top of `0127206`, no
+rebase/amend. `AGENTS.md`, `ci.yml` and `tests/test_report_run.py`
+untouched this round too; committed fixture bytes unchanged (re-ran the
+sanitiser with `--run-date 2026-09-27` and both parity modes, diffed
+byte-for-byte against the committed fixtures — identical).
+
+- **R1 (L5 owner-body check used substring, not equality):** a substring
+  scan across the whole joined Notes text refused short owner notes such as
+  `junk`/`keep`/`lock`/`1` — they occur inside legitimate retained clauses
+  and placeholder numbering. `_check_l5` (`sanitize_export.py`) now compares
+  for equality only: an output Notes *cell*, or a stripped output *segment
+  body*, equal to an original owner body. New tests: short owner notes pass
+  alongside a retained clause containing them as substrings; a verbatim
+  owner body left in place still refuses. Mutation evidence: reverting
+  `_check_l5` to the old substring scan made the new "short notes pass"
+  test raise `SanitiseError` where it expected none — red as expected.
+- **R2 (L9 paired tokens per cell, not per retained segment):** owner text
+  containing `id …0001`, or an unrecognised `#vc-` clause with a reference,
+  became placeholders with no "id " tokens, but the old whole-cell token
+  scan still found the raw side's incidental token and refused with a false
+  "reference token count changed". `_check_l9` now collects expected tokens
+  only from raw segments that independently fullmatch
+  `grammar.INPUT_CLAUSE_RES` (after its own, separately-implemented
+  id-mapping — `_l9_independent_map_long_ids` — never the writer's
+  `recognise_and_canonicalise` or `SanitiserState._map_long_ids`), and
+  compares that flat, ordered list against every token actually found in
+  the staged cell — the staged side is not re-split into segments, since a
+  placeholder consumes its own `#vc-` marker and the two sides' segment
+  counts need not match. Token resolution (`_l9_independent_resolve`) was
+  already independent and is unchanged. New tests: two direct `_check_l9`
+  unit tests (a wrong reference still refuses; both false-refusal cases
+  pass) plus two end-to-end `sanitise()` tests reproducing the exact bug;
+  also added direct `_check_l7` and `_check_l8`-adjacent-style tests for
+  L7 (L8's own direct test was already added in round 1). Mutation
+  evidence: reverting `_check_l9` to the old whole-cell scan made all four
+  new tests raise the old false "reference token count changed" — red as
+  expected.
+- **R3 (P3-3, elevated; `--out-root` could overwrite an unrelated raw
+  export sharing the snapshot's name):** round 1's guard only compared the
+  destination with the snapshot actually being read; reading from one
+  location while `--out-root` pointed at a different directory that
+  already held CSVs under the same snapshot name (for example a real raw
+  export) was not caught. `_check_destination_is_not_snapshot` now also
+  refuses whenever the destination already holds any of the three CSVs
+  unless `_existing_destination_is_valid_fixture` confirms it: a copied,
+  isolated check (via a scratch `tempfile.TemporaryDirectory`, so a sibling
+  snapshot under the same `--out-root` can never influence the answer) that
+  `provenance.json` is present and `check_real_fixtures.check` reports no
+  errors for that snapshot alone. New tests: the reviewer's two-location
+  case (asserts the other copy's raw bytes and absence of a `provenance.json`
+  are unchanged after the refusal); re-running the sanitiser over its own
+  prior output still succeeds and reproduces the same bytes. Mutation
+  evidence: forcing `_existing_destination_is_valid_fixture` to always
+  return `True` made the two-location test's `sanitise()` call succeed
+  instead of refusing — red as expected.
+- **R4 (provenance values unvalidated):** sanitiser: new `_validate_run_date`
+  (`sanitize_export.py`) requires `^[0-9]{4}-[0-9]{2}-[0-9]{2}$` and
+  `datetime.date.fromisoformat`, called first thing in `sanitise()`, refusing
+  without ever echoing the value. Guard (`check_real_fixtures.py`,
+  `_validate_provenance`): the same `run_date` rule; `parity_modes` must be
+  exactly `["no-wishlists"]` or `["no-wishlists", "wishlists"]`;
+  `script_version` must be the `int` `1` and not `bool` (Python's `bool` is
+  an `int` subclass, so `True == 1` needed an explicit exclusion). Every new
+  message names the rule, never the value. New tests: two sanitiser refusal
+  tests (bad format; syntactically-shaped but invalid calendar date, e.g.
+  `2026-13-45`) asserting the bad value never appears in the exception text;
+  five guard tests, one per rule (bad format, bad calendar date, bad
+  `parity_modes`, non-int `script_version`, `True` as `script_version`).
+  Mutation evidence: disabling `_validate_run_date` made both sanitiser
+  tests' `sanitise()` calls succeed instead of refusing; patching
+  `_validate_provenance` to skip the new value checks made all five guard
+  tests fail with "expected an error ... got none" — all red as expected.
+- **R5 (dead duplicate grammar):** deleted the unused module-level
+  `_REF_INPUT`/`_REF_RETAINED` constants from `check_real_fixtures.py` — a
+  leftover from before the template refactor, superseded by (and duplicating)
+  `_T.ref()`'s own inline construction, which is now the pattern's only
+  definition. No behaviour change (verified: `recognise_and_canonicalise`
+  output identical before/after on a manual regex spot-check, and the
+  committed real fixtures still pass the guard unchanged). Also fixed this
+  entry's own now-stale mention of `RETAINED_REF` (never existed under that
+  name; it referred to `_T.ref()`'s retained-mode output).
+- **R6 (this entry, and round 1's verification/mutation evidence recorded
+  above instead of pointed at elsewhere).**
+- **Verification (round 2):** `ruff check src tests scripts` (clean);
+  `pytest -q` — 1,221 passed; `python3 scripts/check_real_fixtures.py`
+  (clean); `git diff --check origin/main...HEAD` (clean); `git ls-files
+  data/` (empty).
+
+### Review-fix round 3 (CodeRabbit on PR #198 + independent review of `906ab53`)
+
+Fixed two CodeRabbit findings (C1, C2) plus three test/doc P3s (T1, T2, D1)
+from the third independent review, on top of `906ab53`, no rebase/amend.
+`AGENTS.md`, `ci.yml` and `tests/test_report_run.py` untouched this round
+too; committed fixture bytes unchanged (re-ran the sanitiser with
+`--run-date 2026-09-27` and both parity modes, diffed byte-for-byte against
+the committed fixtures — identical; the guard still reports no errors
+against them either).
+
+- **C1 (duplicate CSV header names silently accepted):** `dict(zip(header,
+  row))` in `_validate_csv_file` keeps only the *last* value of a repeated
+  column name — a raw export with two `Notes` (or `Loadouts`/`Id`/`Kill
+  Tracker`) columns would have the first occurrence's content skipped by
+  every per-cell grammar/owner-body check, leaving it checked only by the
+  byte-level long-digit-run scan. `_validate_csv_file`
+  (`scripts/check_real_fixtures.py:458-465`) now refuses the whole file
+  outright — `"{label}: duplicate header names"`, never the header or row
+  values — as soon as `len(header) != len(set(header))`, before any other
+  check runs. New tests in `tests/test_real_fixtures.py`:
+  `test_duplicated_notes_header_fails` (:346) and
+  `test_duplicated_loadouts_header_fails` (:358), both via the shared
+  `_write_duplicate_header_snapshot` helper (:323) — a raw owner-text row
+  under a duplicated `Notes`/`Loadouts` header, asserting only the
+  `"duplicate header names"` rule fires. Mutation evidence: swapping in a
+  pre-C1 copy of `_validate_csv_file` (without the length check) let both
+  rows validate cleanly (the duplicated owner-text cell silently passed),
+  surfacing only an unrelated provenance row-count mismatch instead of
+  `"duplicate header names"` — red as expected for both tests.
+- **C2 (`check()` never required the full four-file layout):** the guard
+  only validated whatever files it happened to find under a snapshot name
+  and never asserted the complete `weapons.csv`/`armor.csv`/`ghosts.csv`/
+  `provenance.json` set, so a partial snapshot (missing a CSV, or missing
+  `provenance.json` entirely) could report zero errors as long as the files
+  present were individually valid. `check()`
+  (`scripts/check_real_fixtures.py:554-591`) now collects every snapshot
+  name seen (from a CSV or from `provenance.json`) into `present_files`,
+  and after validating each file, reports every name in `_KNOWN_NAMES`
+  missing from that snapshot as `"{snapshot}/{missing_name}: missing
+  required fixture file"`; `_validate_provenance` is unchanged but is only
+  ever reached for a snapshot that actually has a `provenance.json`. New
+  guard tests: `test_lone_weapons_csv_fails` (:365, asserts all three other
+  names are named as missing) and
+  `test_provenance_with_one_csv_missing_fails` (:379, `ghosts.csv`
+  deliberately absent). Mutation evidence: swapping in a pre-C2 `check()`
+  (without `present_files`/the missing-file loop) made both tests fail with
+  "expected an error containing 'missing required fixture file', got
+  none" — red as expected.
+  As a direct consequence, `_existing_destination_is_valid_fixture`
+  (`scripts/sanitize_export.py:872-895`) now also refuses an incomplete
+  destination (it runs the guard against an isolated copy of exactly the
+  files present, so C2's completeness check applies there too). New
+  sanitiser test `test_refusal_destination_has_provenance_but_missing_some_csvs`
+  (`tests/test_sanitize_export.py:630`): a destination with a *properly
+  marked, otherwise fully valid* `weapons.csv` plus `provenance.json`, with
+  `armor.csv`/`ghosts.csv` deliberately absent — deliberately using a marked
+  id so this test isolates C2 specifically and can't be satisfied by the
+  pre-existing unmarked-id refusal path (see T1 below); asserts refusal and
+  that all four files' bytes/absence are unchanged. Mutation evidence:
+  swapping in the pre-C2 `check()` made `_existing_destination_is_valid_fixture`
+  return `True` for this destination (the lone valid `weapons.csv` plus a
+  provenance.json whose declared file set matches was enough), so
+  `sanitise()` no longer refused — "Failed: DID NOT RAISE SanitiseError",
+  red as expected.
+- **T1 (R3's main branch had no discriminating test):** round 2's R3 test
+  only exercised `_existing_destination_is_valid_fixture`'s early return
+  (`provenance.json` missing entirely); its main branch — `provenance.json`
+  present, but the CSVs themselves fail the guard — had no test of its own.
+  New test `test_refusal_destination_has_valid_provenance_but_unmarked_ids`
+  (`tests/test_sanitize_export.py:670`): a destination with a syntactically
+  valid `provenance.json` next to all three CSVs, each with a clearly
+  unmarked (non-`"1000"`-prefixed) id; asserts refusal and all four files'
+  bytes unchanged. Mutation evidence (the exact reduction requested):
+  patching `_existing_destination_is_valid_fixture` to
+  `lambda dest: (dest / "provenance.json").exists()` made `sanitise()` no
+  longer refuse — "Failed: DID NOT RAISE SanitiseError", red as expected.
+- **T2 (an L5 test name promised more than its assertion covered):**
+  `test_l5_verbatim_owner_body_left_in_place_still_refuses` used an owner
+  body ("my secret diary entry") that doesn't fit `PLACEHOLDER_RE`, so it
+  was actually being caught by the unrelated "segment is outside the
+  sanitised grammar" check, not by either of L5's two equality branches
+  despite its name. Renamed/repurposed to
+  `test_l5_per_segment_equality_catches_owner_body_next_to_retained_clause`
+  (`tests/test_sanitize_export.py:1206`): a retained clause sitting next to
+  a *separate* Notes segment that exactly equals a registered owner body
+  (itself grammar-shaped, so the whole-cell/grammar checks can't catch it
+  by themselves) — isolates `_check_l5`'s *per-segment* equality branch,
+  which the whole-cell check (running first, on the full concatenated cell)
+  structurally cannot reach. `test_l5_direct_owner_body_check` (:1165) is
+  tightened to match the exact message of the *whole-cell* branch it
+  actually exercises (`"Notes cell equals an original owner Notes
+  segment"`), since its single-segment scenario is resolved by the
+  whole-cell check before the per-segment loop ever runs. Mutation
+  evidence: a mutated `_check_l5` with the whole-cell `if cell in
+  owner_bodies` check removed still raised (via the per-segment branch) but
+  with the per-segment message, failing `test_l5_direct_owner_body_check`'s
+  tightened `match=` — red as expected; a mutated `_check_l5` with the
+  per-segment `if stripped in owner_bodies` check removed made
+  `test_l5_per_segment_equality_catches_owner_body_next_to_retained_clause`
+  raise nothing — "Failed: DID NOT RAISE SanitiseError", red as expected.
+- **D1 (stale docstring; duplicated regex):**
+  `_existing_destination_is_valid_fixture`'s docstring
+  (`scripts/sanitize_export.py:872-886`) claimed to confirm "this exact
+  snapshot" was valid, implying some comparison against the raw export
+  being sanitised; it only confirms structural validity of whatever already
+  sits at that directory *name* — no SHA-256 comparison happens anywhere in
+  it. Reworded to say so explicitly. `_validate_run_date`
+  (`scripts/sanitize_export.py:966-982`) no longer defines its own
+  run-date-shape regex; it now reuses the guard's `_RUN_DATE_RE` directly
+  (`grammar._RUN_DATE_RE.fullmatch(run_date)`), so the shape rule has one
+  definition. `parity_modes`' shape stays defined only in the guard — the
+  sanitiser only ever emits one of the two known forms and has no separate
+  rule of its own to duplicate. Documentation/dedup only, no behaviour
+  change.
+- **Deferred (not this round, flagged as fail-closed residuals for the
+  planner):**
+  - CodeRabbit's third PR #198 comment: an unrecognised `#vc-` segment
+    could be rendered as a placeholder that merges visually with an
+    adjacent retained segment, changing Notes segmentation rules relied on
+    by L5/the guard. Both sides currently fail closed (refuse) rather than
+    silently accept a merged/ambiguous boundary, so this is a grammar
+    precision gap, not a leak — left for the planner to scope as a
+    follow-up ticket rather than reworking segmentation rules inside a
+    review-fix round.
+  - Independent review's P3-3 (this round's numbering; distinct from round
+    2's P3-3, which was elevated and fixed there): further L9 edge cases
+    beyond the false-refusal bugs already fixed in round 2 — left alone per
+    the coordinator's explicit scope for this round.
+- **Verification (round 3):** `ruff check src tests scripts` (clean);
+  `pytest -q` — 1,227 passed; `python3 scripts/check_real_fixtures.py`
+  (clean); `git diff --check origin/main...HEAD` (clean); `git ls-files
+  data/` (empty); `git status --short` showed only the five allowed files
+  (`scripts/sanitize_export.py`, `scripts/check_real_fixtures.py`,
+  `tests/test_sanitize_export.py`, `tests/test_real_fixtures.py`,
+  `WORKLOG.md`) modified.
+
 ## 2026-09-27 — #181 planning: sanitised real-export test fixtures (PR 1)
 
 Planned #181 on `handoff/issue-181-implementation-plan` from `main` at

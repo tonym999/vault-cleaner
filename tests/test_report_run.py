@@ -278,10 +278,12 @@ def test_fixture_bytes_are_checked_out_verbatim():
     `.gitattributes` pin, #45), every digest comparison failed with an opaque
     hash mismatch. Fail here with the actual cause instead.
     """
-    for path in sorted(FIXTURES.iterdir()):
+    # Recursive: tests/fixtures/real/<snapshot>/ (#181) nests fixture files
+    # a level deeper, and the same pinned-bytes concern applies to them.
+    for path in sorted(p for p in FIXTURES.rglob("*") if p.is_file()):
         assert b"\r" not in path.read_bytes(), (
-            f"{path.name} contains CR bytes — the checkout translated line "
-            "endings. Re-materialise the pinned bytes with: "
+            f"{path.relative_to(FIXTURES)} contains CR bytes — the checkout "
+            "translated line endings. Re-materialise the pinned bytes with: "
             "git checkout HEAD -- tests/fixtures"
         )
 

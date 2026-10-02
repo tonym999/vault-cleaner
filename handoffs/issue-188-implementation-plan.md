@@ -14,7 +14,7 @@
 
 **Implementation model selected:** `MAI-Code-1.1-Flash` (`n/a — adaptive`) (Bounded rung; justified below)
 
-**Plan baseline:** `main` at `1ab2eaed9c327e98fa8c8b169f9cc9b39a64f372` (2026-09-27)
+**Plan baseline:** `main` at `1ab2eaed9c327e98fa8c8b169f9cc9b39a64f372` (2026-09-27); re-verified at `40c1c91372a8d3fc1b69e85c7089cc6eb705b5b8` (2026-10-02, after #181's PR #198) — see [Re-verification](#re-verification-after-181-merged)
 
 **Allocated implementation branch:** `fix/issue-188-stale-doc-facts`
 
@@ -34,7 +34,7 @@ No product code, tests, schemas, rules, config or versions change.
 
 ## Context & Measurement
 
-All line numbers are at the plan baseline `1ab2eae`.
+All line numbers are at the plan baseline `1ab2eae`, except `AGENTS.md` lines, which are also given at `40c1c91` where #181 moved them.
 
 ### Facts listed in the issue, re-measured
 
@@ -43,7 +43,7 @@ All line numbers are at the plan baseline `1ab2eae`.
 | F1 | `handoffs/README.md:77` | "The 10 dangling remote `handoff/*` branches remain active on GitHub until this workflow PR merges to `main`." | The workflow PR merged long ago. There are 11 remote `handoff/*` branches: 10 belong to closed issues, 1 (`#181`) to an open issue, and none has an open PR. | `git fetch origin && git branch -r \| grep -c 'origin/handoff/'` |
 | F2 | `handoffs/README.md:166` | #124's pilot "runs after this workflow is available from `main`". | #124 is `CLOSED`. The pilot ran on subject issue #119; its [outcome comment](https://github.com/tonym999/vault-cleaner/issues/124#issuecomment-5533463758) has sections *Acceptance criteria* and *Usability gaps found*. | `gh issue view 124 --json state` |
 | F3 | `handoffs/README.md:184`, `:217`, `:230` | Opus is named `claude-opus-5` in the planner roster, the Independent Review row and the catalog. | The current Opus is `claude-opus-5-5`; `claude-opus-5` is listed under "Legacy models (still available)". See *Model verification* below. | `WebFetch` of the two Anthropic URLs below |
-| F4 | `AGENTS.md:189-192` | Rules modules: `weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py, ghosts.py`. | `src/vault_cleaner/rules/` also holds `coverage.py` (docstring: "Weapon coverage rule pass (PLAN.md rule 4)"), `rails.py` ("Safety rails (PLAN.md rule 1)") and `id_order.py` ("Deterministic ordering for opaque DIM instance ids"). | `ls src/vault_cleaner/rules/ && head -1 src/vault_cleaner/rules/{coverage,rails,id_order}.py` |
+| F4 | `AGENTS.md:189-192` (`208-211` at `40c1c91`) | Rules modules: `weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py, ghosts.py`. | `src/vault_cleaner/rules/` also holds `coverage.py` (docstring: "Weapon coverage rule pass (PLAN.md rule 4)"), `rails.py` ("Safety rails (PLAN.md rule 1)") and `id_order.py` ("Deterministic ordering for opaque DIM instance ids"). | `ls src/vault_cleaner/rules/ && head -1 src/vault_cleaner/rules/{coverage,rails,id_order}.py` |
 | F5 | `PLAN.md:73` | `wishlists/  # cached downloads (gitignored or committed — TBD)` | `wishlists/` is gitignored (`.gitignore:5`), and no wishlist file is tracked. | `git check-ignore -v wishlists/ && git ls-files wishlists/` |
 | F6 | `PLAN.md:62-78` | The repo layout lists 7 modules. | `src/vault_cleaner/` has 17 modules plus `rules/`, `server/` and `ui/`. PLAN.md itself relies on the review manifest (M7) and the server (M8), which are absent from the tree. | `ls src/vault_cleaner/` |
 
@@ -75,9 +75,9 @@ and stay unchanged:
 | `PLAN.md:91` "…produced in Python as an M8 follow-up" | Spec for open issue #38; accurate. |
 | `PLAN.md:171` "dry-run mode default until `--write` is passed" | Behaviour, not time. |
 | `PLAN.md:177` "out of scope for now" | Deliberate spec wording. |
-| `AGENTS.md:55`, `:156`, `README.md:47`, `:147` "temporary" | Filesystem terminology. |
-| `AGENTS.md:101` "remain identity cells until a later measured boundary" | Rule semantics. |
-| `AGENTS.md:177` "must fail until the key is projected" | Test semantics. |
+| `AGENTS.md:55`, `:156` (`74`, `175` at `40c1c91`), `README.md:47`, `:147` "temporary" | Filesystem terminology. |
+| `AGENTS.md:101` (`120` at `40c1c91`) "remain identity cells until a later measured boundary" | Rule semantics. |
+| `AGENTS.md:177` (`196` at `40c1c91`) "must fail until the key is projected" | Test semantics. |
 | `README.md:153` "follow-up reference" | Policy wording. |
 | `README.md:164` "this workflow" | Durable reference to the current workflow. |
 | `README.md:219` "currently `MAI-Code-1.1-Flash`" | Accurate; #191 restructures this table. |
@@ -97,10 +97,25 @@ The owner's recent tickets already record `claude-opus-5-5` as planner and
 orchestrator (#170, #174 and #181 in `WORKLOG.md`), so moving the roster to
 `claude-opus-5-5` records actual practice rather than changing it.
 
+### Re-verification after #181 merged
+
+#181's implementation (PR #198) merged to `main` at `40c1c91` after this plan
+was opened. It changed `AGENTS.md` (+51/−19 lines across setup, hard rules
+and conventions) but none of the other files this plan edits. Re-checked at
+`40c1c91` on 2026-10-02:
+
+- E7's old text is unchanged and still occurs exactly once; it moved from
+  lines 189–192 to 208–211.
+- The trial below, rerun against `40c1c91`, gives the same result.
+- The time-bound sweep over the new `AGENTS.md` finds only the four durable
+  hits already classified, at their new lines. #181 added no time-bound
+  wording.
+
 ### Trial (planning session, discarded)
 
 E1–E10 were applied mechanically, from this document's own old/new blocks, in
-a detached worktree at `1ab2eae`, then the worktree was discarded:
+detached worktrees at `1ab2eae` and again at `40c1c91`, then the worktrees
+were discarded. Both runs gave the same result:
 
 - every old text matched exactly once;
 - the diff was 4 files, +21/−12, with `git diff --check` clean;
@@ -131,10 +146,10 @@ otherwise uses manual cross-provider execution from a local Copilot surface
 
 - **No blocking dependency.** #188 has no GitHub `blocked_by` links. It
   blocks #190 (doc-drift tests) and #191 (structured model roster).
-- **#181 also edits `AGENTS.md`** (its plan: `AGENTS.md#L38-L48`, Hard
-  rules). It does not overlap E7's lines, but either PR merging first shifts
-  line numbers for the other. The implementer locates E7 by its old text,
-  never by line number alone.
+- **#181 has merged** (PR #198, `40c1c91`). It edited `AGENTS.md` but did
+  not overlap E7; it only shifted E7's lines (see *Re-verification after #181
+  merged*). The implementer still locates every edit by its old text, never
+  by line number alone, in case another PR lands first.
 - **#191 will replace the model tables with a data file.** E3–E6 are the
   minimum correction until then. Do not restructure the tables here.
 - **Issue body divergence:** the issue said "11 remote `handoff/*` branches".
@@ -244,7 +259,7 @@ with these two rows, in this order:
 
 ### Agent guide
 
-#### [MODIFY] [AGENTS.md](../AGENTS.md#L189-L192) — E7 (F4)
+#### [MODIFY] [AGENTS.md](../AGENTS.md#L208-L211) — E7 (F4)
 
 Old bullet:
 
