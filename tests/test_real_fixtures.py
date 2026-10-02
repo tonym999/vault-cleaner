@@ -320,5 +320,76 @@ def test_valid_csv_under_a_stray_file_name_fails(tmp_path):
     _assert_only_rule(grammar.check(root), "unexpected file")
 
 
+def _write_duplicate_header_snapshot(tmp_path: Path, *, header: list[str], row: list[str]) -> Path:
+    """A snapshot where weapons.csv has the given (duplicated) header/row;
+    armor.csv and ghosts.csv are minimal valid fixtures, and provenance.json
+    is valid — so only the duplicate-header rule can fire."""
+    snap_dir = tmp_path / "snap"
+    snap_dir.mkdir()
+    with (snap_dir / "weapons.csv").open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh, lineterminator="\n")
+        writer.writerow(header)
+        writer.writerow(row)
+    _write_csv(snap_dir / "armor.csv")
+    _write_csv(snap_dir / "ghosts.csv")
+    # weapons.csv refuses validation outright on the duplicate header (its
+    # row count comes back 0), so provenance must declare 0 rows for it too,
+    # or an unrelated row-count mismatch would also fire.
+    doc = _valid_provenance_except()
+    doc["files"]["weapons.csv"]["rows"] = 0
+    (snap_dir / "provenance.json").write_text(
+        json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_duplicated_notes_header_fails(tmp_path):
+    # CodeRabbit C1: dict(zip(header, row)) keeps only the *last* value of a
+    # duplicated column name. With two "Notes" columns, the first one would
+    # get only the byte-level long-digit-run scan — no per-cell grammar
+    # check at all — so raw owner text sitting in it would never reach
+    # cell-level validation if duplicate headers were merely tolerated.
+    header = ["Id", "Notes", "Loadouts", "Kill Tracker", "Notes"]
+    row = ['"1000000000000000001"', "line one\nmy own private words here", "", "0", ""]
+    root = _write_duplicate_header_snapshot(tmp_path, header=header, row=row)
+    _assert_only_rule(grammar.check(root), "duplicate header names")
+
+
+def test_duplicated_loadouts_header_fails(tmp_path):
+    header = ["Id", "Notes", "Loadouts", "Kill Tracker", "Loadouts"]
+    row = ['"1000000000000000001"', "", "My Real Loadout Name", "0", ""]
+    root = _write_duplicate_header_snapshot(tmp_path, header=header, row=row)
+    _assert_only_rule(grammar.check(root), "duplicate header names")
+
+
+def test_lone_weapons_csv_fails(tmp_path):
+    # CodeRabbit C2: every snapshot directory name seen must have the
+    # complete four-file layout; a snapshot with only one CSV and no
+    # provenance.json must report each missing file.
+    snap_dir = tmp_path / "snap"
+    snap_dir.mkdir()
+    _write_csv(snap_dir / "weapons.csv")
+    errors = grammar.check(tmp_path)
+    _assert_only_rule(errors, "missing required fixture file")
+    assert any("armor.csv" in e for e in errors)
+    assert any("ghosts.csv" in e for e in errors)
+    assert any("provenance.json" in e for e in errors)
+
+
+def test_provenance_with_one_csv_missing_fails(tmp_path):
+    snap_dir = tmp_path / "snap"
+    snap_dir.mkdir()
+    _write_csv(snap_dir / "weapons.csv")
+    _write_csv(snap_dir / "armor.csv")
+    # ghosts.csv deliberately absent.
+    doc = _valid_provenance_except()
+    (snap_dir / "provenance.json").write_text(
+        json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    errors = grammar.check(tmp_path)
+    _assert_only_rule(errors, "missing required fixture file")
+    assert any("ghosts.csv" in e for e in errors)
+
+
 # No rule-decision assertions on the real fixtures: out of scope for #181
 # (the fixtures are for future rule-test adoption, not this ticket).

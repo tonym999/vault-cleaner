@@ -455,6 +455,15 @@ def _validate_csv_file(path: Path, label: str, errors: list[str]) -> int:
         errors.append(f"{label}: empty file")
         return 0
 
+    if len(header) != len(set(header)):
+        # dict(zip(header, row)) below keeps only the last value of a
+        # duplicated column name: with two "Notes" columns, the first one
+        # would get only the byte-level long-digit-run scan and never the
+        # per-cell grammar/owner-body checks, so owner text in it could pass
+        # (CodeRabbit, #181 PR #198 C1). Refuse the whole file outright.
+        errors.append(f"{label}: duplicate header names")
+        return 0
+
     missing = _REQUIRED_HEADERS - set(header)
     if missing:
         errors.append(f"{label}: missing required headers {sorted(missing)}")
@@ -548,6 +557,11 @@ def check(root: Path) -> list[str]:
     Returns the list of error strings (empty means the tree is clean). A
     missing root passes. Errors name the file, the row number and the rule —
     never the offending value, so a CI log never leaks fixture content.
+
+    Every snapshot directory name seen — whether from a CSV or from
+    ``provenance.json`` — must have the complete four-file layout
+    (``weapons.csv``, ``armor.csv``, ``ghosts.csv``, ``provenance.json``);
+    each missing file is reported by name (CodeRabbit, #181 PR #198 C2).
     """
     errors: list[str] = []
     if not root.exists():
@@ -555,6 +569,7 @@ def check(root: Path) -> list[str]:
 
     row_counts: dict[str, dict[str, int]] = {}
     provenance_paths: dict[str, Path] = {}
+    present_files: dict[str, set[str]] = {}
 
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
         rel = path.relative_to(root)
@@ -564,11 +579,16 @@ def check(root: Path) -> list[str]:
             continue
         snapshot, name = parts
         label = rel.as_posix()
+        present_files.setdefault(snapshot, set()).add(name)
         if name == "provenance.json":
             provenance_paths[snapshot] = path
             continue
         rows = _validate_csv_file(path, label, errors)
         row_counts.setdefault(snapshot, {})[name] = rows
+
+    for snapshot, present in sorted(present_files.items()):
+        for missing_name in sorted(_KNOWN_NAMES - present):
+            errors.append(f"{snapshot}/{missing_name}: missing required fixture file")
 
     for snapshot, path in provenance_paths.items():
         _validate_provenance(path, row_counts.get(snapshot, {}), errors)

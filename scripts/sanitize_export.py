@@ -870,12 +870,16 @@ def _check_destination(dest: Path) -> None:
 
 
 def _existing_destination_is_valid_fixture(dest: Path) -> bool:
-    """True only if ``dest`` already holds a valid sanitised fixture for
-    this exact snapshot: ``provenance.json`` is present, and the CI guard
-    reports no errors when it validates that snapshot alone. Re-running the
-    sanitiser to regenerate an existing fixture must still work; anything
-    else already sitting at ``dest`` might be an unrelated raw export
-    (#181 review R3) and must not be silently overwritten.
+    """True only if ``dest`` already holds a structurally valid sanitised
+    fixture under this snapshot's directory name: ``provenance.json`` is
+    present, and the CI guard reports no errors when it validates that
+    snapshot alone. This does **not** confirm the fixture was produced from
+    the same raw snapshot now being sanitised — nothing here compares a raw
+    SHA-256 against ``provenance.json``'s recorded one (#181 review D1), so
+    an id-starting-with-1000 sentinel and well-formed Notes are sufficient.
+    Re-running the sanitiser to regenerate an existing fixture must still
+    work; anything else already sitting at ``dest`` might be an unrelated
+    raw export (#181 review R3) and must not be silently overwritten.
 
     The guard is run against an isolated copy of just this snapshot's
     current files, in a scratch directory, so an unrelated sibling snapshot
@@ -959,14 +963,16 @@ def _run_stage(stage: str, func: Callable[..., None], *args: object) -> None:
         ) from exc
 
 
-_RUN_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
-
-
 def _validate_run_date(run_date: str) -> None:
     """Refuse a malformed ``--run-date`` without ever echoing the value
     (#181 review R4): the guard enforces the same rule on what gets
-    committed, so a bad value must never reach ``provenance.json``."""
-    if not _RUN_DATE_RE.fullmatch(run_date):
+    committed, so a bad value must never reach ``provenance.json``. Reuses
+    the guard's own ``_RUN_DATE_RE`` (#181 review D1) rather than defining a
+    second copy of the shape rule; the parity-modes shape stays defined only
+    in the guard, since the sanitiser only ever writes one of its two known
+    forms and has no separate rule of its own to duplicate.
+    """
+    if not grammar._RUN_DATE_RE.fullmatch(run_date):
         raise SanitiseError("run_date does not match YYYY-MM-DD")
     try:
         date.fromisoformat(run_date)

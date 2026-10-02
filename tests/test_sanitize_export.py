@@ -627,6 +627,85 @@ def test_rerunning_over_an_existing_valid_fixture_still_works(tmp_path):
     assert first_bytes == second_bytes
 
 
+def test_refusal_destination_has_provenance_but_missing_some_csvs(tmp_path):
+    # #181 review C2: an incomplete destination (provenance.json present,
+    # but not all three CSVs) must not be treated as a valid existing
+    # fixture — _existing_destination_is_valid_fixture now relies on the
+    # guard's full four-file-layout requirement to catch this. weapons.csv
+    # here is otherwise fully valid (marked id, clean Notes/Loadouts) so
+    # this isolates C2's missing-file rule: an unmarked id would already
+    # have been refused before C2 existed (see the unmarked-ids test below),
+    # which would make this test pass for the wrong reason.
+    snap = _min_snapshot(tmp_path / "raw")
+    dest_root = tmp_path / "out"
+    dest_snap = dest_root / snap.name
+    dest_snap.mkdir(parents=True)
+
+    weapons_bytes = b'Id,Notes,Loadouts\n"1000000000000000001",,\n'
+    (dest_snap / "weapons.csv").write_bytes(weapons_bytes)
+    # armor.csv, ghosts.csv deliberately absent.
+    provenance_bytes = json.dumps(
+        {
+            "files": {
+                name: {"raw_sha256": "0" * 64, "rows": 1}
+                for name in ("weapons.csv", "armor.csv", "ghosts.csv")
+            },
+            "parity_modes": ["no-wishlists"],
+            "run_date": "2026-09-27",
+            "script_version": 1,
+        },
+        indent=2, sort_keys=True,
+    ).encode() + b"\n"
+    (dest_snap / "provenance.json").write_bytes(provenance_bytes)
+
+    with pytest.raises(se.SanitiseError, match="valid sanitised fixture"):
+        se.sanitise(snap, dest_root, CONFIG, True, "2026-09-27")
+
+    assert (dest_snap / "weapons.csv").read_bytes() == weapons_bytes
+    assert (dest_snap / "provenance.json").read_bytes() == provenance_bytes
+    assert not (dest_snap / "armor.csv").exists()
+    assert not (dest_snap / "ghosts.csv").exists()
+
+
+def test_refusal_destination_has_valid_provenance_but_unmarked_ids(tmp_path):
+    # #181 review T1: R3's main branch (provenance.json present, but the
+    # CSVs themselves fail the guard) needs its own discriminating test,
+    # distinct from round 2's R3 test which only exercised the early
+    # "provenance.json missing entirely" return.
+    snap = _min_snapshot(tmp_path / "raw")
+    dest_root = tmp_path / "out"
+    dest_snap = dest_root / snap.name
+    dest_snap.mkdir(parents=True)
+
+    weapons_bytes = b'Id,Notes,Loadouts\n"9999999999999999999",,\n'  # unmarked id
+    armor_bytes = b'Id,Notes,Loadouts\n"9999999999999999998",,\n'
+    ghosts_bytes = b'Id,Notes,Loadouts\n"9999999999999999997",,\n'
+    (dest_snap / "weapons.csv").write_bytes(weapons_bytes)
+    (dest_snap / "armor.csv").write_bytes(armor_bytes)
+    (dest_snap / "ghosts.csv").write_bytes(ghosts_bytes)
+    provenance_bytes = json.dumps(
+        {
+            "files": {
+                name: {"raw_sha256": "0" * 64, "rows": 1}
+                for name in ("weapons.csv", "armor.csv", "ghosts.csv")
+            },
+            "parity_modes": ["no-wishlists"],
+            "run_date": "2026-09-27",
+            "script_version": 1,
+        },
+        indent=2, sort_keys=True,
+    ).encode() + b"\n"
+    (dest_snap / "provenance.json").write_bytes(provenance_bytes)
+
+    with pytest.raises(se.SanitiseError, match="valid sanitised fixture"):
+        se.sanitise(snap, dest_root, CONFIG, True, "2026-09-27")
+
+    assert (dest_snap / "weapons.csv").read_bytes() == weapons_bytes
+    assert (dest_snap / "armor.csv").read_bytes() == armor_bytes
+    assert (dest_snap / "ghosts.csv").read_bytes() == ghosts_bytes
+    assert (dest_snap / "provenance.json").read_bytes() == provenance_bytes
+
+
 def test_refusal_bad_run_date_format(tmp_path):
     snap = _min_snapshot(tmp_path)
     with pytest.raises(se.SanitiseError, match="does not match YYYY-MM-DD") as excinfo:
@@ -1087,12 +1166,17 @@ def test_l5_direct_owner_body_check(tmp_path):
     # A pathological owner body whose literal text happens to look exactly
     # like a placeholder isolates the *second* L5 check (an original owner
     # body appearing verbatim in output) from the *first* (per-segment
-    # grammar check), which "note 1.0" already satisfies on its own.
+    # grammar check), which "note 1.0" already satisfies on its own. The
+    # cell here has a single segment, so the *whole-cell* equality check
+    # (which runs first) is what actually raises — tightened to that exact
+    # message (#181 review T2) so disabling just that branch is detectable:
+    # see test_l5_per_segment_equality_catches_owner_body_next_to_retained_clause
+    # for the sibling per-segment branch, which this scenario can't reach.
     headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
     state = _state_for_ids([])
     state.placeholder_map["note 1.0"] = 1
     staged = {"weapons": [["1000000000000000001", "note 1.0"]], "armor": [], "ghosts": []}
-    with pytest.raises(se.SanitiseError, match=r"^L5:"):
+    with pytest.raises(se.SanitiseError, match="Notes cell equals an original owner Notes segment"):
         se._check_l5(headers, staged, state)
 
     clean_state = _state_for_ids([])  # nothing registered: nothing to leak
@@ -1119,15 +1203,23 @@ def test_l5_short_owner_notes_pass_when_only_a_substring_of_retained_text(tmp_pa
     se._check_l5(headers, staged, state)  # does not raise
 
 
-def test_l5_verbatim_owner_body_left_in_place_still_refuses(tmp_path):
+def test_l5_per_segment_equality_catches_owner_body_next_to_retained_clause(tmp_path):
+    # #181 review T2: renamed and repurposed from a test that merely showed
+    # L5 raises *something* (it was actually catching the unrelated grammar
+    # check, since "my secret diary entry" doesn't fit PLACEHOLDER_RE
+    # either). This test isolates the *per-segment* equality branch
+    # specifically: a retained clause sits next to a separate segment that
+    # exactly equals an owner body which itself fits PLACEHOLDER_RE — the
+    # whole-cell equality branch can't see it (the cell as a whole isn't
+    # equal to any single owner body), and the grammar check can't either
+    # (both the clause and "note 1.0" are grammar-valid on their own).
     headers = {"weapons": ["Id", "Notes"], "armor": ["Id", "Notes"], "ghosts": ["Id", "Notes"]}
-    state = _state_for_ids([])
-    state.placeholder_map["my secret diary entry"] = 1
-    staged = {
-        "weapons": [["1000000000000000001", "my secret diary entry"]],
-        "armor": [], "ghosts": [],
-    }
-    with pytest.raises(se.SanitiseError, match=r"^L5:"):
+    state = _state_for_ids(["6900000000000000001"])
+    state.placeholder_map["note 1.0"] = 1
+    fake = state.id_map["6900000000000000001"]
+    cell = f"note 1.0 #vc-junk: dupe-lower, kept {fake}"
+    staged = {"weapons": [["1000000000000000001", cell]], "armor": [], "ghosts": []}
+    with pytest.raises(se.SanitiseError, match="Notes segment equals an original owner Notes segment"):
         se._check_l5(headers, staged, state)
 
 
