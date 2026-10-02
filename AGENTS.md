@@ -13,8 +13,10 @@ python3 -m venv .venv                # if .venv doesn't already exist
 .venv/bin/vault-cleaner roundtrip --item "NAME"   # dry-run pipeline check
 ```
 
-CI also rejects tracked files under `data/`, whitespace or line-ending errors
-reported by `git diff --check`, and pull requests without a `WORKLOG.md` entry.
+CI also rejects tracked files under `data/`, any file under
+`tests/fixtures/real/` that fails the sanitised-fixture guard, whitespace or
+line-ending errors reported by `git diff --check`, and pull requests without
+a `WORKLOG.md` entry.
 The worklog requirement has no escape hatch: every pull request records what
 changed, including CI-only changes and reverts.
 An intentional whitespace or line-ending fixture exception must use a narrowly
@@ -32,20 +34,37 @@ POSIX, `.venv\Scripts\python` on Windows. The script writes the file itself
 with UTF-8 bytes and LF endings; shell redirection was the old failure mode,
 since PowerShell's `>` re-encodes and re-terminates lines — #45.)
 
+Regenerate the sanitised real-export fixtures from a snapshot directory
+(from the repo root; the wishlist parity run uses the normal caches):
+
+```bash
+python scripts/sanitize_export.py data/in/<snapshot>
+```
+
 Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, added by #49) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
 
 ## Hard rules
 
-- **Never commit anything under `data/`** or any real vault export file. This
-  repo is public; `data/` holds personal Bungie account data. `.gitignore`
-  covers it — do not weaken that, and check `git status` before committing.
-  Measuring a real export is expected, not a deviation (see *Measure the real
-  export before designing a rule*); what is barred is committing the export or
-  a reconstruction of it. **Findings derived from a real export may be
-  committed** to `docs/` when the owner has authorized that measurement for
-  that ticket: aggregate counts, distributions, and item names are permitted;
-  verbatim CSV rows, instance `Id` values, and `Notes` cell contents are not.
-  Authorization is per ticket — record it in the ticket and in `WORKLOG.md`.
+- **Never commit anything under `data/`**, any raw vault export, or anything
+  reconstructed from one. This repo is public; `data/` holds personal Bungie
+  account data. `.gitignore` covers it — do not weaken that, and check
+  `git status` before committing. Measuring a real export is authorised by
+  default (owner's standing permission, #181; see *Measure the real export
+  before designing a rule*): record each measurement in `WORKLOG.md`.
+  **Findings derived from a real export may be committed** to `docs/`:
+  aggregate counts, distributions, and item names are permitted; verbatim
+  raw CSV rows, real instance `Id` values, the owner's own `Notes` text and
+  loadout names are not.
+- **Sanitised real-export fixtures** are the one exception. They live only in
+  `tests/fixtures/real/<snapshot>/` and are produced only by
+  `scripts/sanitize_export.py`, which writes nothing unless its leakage,
+  parity and format checks pass. Never hand-edit, trim or copy files into that
+  directory; regenerate instead. Every `Id` there carries the `1000` marker
+  prefix. CI (`scripts/check_real_fixtures.py`) rejects any fixture whose ids
+  lack it, or whose `Notes`, `Loadouts` or `Kill Tracker` cells fall outside
+  the sanitised formats.
+  If the sanitiser refuses a new export's unclassified column, classify it
+  with the owner before sanitising.
 - **Access CSV columns by header name, never by position.** DIM's export
   format drifts between releases. Schema checks in `parse.py` must fail
   loudly, not silently coerce.
@@ -162,10 +181,10 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
 ## Conventions
 
 - Test fixtures in `tests/fixtures/` are pinned to real export headers but
-  contain only fake items. Regenerate the header from a fresh export if DIM's
-  format changes; never paste real rows. The real-export allowance above does
-  not reach fixtures: they are committed test data at scale, and they stay
-  synthetic.
+  contain only fake items, except the sanitised real-export fixtures under
+  `tests/fixtures/real/` (see *Hard rules*). Regenerate the header from a
+  fresh export if DIM's format changes; never paste real rows. Hand-written
+  fixtures stay synthetic.
 - Measurement evidence lives in `docs/evidence/issue-N/README.md`: verbatim
   command transcripts backing a report's claims, plain text only, each fence
   reproducible on its own. Real-export evidence follows the hard rule above.

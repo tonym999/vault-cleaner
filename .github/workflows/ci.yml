@@ -23,6 +23,8 @@ jobs:
             git ls-files data/
             exit 1
           fi
+      - name: Real-export fixtures pass the sanitised-fixture guard
+        run: python3 scripts/check_real_fixtures.py
       - name: Whitespace and line endings
         if: github.event_name == 'pull_request'
         env:
