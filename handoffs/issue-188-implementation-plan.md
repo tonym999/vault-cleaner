@@ -45,7 +45,7 @@ All line numbers are at the plan baseline `1ab2eae`, except `AGENTS.md` lines, w
 | F3 | `handoffs/README.md:184`, `:217`, `:230` | Opus is named `claude-opus-5` in the planner roster, the Independent Review row and the catalog. | The current Opus is `claude-opus-5-5`; `claude-opus-5` is listed under "Legacy models (still available)". See *Model verification* below. | `WebFetch` of the two Anthropic URLs below |
 | F4 | `AGENTS.md:189-192` (`208-211` at `40c1c91`) | Rules modules: `weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py, ghosts.py`. | `src/vault_cleaner/rules/` also holds `coverage.py` (docstring: "Weapon coverage rule pass (PLAN.md rule 4)"), `rails.py` ("Safety rails (PLAN.md rule 1)") and `id_order.py` ("Deterministic ordering for opaque DIM instance ids"). | `ls src/vault_cleaner/rules/ && head -1 src/vault_cleaner/rules/{coverage,rails,id_order}.py` |
 | F5 | `PLAN.md:73` | `wishlists/  # cached downloads (gitignored or committed — TBD)` | `wishlists/` is gitignored (`.gitignore:5`), and no wishlist file is tracked. | `git check-ignore -v wishlists/ && git ls-files wishlists/` |
-| F6 | `PLAN.md:62-78` | The repo layout lists 7 modules. | `src/vault_cleaner/` has 17 modules plus `rules/`, `server/` and `ui/`. The issue allows two fixes: a complete list, or a pointer to `src/vault_cleaner/`. E8 uses the pointer, because it cannot drift and PLAN.md's prose already names the modules it relies on (`pipeline.py`, `report_run.py`, `cli.py`). | `ls src/vault_cleaner/` |
+| F6 | `PLAN.md:62-78` | The repo layout lists 7 modules. | `src/vault_cleaner/` has 17 modules plus `rules/`, `server/` and `ui/`. The issue allows two fixes: a complete list, or a pointer to `src/vault_cleaner/`. E8 uses the pointer, because it cannot drift. Outside the tree, PLAN.md names a module only in the *M7 boundary* paragraph (`PLAN.md:35-40`: `pipeline.py` and `report_run.py`, plus "the CLI and the local review server" as presentation adapters), and that paragraph is unchanged. | `ls src/vault_cleaner/` |
 
 ### Sibling found during measurement
 
@@ -63,7 +63,7 @@ All line numbers are at the plan baseline `1ab2eae`, except `AGENTS.md` lines, w
 
 | Id | Location | Stale text | Measured reality | Source |
 |---|---|---|---|---|
-| F9 | `PLAN.md:174` (*Risks & mitigations*) | "The browser/server boundary still needs a contract … Specify them before implementation and bind mutations to the exact report revision/fingerprint." | The server is implemented. It validates each request strictly (`src/vault_cleaner/server/`). Verdict and finalize requests require `report_revision`, `verdict_revision` and `fingerprint` (`server/app.py:184-258`). Seven `tests/test_server_*.py` suites pin the schemas. The risk is durable; only "still needs" and "before implementation" are stale. | Owner review on PR #197 |
+| F9 | `PLAN.md:174` (*Risks & mitigations*) | "The browser/server boundary still needs a contract … Specify them before implementation and bind mutations to the exact report revision/fingerprint." | The server is implemented. It validates each request strictly (`src/vault_cleaner/server/`). Verdict and finalize requests require `report_revision`, `verdict_revision` and `fingerprint` (`src/vault_cleaner/server/app.py:184-258`). Seven `tests/test_server_*.py` suites pin the schemas. The risk is durable; only "still needs" and "before implementation" are stale. | Owner review on PR #197 |
 | F10 | `handoffs/README.md:184`, `:189`, `:204-206`, `:231` | Sonnet is named `claude-sonnet-5` (planner alternatives, all three ladder rungs, catalog). | `claude-sonnet-5-5` is the current Sonnet. It was not listed at this plan's first verification on 2026-09-27; Claude Sonnet 5 is listed under "Legacy models (still available)". See *Model verification*. | CodeRabbit on PR #197 |
 | F11 | `PLAN.md:77` | `tests/  # fixture CSVs with fake items` | Since #181 (PR #198), `tests/fixtures/real/` holds sanitised real-export fixtures (`AGENTS.md`, *Hard rules* and *Conventions*). | Planner, found while checking F9 |
 
@@ -343,7 +343,7 @@ New fenced block:
 
 ```text
 vault-cleaner/
-├── src/vault_cleaner/    # the package; each module's docstring states its role
+├── src/vault_cleaner/    # the Python package
 ├── wishlists/            # cached downloads, gitignored
 ├── data/                 # in/ and out/ — gitignored, personal vault data
 ├── config.toml
@@ -524,7 +524,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 # Review checklist
 
 - [ ] `git diff --word-diff=plain <base_sha>...HEAD -- AGENTS.md PLAN.md handoffs/README.md .gitignore` shows exactly E1–E13 and nothing else.
-- [ ] `git diff --numstat <base_sha>...HEAD -- WORKLOG.md` shows 0 deleted lines, and the added lines contain exactly one `## ` heading (the W entry).
+- [ ] `git diff -U0 <base_sha>...HEAD -- WORKLOG.md` has exactly one `@@` hunk with no removed lines, placed after the preamble and before the base's first `## ` heading; inspect that hunk and confirm every added line belongs to the new top W entry.
 - [ ] All three F3 locations now read `claude-opus-5-5`; the catalog has both Opus rows in the E6 order and defaults.
 - [ ] Above the catalog heading, `claude-sonnet-5` appears only as `claude-sonnet-5-5` (five times) with unchanged effort values; the catalog has both Sonnet rows in the E13 order.
 - [ ] The `handoffs/README.md` catalog table and the `PLAN.md` layout fence render correctly on GitHub.

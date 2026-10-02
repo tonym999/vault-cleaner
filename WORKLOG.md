@@ -86,15 +86,14 @@ planner also found one more stale line.
   browser/server boundary "still needs a contract … Specify them before
   implementation". The server validates each request strictly and binds
   verdict and finalize requests to report revision, verdict revision and
-  fingerprint (`server/app.py:184-258`); seven `tests/test_server_*.py` suites
+  fingerprint (`src/vault_cleaner/server/app.py:184-258`); seven `tests/test_server_*.py` suites
   pin the schemas. Added E11, which keeps the risk and states the current
   mitigation. The sweep missed it because its keyword list had neither
   `still` nor `before implementation`. Both terms are added, and PLAN.md
   *Non-goals* and *Risks* were then read in full.
 - **P2 (owner): E8 used neither form the issue allowed.** It kept a partial
   module tree plus a note that other modules exist. E8 now uses the pointer
-  form: one `src/vault_cleaner/` line. PLAN.md's prose already names the
-  modules it relies on.
+  form: one `src/vault_cleaner/` line. (Rationale corrected in round 2.)
 - **Minor (CodeRabbit): Sonnet 5.5 missing.** `claude-sonnet-5-5` was not
   listed at the 2026-09-27 verification. On 2026-10-02 it is current
   (default `high`, levels "recalibrated" from Sonnet 5), and Sonnet 5 is
@@ -106,8 +105,8 @@ planner also found one more stale line.
   - The fallback implementer becomes `claude-sonnet-5-5` (`medium`), per
     Anthropic's guidance for well-specified agentic coding.
 - **Minor (CodeRabbit): WORKLOG scope check.** The checklist only checked
-  that an entry exists. It now requires a `--numstat` diff with 0 deletions
-  and exactly one added `## ` heading. The worklog edit is now labelled `W`,
+  that an entry exists. Round 1 added a `--numstat` check, which round 2
+  replaced (it was insufficient). The worklog edit is now labelled `W`,
   so adding content edits never renumbers it again.
 - **Planner (F11): `PLAN.md:77` "fixture CSVs with fake items".** #181's
   `tests/fixtures/real/` made this false. It is fixed inside E8.
@@ -117,10 +116,43 @@ planner also found one more stale line.
   - The catalog went stale within a day of verification (Sonnet 5.5). This
     is direct evidence for #191's per-row `verified` dates and re-verifying
     at dispatch.
-  - Three of the five fixes (F9, F11 and the Sonnet change) were caused by
-    the world moving after the plan was written, not by planning errors. A
-    fully verbatim plan needs re-verifying against `main` right before
-    dispatch, not only when it is written.
+  - Two of the five fixes (F11 and the Sonnet change) were caused by
+    changes after the plan was written. The other three (F9, E8's form and
+    the WORKLOG check) were planning misses: F9 was already stale at
+    `1ab2eae`, in a section a full read would have caught. A verbatim plan
+    needs both a full read of every edited file at planning time and a
+    re-check against `main` right before dispatch. (Corrected in round 2.)
+
+### Review-fix round 2 (PR #197, 2026-10-02)
+
+Four owner findings at `7b4160e`, all verified and accepted. CodeRabbit
+resolved both of its round-1 threads.
+
+- **P2: E8 added a new false fact.** The comment "each module's docstring
+  states its role" is false: `src/vault_cleaner/__init__.py` and
+  `rules/__init__.py` have no docstring. F6 also said PLAN.md's prose names
+  `cli.py`, but outside the tree it says only "the CLI" (`PLAN.md:37`). E8's
+  comment is now `# the Python package`, which makes no claim. F6 now cites
+  the *M7 boundary* paragraph (`PLAN.md:35-40`), the only place outside the
+  tree that names a module. The round-1 note above is corrected to match.
+- **P3: F9 was a planning miss, not drift.** At `1ab2eae`, `PLAN.md:174`
+  already said "still needs a contract" and `server/app.py` already existed.
+  The round-1 "surprises" bullet now says two of five, not three.
+- **P3: citations not repository-relative.** `server/app.py:184-258` becomes
+  `src/vault_cleaner/server/app.py:184-258` in the plan's F9 row and in the
+  round-1 note. Older entries' short forms are historical and unchanged.
+- **P3: the `--numstat` check could pass lines added inside an older entry.**
+  The checklist now requires one `@@` hunk with no removed lines, placed
+  between the preamble and the base's first `## ` heading, plus an
+  inspection that every added line belongs to the new W entry.
+- **Surprises the next agent should know about:**
+  - Both P2s in this PR (round 1's F9 miss and round 2's docstring claim)
+    were *supporting* sentences, not the edits themselves: rationale written
+    to justify an edit and never checked. For the rest of this plan, no new
+    factual claim goes in without a citation that was opened.
+  - The thread replies posted through `gh` appear under the owner's account,
+    because the CLI uses the owner's token. Round-2 replies are prefixed
+    "Claude (planner):" so the record shows who wrote them.
 
 ## 2026-09-27 — #181 implementation: sanitised real-export test fixtures (PR 2)
 
