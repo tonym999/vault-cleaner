@@ -38,8 +38,9 @@ settable). Refs #191.
 - **Trial:** N1 parsed with `tomllib` and passed every cross-reference rule;
   E1–E8 applied once each from the plan's own blocks in a disposable
   worktree (6 files, +330/−50, `git diff --check` clean). Only four
-  classified prose locations still name a model ID (two examples, the MAI
-  launch rule in two places, the PR #160 incident line).
+  classified prose locations still named a model ID (two examples, the MAI
+  launch rule in two places, the PR #160 incident line). (Superseded in
+  review-fix round 1: only the two examples remain.)
 - **Surprises the next agent should know about:**
   - `tomllib` parses `2026-10-03T00:00:00` as `datetime.datetime`, a
     subclass of `date`, so an `isinstance(value, date)` check accepts it.
@@ -49,6 +50,43 @@ settable). Refs #191.
     warning. That is correct, not a defect.
   - #190's check 3 (roster models exist in the catalog) is covered by this
     checker once it lands.
+
+### Review-fix round 1 (PR #200, 2026-10-03)
+
+Three findings at `e40aa05`: two P2s from the owner's review and one
+CodeRabbit nitpick. All were checked against the plan and accepted; the
+owner approved the fixes below before they were applied.
+
+- **P2: model IDs left in non-example prose.** #191 allows a model ID in
+  prose only as an example, but the plan kept `MAI-Code-1.1-Flash` in the
+  launch rule (`handoffs/README.md:164`, `handoffs/templates/orchestrator.md:21`)
+  and `gemini-3.8-flash` in the PR #160 incident line (`:77`), and E3's text
+  invented a "rule about that specific model" exception. Fixed:
+  - N1's MAI row gains an optional `launch_surfaces` field, validated by N2
+    (non-empty, distinct, trimmed strings) with three negative cases in N3.
+  - New edits E9 and E10 make both copies of the launch rule key off
+    `launch_surfaces`. The policy is unchanged: manual launch only when the
+    runtime cannot instantiate the model, from a local surface on the
+    allocated branch, never the Copilot cloud agent.
+  - New edit E11 names the family ("a Gemini Flash implementer") in the PR
+    #160 line.
+  - E3 now says "Name a model ID in prose only as an example". The review
+    checklist's grep allows only the two examples at
+    `handoffs/templates/planner.md:30`.
+- **P2: Independent Review Mapping conflated orchestration and independent
+  review.** E3's text said the orchestrator reviews "with one reviewer
+  assignment … at that assignment's effort", which would put a reviewer
+  model and effort on standard review. It now says the orchestrator selects
+  a reviewer assignment for a fresh reviewer session only on the
+  independent-review path, and that standard review uses none. A checklist
+  item checks this.
+- **Nitpick (CodeRabbit): `schema_version = true` passes an equality
+  check.** Widened: `1.0 == 1` passes too. N2 now requires
+  `type(value) is int and value == 1`; N3 gains `True` and `1.0` cases, and
+  the revert spot-check covers the `bool` rejection.
+- **Trial rerun at `fa98e8e`:** E1–E11 each match once, 6 files, +344/−53,
+  `git diff --check` clean; only the two planner-template examples still
+  name a model ID.
 
 ## 2026-10-03 — #188 fix round 4: reviewer preference wording (PR #199)
 

@@ -54,10 +54,15 @@ All line numbers are at the plan baseline `fa98e8e`.
 | `handoffs/templates/orchestrator.md:19` | Implementer dispatch and re-selection; nothing about re-verification after a failed dispatch. | `sed -n 19p handoffs/templates/orchestrator.md` |
 | `handoffs/templates/orchestrator.md:51` | "Re-verify official provider documentation at dispatch time, then select … from the **Independent Review** row in [handoffs/README.md](…)". | `sed -n 51p handoffs/templates/orchestrator.md` |
 | `AGENTS.md:291` | Prose copy of the roster: "Sol and Opus are the regular planner/orchestrator choices, Sonnet and Gemini remain permitted planner alternatives, and the primary implementer ladder is MAI-Code-1.1-Flash for the Bounded rung, then Sol or Opus …". | `sed -n 291p AGENTS.md` |
+| `handoffs/README.md:164` | Per-model launch rule: "when the selected target is `MAI-Code-1.1-Flash`, use manual cross-provider execution only if the active runtime cannot instantiate it. Launch it from a local agent surface (Copilot agent mode in VS Code, or Copilot CLI where available) …". | `sed -n 164p handoffs/README.md` |
+| `handoffs/templates/orchestrator.md:21` | The same launch rule, shortened: "when the selected target is `MAI-Code-1.1-Flash`, … launch it from a local Copilot surface on the allocated branch, never the Copilot cloud agent". | `sed -n 21p handoffs/templates/orchestrator.md` |
+| `handoffs/templates/orchestrator.md:77` | Incident record: "(currently Gemini: PR #160, where `gemini-3.8-flash` fixed both …". | `sed -n 76,80p handoffs/templates/orchestrator.md` |
 
 `grep -rnE 'gpt-|claude-|gemini-|MAI-Code' AGENTS.md handoffs/README.md handoffs/templates/`
-at the baseline finds model IDs at `AGENTS.md:291` and in the template and
-README lines above, plus three that stay (see *Model IDs left in prose*).
+at the baseline finds model IDs at every location above except
+`handoffs/README.md:146` and `:162`, `handoffs/templates/planner.md:29`, and
+`handoffs/templates/orchestrator.md:19` and `:51`, plus the two examples at `handoffs/templates/planner.md:30`, which
+stay (see *Model IDs left in prose*).
 
 ### Which catalog rows are used
 
@@ -104,13 +109,16 @@ change any `verified` date (see *Stop conditions*).
    `n/a — adaptive` for the adaptive model), `rung` is present exactly on
    implementer rows, `effort` is absent only on orchestrator rows, no
    `(role, rung, model)` repeats, every role and rung has a primary, every
-   `default_effort` is allowed, every source is `https://`, and the set of
+   `default_effort` is allowed, every source is `https://`, the one
+   `launch_surfaces` list is non-empty with distinct entries, and the set of
    assigned models equals the set of catalog IDs.
 2. `tomllib` returns `datetime.date` for `verified = 2026-10-03`, and also
    returns a `datetime.datetime` (a **subclass** of `date`) for
    `verified = 2026-10-03T00:00:00`. A plain `isinstance(value, date)` check
    therefore accepts datetimes; the checker must reject them explicitly.
-3. E1–E8 below were applied mechanically from this document's old/new blocks
+   Likewise `True == 1` and `1.0 == 1` in Python, so an equality check on
+   `schema_version` accepts TOML `true` and `1.0`.
+3. E1–E11 below were applied mechanically from this document's old/new blocks
    in a detached worktree at `fa98e8e`; each old text matched exactly once
    (see *Trial results* at the end of *Proposed Plan & Scope*). The worktree
    was discarded.
@@ -128,11 +136,11 @@ implementation, not design. Selected the primary, `MAI-Code-1.1-Flash`
   execution prompt bounds reading to the newest three `WORKLOG.md` entries,
   as #188's did.
 - If the orchestrator re-selects, prefer `claude-sonnet-5-5` (`high`), the
-  ladder's Bounded alternative at its listed effort; the validator has two
+  ladder's Bounded alternative at its listed effort; the validator has
   type traps (`bool` is an `int`, `datetime` is a `date`) where care matters
   more than speed. Avoid `gemini-3.8-flash` for the prose edits (PR #160:
-  silently repointed Markdown citations), since E1–E7 are Markdown edits
-  next to links.
+  silently repointed Markdown citations), since E1–E7 and E9–E11 are
+  Markdown edits next to links.
 
 The orchestrator verifies whether its runtime can instantiate MAI and
 otherwise uses manual cross-provider execution from a local Copilot surface
@@ -182,18 +190,22 @@ otherwise uses manual cross-provider execution from a local Copilot surface
     tooling, not product code. It follows `scripts/check_real_fixtures.py`:
     stdlib-only, runnable with a bare `python3` in the CI hygiene job, and
     loaded by tests through `importlib`.
-- **Model IDs left in prose.** After this change, model IDs remain in prose
-  only where they are an example or a rule about that specific model, never
-  as roster data:
+  - **Per-model launch surfaces are data** (owner-approved on PR #200,
+    2026-10-03). The MAI launch rule (`handoffs/README.md:164`,
+    `handoffs/templates/orchestrator.md:21`) named the model ID in prose. A
+    new optional catalog field, `launch_surfaces`, now records the local
+    surfaces a model must be launched from, and both prose copies of the rule
+    key off that field (E9, E10). The policy is unchanged for MAI: manual
+    cross-provider execution only when the runtime cannot instantiate it,
+    from a local surface on the allocated branch, never the Copilot cloud
+    agent.
+- **Model IDs left in prose.** After this change, a model ID appears in
+  prose only as an example, as issue #191's acceptance criterion requires:
   - `handoffs/templates/planner.md:30` — "e.g. `gpt-6.1-sol` with `high`
     effort" and "such as `MAI-Code-1.1-Flash`": examples.
-  - `handoffs/templates/orchestrator.md:21` and `handoffs/README.md:164` —
-    the MAI-specific launch-surface rule (local Copilot surface, never the
-    Copilot cloud agent). It applies to that model, not to a role.
-  - `handoffs/templates/orchestrator.md:77` — the PR #160 incident record
-    naming `gemini-3.8-flash`.
-  If the owner reads the acceptance criterion more strictly, generalising the
-  MAI launch rule is a separate policy change; it is not done here.
+  The PR #160 incident line (`handoffs/templates/orchestrator.md:77`) keeps
+  its record but names the family ("a Gemini Flash implementer") instead of
+  the model ID (E11). Family names such as Gemini or MAI are not model IDs.
 - **Neighbouring issues:**
   - #190 (doc-drift tests) candidate check 3 says: if #191 lands first,
     validate the data file instead. This plan's checker does that, so #190
@@ -244,6 +256,8 @@ stale_after_days = 30
 # --- Catalog -------------------------------------------------------------
 # effort_control = "adaptive" means the model has no user-settable effort:
 # effort_values is empty and every assignment records "n/a — adaptive".
+# launch_surfaces lists the local surfaces a model must be launched from
+# (handoffs/README.md, Manual Cross-Provider Execution).
 
 [[models]]
 id = "gpt-6.1-sol"
@@ -337,6 +351,10 @@ family = "MAI"
 effort_control = "adaptive"
 effort_values = []
 notes = "The model sets its own reasoning budget. 256K context. Launched through GitHub Copilot; see handoffs/README.md, Manual Cross-Provider Execution."
+launch_surfaces = [
+  "GitHub Copilot agent mode in VS Code",
+  "GitHub Copilot CLI (where available)",
+]
 stability = "GitHub Copilot GA; Azure Foundry Preview"
 verified = 2026-09-19
 sources = [
@@ -502,9 +520,10 @@ effort = "high"
 
 Every value above is transcribed from `handoffs/README.md` at `fa98e8e`
 (catalog `:230`, `:231`, `:236`, `:238`, `:241`, `:242`, `:244`; roster
-`:184-185`; ladder `:204-206`; reviewer `:217`; dates `:170`). Notes keep the
-catalog's support notes, minus the default (now `default_effort`) and minus
-links (now `sources`).
+`:184-185`; ladder `:204-206`; reviewer `:217`; dates `:170`), except
+`launch_surfaces`, which is transcribed from the MAI launch rule at
+`handoffs/README.md:164`. Notes keep the catalog's support notes, minus the
+default (now `default_effort`) and minus links (now `sources`).
 
 ### Checker
 
@@ -538,14 +557,16 @@ as for review manifests in `AGENTS.md` *Conventions*):
 Top level:
 - Keys exactly `schema_version`, `stale_after_days`, `models`,
   `assignments`; any missing or extra key is an error.
-- `schema_version` is the integer `1`.
+- `schema_version` is an `int` (not a `bool`, not a `float`) equal to `1`:
+  check `type(value) is int and value == 1`, because `True == 1` and
+  `1.0 == 1` in Python.
 - `stale_after_days` is an `int`, not a `bool`, and `> 0`.
 - `models` and `assignments` are non-empty lists of tables (dicts).
 
 Each `[[models]]` row:
 - Required keys: `id`, `provider`, `family`, `effort_control`,
   `effort_values`, `stability`, `verified`, `sources`. Optional:
-  `default_effort`, `notes`. Any other key is an error.
+  `default_effort`, `notes`, `launch_surfaces`. Any other key is an error.
 - `id`, `provider`, `family`, `effort_control`, `stability`, and `notes` when
   present, are non-empty strings with no leading or trailing whitespace.
 - `id` is unique across rows (exact string comparison; ids stay opaque).
@@ -558,6 +579,11 @@ Each `[[models]]` row:
   not later than `today + 1 day` (one day's tolerance for time zones).
 - `sources` is a non-empty list of unique strings, each starting with
   `https://`.
+- `launch_surfaces`, when present, is a non-empty list of unique non-empty
+  strings with no leading or trailing whitespace. Its presence means the
+  model must be launched from one of those local surfaces
+  (`handoffs/README.md`, *Manual Cross-Provider Execution*); the checker
+  validates only its shape.
 
 Each `[[assignments]]` row:
 - Required keys: `role`, `standing`, `model`. Optional: `rung`, `effort`,
@@ -646,7 +672,7 @@ Required tests:
 2. `test_real_roster_is_valid` — `validate(load_roster(REPO / "handoffs" / "models.toml"), today=date.today()) == []`.
 3. Negative cases, one parametrized test, at least one case per rule:
    - unknown top-level key; missing `assignments`;
-   - `schema_version = 2`;
+   - `schema_version` of `2`, of `True` and of `1.0`;
    - `stale_after_days` of `0`, of `True`, and of `"30"`;
    - duplicate model `id`;
    - unknown model key; missing `sources`;
@@ -657,6 +683,8 @@ Required tests:
    - `default_effort` not in `effort_values`; `default_effort` on the
      adaptive model;
    - a source starting with `http://`; empty `sources`;
+   - empty `launch_surfaces`; duplicate entry in `launch_surfaces`; a
+     non-string entry in `launch_surfaces`;
    - assignment with unknown `role`, unknown `standing`, unknown `rung`;
    - implementer without `rung`; planner with `rung`;
    - planner without `effort`;
@@ -743,6 +771,23 @@ New text:
 The model data file, [`handoffs/models.toml`](models.toml), is selection guidance; it does not itself make that provider available to the active runtime.
 ```
 
+#### [MODIFY] [handoffs/README.md](README.md#L164) — E9
+
+Old text:
+
+```text
+For implementation dispatch specifically, when the selected target is `MAI-Code-1.1-Flash`, use manual cross-provider execution only if the active runtime cannot instantiate it. Launch it from a local agent surface (Copilot agent mode in VS Code, or Copilot CLI where available) working on the allocated branch, so it commits and pushes only that branch.
+```
+
+New text:
+
+```text
+For implementation dispatch specifically, when the selected target's row in [`handoffs/models.toml`](models.toml) lists `launch_surfaces`, use manual cross-provider execution only if the active runtime cannot instantiate it. Launch it from one of those local agent surfaces, working on the allocated branch, so it commits and pushes only that branch.
+```
+
+The sentence that follows on the same line ("Do not dispatch implementation to
+the Copilot cloud agent in this workflow: …") is unchanged.
+
 #### [MODIFY] [handoffs/README.md](README.md#L168-L244) — E3
 
 Replace everything from the line `## Model Family & Provider-Native
@@ -762,9 +807,10 @@ New text:
 
 Which models fill each role, and each model's provider, exact ID, native
 effort control, allowed effort values, verification date and sources, live in
-one data file: [`handoffs/models.toml`](models.toml). This section holds the
-selection policy. Name a model in prose only as an example or in a rule about
-that specific model; never copy the roster or catalog into another document.
+one data file: [`handoffs/models.toml`](models.toml). So do per-model
+operational facts, such as the surfaces a model must be launched from. This
+section holds the selection policy. Name a model ID in prose only as an
+example; never copy the roster or catalog into another document.
 
 `python3 scripts/check_model_roster.py` validates the file's schema and
 cross-references and warns about stale rows. CI runs it on every push and
@@ -825,9 +871,12 @@ attempt stops or fails, the orchestrator may re-select a higher rung under
 
 ### Independent Review Mapping
 
-The orchestrator reviews implementation diffs against plan checklists and
-likely findings with one `role = "reviewer"` assignment from
-[`handoffs/models.toml`](models.toml), at that assignment's effort.
+When the independent-review path is used, the orchestrator selects one
+`role = "reviewer"` assignment from [`handoffs/models.toml`](models.toml) for
+a fresh reviewer session, at that assignment's effort, to review the
+implementation diff against the plan's checklist and likely findings.
+Standard review is conducted by the orchestrator itself and uses no reviewer
+assignment.
 
 Prefer a model from a different family than the implementer; any listed model
 is allowed in a fresh read-only session.
@@ -839,8 +888,9 @@ not an independent review option.
 
 The `[[models]]` rows in [`handoffs/models.toml`](models.toml) are the
 catalog: provider, family, exact model ID, native reasoning control, allowed
-effort values and default, support notes, stability, `verified` date and
-sources. A row exists only while some assignment uses it; the checker rejects
+effort values and default, support notes, launch surfaces where they are
+restricted, stability, `verified` date and sources. A row exists only while
+some assignment uses it; the checker rejects
 an unused row. For a model whose `effort_control` is `adaptive`, record the
 effort as `n/a — adaptive` rather than guessing a level.
 ```
@@ -889,6 +939,38 @@ New text:
 Select and justify one exact model ID and native effort from the `reviewer` assignments in [handoffs/models.toml](../models.toml), under the policy in [handoffs/README.md](../README.md#independent-review-mapping); if `python3 scripts/check_model_roster.py` reports that model's row as stale, re-verify it under [Re-verification](../README.md#re-verification) first.
 ```
 
+#### [MODIFY] [handoffs/templates/orchestrator.md](templates/orchestrator.md#L21) — E10
+
+Old text:
+
+```text
+For implementation dispatch specifically, when the selected target is `MAI-Code-1.1-Flash`, use manual cross-provider execution only if the active runtime cannot instantiate it; launch it from a local Copilot surface on the allocated branch, never the Copilot cloud agent
+```
+
+New text:
+
+```text
+For implementation dispatch specifically, when the selected target's row in [handoffs/models.toml](../models.toml) lists `launch_surfaces`, use manual cross-provider execution only if the active runtime cannot instantiate it; launch it from one of those local surfaces on the allocated branch, never the Copilot cloud agent
+```
+
+The parenthesised README link that follows on the same line is unchanged.
+
+#### [MODIFY] [handoffs/templates/orchestrator.md](templates/orchestrator.md#L77) — E11
+
+Old text:
+
+```text
+incident** (currently Gemini: PR #160, where `gemini-3.8-flash` fixed both
+```
+
+New text:
+
+```text
+incident** (currently Gemini: PR #160, where a Gemini Flash implementer fixed both
+```
+
+Do not re-wrap the following lines of that bullet.
+
 ### Agent guide
 
 #### [MODIFY] [AGENTS.md](../AGENTS.md#L291) — E7
@@ -912,7 +994,7 @@ and for the model-selection policy; [handoffs/models.toml](handoffs/models.toml)
 Add a dated entry at the top, headed
 `## YYYY-MM-DD — #191 implementation: structured model roster (PR 2)`,
 recording: the base SHA; the dispatch record supplied by the orchestrator;
-that N1 and E1–E8 were applied verbatim (or any deviation and why); notable
+that N1 and E1–E11 were applied verbatim (or any deviation and why); notable
 implementation choices in N2/N3; the checker's output on the real file
 (including any stale-row warnings, which are expected for the Google rows);
 and the verification output summary. Refs #191.
@@ -922,19 +1004,19 @@ and the verification output summary. Refs #191.
 Applied mechanically from this document's own blocks in a detached worktree
 at `fa98e8e`, then discarded:
 
-- E1, E2 and E4–E8 each matched exactly once; E3's heading occurred once and
-  the replacement ran from line 168 to end of file;
-- N1 extracted from this plan was byte-identical to the file trialled with
-  `tomllib` (see *Context & Measurement*, *Trial*);
-- the diff was 6 files, +330/−50 (`handoffs/models.toml` +270), with
-  `git diff --check` clean;
-- the retained headings sat at lines 168, 194, 211, 233 and 245, with
-  *Re-verification* at 180, so every existing anchor survives; and
+- E1, E2 and E4–E11 each matched exactly once; E3's heading occurred once
+  and the replacement ran from line 168 to end of file;
+- N1 extracted from this plan parsed with `tomllib` (7 models, 21
+  assignments; only the MAI row has `launch_surfaces`) and passed the
+  cross-reference rules listed under *Context & Measurement*, *Trial*;
+- the diff was 6 files, +344/−53, with `git diff --check` clean;
+- the retained headings sat at lines 168, 195, 212, 234 and 249, with
+  *Re-verification* at 181, so every existing anchor survives; and
 - `grep -nE 'gpt-|claude-|gemini-|MAI-Code'` over `AGENTS.md`,
   `handoffs/README.md` and `handoffs/templates/*.md` matched only
-  `handoffs/README.md:164`, `handoffs/templates/orchestrator.md:21`,
-  `handoffs/templates/orchestrator.md:77` and
-  `handoffs/templates/planner.md:30`, the four classified locations.
+  `handoffs/templates/planner.md:30`, the two examples.
+
+(First trial, before review-fix round 1: E1–E8, 6 files, +330/−50.)
 
 ## Mechanical inclusion test
 
@@ -943,7 +1025,7 @@ A hunk in `git diff <base_sha>...HEAD` is **in scope** if and only if it is:
 - N1 (`handoffs/models.toml`), byte-identical to the block above;
 - N2 (`scripts/check_model_roster.py`) or N3 (`tests/test_model_roster.py`),
   implementing the specification above;
-- one of E1–E8, applied exactly as specified; or
+- one of E1–E11, applied exactly as specified; or
 - the W `WORKLOG.md` entry.
 
 Worked examples:
@@ -957,8 +1039,11 @@ Worked examples:
   provider page has changed. Report it instead.
 - **OUT OF SCOPE:** adding a model, an assignment or a field to N1, or
   re-adding a removed catalog row.
-- **OUT OF SCOPE:** generalising the MAI launch-surface rule, editing the PR
-  #160 incident line, or rewording any other `handoffs/README.md` section.
+- **IN SCOPE:** the `launch_surfaces` field in N1 and its schema rule in N2,
+  and E9–E11, which take the remaining model IDs out of prose.
+- **OUT OF SCOPE:** rewording any other part of the MAI launch rule, the PR
+  #160 incident bullet or any other `handoffs/README.md` section, or adding
+  `launch_surfaces` to any other model.
 - **OUT OF SCOPE:** a prose-wide model-ID scan test, link checking, or other
   doc-drift tests (#190); folding the checker into a `verify.py` (#189).
 - **OUT OF SCOPE:** adding `actions/setup-python` or any other step to the
@@ -987,9 +1072,11 @@ Escalation route: `implementer → orchestrator → planner`.
 ## Likely findings
 
 1. **Type traps in the validator.** `verified = 2026-10-03T00:00:00` accepted
-   because `datetime` is a `date` subclass; `stale_after_days = true`
-   accepted because `bool` is an `int`. The required negative cases cover
-   both; check they assert the specific message.
+   because `datetime` is a `date` subclass; `stale_after_days = true` or
+   `schema_version = true` accepted because `bool` is an `int`;
+   `schema_version = 1.0` accepted by an equality check. The required
+   negative cases cover all of these; check they assert the specific
+   message.
 2. **Negative tests that pass without their check.** Cases that assert only
    "errors is non-empty", a baseline that is itself invalid, or a mutation
    that trips an earlier rule. Revert spot-check: delete one rule from N2 in
@@ -999,10 +1086,13 @@ Escalation route: `implementer → orchestrator → planner`.
    asserting none, or a boundary off by one (30 days must not be stale; 31
    must be).
 4. **Transcription or prose drift.** An effort value, default, date or
-   source in N1 differing from the plan block; collateral edits beside E1–E7;
+   source in N1 differing from the plan block; collateral edits beside E1–E7
+   or E9–E11 (E9 and E10 replace only part of a long line, and E11 must not
+   re-wrap its bullet);
    a broken relative link (`models.toml` from `handoffs/`, `../models.toml`
    from `handoffs/templates/`, `handoffs/models.toml` from the root); or a
-   model ID left in prose outside the four classified locations.
+   model ID left in prose outside the two examples at
+   `handoffs/templates/planner.md:30`.
 5. **Worklog missing the dispatch record** that the orchestrator must verify
    before opening PR 2.
 
@@ -1018,7 +1108,7 @@ Read the entire handoff, issue #191, `AGENTS.md`, only the newest three entries 
 
 Rules:
 - work on `feat/issue-191-model-roster-data`; branch from latest `main` and record the base SHA;
-- create `handoffs/models.toml` byte-identical to block N1, and apply E1–E8 exactly as written, locating each by its old text, not by line number;
+- create `handoffs/models.toml` byte-identical to block N1, and apply E1–E11 exactly as written, locating each by its old text, not by line number;
 - implement `scripts/check_model_roster.py` (N2) and `tests/test_model_roster.py` (N3) to the plan's specification, including every required test case;
 - apply the plan's mechanical inclusion test to every hunk; never change a `verified` date or any other N1 value;
 - update `WORKLOG.md` with the dated entry described in W, including the dispatch record you were given;
@@ -1028,7 +1118,7 @@ Rules:
 
 Make ordinary implementation decisions yourself (local structure, naming of private helpers, test shape, following established patterns, fixing failures your own change caused) and explain notable ones in your completion handoff. If any stop condition is reached, or the work needs a design decision the plan did not settle, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope or silently redesign the solution.
 
-When complete, report: branch, base SHA, head SHA, the list of items applied (N1–N3, E1–E8 and W), any deviation, the output of `python3 scripts/check_model_roster.py`, and the verification output.
+When complete, report: branch, base SHA, head SHA, the list of items applied (N1–N3, E1–E11 and W), any deviation, the output of `python3 scripts/check_model_roster.py`, and the verification output.
 
 # Ticket-specific review decision
 
@@ -1050,13 +1140,15 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 # Review checklist
 
 - [ ] `git show <head>:handoffs/models.toml` is byte-identical to block N1 (extract the block from this plan and `diff` it).
-- [ ] `git diff --word-diff=plain <base_sha>...HEAD -- AGENTS.md handoffs/README.md handoffs/templates .github/workflows/ci.yml` shows exactly E1–E8 and nothing else.
+- [ ] `git diff --word-diff=plain <base_sha>...HEAD -- AGENTS.md handoffs/README.md handoffs/templates .github/workflows/ci.yml` shows exactly E1–E11 and nothing else.
 - [ ] `python3 scripts/check_model_roster.py` exits 0 on the real file and prints the summary line; any warnings are stale-row warnings only. With `--today` set 40 days after the newest `verified` date it warns for all seven rows and still exits 0.
 - [ ] `GITHUB_ACTIONS=true python3 scripts/check_model_roster.py --today <date>` prints `::warning file=handoffs/models.toml,line=<n>,title=Stale model row::…`, and `<n>` is the row's `id = "..."` line.
-- [ ] Revert spot-check in a disposable worktree: remove the `datetime` rejection, the unused-row check, and the stale comparison (`>` to `>=`) one at a time; each must turn a specific N3 test red.
+- [ ] Revert spot-check in a disposable worktree: remove the `datetime` rejection, the `bool` rejection on `schema_version`, the unused-row check, and the stale comparison (`>` to `>=`) one at a time; each must turn a specific N3 test red.
 - [ ] Every required N3 case exists and asserts a case-specific substring; the baseline is synthetic, not the real file.
 - [ ] N2 imports only the standard library; no `vault_cleaner` or third-party import.
-- [ ] `grep -nE 'gpt-|claude-|gemini-|MAI-Code' AGENTS.md handoffs/README.md handoffs/templates/*.md` lists only `handoffs/templates/planner.md:30`, `handoffs/templates/orchestrator.md:21`, `handoffs/templates/orchestrator.md:77` and the MAI launch rule in `handoffs/README.md` (*Manual Cross-Provider Execution*).
+- [ ] `grep -nE 'gpt-|claude-|gemini-|MAI-Code' AGENTS.md handoffs/README.md handoffs/templates/*.md` lists only `handoffs/templates/planner.md:30` (the two examples).
+- [ ] The MAI launch policy is intact: `handoffs/README.md` (*Manual Cross-Provider Execution*) and `handoffs/templates/orchestrator.md:21` key off `launch_surfaces`, still allow manual cross-provider execution only when the runtime cannot instantiate the model, and still forbid the Copilot cloud agent; the MAI row in `handoffs/models.toml` is the only row with `launch_surfaces`.
+- [ ] *Independent Review Mapping* says the reviewer assignment is used only on the independent-review path, for a fresh reviewer session; standard review uses no reviewer assignment.
 - [ ] Every new link resolves on GitHub: `models.toml` and `#re-verification` from `handoffs/README.md`; `../models.toml` and `../README.md#re-verification` from both templates; `handoffs/models.toml` from `AGENTS.md`. The README tables render.
 - [ ] The CI hygiene job runs the new step and passes on the PR.
 - [ ] `git diff -U0 <base_sha>...HEAD -- WORKLOG.md` has exactly one `@@` hunk with no removed lines, placed before the base's first `## ` heading, and the entry has the dispatch record and `Refs #191`.
@@ -1068,4 +1160,4 @@ Planned #191 in [handoffs/issue-191-implementation-plan.md](https://github.com/t
 
 - **Implementer model & effort:** `MAI-Code-1.1-Flash` (`n/a — adaptive`); re-selection fallback `claude-sonnet-5-5` (`high`), not Gemini (PR #160).
 - **Implementation branch:** `feat/issue-191-model-roster-data`
-- **Likely findings:** validator type traps (`datetime` as `date`, `bool` as `int`); negative tests that pass without their check; a stale row failing CI or an off-by-one at the threshold; transcription drift in `handoffs/models.toml` or collateral prose edits beside E1–E7; missing dispatch record in `WORKLOG.md`.
+- **Likely findings:** validator type traps (`datetime` as `date`, `bool` as `int`, `1.0 == 1`); negative tests that pass without their check; a stale row failing CI or an off-by-one at the threshold; transcription drift in `handoffs/models.toml` or collateral prose edits beside E1–E7 and E9–E11; a model ID left in prose outside the planner-template examples; missing dispatch record in `WORKLOG.md`.
