@@ -12,10 +12,10 @@ PR comments, and changing issue/PR/project state require authorization from the
 encompassing phase or a separate user instruction. If that authority is absent
 or unclear, stop and report it.
 
-Product implementation tickets use the two-PR lifecycle below. A documentation-
-or maintenance-only ticket may use a direct single PR only when the user
-explicitly authorizes that issue-to-PR route; the exception never authorizes a
-merge.
+Product implementation tickets use the one-branch, one-PR lifecycle below. A
+documentation- or maintenance-only ticket may skip the handoff and use a direct
+PR only when the user explicitly authorizes that issue-to-PR route; the
+exception never authorizes a merge.
 
 ## Topology
 
@@ -31,37 +31,48 @@ responsibilities and constraints below are the same whichever model fills the
 role.
 
 1. **Planner**
-   - **Responsibility:** Researches an open issue, measures current code state, resolves any staleness in the issue body, designs the solution, allocates branch names, and authors the implementation handoff document using [handoffs/templates/planner.md](templates/planner.md).
+   - **Responsibility:** Researches an open issue, measures current code state, resolves any staleness in the issue body, designs the solution, allocates the branch name, and authors the implementation handoff document using [handoffs/templates/planner.md](templates/planner.md) as the first commit on the allocated branch. Authors any later amendment as a further commit on that branch.
    - **Model Selection:** The owner chooses the planner and orchestrator models per ticket from the roster; the plan records the planner model. The plan selects and justifies the *implementer's* model and native reasoning effort, plus the recommended review path; it does not select the adversarial reviewer's model.
 
 2. **Orchestrator**
-   - **Responsibility:** Operates from `main` using [handoffs/templates/orchestrator.md](templates/orchestrator.md). Reads the merged plan from `main`, dispatches the implementer at the plan's selected model and effort (or re-selects it under [Implementer Re-selection](#implementer-re-selection)), resolves discrepancies that stay within the existing plan contract, determines the final review path after inspecting the real diff, selects and dispatches an independent reviewer when required, routes findings, and, when authorized, carries out the plan's review-outcome steps (opening the implementation PR, adding coordination comments).
+   - **Responsibility:** Operates on the allocated branch using [handoffs/templates/orchestrator.md](templates/orchestrator.md). Reads the plan at the approved plan SHA, dispatches the implementer at the plan's selected model and effort (or re-selects it under [Implementer Re-selection](#implementer-re-selection)), resolves discrepancies that stay within the existing plan contract, determines the final review path after inspecting the real diff, selects and dispatches an independent reviewer when required, routes findings, and, when authorized, carries out the plan's review-outcome steps (opening the ticket's PR, adding coordination comments).
    - **Constraint:** Never writes production code or implements tickets directly. Does not change scope, the mechanical inclusion test, or stop conditions; those go back to the planner.
 
 3. **Implementer**
-   - **Responsibility:** Executes the handoff instructions on the allocated branch (`fix/issue-N-...` or `feat/issue-N-...`). Follows the plan's mechanical inclusion test, adds tests, adds a worklog entry file under [worklog/](../worklog/), updates documentation, verifies with tests and linters, and reports results back to the orchestrator.
-   - **Constraint:** Does not open pull requests, widen implementation scope, or approve its own work. Approval belongs to the orchestrator's review and, on an independent path, the independent reviewer.
+   - **Responsibility:** Executes the handoff instructions on the allocated branch (`fix/issue-N-...` or `feat/issue-N-...`), on top of the plan commit. Follows the plan's mechanical inclusion test, adds tests, adds a worklog entry file under [worklog/](../worklog/), updates documentation, verifies with tests and linters, and reports results back to the orchestrator.
+   - **Constraint:** Does not open pull requests, edit the plan file, widen implementation scope, or approve its own work. Approval belongs to the orchestrator's review and, on an independent path, the independent reviewer.
 
 4. **Independent adversarial reviewer (optional, transient)**
-   - **Responsibility:** Starts in a fresh session with no planner or implementer conversation history, reads the canonical plan and exact `base_sha...head_sha` diff from a disposable checkout pinned to the head SHA, independently reruns applicable verification, and returns evidence-backed findings through the fixed review-result contract.
+   - **Responsibility:** Starts in a fresh session with no planner or implementer conversation history, reads the canonical plan at its plan SHA and the exact `base_sha...head_sha` diff from a disposable checkout pinned to the head SHA, independently reruns applicable verification, and returns evidence-backed findings through the fixed review-result contract.
    - **Constraint:** Implementation-read-only. It may create ephemeral test artifacts only inside its disposable checkout or assigned temporary directory, but does not edit tracked files, commit, push, post comments, open a pull request, implement fixes, or re-plan the ticket. The orchestrator remains the owner of routing and the final review outcome.
 
-## Document Lifecycle & Two-PR Process
+## Document Lifecycle & One-PR Process
 
-Every product implementation ticket follows this two-PR lifecycle once its
-phases and mutations have been authorized under `AGENTS.md`:
+Every product implementation ticket uses one branch and one PR, with the plan
+as the branch's first commit (owner decision, #195), once its phases and
+mutations have been authorized under `AGENTS.md`:
 
-1. **Plan Phase (PR 1):**
-   - The planner creates `handoffs/issue-N-implementation-plan.md` on a short-lived plan branch (`handoff/issue-N-implementation-plan`).
+1. **Plan Phase:**
+   - The planner cuts the allocated branch from latest `main` and commits `handoffs/issue-N-implementation-plan.md` on it.
    - Adds a dated worklog entry file under [worklog/](../worklog/) recording the planning session.
-   - Opens PR 1 targeting `main` only when that action is authorized.
-   - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, the implementer model & effort, allocated branch name, and likely findings.
+   - Pushes the branch and reports the **plan SHA**, the commit that holds the plan. Opens no PR.
+   - The owner reviews the plan at that commit and approves it by SHA. Approval replaces the old plan-PR merge as the gate before implementation.
+   - Once the plan is approved and the coordination action is authorized, the planner posts a dispatch comment on the issue thread with the plan SHA, a permalink to the plan at that SHA, the implementer model & effort, allocated branch name, and likely findings.
 
-2. **Implementation Phase (PR 2):**
-   - The orchestrator reads the merged plan from `main` (`handoffs/issue-N-implementation-plan.md`).
-   - Dispatches the implementer to work on the allocated implementation branch.
+2. **Implementation Phase:**
+   - The orchestrator reads the plan at the approved plan SHA (`git show <plan_sha>:handoffs/issue-N-implementation-plan.md`), never from a branch tip, and records that SHA in the dispatch record.
+   - Dispatches the implementer to work on the allocated branch, on top of the plan commit.
    - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes accepted, in-scope findings back to the implementer.
-   - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` and executes any required issue comments only when those external mutations are authorized; the PR includes a dated entry file under [worklog/](../worklog/).
+   - Once reviewed and verified, the orchestrator opens the ticket's one PR targeting `main` and executes any required issue comments only when those external mutations are authorized; the PR includes the planning and implementation entry files under [worklog/](../worklog/). Plan and implementation merge together.
+
+### Plan SHA, immutability and amendments
+
+- The plan is canonical at the approved plan SHA, not by being on `main`. A commit SHA is immutable; the owner's approval is what makes it reviewed.
+- An amendment is a planner commit on the same branch that touches only the plan file and the worklog. It produces a new plan SHA, which the owner approves and the orchestrator records before work continues. No separate PR and no merge from `main` is needed.
+- The implementer never edits the plan file and never rewrites the branch's history. Before review, and again before opening the PR, the orchestrator runs both plan checks against the head; a failure of either blocks PR creation:
+  - `git merge-base --is-ancestor <plan_sha> <head_sha>`: the approved commit is still in the branch's history. A rebase or force-push that drops it voids the approval, even when the plan's content is unchanged.
+  - `git diff --quiet <plan_sha> <head_sha> -- handoffs/issue-N-implementation-plan.md`: the plan at the head is the approved one.
+- The **review base SHA** is the branch head at the ticket's first implementer dispatch. The orchestrator records it once and keeps it for the whole ticket: amendments, retries and implementer re-selection do not move it, so `base_sha...head_sha` always holds the complete implementation. The head an individual attempt started from is used only for incremental audits of that attempt. An amendment made after implementation began therefore appears inside the review range, where the plan checks above cover it.
 
 ## Naming Convention
 
@@ -72,9 +83,8 @@ handoffs/issue-N-implementation-plan.md
 ```
 
 - Filenames must **never** include role names (e.g. `luna`) or model/effort labels (e.g. `xhigh`).
-- Branch names for plans follow `handoff/issue-N-implementation-plan`.
-- Implementation branches follow `fix/issue-N-...` or `feat/issue-N-...` as allocated in the plan.
-- Deleting a `handoff/*` branch is a post-merge cleanup operation.
+- Each ticket has one branch, `fix/issue-N-...` or `feat/issue-N-...`, allocated by the planner; it carries the plan commit and then the implementation.
+- Tickets planned before #195 used a separate `handoff/issue-N-implementation-plan` branch and plan PR; none is in flight.
 
 ## Stop-Condition Escalation Routing
 
@@ -86,7 +96,7 @@ implementer → orchestrator → planner
 
 1. **Implementer:** Stops work immediately when a plan stop condition is triggered and reports the exact conflict to the orchestrator without attempting to widen scope.
 2. **Orchestrator:** Evaluates whether the issue can be resolved within the existing plan contract. If non-trivial plan changes or scope alterations are required, the orchestrator escalates to the **Planner** rather than re-cutting the plan or broadening implementation scope.
-3. **Planner:** Re-evaluates the codebase, amends or re-cuts the plan, and submits a revised plan PR.
+3. **Planner:** Re-evaluates the codebase, amends or re-cuts the plan as a new commit on the allocated branch, and reports the new plan SHA for owner approval.
 
 Escalation always goes to the orchestrator for this ticket, whichever model
 fills that role, never to a named model.

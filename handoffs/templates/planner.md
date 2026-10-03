@@ -6,6 +6,8 @@ This template directs a **Planner Agent** to plan the work for an issue and gene
 handoffs/issue-N-implementation-plan.md
 ```
 
+The plan is committed as the first commit on the ticket's allocated branch, cut from latest `main`, with the planning worklog entry. The planner pushes that branch, reports the plan SHA, and opens no PR; the owner approves the plan by SHA (see [handoffs/README.md](../README.md#plan-sha-immutability-and-amendments)). An amendment is a further commit on the same branch touching only the plan and worklog.
+
 ---
 
 ## Planner Instructions
@@ -22,7 +24,7 @@ When acting as the **Planner**:
    - Explicitly document any divergence between the issue description and current repository state under *Dependencies and assumptions*.
 
 3. **Allocate Names & State Copy Verbatim:**
-   - Allocate the implementation branch name (e.g. `fix/issue-N-...` or `feat/issue-N-...`).
+   - Allocate the ticket's branch name (e.g. `fix/issue-N-...` or `feat/issue-N-...`); the plan commit and the implementation both live on it.
    - State exact user-facing copy verbatim where copy is decided.
 
 4. **Select Implementer Model & Native Reasoning Effort:**
@@ -71,9 +73,9 @@ Author the handoff document using the following exact structure:
 
 **Plan baseline:** `main` at `<Commit SHA>` (<Date>)
 
-**Allocated implementation branch:** `fix/issue-N-<short-name>`
+**Allocated branch:** `fix/issue-N-<short-name>` (this plan is its first commit)
 
-The implementer must **not** open a pull request. The implementation branch is reviewed under orchestrator ownership before any PR is created.
+The implementer must **not** open a pull request or edit this file. The branch is reviewed under orchestrator ownership before any PR is created.
 
 This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
 
@@ -123,16 +125,17 @@ Escalation route: `implementer → orchestrator → planner`.
 
 # Reusable implementer execution prompt
 
-Implement issue #N in `tonym999/vault-cleaner` using the committed handoff on `main` at:
+Implement issue #N in `tonym999/vault-cleaner` using the handoff at the approved plan SHA `<plan_sha>` (the orchestrator fills this in at dispatch):
 
 ```text
-handoffs/issue-N-implementation-plan.md
+git show <plan_sha>:handoffs/issue-N-implementation-plan.md
 ```
 
-Read the entire handoff, issue #N, `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), and current relevant code before editing.
+Read the entire handoff at that SHA, issue #N, `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), and current relevant code before editing.
 
 Rules:
-- work on `<allocated-branch-name>`; branch from latest `main` and record the base SHA;
+- work on the existing `<allocated-branch-name>`, which already holds the plan commit; do not create another branch, rebase, or force-push, and record the branch head you start from as your attempt's starting SHA (the orchestrator keeps the ticket's review base, which a later attempt does not move);
+- never edit `handoffs/issue-N-implementation-plan.md`;
 - apply the plan's mechanical inclusion test to every production hunk;
 - add a dated worklog entry file under `worklog/` (format in `AGENTS.md`, *Worklog*);
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py` (if touching UI), `git diff --check origin/main...HEAD`;
@@ -160,7 +163,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 
 # Dispatch comment draft
 
-Planned #N in [handoffs/issue-N-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/main/handoffs/issue-N-implementation-plan.md) on `main`.
+Planned #N in [handoffs/issue-N-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/<plan_sha>/handoffs/issue-N-implementation-plan.md), approved at plan SHA `<plan_sha>`.
 
 - **Implementer model & effort:** <Exact Model ID & Native Effort, or n/a — adaptive>
 - **Implementation branch:** `<allocated-branch-name>`
