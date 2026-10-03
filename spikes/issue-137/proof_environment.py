@@ -70,16 +70,33 @@ def main() -> int:
             failures.append(f"the loader served {name}")
     print(f"explicit get_template('shell.html'): {explicit.get_template('shell.html').name!r}")
 
-    print("-- filters that would break the opaque-id or escaping rule --")
+    print("-- filters and globals that would break the opaque-id or escaping rule --")
     stock = Environment(autoescape=True)
     values = {"id": "18446744073709551615", "name": "<b>x</b>"}
-    for expression in ("{{ id|int }}", "{{ id|float }}", "{{ name|safe }}"):
+    for expression in (
+        "{{ id|int }}",
+        "{{ id|float }}",
+        "{{ id|filesizeformat }}",
+        "{{ name|safe }}",
+        "{{ name|tojson }}",
+        "{{ name|urlize }}",
+        "{{ {'onclick': name}|xmlattr }}",
+    ):
         print(f"stock jinja2 {expression}: {outcome(lambda e=expression: stock.from_string(e).render(**values))}")
         result = outcome(lambda e=expression: explicit.from_string(e).render(**values))
         print(f"explicit environment {expression}: {result}")
         if "TemplateAssertionError" not in result:
             failures.append(f"the explicit environment compiled {expression}")
     print(f"explicit {{{{ id }}}}: {explicit.from_string('{{ id }}').render(id='18446744073709551615')!r}")
+    print(f"stock jinja2: {len(stock.filters)} filters, {len(stock.globals)} globals; "
+          f"explicit environment: {len(explicit.filters)} filters, {len(explicit.globals)} globals")
+    attribute = '<td data-x="{{ name|tojson }}"></td>'
+    breakout = stock.from_string(attribute).render(name='" onmouseover="alert(1)')
+    print(f"stock jinja2 {attribute}: {breakout}")
+    lorem = outcome(lambda: explicit.from_string("{{ lipsum(1) }}").render())
+    print(f"explicit environment {{{{ lipsum(1) }}}}: {lorem}")
+    if "UndefinedError" not in lorem or explicit.filters or explicit.globals:
+        failures.append("the explicit environment still has a filter or a global")
 
     print("-- shell-only shape --")
     source = PRODUCTION_SHELL.read_text(encoding="utf-8")

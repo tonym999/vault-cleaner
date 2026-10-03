@@ -9,6 +9,14 @@ order, survivor choice or proposal eligibility: those are read from
 ``proposal_action``, the section's own ``decisions`` and the envelope's
 ``verdicts``.
 
+The context depends on exactly four envelope fields: ``snapshot``,
+``verdicts``, ``report_revision`` and ``verdict_revision`` (plus
+``fingerprint``, which is a function of the snapshot).  It deliberately reads
+neither ``state`` nor ``override_status``: both can change while the two
+revisions stay equal (``POST /api/finalize`` does it), so anything rendered
+from them could not be told apart by the revision pair.  The browser paints
+those two from the envelope it has adopted instead.
+
 ``id`` and ``hash`` values are required to be ``str`` on the way in and are
 only ever concatenated or compared; nothing here converts one to a number.
 """
@@ -38,7 +46,6 @@ SECTION_COPY = {
     ),
 }
 SPIKE_ROLES = ((30, "Primary", "p"), (25, "Secondary", "s"), (20, "Tertiary", "t"))
-FROZEN_STATES = frozenset({"finalized", "closed"})
 
 
 class ContextError(ValueError):
@@ -210,7 +217,6 @@ def _member(
     group_hash: str,
     proposals: Mapping[str, Mapping[str, Any]],
     verdicts: Mapping[str, str],
-    persisted: frozenset[str],
     where: str,
 ) -> dict[str, Any]:
     member_id = _opaque(source.get("id"), f"{where}.id")
@@ -224,7 +230,10 @@ def _member(
         current_reason = _text(proposal.get("reason"))
     proposal_action = _text(source.get("proposal_action"))
     kind_word = "same-stat" if kind == "same_stat" else "exact-duplicate"
-    texts = _verdict_texts(member_id in persisted)
+    # Both wordings are rendered; the browser picks one from the adopted
+    # envelope's ``override_status``.  The wording itself stays in Python.
+    texts = _verdict_texts(False)
+    persisted_texts = _verdict_texts(True)
     verdict = verdicts.get(member_id, "")
 
     if kind == "same_stat":
@@ -274,7 +283,11 @@ def _member(
         ),
         "verdict": verdict,
         "texts": texts,
+        "persisted_texts": persisted_texts,
         "current_texts": {key: f"Current verdict: {text}" for key, text in texts.items()},
+        "persisted_current_texts": {
+            key: f"Current verdict: {text}" for key, text in persisted_texts.items()
+        },
         "names": {
             "approved": f"approve {kind_word} armor member id {member_id}",
             "vetoed": f"veto {kind_word} armor member id {member_id}",
@@ -290,7 +303,6 @@ def _group(
     source: Mapping[str, Any],
     proposals: Mapping[str, Mapping[str, Any]],
     verdicts: Mapping[str, str],
-    persisted: frozenset[str],
     where: str,
 ) -> dict[str, Any]:
     if not isinstance(source, Mapping):
@@ -307,7 +319,7 @@ def _group(
         _opaque(source.get("preferred_survivor_id"), f"{where}.preferred_survivor_id")
     members = [
         _member(
-            kind, member, index, group_hash, proposals, verdicts, persisted,
+            kind, member, index, group_hash, proposals, verdicts,
             f"{where}.members[{index}]",
         )
         for index, member in enumerate(raw_members)
@@ -382,11 +394,6 @@ def _projected_groups(envelope: Mapping[str, Any]) -> list[dict[str, Any]]:
         for entry in envelope.get("verdicts") or []
         if entry.get("verdict") in ("approved", "vetoed")
     }
-    persisted = frozenset(
-        entry["id"]
-        for entry in envelope.get("override_status") or []
-        if entry.get("status") == "active" and isinstance(entry.get("id"), str)
-    )
     exact: list[dict[str, Any]] = []
     same_stat: list[dict[str, Any]] = []
     for index, section in enumerate(snapshot.get("sections") or []):
@@ -402,7 +409,7 @@ def _projected_groups(envelope: Mapping[str, Any]) -> list[dict[str, Any]]:
             for position, source in enumerate(armor.get(key) or []):
                 target.append(
                     _group(
-                        kind, source, proposals, verdicts, persisted,
+                        kind, source, proposals, verdicts,
                         f"{where}.armor.{key}[{position}]",
                     )
                 )
@@ -452,10 +459,10 @@ def scope_text(
         f"{_pieces(shown)} of {_pieces(groups)} {piece_word}"
         f" — filtered to {', '.join(parts)}"
     )
-# [filters-b:end]
 
 
 def _class_options(groups: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
+    """Class facet options, counted over the selected kind's groups."""
     counts: dict[str, int] = {}
     for group in groups:
         counts[group["guardian_class"]] = counts.get(group["guardian_class"], 0) + 1
@@ -463,6 +470,18 @@ def _class_options(groups: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
         {"value": value, "label": f"{value} ({count} {'group' if count == 1 else 'groups'})"}
         for value, count in sorted(counts.items(), key=lambda item: item[0].casefold())
     ]
+
+
+def _reconciled_class(
+    groups: Sequence[Mapping[str, Any]], kind: str, guardian_class: str
+) -> tuple[list[dict[str, str]], str, str]:
+    """Recount the options for the kind and drop a class the kind lacks."""
+    universe = [group for group in groups if kind == "all" or group["filter_kind"] == kind]
+    options = _class_options(universe)
+    if guardian_class and guardian_class not in {option["value"] for option in options}:
+        return options, "", guardian_class
+    return options, guardian_class, ""
+# [filters-b:end]
 
 
 def build_context(
@@ -481,6 +500,9 @@ def build_context(
     if kind not in GROUP_KIND_FILTERS:
         raise ContextError("unsupported group kind filter")
     groups = _projected_groups(envelope)
+    class_options, guardian_class, dropped_class = _reconciled_class(
+        groups, kind, guardian_class
+    )
     shown = _filtered(groups, kind, guardian_class)
     sections = []
     for filter_kind in ("exact", "same_stat"):
@@ -495,11 +517,11 @@ def build_context(
         "report_revision": str(envelope["report_revision"]),
         "verdict_revision": str(envelope["verdict_revision"]),
         "fingerprint": fingerprint if isinstance(fingerprint, str) else "",
-        "frozen": envelope.get("state") in FROZEN_STATES,
         "total_groups": str(len(groups)),
         "total_pieces": str(_pieces(groups)),
         "scope_text": scope_text(groups, shown, kind, guardian_class),
-        "class_options": _class_options(groups),
+        "class_options": class_options,
+        "dropped_class": dropped_class,
         "sections": sections,
         "filtered_empty": bool(groups) and not shown,
     }

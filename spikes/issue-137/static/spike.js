@@ -1,6 +1,7 @@
 // Spike browser script for #137.  It installs server-rendered fragments and
 // keeps only browser-owned state: the adopted envelope, which filter is
-// selected, focus, and the in-flight gate.  It builds no report DOM.
+// selected, focus, and the in-flight gate.  It builds no report DOM; the one
+// thing it creates is the Class filter's <option> list under ?filters=browser.
 //
 // Two experiment switches are read from the query string and checked against
 // fixed lists; neither is ever sent to the server as a template or path:
@@ -35,6 +36,7 @@
   var state = {
     envelope: null,
     verdicts: Object.create(null),
+    persisted: Object.create(null),
     inFlight: false,
     usable: false,
     frozen: false,
@@ -89,8 +91,19 @@
     var reportChanged = !previous ||
       previous.report_revision !== envelope.report_revision ||
       previous.fingerprint !== envelope.fingerprint;
+    // An active persisted veto and the frozen states are read from the
+    // envelope, never from a fragment: POST /api/finalize changes both
+    // without moving either revision.
+    var persisted = Object.create(null);
+    (envelope.override_status || []).forEach(function (entry) {
+      if (entry && entry.status === "active" && typeof entry.id === "string") {
+        persisted[entry.id] = true;
+      }
+    });
     state.envelope = envelope;
     state.verdicts = verdicts;
+    state.persisted = persisted;
+    state.frozen = envelope.state === "finalized" || envelope.state === "closed";
     state.usable = envelope.state !== "closed";
     fingerprintNode.textContent = envelope.fingerprint || "";
     return reportChanged;
@@ -110,6 +123,21 @@
       note("server filter failed: " + error.message);
       announce("Filters need the review server, which could not be reached.", "error");
     });
+  }
+
+  // The server recounted the options for the selected kind and says whether
+  // it dropped a class that kind lacks; this copies both into the shell.
+  function installServerFilters(root) {
+    var options = importedPart(root, "class-options");
+    var dropped = root.getAttribute("data-dropped-class");
+    if (dropped) {
+      state.guardianClass = "";
+      reportDropped(dropped);
+    }
+    classSelect.replaceChildren.apply(classSelect, Array.prototype.slice.call(options.childNodes));
+    classSelect.value = state.guardianClass;
+    emptyNode.hidden = true;
+    setScope(root.getAttribute("data-scope-text"));
   }
   // [filters-b:end]
 
@@ -149,47 +177,33 @@
   }
 
   function readRoot(root) {
-    state.frozen = root.getAttribute("data-vc-frozen") === "true";
     state.totalGroups = Number(root.getAttribute("data-total-groups"));
     state.totalPieces = Number(root.getAttribute("data-total-pieces"));
-    state.serverScope = root.getAttribute("data-scope-text");
   }
 
   function importedPart(root, name) {
     return document.importNode(root.querySelector('[data-vc-part="' + name + '"]'), true);
   }
 
-  function installOptions(root) {
-    var selected = state.guardianClass;
-    var options = importedPart(root, "class-options");
-    classSelect.replaceChildren.apply(classSelect, Array.prototype.slice.call(options.childNodes));
-    classSelect.value = selected;
-    if (classSelect.value !== selected) {
-      state.guardianClass = "";
-      classSelect.value = "";
-      reconciliationNode.textContent = "Local view state dropped: duplicate filter guardianClass " + selected + ".";
-      reconciliationNode.hidden = false;
-    }
+  function reportDropped(value) {
+    reconciliationNode.textContent =
+      "Local view state dropped: duplicate filter guardianClass " + value + ".";
+    reconciliationNode.hidden = false;
   }
 
-  function afterInstall() {
+  function afterInstall(root) {
     paint();
     gate();
-    if (FILTERS === "server") {
-      emptyNode.hidden = true;
-      setScope(state.serverScope);
-    } else {
-      applyBrowserFilters();
-    }
+    if (FILTERS === "server") installServerFilters(root);
+    else applyBrowserFilters(true);
   }
 
   // Replace the list with the fragment's content.
   function install(root) {
     readRoot(root);
-    installOptions(root);
     var list = importedPart(root, "list");
     listNode.replaceChildren.apply(listNode, Array.prototype.slice.call(list.childNodes));
-    afterInstall();
+    afterInstall(root);
   }
   // [fragment-seam:end]
 
@@ -234,23 +248,26 @@
     for (var index = 0; index < listNode.childNodes.length; index++) {
       patch(listNode.childNodes[index], list.childNodes[index]);
     }
-    afterInstall();
+    afterInstall(root);
   }
   // [repaint-r3:end]
 
   // [fragment-seam:start] in-place verdict paint
   // R1: flip state on the existing nodes from the adopted envelope.  The
-  // three texts a member can show were rendered by the server; this picks one.
+  // server rendered every text a member can show (three verdicts, with and
+  // without an active persisted veto); this picks one and words nothing.
   function paint() {
     each(listNode.querySelectorAll("[data-vc-verdict-id]"), function (cell) {
-      var current = state.verdicts[cell.getAttribute("data-vc-verdict-id")] || "";
+      var id = cell.getAttribute("data-vc-verdict-id");
+      var current = state.verdicts[id] || "";
+      var wording = state.persisted[id] ? "data-vc-persisted-text-" : "data-vc-text-";
       each(cell.querySelectorAll("[data-vc-verdict-value]"), function (button) {
         var pressed = button.getAttribute("data-vc-verdict-value") === current ? "true" : "false";
         if (button.getAttribute("aria-pressed") !== pressed) button.setAttribute("aria-pressed", pressed);
       });
       var text = cell.querySelector("[data-vc-verdict-text]");
       if (text) {
-        var next = text.getAttribute("data-vc-text-" + (current || "unset"));
+        var next = text.getAttribute(wording + (current || "unset"));
         var leaf = text.firstChild;
         if (leaf && leaf.nodeType === 3 && !leaf.nextSibling) {
           if (leaf.data !== next) leaf.data = next;
@@ -379,7 +396,32 @@
       " — filtered to " + parts.join(", ");
   }
 
-  function applyBrowserFilters() {
+  // Production recounts the Class options for the selected kind and drops a
+  // selected class that kind lacks (review_server.js:263-275, :1284-1296).
+  function recountClassOptions() {
+    var counts = Object.create(null);
+    each(listNode.querySelectorAll("article.armor-group"), function (article) {
+      if (state.kind !== "all" && article.getAttribute("data-vc-filter-kind") !== state.kind) return;
+      var value = article.getAttribute("data-vc-guardian-class");
+      counts[value] = (counts[value] || 0) + 1;
+    });
+    if (state.guardianClass && !counts[state.guardianClass]) {
+      reportDropped(state.guardianClass);
+      state.guardianClass = "";
+    }
+    var options = [new Option("any class", "")];
+    Object.keys(counts).sort(function (a, b) {
+      return a.localeCompare(b, undefined, { sensitivity: "base" });
+    }).forEach(function (value) {
+      var noun = counts[value] === 1 ? "group" : "groups";
+      options.push(new Option(value + " (" + counts[value] + " " + noun + ")", value));
+    });
+    classSelect.replaceChildren.apply(classSelect, options);
+    classSelect.value = state.guardianClass;
+  }
+
+  function applyBrowserFilters(universeChanged) {
+    if (universeChanged) recountClassOptions();
     var shownGroups = 0;
     var shownPieces = 0;
     var shownKinds = Object.create(null);
@@ -403,9 +445,9 @@
   }
   // [filters-a:end]
 
-  function filtersChanged() {
+  function filtersChanged(universeChanged) {
     if (FILTERS === "server") return applyServerFilters();
-    applyBrowserFilters();
+    applyBrowserFilters(universeChanged);
     return Promise.resolve();
   }
 
@@ -415,13 +457,13 @@
       each(document.querySelectorAll("button[data-vc-kind]"), function (other) {
         other.setAttribute("aria-pressed", other === button ? "true" : "false");
       });
-      filtersChanged();
+      filtersChanged(true);
     });
   });
 
   classSelect.addEventListener("change", function () {
     state.guardianClass = classSelect.value;
-    filtersChanged();
+    filtersChanged(false);
   });
 
   // One delegated listener on the persistent host: installing a fragment
@@ -440,10 +482,22 @@
     });
   }
 
+  // What the page does after its own finalise, reset or reconnect: adopt the
+  // current envelope, fetch a fragment only if the report changed, and
+  // otherwise paint and gate from the envelope.
+  function sync() {
+    return getEnvelope().then(function (envelope) {
+      if (adopt(envelope)) return loadFragment().then(install);
+      paint();
+      gate();
+    });
+  }
+
   window.VaultCleanerSpike = {
     log: log,
     mode: { repaint: REPAINT, filters: FILTERS },
-    refresh: refresh
+    refresh: refresh,
+    sync: sync
   };
 
   refresh().then(function () {

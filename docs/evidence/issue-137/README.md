@@ -10,10 +10,11 @@ Everything here uses the fake fixtures under `tests/fixtures/`. No real
 export was read. The proof code is in
 [spikes/issue-137/](../../../spikes/issue-137/README.md).
 
-Captured 2026-10-03 on the implementation branch for #137. The proofs print
+Captured 2026-10-03 on the implementation branch for #137, and captured
+again in full after fix round 1 changed the proof code. The proofs print
 no port, path, timestamp or timing, so a rerun on the same versions prints
-the same text; every proof was run twice during capture and the two outputs
-were identical.
+the same text; after capture every fence was rerun and compared with the
+text recorded here.
 
 Ids such as `6032` and `8201` in the transcripts are the fake instance ids in
 the committed fixtures. `18446744073709551615`, `007` and `9"<'> x` are the
@@ -63,12 +64,23 @@ Scans the template bytes for the constructs the plan forbids. The scanner first 
 Output:
 
 ```text
-self-test rejects safe filter: <p>{{ name|safe }}</p> -> rejected
-self-test rejects safe filter: <p>{{ name | safe }}</p> -> rejected
+self-test rejects filter safe: <p>{{ name|safe }}</p> -> rejected
+self-test rejects filter safe: <p>{{ name | safe }}</p> -> rejected
+self-test rejects filter tojson: <td data-x="{{ value|tojson }}"></td> -> rejected
+self-test rejects filter urlize: <p>{{ note|urlize }}</p> -> rejected
+self-test rejects filter xmlattr: <td{{ attributes|xmlattr }}></td> -> rejected
+self-test rejects filter filesizeformat: <td>{{ id|filesizeformat }}</td> -> rejected
+self-test rejects filter round: <td>{{ id|round }}</td> -> rejected
+self-test rejects filter safe: {% set text = name|safe %} -> rejected
+self-test rejects filter block: {% filter upper %}{{ name }}{% endfilter %} -> rejected
+self-test rejects interpolated URL attribute: <a href="{{ link }}">x</a> -> rejected
+self-test rejects interpolated URL attribute: <a href="/item/{{ id }}">x</a> -> rejected
+self-test rejects interpolated URL attribute: <img src='{{ link }}'> -> rejected
+self-test rejects interpolated URL attribute: <form action="{{ target }}"></form> -> rejected
 self-test rejects Markup: {{ Markup(name) }} -> rejected
 self-test rejects autoescape block: {% autoescape false %}{{ name }}{% endautoescape %} -> rejected
-self-test rejects int filter: <td data-id="{{ id|int }}"></td> -> rejected
-self-test rejects float filter: <td>{{ id | float }}</td> -> rejected
+self-test rejects filter int: <td data-id="{{ id|int }}"></td> -> rejected
+self-test rejects filter float: <td>{{ id | float }}</td> -> rejected
 self-test rejects style attribute: <span style="width: {{ w }}%"></span> -> rejected
 self-test rejects event handler attribute: <button onclick="go()">x</button> -> rejected
 self-test rejects inline script: <script>go()</script> -> rejected
@@ -79,20 +91,22 @@ self-test rejects unquoted attribute interpolation: <td data-id={{ id }}></td> -
 self-test rejects unquoted attribute interpolation: <td {{ attributes }}></td> -> rejected
 self-test accepts: <td class="a" data-id="{{ id }}">{{ name }}</td> -> accepted
 self-test accepts: <script src="/assets/x.js" defer></script> -> accepted
+self-test accepts: <link rel="stylesheet" href="/assets/review.css"> -> accepted
+self-test accepts: <td data-member-id="{{ kind }}:{{ id }}" data-count="{{ count }}"></td> -> accepted
 self-test accepts: {% from "_verdict.html" import verdict_cell %} -> accepted
 self-test accepts: <button type="button"{% if frozen %} disabled{% endif %}>Approve</button> -> accepted
 self-test accepts: {#- a comment may mention |safe and style= -#}<p>{{ text }}</p> -> accepted
 templates on disk: ['_armor_group.html', '_verdict.html', 'armor_duplicates.html', 'shell.html', 'whole_page.html']
 environment allow-list: ['_armor_group.html', '_verdict.html', 'armor_duplicates.html', 'shell.html', 'whole_page.html']
-_armor_group.html: 5051 bytes, 40 interpolations, findings=[]
-_verdict.html: 2002 bytes, 24 interpolations, findings=[]
-armor_duplicates.html: 1313 bytes, 12 interpolations, findings=[]
+_armor_group.html: 4995 bytes, 40 interpolations, findings=[]
+_verdict.html: 2578 bytes, 30 interpolations, findings=[]
+armor_duplicates.html: 1298 bytes, 13 interpolations, findings=[]
 shell.html: 2613 bytes, 0 interpolations, findings=[]
-whole_page.html: 2076 bytes, 8 interpolations, findings=[]
+whole_page.html: 2186 bytes, 8 interpolations, findings=[]
 RESULT: PASS
 ```
 
-Every rule rejects its bad snippet and accepts the clean ones. The five templates on disk are exactly the environment's allow-list and have no finding. `shell.html` has no interpolation at all.
+Every rule rejects its bad snippet and accepts the clean ones. That includes any filter at all (`tojson`, `urlize`, `xmlattr`, `filesizeformat` and `round` among them) and any interpolation inside a URL-bearing attribute. The five templates on disk are exactly the environment's allow-list and have no finding. `shell.html` has no interpolation at all.
 
 ## Template environment, and the shell-only shape
 
@@ -122,20 +136,31 @@ explicit get_template('/etc/hostname'): TemplateNotFound: /etc/hostname
 explicit get_template('templates/shell.html'): TemplateNotFound: templates/shell.html
 explicit get_template('missing.html'): TemplateNotFound: missing.html
 explicit get_template('shell.html'): 'shell.html'
--- filters that would break the opaque-id or escaping rule --
+-- filters and globals that would break the opaque-id or escaping rule --
 stock jinja2 {{ id|int }}: '18446744073709551615'
 explicit environment {{ id|int }}: TemplateAssertionError: No filter named 'int'.
 stock jinja2 {{ id|float }}: '1.8446744073709552e+19'
 explicit environment {{ id|float }}: TemplateAssertionError: No filter named 'float'.
+stock jinja2 {{ id|filesizeformat }}: '18.4 EB'
+explicit environment {{ id|filesizeformat }}: TemplateAssertionError: No filter named 'filesizeformat'.
 stock jinja2 {{ name|safe }}: '<b>x</b>'
 explicit environment {{ name|safe }}: TemplateAssertionError: No filter named 'safe'.
+stock jinja2 {{ name|tojson }}: '"\\u003cb\\u003ex\\u003c/b\\u003e"'
+explicit environment {{ name|tojson }}: TemplateAssertionError: No filter named 'tojson'.
+stock jinja2 {{ name|urlize }}: '&lt;b&gt;x&lt;/b&gt;'
+explicit environment {{ name|urlize }}: TemplateAssertionError: No filter named 'urlize'.
+stock jinja2 {{ {'onclick': name}|xmlattr }}: ' onclick="&lt;b&gt;x&lt;/b&gt;"'
+explicit environment {{ {'onclick': name}|xmlattr }}: TemplateAssertionError: No filter named 'xmlattr'.
 explicit {{ id }}: '18446744073709551615'
+stock jinja2: 54 filters, 6 globals; explicit environment: 0 filters, 0 globals
+stock jinja2 <td data-x="{{ name|tojson }}"></td>: <td data-x=""\" onmouseover=\"alert(1)""></td>
+explicit environment {{ lipsum(1) }}: UndefinedError: 'lipsum' is undefined
 -- shell-only shape --
 production shell: 3881 bytes, 0 template tags; rendered through Jinja equals its own source: True
 RESULT: PASS
 ```
 
-Flask escapes by file extension and renders a misspelt key as nothing. The explicit environment escapes whatever the name, raises on a misspelt key, refuses any name outside its allow-list, and cannot compile `|int`, `|float` or `|safe`. The production shell contains no template tag, so rendering it through Jinja returns its own bytes: the shell-only shape changes nothing by itself.
+Flask escapes by file extension and renders a misspelt key as nothing. The explicit environment escapes whatever the name, raises on a misspelt key, refuses any name outside its allow-list, and has no filter and no global at all, so `|int`, `|float`, `|filesizeformat`, `|safe`, `|tojson`, `|urlize`, `|xmlattr` and `lipsum()` cannot be used. The stock `tojson` line shows why removing three named filters was not enough: its output closes a double-quoted attribute. The production shell contains no template tag, so rendering it through Jinja returns its own bytes: the shell-only shape changes nothing by itself.
 
 ## E1: rendered parity (gate G1)
 
@@ -149,25 +174,25 @@ Output:
 
 ```text
 armor_close.csv (no verdicts): groups=2 tables=4 buttons=22 nodes=363 equal=True
-  declared differences: empty class attributes production=4 jinja=0; data-vc-* attributes production=0 jinja=72
+  declared differences: empty class attributes production=4 jinja=0; data-vc-* attributes production=0 jinja=90
 armor_close.csv (one approved, one vetoed): groups=2 tables=4 buttons=22 nodes=363 equal=True
-  declared differences: empty class attributes production=4 jinja=0; data-vc-* attributes production=0 jinja=72
+  declared differences: empty class attributes production=4 jinja=0; data-vc-* attributes production=0 jinja=90
 armor_duplicates_ui.csv (no verdicts): groups=1 tables=2 buttons=8 nodes=259 equal=True
-  declared differences: empty class attributes production=20 jinja=0; data-vc-* attributes production=0 jinja=25
+  declared differences: empty class attributes production=20 jinja=0; data-vc-* attributes production=0 jinja=31
 armor_duplicates_ui.csv (one approved, one vetoed): groups=1 tables=2 buttons=8 nodes=259 equal=True
-  declared differences: empty class attributes production=20 jinja=0; data-vc-* attributes production=0 jinja=25
+  declared differences: empty class attributes production=20 jinja=0; data-vc-* attributes production=0 jinja=31
 armor_same_stat_ui.csv (no verdicts): groups=1 tables=2 buttons=14 nodes=209 equal=True
-  declared differences: empty class attributes production=8 jinja=0; data-vc-* attributes production=0 jinja=47
+  declared differences: empty class attributes production=8 jinja=0; data-vc-* attributes production=0 jinja=59
 armor_same_stat_ui.csv (one approved, one vetoed): groups=1 tables=2 buttons=14 nodes=209 equal=True
-  declared differences: empty class attributes production=8 jinja=0; data-vc-* attributes production=0 jinja=47
+  declared differences: empty class attributes production=8 jinja=0; data-vc-* attributes production=0 jinja=59
 armor_same_stat_four_ui.csv (no verdicts): groups=1 tables=2 buttons=26 nodes=374 equal=True
-  declared differences: empty class attributes production=30 jinja=0; data-vc-* attributes production=0 jinja=91
+  declared differences: empty class attributes production=30 jinja=0; data-vc-* attributes production=0 jinja=115
 armor_same_stat_four_ui.csv (one approved, one vetoed): groups=1 tables=2 buttons=26 nodes=374 equal=True
-  declared differences: empty class attributes production=30 jinja=0; data-vc-* attributes production=0 jinja=91
+  declared differences: empty class attributes production=30 jinja=0; data-vc-* attributes production=0 jinja=115
 RESULT: PASS
 ```
 
-Equal for all four fixtures, with and without verdicts. Two differences are declared and counted, and nothing else differs: production writes an empty `class=""` attribute where a cell has no class (`el()` assigns `className`), which Jinja does not; and the Jinja markup carries `data-vc-*` attributes (the stable control key, the verdict id and texts, and the filter values) that production does not.
+Equal for all four fixtures, with and without verdicts. Two differences are declared and counted, and nothing else differs: production writes an empty `class=""` attribute where a cell has no class (`el()` assigns `className`), which Jinja does not; and the Jinja markup carries `data-vc-*` attributes (the stable control key, the verdict id, both sets of verdict texts, and the filter values) that production does not.
 
 ## E2: hostile content (gate G2)
 
@@ -215,10 +240,16 @@ numeric member id: ContextError: sections[0].armor.exact_duplicate_groups[0].mem
 control elements inside the list: script>0=True img>0=True b>0=True
 control dialogs: []
 control CSP violation directives: ['img-src', 'script-src-attr']
+-- the fragment route when the builder refuses an envelope --
+GET fragment with a hostile disposition in the envelope: HTTP 500 application/json
+body: {"error":{"code":"internal_error","message":"internal server error"}}
+Cache-Control: no-store; CSP present: True
+body names the field, the payload, a file or a traceback: False
+GET /api/report on the same session afterwards: HTTP 200
 RESULT: PASS
 ```
 
-No element was created from hostile text, no dialog opened and no CSP violation was reported. Every replaced string the slice prints is in the DOM verbatim, including the literal `{{7*7}}`. Ids and hashes are byte-identical in attributes, in text and in the verdict request body, where `18446744073709551615` and `007` stay quoted strings. The projection equals production's `createElement`/`textContent` DOM for the same hostile envelope. A hostile `group_kind` or `disposition` and a numeric id are refused by the context builder. The control shows the detectors are live: with escaping off, elements are created, and the insertion step and the CSP still stop script (`img-src` and `script-src-attr` violations, no dialog). Fields this slice never prints (`note`, `original_notes`, `tag`, and the rest listed in the transcript) were replaced but had nothing to prove here.
+No element was created from hostile text, no dialog opened and no CSP violation was reported. Every replaced string the slice prints is in the DOM verbatim, including the literal `{{7*7}}`. Ids and hashes are byte-identical in attributes, in text and in the verdict request body, where `18446744073709551615` and `007` stay quoted strings. The projection equals production's `createElement`/`textContent` DOM for the same hostile envelope. A hostile `group_kind` or `disposition` and a numeric id are refused by the context builder. The control shows the detectors are live: with escaping off, elements are created, and the insertion step and the CSP still stop script (`img-src` and `script-src-attr` violations, no dialog). Fields this slice never prints (`note`, `original_notes`, `tag`, and the rest listed in the transcript) were replaced but had nothing to prove here. The last block shows what a client gets when the builder refuses an envelope: the production handler's bare `internal_error` 500, with the security headers, naming neither the field nor the payload, and the session still answers afterwards.
 
 ## E3 and E4: acknowledged state only, and no stale fragment (gate G3)
 
@@ -515,7 +546,7 @@ after the reload: the next Tab lands on 'vc-dup-search'
 submitting <form method=post action=/api/verdicts>: CSP violation events=['form-action']; navigated=False; server verdict_revision before=1 after=1
 CSP console messages: 1
 -- bytes per acknowledged verdict --
-whole document: 15638; fragment: 14493; JSON envelope: 24537
+whole document: 17390; fragment: 16267; JSON envelope: 24537
 RESULT: PASS
 ```
 
@@ -533,20 +564,34 @@ Output:
 
 ```text
 -- the same filter in production, candidate (a) and candidate (b) --
-kind=all class=(any): all three agree=True; groups=['exact_duplicate:6031', 'same_stat:6081']; headings=['Exact duplicates', 'Same stats, different tuning']
+no filter: all three agree=True; groups=['exact_duplicate:6031', 'same_stat:6081']; headings=['Exact duplicates', 'Same stats, different tuning']
   scope: 2 groups · 4 pieces
-kind=exact class=(any): all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
+  Class options: ['=any class', 'Hunter=Hunter (1 group)', 'Titan=Titan (1 group)']; selected=''
+kind=exact: all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
   scope: 1 of 2 groups · 2 of 4 pieces — filtered to exact duplicates
-kind=same_stat class=(any): all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
+  Class options: ['=any class', 'Titan=Titan (1 group)']; selected=''
+kind=same_stat: all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
   scope: 1 of 2 groups · 2 of 4 pieces — filtered to same-stat groups
-kind=all class=Titan: all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
+  Class options: ['=any class', 'Hunter=Hunter (1 group)']; selected=''
+class=Titan: all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
   scope: 1 of 2 groups · 2 of 4 pieces — filtered to class Titan
-kind=exact class=Titan: all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
+  Class options: ['=any class', 'Hunter=Hunter (1 group)', 'Titan=Titan (1 group)']; selected='Titan'
+kind=exact, then class=Titan: all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
   scope: 1 of 2 groups · 2 of 4 pieces — filtered to exact duplicates, class Titan
-kind=all class=Hunter: all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
+  Class options: ['=any class', 'Titan=Titan (1 group)']; selected='Titan'
+class=Hunter: all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
   scope: 1 of 2 groups · 2 of 4 pieces — filtered to class Hunter
-kind=same_stat class=Hunter: all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
+  Class options: ['=any class', 'Hunter=Hunter (1 group)', 'Titan=Titan (1 group)']; selected='Hunter'
+kind=same_stat, then class=Hunter: all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
   scope: 1 of 2 groups · 2 of 4 pieces — filtered to same-stat groups, class Hunter
+  Class options: ['=any class', 'Hunter=Hunter (1 group)']; selected='Hunter'
+class=Titan, then kind=same_stat: all three agree=True; groups=['same_stat:6081']; headings=['Same stats, different tuning']
+  scope: 1 of 2 groups · 2 of 4 pieces — filtered to same-stat groups
+  Class options: ['=any class', 'Hunter=Hunter (1 group)']; selected=''
+class=Hunter, then kind=exact: all three agree=True; groups=['exact_duplicate:6031']; headings=['Exact duplicates']
+  scope: 1 of 2 groups · 2 of 4 pieces — filtered to exact duplicates
+  Class options: ['=any class', 'Titan=Titan (1 group)']; selected=''
+reconciliation message after the dropped class: all three agree=True; 'Local view state dropped: duplicate filter guardianClass Hunter.'
 -- requests per filter change --
 (a) browser: 0 request(s)
 (b) server: 1 request(s)
@@ -555,8 +600,8 @@ production: filter applied=True; groups shown before=2 after=1; status='Connecte
 (a) browser: filter applied=True; groups shown before=2 after=1; status='Connected — report loaded.'
 (b) server: filter applied=False; groups shown before=2 after=2; status='Filters need the review server, which could not be reached.'
 -- line counts (non-blank lines between the experiment markers) --
-candidate (a): JavaScript 38, Python 0
-candidate (b): JavaScript 13, Python 45
+candidate (a): JavaScript 62, Python 0
+candidate (b): JavaScript 27, Python 63
 -- production filter code this would replace --
 review_ui.js:747-771 (25 lines) function matchesArmorGroup: found at that line=True
 review_ui.js:773-777 (5 lines) function filterArmorGroups: found at that line=True
@@ -567,11 +612,45 @@ review_server.js:254-261 (8 lines) function armorGroupKinds: found at that line=
 review_server.js:263-275 (13 lines) function reconcileArmorQueryForGroups: found at that line=True
 review_server.js:277-281 (5 lines) function countGroupPieces: found at that line=True
 review_server.js:283-310 (28 lines) function duplicateScopeText: found at that line=True
-total: 139 lines
+review_server.js:1284-1296 (13 lines) function duplicateOptions: found at that line=True
+total: 152 lines
 RESULT: PASS
 ```
 
-Both candidates show the same groups, headings and scope sentence as production for every combination. Candidate (a) makes no request per filter change and still filters after the server has stopped, as production does. Candidate (b) makes one request per change and cannot filter once the server is gone. Line counts are for the two measured filters only.
+Both candidates show the same groups, headings, scope sentence, Class options and selected class as production for every case, including the last two, where production recounts the Class options for the selected kind and drops a class that kind lacks, and all three report the drop with the same message. Candidate (a) makes no request per filter change and still filters after the server has stopped, as production does. Candidate (b) makes one request per change and cannot filter once the server is gone. Line counts are for the two measured filters only, with recount-and-drop implemented in both candidates.
+
+## E11: finalise and reset (gate G3)
+
+`POST /api/finalize` changes `state` and `override_status` and leaves both revisions and the fingerprint alone. The proof checks that the fragment does not depend on either, and that a page with the fragment already installed reaches the right presentation from the envelope.
+
+```bash
+.venv/bin/python spikes/issue-137/proof_e11_finalize.py
+```
+
+Output:
+
+```text
+-- finalise --
+POST /api/finalize: 200
+envelope before: state=reviewing report=1 verdict=1 active persisted vetoes=[]
+envelope after:  state=finalized report=1 verdict=1 active persisted vetoes=['6032']
+fragment revision headers equal before and after: True
+fragment bytes equal before and after: True (16263 and 16263 bytes)
+page before it learns of the finalise: text='vetoed' pressed=false,true,false all disabled=False
+page after adopting the envelope: text='Vetoed this session · active persisted veto still suppresses this item' pressed=false,true,false all disabled=True
+fragment requests made to get there: 0 []
+finalised: production loaded fresh equals the spike page with its fragment already installed=True; equals the spike page loaded fresh=True
+-- reset --
+POST /api/reset: 200; state=idle report=2 verdict=2
+page after adopting the envelope: groups rendered=0; fragment log=['fragment accepted: report 2 verdict 2']
+-- a new report while the saved veto is active --
+envelope: state=exports-loaded report=3 active persisted vetoes=['6032']
+page after adopting the envelope: text='Active persisted veto still suppresses this item' pressed=false,false,true all disabled=False; fragment log=['fragment accepted: report 3 verdict 2']
+active saved veto: production loaded fresh equals the spike page with its fragment already installed=True; equals the spike page loaded fresh=True
+RESULT: PASS
+```
+
+Across a finalise the fragment's revision headers and its bytes are both unchanged, so equal revision pairs mean equal fragments. The installed page shows the pre-finalise text until it adopts the new envelope; it then shows the persisted-veto wording with every verdict button disabled, having made no fragment request, and equals production loaded fresh. Reset bumps the report revision, so the ordinary report-change path replaces the fragment. A report loaded while the saved veto is active is also equal to production.
 
 ## JavaScript keep/remove line ranges (gate G8)
 
@@ -657,14 +736,14 @@ review_server.js: 1793 lines; review_ui.js: 1851 lines
 10 DOM construction: armor DIM query: 236
 -- the Armor duplicates slice --
 production JavaScript the slice replaces: 908 lines in 6 ranges
-spike JavaScript, all experiments: 413 non-blank lines
-spike JavaScript without the R3 and server-filter experiments: 356 non-blank lines
-  of which the fragment seam (fetch, check, install, paint, focus): 104
-  of which browser-owned filtering for two filters: 38
-  of which session, mutation and reconciliation that production already has: 214
-spike context builder (Python): 455 non-blank lines
-spike templates for the slice: 184 non-blank lines
+spike JavaScript, all experiments: 464 non-blank lines
+spike JavaScript without the R3 and server-filter experiments: 393 non-blank lines
+  of which the fragment seam (fetch, check, install, paint, focus): 93
+  of which browser-owned filtering for two filters: 62
+  of which session, mutation and reconciliation that production already has: 238
+spike context builder (Python): 474 non-blank lines
+spike templates for the slice: 187 non-blank lines
 RESULT: PASS
 ```
 
-Every anchor is found at its cited line. The slice replaces 908 lines of production JavaScript. In its place the spike has 104 lines of fragment seam and 38 lines of browser-owned filtering in JavaScript, a 455-line Python context builder and 184 lines of templates.
+Every anchor is found at its cited line. The slice replaces 908 lines of production JavaScript. In its place the spike has 93 lines of fragment seam and 62 lines of browser-owned filtering in JavaScript, a 474-line Python context builder and 187 lines of templates.

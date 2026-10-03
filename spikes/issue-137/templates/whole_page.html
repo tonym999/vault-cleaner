@@ -1,6 +1,7 @@
 {#- Experiment E9 only: the whole-page shape.  The report content is rendered
     into the document itself and the page is requested again after every
-    acknowledged mutation. -#}
+    acknowledged mutation.  It has no paint step, so it shows neither the
+    frozen state nor the persisted-veto wording; E9 exercises neither. -#}
 {% from "_armor_group.html" import armor_group %}
 <!doctype html>
 <html lang="en">
@@ -32,7 +33,7 @@
 {%- for section in sections %}
 <div class="armor-section-head" data-vc-section="{{ section.kind }}"><h3>{{ section.heading }}</h3><span class="rule">{{ section.rule }}</span></div>
 {%- for group in section.groups %}
-{{ armor_group(group, frozen) }}
+{{ armor_group(group) }}
 {%- endfor %}
 {%- endfor %}
       </div>

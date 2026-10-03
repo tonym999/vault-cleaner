@@ -1,17 +1,20 @@
 {#- Verdict controls and read-only member status for one matrix cell.
-    Every value is printed through autoescape; no filter changes its type. -#}
-{% macro verdict_button(member, orientation, value, css, text, frozen) -%}
-<button type="button" class="{{ css }}" aria-pressed="{{ 'true' if member.verdict == value else 'false' }}" aria-label="{{ member.names[value] }}" data-vc-verdict-value="{{ value }}" data-vc-key="{{ orientation }}:{{ member.dom_id }}:{{ css }}"{% if frozen %} disabled{% endif %}>{{ text }}</button>
+    Every value is printed through autoescape; no filter is applied.  The
+    markup depends on the report and the verdicts only: the disabled state
+    and the choice between the plain and the persisted-veto wording are
+    painted by the browser from the envelope it has adopted. -#}
+{% macro verdict_button(member, orientation, value, css, text) -%}
+<button type="button" class="{{ css }}" aria-pressed="{{ 'true' if member.verdict == value else 'false' }}" aria-label="{{ member.names[value] }}" data-vc-verdict-value="{{ value }}" data-vc-key="{{ orientation }}:{{ member.dom_id }}:{{ css }}">{{ text }}</button>
 {%- endmacro %}
 
-{% macro verdict_cell(member, orientation, frozen) -%}
+{% macro verdict_cell(member, orientation) -%}
 <td class="armor-member-cell" data-member-id="{{ member.dom_id }}"{% if member.shows_verdict %} data-vc-verdict-id="{{ member.id }}"{% endif %}>
 {%- if member.can_verdict -%}
 <div class="row-actions">
-{{- verdict_button(member, orientation, "approved", "approve", "Approve", frozen) -}}
-{{- verdict_button(member, orientation, "vetoed", "veto", "Veto", frozen) -}}
-{{- verdict_button(member, orientation, "", "clear-verdict", "Unset", frozen) -}}
-<span class="verdict-presentation" data-vc-verdict-text data-vc-text-unset="{{ member.texts[''] }}" data-vc-text-approved="{{ member.texts['approved'] }}" data-vc-text-vetoed="{{ member.texts['vetoed'] }}">{{ member.texts[member.verdict] }}</span>
+{{- verdict_button(member, orientation, "approved", "approve", "Approve") -}}
+{{- verdict_button(member, orientation, "vetoed", "veto", "Veto") -}}
+{{- verdict_button(member, orientation, "", "clear-verdict", "Unset") -}}
+<span class="verdict-presentation" data-vc-verdict-text data-vc-text-unset="{{ member.texts[''] }}" data-vc-text-approved="{{ member.texts['approved'] }}" data-vc-text-vetoed="{{ member.texts['vetoed'] }}" data-vc-persisted-text-unset="{{ member.persisted_texts[''] }}" data-vc-persisted-text-approved="{{ member.persisted_texts['approved'] }}" data-vc-persisted-text-vetoed="{{ member.persisted_texts['vetoed'] }}">{{ member.texts[member.verdict] }}</span>
 </div>
 {%- else -%}
 <div class="armor-member-status">
@@ -20,7 +23,7 @@
 <span class="status-detail">{{ line }}</span>
 {%- endfor -%}
 {%- if member.status.verdict -%}
-<span class="status-detail armor-current-verdict" data-vc-verdict-text data-vc-text-unset="{{ member.current_texts[''] }}" data-vc-text-approved="{{ member.current_texts['approved'] }}" data-vc-text-vetoed="{{ member.current_texts['vetoed'] }}">{{ member.current_texts[member.verdict] }}</span>
+<span class="status-detail armor-current-verdict" data-vc-verdict-text data-vc-text-unset="{{ member.current_texts[''] }}" data-vc-text-approved="{{ member.current_texts['approved'] }}" data-vc-text-vetoed="{{ member.current_texts['vetoed'] }}" data-vc-persisted-text-unset="{{ member.persisted_current_texts[''] }}" data-vc-persisted-text-approved="{{ member.persisted_current_texts['approved'] }}" data-vc-persisted-text-vetoed="{{ member.persisted_current_texts['vetoed'] }}">{{ member.current_texts[member.verdict] }}</span>
 {%- endif -%}
 {%- for line in member.status.after -%}
 <span class="status-detail">{{ line }}</span>

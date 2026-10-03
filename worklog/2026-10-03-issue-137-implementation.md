@@ -65,9 +65,13 @@ status region recreated). No stop condition was reached.
 - **The environment deletes the `safe`, `int` and `float` filters,** so a
   template using one fails to compile. The byte scan stays as well, since it
   also covers `Markup`, inline style and handlers, and unquoted attributes.
+  (Superseded in fix round 1: the filter and global allow-lists are empty.)
 - **In-place repaint without a rule in JavaScript.** The server renders the
   three texts a member's verdict can show as `data-*` attributes; the browser
   picks one. The persisted-veto wording therefore lives only in Python.
+  (Corrected in fix round 1: the fragment chose the wording from
+  `override_status`, which a finalise changes without a revision. It now
+  renders both wordings and the browser chooses.)
 - **Fragment acceptance is strict equality** of both revision headers with
   the adopted envelope, in either direction, with at most three attempts.
 - **Insertion uses `DOMParser` and `importNode`,** never `innerHTML`.
@@ -114,8 +118,9 @@ two rows of `armor_close.csv` in memory to get a second guardian class.
 
 Screen-reader output; any browser but the pinned Chromium; the Proposals,
 metrics, upload and session-action regions; four of the six duplicate
-filters and the per-kind facet recount; R3's replace fallback; performance
-on a large report.
+filters; R3's replace fallback; performance on a large report. (The
+per-kind facet recount was listed here at first; fix round 1 measured it for
+the Class facet.)
 
 ## Verification
 
@@ -127,3 +132,77 @@ against the evidence fences; `check_worklog.py --base origin/main` and
 `git diff --check origin/main...HEAD` clean; the plan's inclusion-test
 command prints nothing. Raw output is in the implementer's completion
 handoff.
+
+## Fix round 1 (independent review of `3140247`)
+
+Two P2 and four P3 findings, all accepted by the orchestrator. New commit on
+the same branch from head `314024796679c8d728e20f3f3f2bb1bfde316a66`; nothing
+amended. The decision is unchanged: **GO, hybrid.** No gate result changed,
+but G3 and G8 now rest on different facts, below. No stop condition was
+reached: no new envelope field, header or revision was needed.
+
+- **P2-1, fragment depended on state the revision pair does not cover.**
+  `POST /api/finalize` changes `state` and `override_status` and bumps
+  nothing, and the fragment rendered `disabled` and the persisted-veto
+  wording from them. Fixed by making the fragment a function of the
+  snapshot, the verdicts and the revisions only: `context.py` no longer
+  reads `state` or `override_status`, the templates render no `disabled`
+  and both wordings of every verdict text, and `spike.js` paints the frozen
+  gate and the wording choice from the adopted envelope. New experiment E11
+  (`proof_e11_finalize.py`): fragment bytes and headers are identical
+  across a finalise, an installed page reaches production's finalised
+  presentation with no fragment request, and reset and a re-upload under an
+  active saved veto also match production. Reset does not share the
+  property: with a report loaded it bumps `report_revision`. The record's
+  section 4 now lists every envelope input and has a section on state that
+  changes without a revision; ticket 2's scope rule and stop conditions
+  carry the rule. **The wording still lives only in Python.** What moved
+  back to the browser is a lookup (is this id in the active persisted
+  vetoes), which production already has; the record says so under "What
+  stays in JavaScript for the slice".
+- **P2-2, E10 parity held only for the chosen combinations.** Production
+  recounts facet options for the selected kind and drops a selected value
+  the kind lacks; the spike rendered option counts once in Python. Fixed by
+  implementing recount-and-drop in both candidates: in JavaScript for (a),
+  where Python now renders no options, and in Python for (b). E10 now
+  compares the Class options, the selected value and the reconciliation
+  message, and includes the diverging sequence (class Hunter, then kind
+  exact). New counts: (a) 62 lines of JavaScript and no Python; (b) 27 and
+  63. (a) is still chosen, on the offline behaviour. Option counts and
+  labels live in JavaScript only under (a); the record says so in one place.
+- **P3-1, template rules had gaps.** The environment now has empty
+  allow-lists for filters and globals (`tojson`, `urlize`, `xmlattr` and
+  `lipsum` return `Markup`; `filesizeformat` and `round` convert to a
+  number). The scan rejects any filter, `{% filter %}` blocks, and
+  interpolation inside URL-bearing attributes, with new negative cases.
+  Section 3 and ticket 1 updated.
+- **P3-2, E9 measured a naive whole-page implementation.** The record now
+  separates what is inherent to the shape (a new document recreates the live
+  regions; the form post is blocked) from what `whole.js` did (an unassisted
+  reload). The rejection stands on the first.
+- **P3-3, metrics refetch.** No longer the default. Ticket 3 makes it a gate
+  the planner must measure and pass, with in-place paint from the envelope
+  as the default; the keep/remove map and section 7 follow.
+- **P3-4, unfenced claim.** E2 gained a block requesting the fragment route
+  with an envelope the builder refuses: HTTP 500, the production handler's
+  bare `internal_error` body, security headers present. The record cites it
+  and says which refusal cases are measured where.
+
+Also changed, not asked for: `harness.open_production_duplicates` accepts
+production's finalised status text as well as "Connected"; `spike.js` gained
+a `sync()` entry point for the proofs (adopt, then fetch only on a report
+change); `whole_page.html` and `spikes/issue-137/README.md` were updated to
+match; every evidence fence was recaptured, since most proofs' output moved.
+New slice counts: 93 lines of seam and 62 of filtering in JavaScript, a
+474-line builder and 187 lines of templates, against 908 replaced.
+
+Surprises: `tojson` in a double-quoted attribute is an attribute breakout
+even with autoescape on, because it returns `Markup`. Production's
+reconciliation message persists across later kind changes until the next
+adopt, so E10 compares it once, after the dropping case.
+
+Still not measured: screen readers; other browsers; the other regions; the
+four remaining filters, including the piece-counted Tuning Mod Slot facet;
+R3's fallback; the `closed` state from the browser; a finalise driven by
+the page itself (E11 posts it from outside and has the page adopt the
+envelope); performance.

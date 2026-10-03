@@ -10,6 +10,8 @@ hostile value in one of them is refused.
 
 A control run then renders the same context with escaping switched off, to
 show the detectors fire and what the insertion step and the CSP still stop.
+Last, the fragment route is requested with an envelope the builder refuses,
+to show what a client receives.
 
     .venv/bin/python spikes/issue-137/proof_e2_hostile.py
 """
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 from typing import Any
 
 from context import ContextError, build_context
@@ -429,7 +432,38 @@ def main() -> int:
             failures.append("the control ran script")
         control.close()
         context.close()
+
+    print("-- the fragment route when the builder refuses an envelope --")
+    # The production handler logs the traceback server-side; keep it out of
+    # the transcript, which shows only what a client receives.
+    logging.getLogger("vault_cleaner.server.app").setLevel(logging.CRITICAL)
+    with live_spike(transform_envelope=break_disposition) as live, chromium() as browser:
+        context = authenticated_context(browser, live)
+        upload(context, live, "armor_close.csv")
+        response = context.request.get(f"{live.origin}/spike/fragments/armor-duplicates")
+        body = response.text()
+        print(f"GET fragment with a hostile disposition in the envelope: HTTP {response.status} "
+              f"{response.headers['content-type']}")
+        print(f"body: {body.strip()}")
+        print(f"Cache-Control: {response.headers['cache-control']}; CSP present: "
+              f"{'content-security-policy' in response.headers}")
+        leaked = any(word in body for word in ("disposition", "Traceback", "context.py", "<img"))
+        print(f"body names the field, the payload, a file or a traceback: {leaked}")
+        if response.status != 500 or leaked or "internal_error" not in body:
+            failures.append("the refused envelope was not answered with a bare 500")
+        report = context.request.get(f"{live.origin}/api/report")
+        print(f"GET /api/report on the same session afterwards: HTTP {report.status}")
+        context.close()
     return finish(failures)
+
+
+def break_disposition(envelope: dict[str, Any]) -> dict[str, Any]:
+    if not envelope.get("snapshot"):
+        return envelope
+    broken = copy.deepcopy(envelope)
+    group = broken["snapshot"]["sections"][0]["armor"]["exact_duplicate_groups"][0]
+    group["members"][0]["disposition"] = PAYLOAD
+    return broken
 
 
 def strip(tree: dict) -> dict:

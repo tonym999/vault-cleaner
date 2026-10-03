@@ -160,7 +160,7 @@ def open_production_duplicates(context: Any, live: LiveSpike) -> Any:
     page = context.new_page()
     page.goto(f"{live.origin}/", wait_until="domcontentloaded")
     page.wait_for_function(
-        "() => /Connected/.test(document.getElementById('vc-status').textContent)"
+        "() => /Connected|finalised/.test(document.getElementById('vc-status').textContent)"
     )
     page.locator("#vc-view-duplicates").click()
     return page

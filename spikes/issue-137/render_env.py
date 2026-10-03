@@ -10,9 +10,13 @@ Three properties are fixed here rather than left to Flask's defaults:
   list is "not found" before any source is read, so no request value can
   select a file.
 
-The ``safe``, ``int`` and ``float`` filters are removed as well, so a template
-that reaches for one fails to compile.  ``int`` and ``float`` would turn an
-opaque id into a number; ``safe`` would switch escaping off for one value.
+Filters and globals are an allow-list, and the list is empty: the templates
+need none.  Removing three named filters was not enough.  ``tojson``,
+``urlize`` and ``xmlattr`` return ``Markup`` (``tojson`` output breaks out of
+a double-quoted attribute), ``filesizeformat`` and ``round`` convert their
+input to a number, and the ``lipsum`` global returns ``Markup`` too.  With an
+allow-list a template that reaches for any filter fails to compile, and a new
+filter has to be argued for by name.
 """
 
 from __future__ import annotations
@@ -30,7 +34,8 @@ TEMPLATE_NAMES = (
     "_verdict.html",
     "whole_page.html",
 )
-REMOVED_FILTERS = ("safe", "int", "float")
+ALLOWED_FILTERS: frozenset[str] = frozenset()
+ALLOWED_GLOBALS: frozenset[str] = frozenset()
 SPIKE_TEMPLATES = Path(__file__).resolve().parent / "templates"
 
 TemplateSource = Callable[[str], str]
@@ -77,6 +82,10 @@ def build_environment(source: TemplateSource | None = None) -> Environment:
         undefined=StrictUndefined,
         keep_trailing_newline=True,
     )
-    for name in REMOVED_FILTERS:
-        del environment.filters[name]
+    for registry, allowed in (
+        (environment.filters, ALLOWED_FILTERS),
+        (environment.globals, ALLOWED_GLOBALS),
+    ):
+        for name in set(registry) - allowed:
+            del registry[name]
     return environment

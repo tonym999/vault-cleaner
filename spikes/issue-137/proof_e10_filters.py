@@ -6,9 +6,13 @@ that do not match, from ``data-*`` attributes the server wrote.
 Candidate (b): the server filters, from validated query parameters, and the
 browser installs the result.
 
-The proof checks both against the production page for the same session,
-stops the server and tries each again, and counts the lines each candidate
-keeps in JavaScript or adds to Python.
+The proof checks both against the production page for the same session:
+the groups shown, the section headings, the scope sentence, the Class
+control's options and selected value and, where a selection is dropped, the
+reconciliation message.  The cases include the one where production recounts
+the Class options for the selected kind and drops a class that kind lacks.
+It then stops the server and tries each again, and counts the lines each
+candidate keeps in JavaScript or adds to Python.
 
     .venv/bin/python spikes/issue-137/proof_e10_filters.py
 """
@@ -32,14 +36,18 @@ from harness import (
     upload_bytes,
 )
 
-COMBINATIONS = (
-    ("all", ""),
-    ("exact", ""),
-    ("same_stat", ""),
-    ("all", "Titan"),
-    ("exact", "Titan"),
-    ("all", "Hunter"),
-    ("same_stat", "Hunter"),
+# Each case is a sequence of steps taken from a reset page.  The last case
+# selects a class and then a kind that has no group of that class.
+CASES = (
+    (),
+    (("kind", "exact"),),
+    (("kind", "same_stat"),),
+    (("class", "Titan"),),
+    (("kind", "exact"), ("class", "Titan")),
+    (("class", "Hunter"),),
+    (("kind", "same_stat"), ("class", "Hunter")),
+    (("class", "Titan"), ("kind", "same_stat")),
+    (("class", "Hunter"), ("kind", "exact")),
 )
 UI = REPO / "src" / "vault_cleaner" / "ui"
 # (file, first line, last line, the text its first line must contain)
@@ -53,6 +61,7 @@ PRODUCTION_FILTER_CODE = (
     ("review_server.js", 263, 275, "function reconcileArmorQueryForGroups"),
     ("review_server.js", 277, 281, "function countGroupPieces"),
     ("review_server.js", 283, 310, "function duplicateScopeText"),
+    ("review_server.js", 1284, 1296, "function duplicateOptions"),
 )
 
 VISIBLE_JS = """
@@ -66,6 +75,9 @@ VISIBLE_JS = """
     headings: Array.prototype.filter.call(list.querySelectorAll(".armor-section-head h3"), visible)
       .map(h => h.textContent),
     scope: document.getElementById("vc-duplicate-scope").textContent,
+    options: Array.prototype.map.call(
+      document.getElementById("vc-dup-f-guardianClass").options, o => o.value + "=" + o.textContent),
+    selected: document.getElementById("vc-dup-f-guardianClass").value,
     empty: Array.prototype.filter.call(panel.querySelectorAll("p.hint"), visible)
       .some(p => p.textContent === "No armor duplicate groups match these filters.")
   };
@@ -83,13 +95,19 @@ def two_class_fixture() -> bytes:
     return b"\n".join(changed)
 
 
-def apply(page: Any, kind: str, guardian_class: str, settle: bool) -> None:
-    page.locator("#vc-dup-f-guardianClass").select_option("")
-    page.locator("#vc-dup-kind-all").click()
-    page.locator(f"#vc-dup-kind-{kind}").click()
-    page.locator("#vc-dup-f-guardianClass").select_option(guardian_class)
-    if settle:
-        page.wait_for_timeout(250)
+def apply(page: Any, steps: tuple, settle: bool) -> None:
+    """Reset the two filters, then take each step as a user would."""
+    for kind, value in (("class", ""), ("kind", "all"), *steps):
+        if kind == "kind":
+            page.locator(f"#vc-dup-kind-{value}").click()
+        else:
+            page.locator("#vc-dup-f-guardianClass").select_option(value)
+        if settle:
+            page.wait_for_timeout(150)
+
+
+def reconciliation(page: Any) -> str:
+    return page.locator("#vc-reconciliation").text_content().strip()
 
 
 def marked_lines(path: Path, marker: str) -> int:
@@ -117,33 +135,42 @@ def main() -> int:
         pages = (("production", production), ("(a) browser", browser_owned), ("(b) server", server_owned))
 
         print("-- the same filter in production, candidate (a) and candidate (b) --")
-        for kind, guardian_class in COMBINATIONS:
+        for steps in CASES:
+            label = ", then ".join(f"{kind}={value}" for kind, value in steps) or "no filter"
             results = {}
             for name, page in pages:
-                apply(page, kind, guardian_class, settle=name == "(b) server")
+                apply(page, steps, settle=name == "(b) server")
                 results[name] = page.evaluate(VISIBLE_JS)
             agree = results["production"] == results["(a) browser"] == results["(b) server"]
             shown = results["production"]
-            print(f"kind={kind} class={guardian_class or '(any)'}: all three agree={agree}; "
-                  f"groups={shown['groups']}; headings={shown['headings']}")
+            print(f"{label}: all three agree={agree}; groups={shown['groups']}; "
+                  f"headings={shown['headings']}")
             print(f"  scope: {shown['scope']}")
+            print(f"  Class options: {shown['options']}; selected={shown['selected']!r}")
             if not agree:
-                failures.append(f"kind={kind} class={guardian_class}: the candidates disagree")
+                failures.append(f"{label}: the candidates disagree")
                 for name, result in results.items():
                     print(f"  {name}: {result}")
+        messages = {name: reconciliation(page) for name, page in pages}
+        same = len(set(messages.values())) == 1
+        print(f"reconciliation message after the dropped class: all three agree={same}; "
+              f"{messages['production']!r}")
+        if not same or "guardianClass Hunter" not in messages["production"]:
+            failures.append("the dropped class was not reported alike")
+            print(f"  {messages}")
 
         print("-- requests per filter change --")
         for name, page in pages[1:]:
-            apply(page, "all", "", settle=True)
+            apply(page, (), settle=True)
             requests: list[str] = []
             page.on("request", lambda request, seen=requests: seen.append(request.url))
             page.locator("#vc-dup-kind-exact").click()
             page.wait_for_timeout(250)
             print(f"{name}: {len(requests)} request(s)")
-            apply(page, "all", "", settle=True)
+            apply(page, (), settle=True)
 
         print("-- the same filter after the server has stopped --")
-        apply(production, "all", "", settle=False)
+        apply(production, (), settle=False)
         live.server.shutdown()
         live.server.server_close()
         for name, page in pages:

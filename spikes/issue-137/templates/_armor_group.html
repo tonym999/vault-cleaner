@@ -73,7 +73,7 @@
 </div>
 {%- endmacro %}
 
-{% macro rows_table(group, frozen) -%}
+{% macro rows_table(group) -%}
 <table class="armor-group-table armor-matrix-rows">
 <thead><tr>
 <th scope="col">Member</th>
@@ -90,14 +90,14 @@
 {%- for axis in group.axes %}
 <td{% if axis.tuning %} class="armor-matrix-tuning-axis"{% endif %}>{{ axis.cells[member_index] }}</td>
 {%- endfor %}
-{{ verdict_cell(member, "rows", frozen) }}
+{{ verdict_cell(member, "rows") }}
 </tr>
 {%- endfor %}
 </tbody>
 </table>
 {%- endmacro %}
 
-{% macro columns_table(group, frozen) -%}
+{% macro columns_table(group) -%}
 <table class="armor-matrix-columns">
 <thead><tr>
 <th scope="col" class="armor-matrix-corner">Differs on</th>
@@ -117,20 +117,20 @@
 <tr>
 <th scope="row" class="armor-matrix-axis-label">Verdict</th>
 {%- for member in group.members %}
-{{ verdict_cell(member, "columns", frozen) }}
+{{ verdict_cell(member, "columns") }}
 {%- endfor %}
 </tr>
 </tbody>
 </table>
 {%- endmacro %}
 
-{% macro armor_group(group, frozen) -%}
+{% macro armor_group(group) -%}
 <article class="armor-group" data-group-id="{{ group.dom_id }}" data-group-kind="{{ group.kind }}" data-member-count="{{ group.member_count }}" data-vc-filter-kind="{{ group.filter_kind }}" data-vc-guardian-class="{{ group.guardian_class }}">
 {{ group_header(group) }}
 {{ dim_query_panel(group) }}
 <div class="armor-comparison"><div class="scroller">
-{{ rows_table(group, frozen) }}
-{{ columns_table(group, frozen) }}
+{{ rows_table(group) }}
+{{ columns_table(group) }}
 </div></div>
 </article>
 {%- endmacro %}
