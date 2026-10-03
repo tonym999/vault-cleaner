@@ -3,6 +3,54 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #193 planning: one worklog file per entry (PR 1)
+
+Planned #193 on `handoff/issue-193-implementation-plan` from `main` at
+`5273996`. Planner `claude-opus-5-5` (Claude Code desktop session; the
+session does not report its effort setting). Refs #193.
+
+- **What landed:** `handoffs/issue-193-implementation-plan.md`. No changes
+  to `AGENTS.md`, the templates, CI or the worklog layout in this PR.
+- **Owner decisions (asked in the planning session, 2026-10-03):**
+  - Option 1 from the issue: one file per entry,
+    `worklog/YYYY-MM-DD-issue-N-<slug>.md`, with `WORKLOG.md` frozen as an
+    archive behind a pointer.
+  - "Recent" covers the 10 newest entries plus every entry for the ticket's
+    own issue.
+- **Decisions made by the plan:**
+  - The definition of "the recent worklog" lives once, in a new
+    `## Worklog` section of `AGENTS.md`; the three template prompts point at
+    it. No `worklog/README.md`, so every file in `worklog/` is an entry.
+  - While `worklog/` holds fewer than 10 entries, the newest archived
+    entries make up the difference. Older entries for an issue are found by
+    a heading `grep` in the archive.
+  - Entries with no issue drop the `issue-N-` part of the name (four
+    archived headings name no issue).
+  - A stdlib-only `scripts/check_worklog.py` replaces the inline CI shell
+    step. A pull request must add a well-formed entry file, must not delete
+    an entry or the archive, and must not add a dated heading to
+    `WORKLOG.md`.
+  - Existing entries are not split into files.
+  - Implementer `claude-sonnet-5-5` (`high`), the Bounded alternative, not
+    the primary MAI model, after MAI's context failures on #170 and #191.
+    Review path: standard.
+- **Measured:** `WORKLOG.md` is 7,893 lines and 142 entries at `5273996`
+  (the issue said 6,874 and 132 at `66589da`). Every heading starts
+  `## YYYY-MM-DD `. The busiest date has 10 entries.
+- **Surprises the next agent should know about:**
+  - `git diff --name-status --no-renames` reports a renamed file as a
+    delete plus an add, so "the PR adds an entry file" is satisfied by
+    renaming an old entry unless deletions are rejected as well.
+  - "The last 10 files by name" is not chronological within one day: names
+    sort by date, then issue number as text, then slug. The plan accepts
+    that, because the point is that every role reads the same set.
+  - This entry is still in `WORKLOG.md` because the old CI check applies
+    until the implementation merges. The implementation's entry is the
+    first file under `worklog/`.
+  - Recording the owner's decision on the issue itself (acceptance
+    criterion 1) is in the plan's dispatch comment draft; it was not posted
+    in this session.
+
 ## 2026-10-03 — #191 implementation: structured model roster (PR 2)
 
 Implemented #191 on `feat/issue-191-model-roster-data` from `main` at
