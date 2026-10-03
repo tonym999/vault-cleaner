@@ -3,6 +3,157 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-09-27 — #188 planning: stale workflow and plan facts (PR 1)
+
+Planned #188 on `handoff/issue-188-implementation-plan` from `main` at
+`1ab2eae`. Planner `claude-opus-5-5`. Refs #188.
+
+- **What landed:** `handoffs/issue-188-implementation-plan.md`. No changes
+  to `AGENTS.md`, `PLAN.md`, `handoffs/README.md` or `.gitignore` in this PR.
+- **Context:** #188 is one of nine issues (#188–#196) opened on 2026-09-27
+  from the owner's review of how shared agent documentation goes stale.
+- **Decisions made:**
+  - Every edit (E1–E10) is given as verbatim old and new text, located by
+    old text rather than line number, because #181's implementation also
+    edits `AGENTS.md`.
+  - Opus becomes `claude-opus-5-5` in the planner roster, the Independent
+    Review row and a new catalog row. This was verified on 2026-09-27
+    against Anthropic's models and effort pages. `claude-opus-5` stays in
+    the catalog, labelled legacy, until #191 prunes unused rows.
+  - `PLAN.md`'s repo layout names the modules the plan relies on (adding
+    `review.py`, `server/` and `ui/`) and says other modules exist, rather
+    than listing all 17 and drifting again.
+  - Implementer `MAI-Code-1.1-Flash` (`n/a — adaptive`), with the prompt
+    limited to the newest three `WORKLOG.md` entries, as a test of whether
+    bounded reading avoids its #170 context loop. The re-selection
+    fallback is `claude-sonnet-5` (`high`), not Gemini, because this is
+    all Markdown next to citations (PR #160). Review path: standard.
+- **Surprises the next agent should know about:**
+  - Opus 5.5 defaults to `medium` effort, not `high` like Opus 5 and the
+    other current models. A dispatch that omits effort runs one level lower
+    than the same dispatch did on Opus 5.
+  - `.gitignore:4` repeats the wishlists "TBD" as a comment. It was added
+    as a sibling edit (E9), since correcting only `PLAN.md` would leave the
+    pointer stale.
+  - `rails.py` implements rule 1, so it is not a mere helper. The
+    `AGENTS.md` wording says so.
+  - The time-bound sweep command and the classification of every hit are in
+    the plan, so #190 can reuse the denylist.
+
+### Revision before merge and owner-authorised cleanup (same session)
+
+The first version recorded three items as owner decisions. The owner
+approved all of the recommendations:
+
+- **E10 added to the plan (F8):** `PLAN.md` *Milestones* gains item 9 (M9),
+  because the M9 section and the GitHub milestone (16 issues) already exist.
+  M10 is not added; it has no milestone or PLAN.md section. The worklog edit
+  is renumbered to E11. A rerun of the trial with E1–E10 gave 4 files,
+  +21/−12, with `git diff --check` clean.
+- **Deleted 10 remote plan branches:** `handoff/issue-{34,117,119,142,148,150,155,158,170,174}-implementation-plan`.
+  Each was re-checked right before deletion: issue closed, no open PR, and
+  the branch head is an ancestor of `main`. The exception is #119, which
+  PR #125 squash-merged; its plan file is byte-identical on `main`. The
+  branches for #181 (open) and #188 remain. Local copies of the deleted
+  branches in the owner's checkout were left alone.
+- **Removed 3 review worktrees:** one for PR #182 under `~/.codex/worktrees/`
+  and two for #158 beside the repository. All were clean, with heads in
+  `main`.
+- **Commented on #144**
+  ([comment](https://github.com/tonym999/vault-cleaner/issues/144#issuecomment-5857915516)):
+  the orchestrator template creates disposable checkouts but never removes
+  them, so the removal step belongs in #144's template scope.
+- The owner may enable GitHub's "Automatically delete head branches"
+  setting; that is a repository setting left to the owner.
+
+### Merge of `main` after #181 landed (2026-10-02)
+
+PR #198 (#181's implementation) merged to `main` at `40c1c91`, which made
+PR #197 unmergeable. The only conflict was this file, where both PRs prepend
+an entry; both entries are kept, with this one on top. #198 changed
+`AGENTS.md` but did not touch E7's text, which moved from lines 189–192 to
+208–211. The plan now cites both line ranges and records a re-verification
+at `40c1c91`: the trial still gives +21/−12, and the time-bound sweep found
+no new hits.
+
+### Review-fix round 1 (PR #197, 2026-10-02)
+
+Four findings at `1bb7a65`: two from the owner and two from CodeRabbit. All
+were verified against the code or Anthropic's pages and accepted. The
+planner also found one more stale line.
+
+- **P2 (owner): stale `PLAN.md:174` contract sentence.** It said the
+  browser/server boundary "still needs a contract … Specify them before
+  implementation". The server validates each request strictly and binds
+  verdict and finalize requests to report revision, verdict revision and
+  fingerprint (`src/vault_cleaner/server/app.py:184-258`); seven `tests/test_server_*.py` suites
+  pin the schemas. Added E11, which keeps the risk and states the current
+  mitigation. The sweep missed it because its keyword list had neither
+  `still` nor `before implementation`. Both terms are added, and PLAN.md
+  *Non-goals* and *Risks* were then read in full.
+- **P2 (owner): E8 used neither form the issue allowed.** It kept a partial
+  module tree plus a note that other modules exist. E8 now uses the pointer
+  form: one `src/vault_cleaner/` line. (Rationale corrected in round 2.)
+- **Minor (CodeRabbit): Sonnet 5.5 missing.** `claude-sonnet-5-5` was not
+  listed at the 2026-09-27 verification. On 2026-10-02 it is current
+  (default `high`, levels "recalibrated" from Sonnet 5), and Sonnet 5 is
+  legacy, still available.
+  - Owner decision: swap the five roster and ladder IDs (E12) and keep
+    their effort levels.
+  - E13 splits the catalog row into a 5.5 row and a legacy row. E3's
+    verified date becomes 2026-10-02.
+  - The fallback implementer becomes `claude-sonnet-5-5` (`medium`), per
+    Anthropic's guidance for well-specified agentic coding.
+- **Minor (CodeRabbit): WORKLOG scope check.** The checklist only checked
+  that an entry exists. Round 1 added a `--numstat` check, which round 2
+  replaced (it was insufficient). The worklog edit is now labelled `W`,
+  so adding content edits never renumbers it again.
+- **Planner (F11): `PLAN.md:77` "fixture CSVs with fake items".** #181's
+  `tests/fixtures/real/` made this false. It is fixed inside E8.
+- **Trial at `40c1c91`:** E1–E13 apply once each (E12: exactly five tokens
+  above the catalog heading), 4 files, +23/−26, `git diff --check` clean.
+- **Surprises the next agent should know about:**
+  - The catalog went stale within a day of verification (Sonnet 5.5). This
+    is direct evidence for #191's per-row `verified` dates and re-verifying
+    at dispatch.
+  - Two of the five fixes (F11 and the Sonnet change) were caused by
+    changes after the plan was written. The other three (F9, E8's form and
+    the WORKLOG check) were planning misses: F9 was already stale at
+    `1ab2eae`, in a section a full read would have caught. A verbatim plan
+    needs both a full read of every edited file at planning time and a
+    re-check against `main` right before dispatch. (Corrected in round 2.)
+
+### Review-fix round 2 (PR #197, 2026-10-02)
+
+Four owner findings at `7b4160e`, all verified and accepted. CodeRabbit
+resolved both of its round-1 threads.
+
+- **P2: E8 added a new false fact.** The comment "each module's docstring
+  states its role" is false: `src/vault_cleaner/__init__.py` and
+  `rules/__init__.py` have no docstring. F6 also said PLAN.md's prose names
+  `cli.py`, but outside the tree it says only "the CLI" (`PLAN.md:37`). E8's
+  comment is now `# the Python package`, which makes no claim. F6 now cites
+  the *M7 boundary* paragraph (`PLAN.md:35-40`), the only place outside the
+  tree that names a module. The round-1 note above is corrected to match.
+- **P3: F9 was a planning miss, not drift.** At `1ab2eae`, `PLAN.md:174`
+  already said "still needs a contract" and `server/app.py` already existed.
+  The round-1 "surprises" bullet now says two of five, not three.
+- **P3: citations not repository-relative.** `server/app.py:184-258` becomes
+  `src/vault_cleaner/server/app.py:184-258` in the plan's F9 row and in the
+  round-1 note. Older entries' short forms are historical and unchanged.
+- **P3: the `--numstat` check could pass lines added inside an older entry.**
+  The checklist now requires one `@@` hunk with no removed lines, placed
+  between the preamble and the base's first `## ` heading, plus an
+  inspection that every added line belongs to the new W entry.
+- **Surprises the next agent should know about:**
+  - Both P2s in this PR (round 1's F9 miss and round 2's docstring claim)
+    were *supporting* sentences, not the edits themselves: rationale written
+    to justify an edit and never checked. For the rest of this plan, no new
+    factual claim goes in without a citation that was opened.
+  - The thread replies posted through `gh` appear under the owner's account,
+    because the CLI uses the owner's token. Round-2 replies are prefixed
+    "Claude (planner):" so the record shows who wrote them.
+
 ## 2026-09-27 — #181 implementation: sanitised real-export test fixtures (PR 2)
 
 Implemented #181 on `feat/issue-181-sanitised-real-fixtures` from `main` at
