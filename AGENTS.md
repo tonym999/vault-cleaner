@@ -1,7 +1,7 @@
 # Agent guide
 
 Read this before touching the repo. [PLAN.md](PLAN.md) is the spec;
-[WORKLOG.md](WORKLOG.md) is what has actually happened so far.
+the worklog ([worklog/](worklog/), see *Worklog*) is what has actually happened so far.
 
 ## Setup & commands
 
@@ -15,8 +15,8 @@ python3 -m venv .venv                # if .venv doesn't already exist
 
 CI also rejects tracked files under `data/`, any file under
 `tests/fixtures/real/` that fails the sanitised-fixture guard, whitespace or
-line-ending errors reported by `git diff --check`, and pull requests without
-a `WORKLOG.md` entry.
+line-ending errors reported by `git diff --check`, and pull requests that do
+not add a worklog entry file (`scripts/check_worklog.py`; see *Worklog*).
 The worklog requirement has no escape hatch: every pull request records what
 changed, including CI-only changes and reverts.
 An intentional whitespace or line-ending fixture exception must use a narrowly
@@ -50,7 +50,7 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   account data. `.gitignore` covers it — do not weaken that, and check
   `git status` before committing. Measuring a real export is authorised by
   default (owner's standing permission, #181; see *Measure the real export
-  before designing a rule*): record each measurement in `WORKLOG.md`.
+  before designing a rule*): record each measurement in the worklog.
   **Findings derived from a real export may be committed** to `docs/`:
   aggregate counts, distributions, and item names are permitted; verbatim
   raw CSV rows, real instance `Id` values, the owner's own `Notes` text and
@@ -211,6 +211,39 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   implements rule 1's safety rails and id_order.py is a shared ordering
   helper. Ordering is defined in PLAN.md and earlier rules win.
 
+## Worklog
+
+The worklog records what each working session did, the decisions made, and
+anything surprising the next agent should know. It has two parts:
+
+- **Entry files** under `worklog/`, one per working session, named
+  `YYYY-MM-DD-issue-N-<slug>.md`. The slug is lowercase words joined by
+  hyphens that name the phase, for example `planning`, `implementation` or
+  `fix-round-2`. Leave out `issue-N-` only when the work has no issue. The
+  first line is `# YYYY-MM-DD — <title>` with the same date.
+- **The archive,** `WORKLOG.md`: every entry from before #193, newest first.
+  It is frozen: CI pins its content by hash. Never edit it.
+
+Every pull request adds at least one entry file; CI
+(`scripts/check_worklog.py`) rejects one that does not. A later session on
+the same pull request, such as a fix round, adds another file or extends one
+that pull request added. Never edit, rename or delete an entry that is
+already on `main`; CI rejects all three. Put a correction in a new entry.
+
+**The recent worklog** for a ticket on issue #N means exactly these, and
+every role reads all of them:
+
+1. The 10 entry files whose names sort last:
+   `ls worklog | LC_ALL=C sort | tail -n 10`. While `worklog/` holds fewer
+   than 10, make up the difference with the first entries of `WORKLOG.md`.
+2. Every entry file for the issue: `ls worklog/*-issue-N-*.md`.
+3. Every archived entry whose heading names the issue:
+   `grep -nE '^## .*#N([^0-9]|$)' WORKLOG.md`, each read from that heading
+   to the next `## ` heading.
+
+Names sort by date, then issue, then slug, so the order within one day is
+not chronological.
+
 ## Workflow
 
 ### User authorization gates
@@ -278,17 +311,17 @@ exception from its label, and never treat it as permission to merge.
 2. **Planning Phase (PR 1):**
    - The **Planner** researches the issue, measures code state, resolves staleness, allocates branch names, and authors a handoff document using [handoffs/templates/planner.md](handoffs/templates/planner.md).
    - Saved as `handoffs/issue-N-implementation-plan.md` on a plan branch (`handoff/issue-N-implementation-plan`).
-   - Appends a dated entry to [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know) and, when that action is authorized, opens PR 1 targeting `main`.
+   - Adds a dated worklog entry file under [worklog/](worklog/) (recording what was done, decisions made, and anything surprising the next agent should know) and, when that action is authorized, opens PR 1 targeting `main`.
    - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, implementer model and native effort, allocated implementation branch name, and likely findings.
 3. **Implementation Phase (PR 2):**
    - The **Orchestrator** reads the merged plan from `main` using [handoffs/templates/orchestrator.md](handoffs/templates/orchestrator.md).
    - Dispatches the **Implementer** to work on the allocated implementation branch (`fix/issue-N-...` or `feat/issue-N-...`) at the plan's selected implementer model; the orchestrator may re-select it (see [handoffs/README.md](handoffs/README.md#implementer-re-selection)).
-   - The implementer follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](WORKLOG.md) (recording what was done, decisions made, and anything surprising the next agent should know), and reports results without opening a PR.
+   - The implementer follows the plan's mechanical inclusion test, adds tests, adds a worklog entry file under [worklog/](worklog/) (recording what was done, decisions made, and anything surprising the next agent should know), and reports results without opening a PR.
    - The orchestrator reviews the diff (`git diff base_sha...HEAD`) and command outputs against the plan's review checklist and likely findings. For an `independent adversarial review` path, it also creates a disposable checkout pinned to the reviewed head, dispatches the exact implementation-read-only reviewer prompt from the orchestrator template to a fresh reviewer session, records the actual reviewer provider/model/effort, and remains responsible for routing findings. The reviewer independently reruns applicable verification, may write only ephemeral test artifacts in that checkout, and reports commands it could not run; a skipped required browser suite is not a pass. The orchestrator records a disposition for every P0-P3 finding, escalates unresolved blocking disagreements, and returns accepted defects to the implementer on the same branch for fix and independent complete-diff re-review.
    - If a stop condition triggers or plan boundaries must change, escalation follows `implementer → orchestrator → planner` to re-cut the plan.
    - Once clean and verified, and only when opening it is authorized, the orchestrator opens PR 2 targeting `main`.
 
-Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules, and for the model-selection policy; [handoffs/models.toml](handoffs/models.toml) records which models fill each role.
+Every pull request records what changed, decisions made, and anything surprising the next agent should know in a worklog entry file (see *Worklog*). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules, and for the model-selection policy; [handoffs/models.toml](handoffs/models.toml) records which models fill each role.
 
 ## Creating issues
 

@@ -1,5 +1,9 @@
 # Worklog
 
+> **Frozen archive (#193).** New entries are one file each under
+> [`worklog/`](worklog/); see `AGENTS.md`, *Worklog*. Do not add entries
+> here. Everything below is unchanged history.
+
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
