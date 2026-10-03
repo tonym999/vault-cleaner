@@ -164,7 +164,10 @@ reached: no new envelope field, header or revision was needed.
   recounts facet options for the selected kind and drops a selected value
   the kind lacks; the spike rendered option counts once in Python. Fixed by
   implementing recount-and-drop in both candidates: in JavaScript for (a),
-  where Python now renders no options, and in Python for (b). E10 now
+  and in Python for (b). (Corrected in fix round 2: this bullet first said
+  Python "now renders no options" under (a). The shared template still
+  renders the server-counted options into every fragment; the (a) page
+  ignores them.) E10 now
   compares the Class options, the selected value and the reconciliation
   message, and includes the diverging sequence (class Hunter, then kind
   exact). New counts: (a) 62 lines of JavaScript and no Python; (b) 27 and
@@ -206,3 +209,69 @@ four remaining filters, including the piece-counted Tuning Mod Slot facet;
 R3's fallback; the `closed` state from the browser; a finalise driven by
 the page itself (E11 posts it from outside and has the page adopt the
 envelope); performance.
+
+## Fix round 2 (re-review of `842aacd`)
+
+One P3, accepted. Documentation only: no file under `spikes/issue-137/`
+changed, so no evidence fence was recaptured. New commit on the same branch
+from head `842aacdb18318ed2d76adb62ef1384bd9eaad01b`. The decision and every
+gate result are unchanged.
+
+- **P3, "Python renders no facet options" was not true of the spike as
+  built.** The default fragment, the one candidate (a) fetches, still
+  carries the server-counted Class options, the scope text and the
+  dropped-class value, because one template and one builder serve both
+  candidates; the (a) page ignores them. The record now says so in the
+  filter-ownership section and in section 7, says production under (a)
+  would omit them, and explains how "0 lines of Python" is counted: between
+  the `[filters-b]` markers, whose closing marker in `context.py` fix round
+  1 moved down to take in `_class_options` and `_reconciled_class`. That
+  marker move was not called out in the round-1 hand-back; it should have
+  been. The context contract now lists the four (b)-only keys
+  (`class_options`, `dropped_class`, `scope_text`, `filtered_empty`).
+- **Also added to the record:** a limit stating that G3 rests on the
+  revision pair changing whenever the snapshot or verdicts change, which
+  E11, E3 and E4 measure for finalise, reset, verdicts and a re-upload but
+  not for every mutation path; and a note in ticket 2 that one owner must be
+  settled for the scope sentence's counts (`total_groups`/`total_pieces` are
+  counted in Python, shown counts in JavaScript).
+
+## Review record
+
+- **Review path:** independent adversarial review, as the plan selected;
+  confirmed by the orchestrator against the real diff.
+- **Reviewer:** Anthropic `claude-opus-5-5`, effort `high` requested per the
+  roster's reviewer assignment; dispatched as a fresh subagent session of
+  the orchestrator's Claude Code session with no planner or implementer
+  history, in a detached disposable checkout pinned to the head under
+  review. The subagent surface does not expose an effort setting, so the
+  effort is the runtime default, not confirmed as `high`. Same model family
+  as the implementer: a different family was preferred but the active
+  runtime cannot instantiate another provider, and no manual cross-provider
+  launch was arranged; independence rests on the fresh context and
+  read-only remit, as `handoffs/README.md` allows.
+- **Initial review** of `3140247` (range `ae646be...3140247`): no P0/P1.
+  - P2-1: fragment content depended on `state` and `override_status`, which
+    finalise changes without moving either revision.
+  - P2-2: E10 parity held only for the chosen combinations; facet
+    recount-and-drop missing.
+  - P3-1: template rules accepted Markup-returning and number-converting
+    filters.
+  - P3-2: E9 measured a naive whole-page implementation.
+  - P3-3: metrics refetch reintroduced the cost used to reject R3.
+  - P3-4: one unfenced claim.
+  - Disposition: all six `accepted/fixed` in fix round 1 (`842aacd`).
+- **Fix-round-1 audit by the orchestrator:** append-only history; both plan
+  checks pass; the 17 changed files equal the implementer's list;
+  verification suite and all 13 proofs rerun and pass.
+- **Re-review** of `842aacd` (range `ae646be...842aacd`, previous head
+  `3140247`): no P0/P1/P2; all six earlier findings confirmed resolved; one
+  new P3 (the candidate (a) "Python renders no facet options" wording, and
+  the unmentioned `[filters-b:end]` marker move). Disposition:
+  `accepted/fixed` in fix round 2.
+- **Both reviews independently reran** ruff, the full suite (1342 passed),
+  the required browser suite (16 passed, none skipped), the wheel proof, the
+  worklog check, and every spike proof against its evidence fence.
+- **Implementer outcome note:** completed the spike without reaching a stop
+  condition; needed one substantive reviewer correction round (two P2 gaps
+  in the evidence behind G3 and G8) which did not change the decision.

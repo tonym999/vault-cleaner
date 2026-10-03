@@ -128,7 +128,7 @@ screen-reader output was not measured** for any mechanism.
 | Requests per filter change | 0 | 1 |
 | Works after the server has stopped | Yes, as production does | No |
 | JavaScript for the two measured filters | 62 lines | 27 lines |
-| Python for the two measured filters | 0 lines | 63 lines |
+| Python for the two measured filters | 0 lines needed (see the note below) | 63 lines |
 | Where `duplicateScopeText` lives | JavaScript only | Python only |
 | Where facet option counts and labels live | JavaScript only | Python only |
 
@@ -154,10 +154,28 @@ production.
 **Where option counts live, under (a): in JavaScript only.** The browser
 counts groups per facet value from the `data-*` attributes of the groups in
 the selected kind, words the option label, and drops a stale selection.
-Python renders no facet options. Under (a), then, Python decides each
+In a production design under (a), Python would render no facet options.
+Under (a), then, Python decides each
 group's normalised values and writes them as attributes; the browser
 compares attributes, counts, and words the scope sentence, the option labels
 and the dropped-filter message. No rule is in both languages.
+
+**The spike as built does not look like that, and the "0 lines" figure
+needs reading with care.** One template and one context builder serve both
+candidates, so every fragment, including the default one that candidate (a)
+fetches, carries the parts only (b) uses: a server-counted
+`<select data-vc-part="class-options">` block, and the `data-scope-text` and
+`data-dropped-class` attributes. `_reconciled_class`, `_class_options`,
+`_filtered` and `scope_text` in `context.py` run on every render. The (a)
+page ignores all of it and counts in JavaScript (E10 compares what it
+shows), so its behaviour is right, but the Python count code still executes
+on the (a) path. The line figures are counted between the
+`[filters-a]` and `[filters-b]` markers in the spike's files. "0 lines" for
+(a) means that none of the Python between the `[filters-b]` markers is
+*needed* by (a), not that none runs; fix round 1 moved the closing
+`[filters-b:end]` marker in `context.py` down to take in `_class_options`
+and `_reconciled_class`, which is what attributes them to (b). Production
+under (a) would omit the (b)-only parts from the template and the builder.
 
 ## 3. Template and resource layout
 
@@ -238,6 +256,17 @@ Top level:
 | `fingerprint` | `str` | `fingerprint` (empty when `null`) |
 | `total_groups`, `total_pieces` | `str` | counts of the two group lists and their `members` |
 | `sections` | list of `{kind, heading, rule, groups}` | exact groups first, then same-stat, each in snapshot order |
+
+The builder also emits four keys that only candidate (b) of
+[filter ownership](#filter-ownership) uses. Under the chosen design they
+would not exist:
+
+| Key | Type | Source |
+| --- | --- | --- |
+| `class_options` | list of `{value, label}` | each group's `guardian_class`, counted over the requested kind |
+| `dropped_class` | `str` | the requested class, when the requested kind has no group of it |
+| `scope_text` | `str` | group and piece counts and the requested filters |
+| `filtered_empty` | `bool` | there are groups and the requested filters match none |
 
 Per group (`sections[].groups[]`):
 
@@ -512,6 +541,13 @@ differences are production's empty `class=""` attributes and the spike's
   `/api/finalize` and then has the page adopt the envelope. The spike has no
   Finalise button, download or `--once` handling.
 - **The `closed` state** was not exercised from the browser.
+- **G3 rests on an invariant that was not exhaustively tested:** that the
+  revision pair changes whenever the snapshot or the verdicts change. E11
+  measures finalise and reset; E3 and E4 measure verdicts and a re-upload.
+  Not every mutation path was walked.
+- **The spike's fragments carry candidate (b)'s parts** on every render
+  ([filter ownership](#filter-ownership)); no proof renders a fragment
+  without them.
 - **R3's fallback** (replace when the fragment's shape differs) exists in the
   spike but no proof exercises it.
 - **The armor DIM search panel** is rendered as static markup; its buttons do
@@ -577,7 +613,11 @@ Order: 1 → 2 → 3 → 4 → 5 → 6.
   the snapshot, the verdicts and the two revisions.** `state` and
   `override_status` are painted by the browser from the adopted envelope,
   and a test must show the fragment's bytes are unchanged across a finalise.
-  Facet option counts and labels live in JavaScript only.
+  Facet option counts and labels live in JavaScript only, and the fragment
+  carries no server-counted options, scope text or dropped-filter value.
+  The planner must also settle one owner for the counts in the scope
+  sentence: in the spike `total_groups` and `total_pieces` are counted in
+  Python and the shown counts in JavaScript.
 - **Stop conditions.** A snapshot, envelope or verdict-protocol change; a
   rule needed in both Python and JavaScript; a verdict repaint that rebuilds
   the focused control; any filter that needs the server; any change to
