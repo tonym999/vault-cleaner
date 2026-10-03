@@ -3,6 +3,39 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #188 implementation: stale workflow and plan facts (PR 2)
+
+Implemented #188 on `fix/issue-188-stale-doc-facts` from `main` at
+`9f3926bcc6d5188935ca898069b4269b0e1883aa`. Implementer: Anthropic Sonnet 5.5,
+model ID observed in this session as `claude-sonnet-5-5`. Refs #188.
+
+- **Dispatch record:**
+  - Orchestrator: `claude-opus-5-5` (Anthropic, Claude Code desktop session;
+    the runtime does not expose a native effort setting for this session).
+  - Plan's implementer selection: `MAI-Code-1.1-Flash` (`n/a — adaptive`),
+    Bounded rung.
+  - Actual implementer: Anthropic Sonnet 5.5 (`claude-sonnet-5-5`), launched
+    in-runtime as a Claude Code subagent via the Agent tool's `sonnet` model
+    alias. The Agent tool exposes no effort parameter, so effort is the
+    runtime default for subagents, not an explicitly set level.
+  - Re-selection reason: owner instruction on 2026-10-03 to use Sonnet 5.5 as
+    the implementer; it is the plan's own named re-selection fallback and a
+    permitted Bounded-rung alternative. Scope unchanged.
+  - Launch surface: in-runtime subagent (no manual cross-provider execution).
+  - Review path: standard orchestrator review, per the plan.
+- **What landed:** E1–E13 applied verbatim, each located by its old text, which
+  matched exactly once (E12: exactly five tokens above the catalog heading,
+  replaced one by one with the Edit tool, not a file-wide replace). Files
+  touched: `handoffs/README.md` (E1–E6, E12, E13), `AGENTS.md` (E7),
+  `PLAN.md` (E8, E10, E11), `.gitignore` (E9), plus this entry (W). No
+  deviation from the plan.
+- **Verification:** `ruff check src tests scripts`, `pytest -q`,
+  `git diff --check origin/main...HEAD` and `test -z "$(git ls-files data/)"`
+  all pass; see the implementer's completion report for the raw output. The
+  browser suite was not run because no UI file changes.
+- **Surprises the next agent should know about:** none. The plan's old text
+  was current at `9f3926b`.
+
 ## 2026-09-27 — #188 planning: stale workflow and plan facts (PR 1)
 
 Planned #188 on `handoff/issue-188-implementation-plan` from `main` at

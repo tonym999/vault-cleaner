@@ -206,9 +206,10 @@ Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, ad
   strictly (reject unknown keys, unknown versions, duplicate ids), never read
   a filesystem path out of their content, and keep `Id`/`Hash` opaque strings.
 - Rules live in `src/vault_cleaner/rules/`, one module per pass
-  (weapons.py, dupes.py, armor.py, armor_dupes.py, armor_close.py,
-  ghosts.py — a new pass gets a new module); ordering is defined in
-  PLAN.md and earlier rules win.
+  (weapons.py, dupes.py, coverage.py, armor.py, armor_dupes.py,
+  armor_close.py, ghosts.py — a new pass gets a new module); rails.py
+  implements rule 1's safety rails and id_order.py is a shared ordering
+  helper. Ordering is defined in PLAN.md and earlier rules win.
 
 ## Workflow
 

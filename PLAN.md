@@ -62,18 +62,11 @@ Python 3.12, pandas for CSV handling, `tomllib` for config, `pytest` for tests. 
 
 ```
 vault-cleaner/
-├── src/vault_cleaner/
-│   ├── parse.py          # DIM CSV ingestion, header-name mapping
-│   ├── wishlist.py       # download, cache, parse wishlist files
-│   ├── rules/            # one module per ordered rule pass
-│   ├── pipeline.py       # reusable ordered weapons/armor pipelines
-│   ├── report_run.py     # all-passes result + versioned snapshot/fingerprint
-│   ├── report.py         # output CSV + human-readable summary
-│   └── cli.py            # presentation and explicit --write boundary
-├── wishlists/            # cached downloads (gitignored or committed — TBD)
+├── src/vault_cleaner/    # the Python package
+├── wishlists/            # cached downloads, gitignored
 ├── data/                 # in/ and out/ — gitignored, personal vault data
 ├── config.toml
-├── tests/                # fixture CSVs with fake items
+├── tests/                # synthetic fixtures, plus sanitised real-export fixtures under fixtures/real/
 └── PLAN.md               # this file
 ```
 
@@ -89,6 +82,7 @@ Public repo; `data/` gitignored from the first commit.
 6. **M6 — Armor dupes:** measured exact-dupe cleanup, close-dupe review, and last-of-archetype score guard.
 7. **M7 — Review UI:** reusable report snapshot → persistent vetoes/review manifest → self-contained static HTML review.
 8. **M8 — Local review server:** loopback-only authenticated HTTP server (Flask 3.1); the browser uploads exports and downloads the reviewed CSV, so no input/output filesystem paths are required. Python owns rules, validation, persistence, and CSV generation; the page renders server data and collects verdicts. With the server-only review path and static-page cleanup complete, bounded armor threshold what-if variants are produced in Python as an M8 follow-up.
+9. **M9 — Duplicate review UX:** authoritative duplicate comparison data and review UX; see *M9 duplicate presentation and review UX* below.
 
 ### M8 schema-version-1 session states
 
@@ -171,7 +165,7 @@ item, DIM, or server state.
 - **Over-aggressive junking** — safety rails first, tool never deletes, dry-run mode default until `--write` is passed.
 - **Stat column changes (Armor 3.0 naming)** — map stat names through one lookup table so a rename is a one-line fix.
 - **The review server creates a new local network attack surface** — constrain it deliberately: loopback-only binding, authenticated session bootstrap, exact `Host` validation, same-origin enforcement for state-changing requests, no-store/no-referrer responses, strict and bounded upload validation, no request-supplied filesystem paths, and cleanup of session state and temporary files. Nothing is intentionally exposed off-machine, but this is a narrower risk than "no network code", not an unchanged posture.
-- **The browser/server boundary still needs a contract** — the server removes the duplicated manifest parser, but upload, report, verdict, session, and download schemas remain cross-runtime boundaries. Specify them before implementation and bind mutations to the exact report revision/fingerprint.
+- **The browser/server boundary is a cross-runtime contract** — the server removed the duplicated manifest parser, but upload, report, verdict, session, and download schemas remain cross-runtime boundaries. The server validates each request strictly (`src/vault_cleaner/server/`), binds verdict and finalize mutations to the exact report revision and fingerprint, and the `tests/test_server_*.py` suites pin the schemas.
 - **Two interactive review surfaces would recreate the maintenance problem** — the static review page (never released; decided on #48) and its browser-side validator/parity suite were retired after the server UI proved parity; `serve` is the sole browser workflow.
 
 ## Later ideas (explicitly out of scope for now)

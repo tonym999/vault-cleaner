@@ -1,7 +1,7 @@
 # Personal vault data — never commit (public repo)
 data/
 
-# Cached wishlist downloads (committed-or-not still TBD, see PLAN.md)
+# Cached wishlist downloads
 wishlists/
 
 # Python
