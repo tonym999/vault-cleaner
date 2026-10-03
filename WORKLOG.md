@@ -29,7 +29,8 @@ session does not report its effort setting). Refs #193.
   - A stdlib-only `scripts/check_worklog.py` replaces the inline CI shell
     step. A pull request must add a well-formed entry file, must not delete
     an entry or the archive, and must not add a dated heading to
-    `WORKLOG.md`.
+    `WORKLOG.md`. (Superseded in review-fix round 1: entries on `main` are
+    immutable and the archive is pinned by hash.)
   - Existing entries are not split into files.
   - Implementer `claude-sonnet-5-5` (`high`), the Bounded alternative, not
     the primary MAI model, after MAI's context failures on #170 and #191.
@@ -50,6 +51,42 @@ session does not report its effort setting). Refs #193.
   - Recording the owner's decision on the issue itself (acceptance
     criterion 1) is in the plan's dispatch comment draft; it was not posted
     in this session.
+
+### Review-fix round 1 (PR #202, 2026-10-03)
+
+Two P2 findings from the owner's review at `431a833`, plus one CodeRabbit
+comment that duplicates the second. Both were checked against the plan and
+accepted; the owner approved the fixes and chose the hash pin.
+
+- **P2: the name expression contradicted its own test.** The optional
+  `issue-[1-9]\d*-` group could be skipped, so `2026-10-04-issue-0-x.md`
+  matched as a plain slug while the T3 cases required it to fail. The
+  `issue-` prefix is now reserved:
+  `(?:issue-[1-9]\d*-|(?!issue-))` before the slug. Checked in this session
+  against five names that must pass and ten that must fail, including
+  `issue-0-x`, `issue-007-x`, `issue-x-foo` and `issue-193` with no slug.
+- **P2: existing history could be modified.** P1–P3 passed a pull request
+  that edited an entry on `main` or rewrote archive text, as long as it
+  added a valid entry. The first revision had put that protection out of
+  scope, reading "nothing is deleted or rewritten" as a statement about the
+  migration only. Fixed:
+  - New P3 rejects any status other than `A` or `D` under `worklog/`; P2
+    still rejects `D`. A file the pull request itself added stays `A`, so a
+    fix round can still extend it.
+  - T1 now pins `WORKLOG.md` by SHA-256 (bytes, `\r\n` normalised to `\n`)
+    against an `ARCHIVE_SHA256` constant in the checker, computed after the
+    pointer is inserted. It runs on pushes as well as pull requests and
+    replaces the old P3 (added dated heading) and the archive half of P2.
+    The owner chose this over a rule that recognises the E12 insertion by
+    diff shape, which would have left one-off transitional logic in the
+    checker.
+  - Tests gain archive edit, partial deletion, insertion and CRLF cases,
+    edits to existing entries alongside a valid new entry, and more
+    end-to-end `git` cases. The inclusion test, likely findings, checklist
+    and the `AGENTS.md` text in E7 follow.
+- **Surprise:** if `main` gains another `WORKLOG.md` entry before PR 2
+  merges, the implementer must recompute the hash. The plan says so and
+  does not treat it as a stop condition.
 
 ## 2026-10-03 — #191 implementation: structured model roster (PR 2)
 
