@@ -3,6 +3,37 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #188 fix round 3: owner-directed roster policy (PR #199)
+
+Fix round 3 on `fix/issue-188-stale-doc-facts`, from previous head `7325b5e`.
+Refs #188.
+
+- **Owner decisions (2026-10-03):** planner effort is `high` by default and
+  `xhigh` when the ticket needs it, with Sonnet as `high`. The Judgement and
+  High-risk rungs follow the planner row: primary Sol or Opus at `high`
+  (`xhigh` when needed), alternatives Sonnet (`high`) and Gemini Pro
+  (`high`); `gpt-6-luna` stays only as a Bounded-rung alternative.
+  `claude-fable-5-1` fills no role and needed no edit.
+- **Scope:** these are policy changes and exceed #188's original "do not
+  change workflow policy, roles or authorisation gates" scope line, by
+  explicit owner direction in PR #199.
+- **Applied:** E20–E25 and P2 (Amendment 2 appended to
+  `handoffs/issue-188-implementation-plan.md`), exactly as specified, each
+  old fragment matching exactly once. No deviation. Files touched:
+  `handoffs/README.md`, `AGENTS.md`, `handoffs/templates/planner.md`,
+  `handoffs/issue-188-implementation-plan.md` and this file.
+- **Review finding resolved:** CodeRabbit's Minor at `7325b5e` (the
+  inclusion-test sentence listed only W and W2) is resolved by P2's closing
+  paragraph, which restates the list as E1–E25, P, S, P2 and W–W4.
+- **Surprises the next agent should know about:** Judgement and High-risk now
+  share the same models and differ only in what the plan delegates to the
+  implementer. `gpt-6-luna` is untested in this repository.
+- **Dispatch:** same as earlier rounds (orchestrator `claude-opus-5-5`;
+  implementer `claude-sonnet-5-5` resumed in the same subagent session;
+  effort is not settable).
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass.
+
 ## 2026-10-03 — #188 fix round 2: amendment supersession note (PR #199)
 
 Fix round 2 on `fix/issue-188-stale-doc-facts`, from previous head `f9193b2`.

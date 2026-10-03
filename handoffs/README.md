@@ -181,12 +181,12 @@ workflows.
 
 | Role | Supported models | Chosen by |
 |---|---|---|
-| **Planner** | Regular choices: Sol (`gpt-6.1-sol`) or Opus (`claude-opus-5-5`), `xhigh` effort for planning. Permitted alternatives: `claude-sonnet-5-5` (`xhigh`) and `gemini-3.1-pro-preview` (`high`). Either regular model may plan any ticket; neither is assumed. | Owner, per ticket and availability |
+| **Planner** | Regular choices: Sol (`gpt-6.1-sol`) or Opus (`claude-opus-5-5`), `high` effort by default and `xhigh` when the ticket needs it. Permitted alternatives: `claude-sonnet-5-5` (`high`) and `gemini-3.1-pro-preview` (`high`). Either regular model may plan any ticket; neither is assumed. | Owner, per ticket and availability |
 | **Orchestrator** | Sol or Opus. The same model, and often the same session driver, may plan and orchestrate one ticket; the roles stay separate. | Owner, per ticket and availability |
 | **Implementer** | The [implementer ladder](#implementer-ladder) below. | Plan selects; orchestrator may re-select |
 | **Independent reviewer** | The Independent Review row below. | Orchestrator, at dispatch, after seeing the real diff |
 
-`claude-sonnet-5-5` (`xhigh`) and `gemini-3.1-pro-preview` (`high`) remain
+`claude-sonnet-5-5` (`high`) and `gemini-3.1-pro-preview` (`high`) remain
 permitted planners; Sol and Opus are the models in regular use. Sol and Opus
 are both first-class for planning and orchestration; this does not claim they
 are interchangeable for every task.
@@ -202,8 +202,8 @@ lies; the review gate makes that acceptable.
 | Rung | The plan delegates… | Typical work (examples, not limits) | Primary model | Permitted alternatives |
 |---|---|---|---|---|
 | **Bounded** | a well-defined outcome and scope; architecture and important invariants are already decided in the plan | small and medium well-specified bug fixes; bounded features; localized multi-file changes; mechanical refactors following an established pattern; tests for defined behaviour; lint/type/test fixes; presentation work with clear acceptance criteria; repetitive edits across known locations; bounded exploration followed by bounded implementation | `MAI-Code-1.1-Flash` (`n/a — adaptive`) | `claude-sonnet-5-5` (`high`), `gpt-6-luna` (`medium`), `gemini-3.8-flash` (`high`) |
-| **Judgement** | substantial engineering judgement or resolution of real ambiguity | meaningful choices between alternative designs; inferring intended behaviour across several components; significant but bounded refactoring decisions; ambiguity the plan could not settle; work a Bounded attempt showed to exceed that rung | `gpt-6-luna` (`high`) | `claude-sonnet-5-5` (`xhigh`), `gpt-6.1-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
-| **High-risk** | substantial reasoning responsibility or risk inside the implementation itself | persistence and data integrity; concurrency and races; stale-state reconciliation; lifecycle and state machines (e.g. server lifecycle); transactional or destructive operations; complex cross-file invariants; debugging with no established cause; potentially architectural refactors; several interacting failure modes at once | `gpt-6-luna` (`xhigh`) | `claude-sonnet-5-5` (`xhigh`), `gpt-6.1-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
+| **Judgement** | substantial engineering judgement or resolution of real ambiguity | meaningful choices between alternative designs; inferring intended behaviour across several components; significant but bounded refactoring decisions; ambiguity the plan could not settle; work a Bounded attempt showed to exceed that rung | `gpt-6.1-sol` or `claude-opus-5-5` (`high`; `xhigh` when needed) | `claude-sonnet-5-5` (`high`), `gemini-3.1-pro-preview` (`high`) |
+| **High-risk** | substantial reasoning responsibility or risk inside the implementation itself | persistence and data integrity; concurrency and races; stale-state reconciliation; lifecycle and state machines (e.g. server lifecycle); transactional or destructive operations; complex cross-file invariants; debugging with no established cause; potentially architectural refactors; several interacting failure modes at once | `gpt-6.1-sol` or `claude-opus-5-5` (`high`; `xhigh` when needed) | `claude-sonnet-5-5` (`high`), `gemini-3.1-pro-preview` (`high`) |
 
 The Bounded rung may still be tried on work near the High-risk boundary when
 the plan has made the implementation effectively mechanical. When a Bounded

@@ -288,7 +288,7 @@ exception from its label, and never treat it as permission to merge.
    - If a stop condition triggers or plan boundaries must change, escalation follows `implementer → orchestrator → planner` to re-cut the plan.
    - Once clean and verified, and only when opening it is authorized, the orchestrator opens PR 2 targeting `main`.
 
-Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules, and for the role → model roster: Sol and Opus are the regular planner/orchestrator choices, Sonnet and Gemini remain permitted planner alternatives, and the primary implementer ladder is MAI-Code-1.1-Flash / Luna high / Luna xhigh.
+Every pull request records what changed, decisions made, and anything surprising the next agent should know in [WORKLOG.md](WORKLOG.md). See [handoffs/README.md](handoffs/README.md) for full details on roles, naming conventions, and escalation rules, and for the role → model roster: Sol and Opus are the regular planner/orchestrator choices, Sonnet and Gemini remain permitted planner alternatives, and the primary implementer ladder is MAI-Code-1.1-Flash for the Bounded rung, then Sol or Opus (the planner row) for the Judgement and High-risk rungs.
 
 ## Creating issues
 

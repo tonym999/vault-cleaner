@@ -590,3 +590,36 @@ original E1–E13 round. Wherever they say "E1–E13", read "E1–E19 and P";
 wherever they say "W" or expect one worklog entry, read "the worklog entries
 W, W2 and W3". W3 is the fix-round-2 worklog entry that records this
 paragraph, and the mechanical inclusion test covers both.
+
+# Amendment 2 — roster policy (2026-10-03, owner-directed)
+
+These are policy changes directed by the owner in PR #199. They go beyond
+#188's original "do not change workflow policy, roles or authorisation gates"
+scope line, and the owner explicitly authorised making them in this PR.
+
+**Owner decisions (2026-10-03):**
+
+1. Planner effort is `high` by default and `xhigh` when the ticket needs it;
+   the Sonnet planner alternative is `high`.
+2. The Judgement and High-risk implementer rungs follow the planner row:
+   primary Sol or Opus at `high` (`xhigh` when needed), alternatives Sonnet
+   (`high`) and Gemini Pro (`high`). `gpt-6-luna` stays only as a
+   Bounded-rung alternative. The orchestrator's recorded reason: OpenAI
+   describes GPT-6 Luna as its most efficient model for focused, high-volume
+   tasks, and no ticket in this repository has used it on a higher rung.
+3. `claude-fable-5-1` fills no role. It already has a catalog row and appears
+   in no roster, ladder or reviewer row, so no edit is needed.
+
+**Edits:**
+
+- E20: `handoffs/README.md` Planner row says `high` effort by default and `xhigh` when needed, with the Sonnet alternative at `high`.
+- E21: `handoffs/README.md` paragraph after the roster table gives Sonnet as `high`.
+- E22: `handoffs/README.md` Judgement ladder row: primary `gpt-6.1-sol` or `claude-opus-5-5` (`high`; `xhigh` when needed); alternatives Sonnet and Gemini Pro at `high`.
+- E23: `handoffs/README.md` High-risk ladder row: same primary and alternatives as E22.
+- E24: `AGENTS.md` roster summary sentence names MAI for the Bounded rung, then Sol or Opus for Judgement and High-risk.
+- E25: `handoffs/templates/planner.md` example becomes `gpt-6.1-sol` with `high` effort.
+
+The mechanical inclusion test and the supersession note above now read:
+edits E1–E25, the plan sections P, S and P2, and the worklog entries W, W2,
+W3 and W4. Wherever an earlier section of this plan gives a shorter list,
+this one replaces it.
