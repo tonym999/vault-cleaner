@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vault-cleaner review (issue 137 spike)</title>
+  <link rel="stylesheet" href="/assets/review.css">
+  <link rel="stylesheet" href="/spike/assets/spike.css">
+</head>
+<body>
+  <a class="skip" href="#vc-skip-target">Skip to review content</a>
+  <main class="wrap">
+    <h1 id="vc-skip-target" tabindex="-1">vault-cleaner review (issue 137 spike)</h1>
+    <p id="vc-status" role="status" aria-live="polite" class="hint">
+      Connecting to the local review server…
+    </p>
+
+    <section class="panel" id="vc-report" aria-labelledby="vc-report-title">
+      <h2 id="vc-report-title">Report</h2>
+      <p class="sub">Report fingerprint <code id="vc-fingerprint"></code></p>
+      <p id="vc-reconciliation" class="hint" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <section class="panel" id="vc-filters" aria-labelledby="vc-filters-title">
+      <h2 id="vc-filters-title">Filters</h2>
+      <div class="controls" id="vc-controls">
+        <div id="vc-dup-kind-selector" class="view-selector" role="group" aria-label="Armor duplicate group kind">
+          <span class="view-selector-label">Show</span>
+          <span class="segbtns">
+            <button id="vc-dup-kind-all" type="button" aria-pressed="true" data-vc-kind="all">All</button>
+            <button id="vc-dup-kind-exact" type="button" aria-pressed="false" data-vc-kind="exact">Exact</button>
+            <button id="vc-dup-kind-same_stat" type="button" aria-pressed="false" data-vc-kind="same_stat">Same stats</button>
+          </span>
+        </div>
+        <label class="field" for="vc-dup-f-guardianClass">
+          <span>Class</span>
+          <select id="vc-dup-f-guardianClass"><option value="">any class</option></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel" id="vc-duplicates" aria-labelledby="vc-duplicates-title">
+      <h2 id="vc-duplicates-title">Armor duplicates</h2>
+      <p class="hint">Exact groups show authoritative survivor and disposition context. Same stats, different tuning groups are review-only comparisons; verdict controls appear only where the current report already has a proposal.</p>
+      <p id="vc-duplicate-scope" class="scope-summary" role="status" aria-live="polite"></p>
+      <p id="vc-duplicate-empty" class="hint" hidden>No armor duplicate groups match these filters.</p>
+      <div id="vc-duplicate-list"></div>
+    </section>
+  </main>
+  <script src="/spike/assets/spike.js" defer></script>
+</body>
+</html>

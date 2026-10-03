@@ -1,0 +1,5 @@
+/* Spike-only (#137).  review.css is linked unchanged; this file adds the one
+   rule the browser-owned filter needs.  review.css gives
+   .armor-section-head `display: flex`, which beats the user-agent rule for
+   the `hidden` attribute, so a hidden section heading would stay visible. */
+[hidden] { display: none !important; }

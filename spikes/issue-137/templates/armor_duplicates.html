@@ -1,0 +1,25 @@
+{#- The Armor duplicates fragment.  The root carries the revisions it was
+    rendered for, so the browser can refuse one that does not match the
+    envelope it has adopted.  The browser installs the children of the
+    "list" part and copies the "class-options" part into the persistent
+    filter control. -#}
+{% from "_armor_group.html" import armor_group %}
+<div data-vc-fragment="armor-duplicates" data-report-revision="{{ report_revision }}" data-verdict-revision="{{ verdict_revision }}" data-fingerprint="{{ fingerprint }}" data-total-groups="{{ total_groups }}" data-total-pieces="{{ total_pieces }}" data-scope-text="{{ scope_text }}"{% if frozen %} data-vc-frozen="true"{% endif %}>
+<select data-vc-part="class-options">
+<option value="">any class</option>
+{%- for option in class_options %}
+<option value="{{ option.value }}">{{ option.label }}</option>
+{%- endfor %}
+</select>
+<div data-vc-part="list">
+{%- if filtered_empty %}
+<p class="hint">No armor duplicate groups match these filters.</p>
+{%- endif %}
+{%- for section in sections %}
+<div class="armor-section-head" data-vc-section="{{ section.kind }}"><h3>{{ section.heading }}</h3><span class="rule">{{ section.rule }}</span></div>
+{%- for group in section.groups %}
+{{ armor_group(group, frozen) }}
+{%- endfor %}
+{%- endfor %}
+</div>
+</div>
