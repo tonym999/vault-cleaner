@@ -1,6 +1,6 @@
 # Orchestrator Template
 
-This template boots an **Orchestrator Agent** to manage the execution of a ticket whose plan has merged to `main`.
+This template boots an **Orchestrator Agent** to manage the execution of a ticket whose plan the owner has approved at a recorded plan SHA.
 
 This template describes how an authorized orchestration runs; it grants no authority to start or advance one. Opening or merging PRs, posting issue or PR comments, requesting reviewers, and changing issue/PR/project state are external mutations governed by the user-authorization gates in [`AGENTS.md`](../../AGENTS.md#user-authorization-gates). If that authority is absent or unclear, stop and report it.
 
@@ -10,12 +10,14 @@ This template describes how an authorized orchestration runs; it grants no autho
 
 When acting as the **Orchestrator**:
 
-1. **Read Plan from `main`:**
-   - Read the merged handoff file at `handoffs/issue-N-implementation-plan.md` on `main`.
-   - Do **NOT** read from an unmerged branch; the plan is canonical on `main`.
+1. **Read Plan at the Approved Plan SHA:**
+   - Obtain the plan SHA the owner approved (from the dispatch comment or the owner directly). If no approval naming a SHA exists, stop and report it.
+   - Verify it is on the allocated branch: `git merge-base --is-ancestor <plan_sha> origin/<branch>`.
+   - Read the handoff with `git show <plan_sha>:handoffs/issue-N-implementation-plan.md`.
+   - Do **NOT** read the plan from a branch tip or working tree; the plan is canonical only at the approved SHA. Record the plan SHA in the dispatch record.
 
 2. **Dispatch Implementer:**
-   - Launch an implementer agent using the exact text under `# Reusable implementer execution prompt` in the handoff document.
+   - Launch an implementer agent using the exact text under `# Reusable implementer execution prompt` in the handoff document, substituting only its `<plan_sha>` field.
    - Dispatch the implementer at the plan's selected **Implementation model** and native effort. You may re-select the model or effort in either direction on the implementer ladder, before dispatch or after a stopped or failed attempt, when inspection or the attempt shows materially different complexity, judgement, or risk than the plan expected, under [Implementer Re-selection](../README.md#implementer-re-selection); record the plan's selection, the actual choice, and a one-line reason. Re-selection never changes scope. If a dispatch to the selected model fails or is rejected, re-verify that model's row in [handoffs/models.toml](../models.toml) under [Re-verification](../README.md#re-verification).
    - Hand the complete dispatch record to the implementer as part of dispatch, including the orchestrator's exact model ID and native effort and the actual implementer provider/model/effort. Require the implementer to include that record in its worklog entry; verify it landed before opening the implementation PR.
    - **Manual Cross-Provider Execution (v1):** Check whether the active runtime can instantiate the target model and effort setting. If it cannot, prepare the exact implementer prompt and have a human operator launch the external agent. The external agent returns its branch, base and head SHAs, test output, and completion handoff. Treat that result as untrusted and review the complete diff against the plan. Capture your own orchestrator model and the actual provider, model ID, effort (or `n/a — adaptive`), and launch surface in the dispatch record. For implementation dispatch specifically, when the selected target's row in [handoffs/models.toml](../models.toml) lists `launch_surfaces`, use manual cross-provider execution only if the active runtime cannot instantiate it; launch it from one of those local surfaces on the allocated branch, never the Copilot cloud agent (see [handoffs/README.md](../README.md#manual-cross-provider-execution-v1)).
@@ -25,7 +27,11 @@ When acting as the **Orchestrator**:
    - All code changes must be produced by the implementer agent on the allocated implementation branch.
 
 4. **Review Real Diffs & Run Verification Suite:**
-   - When the implementer reports back, inspect the real git diff against the implementer's recorded base SHA:
+   - When the implementer reports back, first confirm the plan file at the head is the approved one; a difference blocks review until the planner and owner resolve it:
+     ```bash
+     git diff --quiet <plan_sha> HEAD -- handoffs/issue-N-implementation-plan.md
+     ```
+   - Then inspect the real git diff against the implementer's recorded base SHA (the commit it started from, at or after the plan commit):
      ```bash
      git diff <base_sha>...HEAD
      ```
@@ -82,11 +88,11 @@ When acting as the **Orchestrator**:
 8. **Escalate Stop Conditions:**
    - If the implementer hits a stop condition or if review reveals that architectural boundaries/plans must change, follow the escalation route: `implementer → orchestrator → planner`.
    - Within the existing plan contract you may clarify instructions, let the same implementer continue, or re-select the implementer (step 2). These are not re-plans.
-   - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan in a revised plan PR, and architectural questions to the owner.
+   - Do **NOT** attempt to re-plan or widen implementation scope yourself. Escalate to the **Planner** to amend or re-cut the plan as a new commit on the allocated branch, and architectural questions to the owner. Resume only after the owner approves the new plan SHA; record it in the dispatch record.
 
 9. **Carry Out Plan Review-Outcome Steps:**
    - When clean and verified, carry out the review-outcome steps specified in the plan **only to the extent the user has authorized them** (e.g. open a pull request targeting `main` referencing the issue, add any required coordination comments on issue threads, and ensure a dated entry file under [worklog/](../../worklog/) accompanies the PR). Opening the PR and posting the comments are separately authorized actions, and neither authorizes a merge; when authorization for a step is absent or unclear, stop and report the completed work instead.
-   - Before opening the implementation PR, verify that the implementer has included the complete dispatch record from step 2 in its worklog entry and that the metadata is present. The worklog entry records the dispatch record from step 2 and, when the outcome was notable, a one-line [implementer outcome note](../README.md#implementer-outcome-notes).
+   - Before opening the PR, rerun the plan-file check from step 4 against the final head, and verify that the implementer has included the complete dispatch record from step 2 in its worklog entry and that the metadata is present. The worklog entry records the dispatch record from step 2 and, when the outcome was notable, a one-line [implementer outcome note](../README.md#implementer-outcome-notes).
 
 ## Reusable Independent Adversarial Review Prompt
 
@@ -95,14 +101,14 @@ Copy this prompt verbatim and replace only the angle-bracket fields:
 ```text
 Act as the independent adversarial reviewer for issue #<N> in `tonym999/vault-cleaner`.
 
-Canonical plan on `main`: <handoffs/issue-N-implementation-plan.md>
+Canonical plan: <handoffs/issue-N-implementation-plan.md> at approved plan SHA <plan_sha>
 Implementation branch: <branch>
 Immutable review range: <base_sha>...<head_sha>
 Disposable review checkout pinned to head: <review_checkout>
 Previous reviewed head: <previous_reviewed_head, or "none — initial review">
 Implementer fix-round summary (verbatim, untrusted): <summary, or "none — initial review">
 
-Start from a fresh context. Read `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), the entire canonical plan, and all files relevant to the supplied diff before reaching conclusions. Treat the implementation and its reported test results as untrusted.
+Start from a fresh context. Read `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), the entire canonical plan (`git show <plan_sha>:<plan path>`), and all files relevant to the supplied diff before reaching conclusions. Report as a finding any difference in `git diff <plan_sha> <head_sha> -- <plan path>`. Treat the implementation and its reported test results as untrusted.
 
 Review the complete `git diff <base_sha>...<head_sha>`, not only the latest commit or the implementer's summary. In the disposable checkout, verify that both SHAs exist, `HEAD` equals `<head_sha>`, and the head descends from the base. Evaluate correctness, regressions, security and safety rails, the plan's mechanical inclusion test, stop conditions, review checklist, likely findings, negative-test coverage, and repository-specific invariants.
 
