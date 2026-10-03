@@ -582,3 +582,11 @@ and the GPT-6 lineup has no Terra.
 The mechanical inclusion test is extended to "E1–E19, P, and the two worklog
 entries W and W2", where P is this section. Historical plans and `WORKLOG.md`
 entries that name GPT-5.6 are point-in-time records and stay unchanged.
+
+**Supersession (fix round 2, 2026-10-03):** this amendment supersedes the edit
+and worklog lists in `# Reusable implementer execution prompt` and
+`# Review checklist` above. Those sections are kept as dispatched for the
+original E1–E13 round. Wherever they say "E1–E13", read "E1–E19 and P";
+wherever they say "W" or expect one worklog entry, read "the worklog entries
+W, W2 and W3". W3 is the fix-round-2 worklog entry that records this
+paragraph, and the mechanical inclusion test covers both.

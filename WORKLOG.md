@@ -3,6 +3,31 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #188 fix round 2: amendment supersession note (PR #199)
+
+Fix round 2 on `fix/issue-188-stale-doc-facts`, from previous head `f9193b2`.
+Refs #188.
+
+- **Finding 1 (reviewer P2; CodeRabbit Major, same finding): accepted.** The
+  amendment extends the inclusion test to E1–E19, P, W and W2, but the plan's
+  `# Reusable implementer execution prompt` and `# Review checklist` still
+  say E1–E13 and W. Fixed by labelling supersession in the amendment (S).
+  The original prompt and checklist lines were deliberately left as
+  dispatched, because they are the record of what was dispatched.
+- **Finding 2 (CodeRabbit Minor, `handoffs/README.md` planner paragraph):
+  rejected, no edit.** The "remain permitted planners; Sol and Opus are the
+  models in regular use" wording states roster policy, which #188 says not
+  to change, and the suggested replacement dropped the "regular use" and
+  "first-class for planning and orchestration" statements.
+- **Applied:** S appended verbatim at the end of
+  `handoffs/issue-188-implementation-plan.md`, plus this entry (W3). Files
+  touched: those two only.
+- **Dispatch:** same as round 1 (orchestrator `claude-opus-5-5`; implementer
+  `claude-sonnet-5-5` resumed in the same subagent session; effort is not
+  settable).
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass.
+
 ## 2026-10-03 — #188 fix round 1: OpenAI model refresh (PR #199)
 
 Fix round 1 on `fix/issue-188-stale-doc-facts`, from previous head `cba8b62`.
