@@ -167,7 +167,7 @@ The first complete real-issue pilot of this workflow ran in [#124](https://githu
 
 ## Model Family & Provider-Native Reasoning-Effort Matrix
 
-*(Verified 2026-09-03; Microsoft row verified 2026-09-19; Anthropic rows verified 2026-10-02)*
+*(Verified 2026-09-03; Microsoft row verified 2026-09-19; Anthropic rows verified 2026-10-02; OpenAI rows verified 2026-10-03)*
 
 > [!IMPORTANT]
 > **Rule:** Planners MUST re-verify this table against official provider documentation before selecting a model and effort setting for a task. State support per model rather than assuming uniform provider support. Do not assume equivalent effort names (e.g. OpenAI `xhigh`, Anthropic `xhigh`, Gemini `high`) produce identical reasoning behavior.
@@ -181,7 +181,7 @@ workflows.
 
 | Role | Supported models | Chosen by |
 |---|---|---|
-| **Planner** | Regular choices: Sol (`gpt-5.6-sol`) or Opus (`claude-opus-5-5`), `xhigh` effort for planning. Permitted alternatives: `claude-sonnet-5-5` (`xhigh`) and `gemini-3.1-pro-preview` (`high`). Either regular model may plan any ticket; neither is assumed. | Owner, per ticket and availability |
+| **Planner** | Regular choices: Sol (`gpt-6.1-sol`) or Opus (`claude-opus-5-5`), `xhigh` effort for planning. Permitted alternatives: `claude-sonnet-5-5` (`xhigh`) and `gemini-3.1-pro-preview` (`high`). Either regular model may plan any ticket; neither is assumed. | Owner, per ticket and availability |
 | **Orchestrator** | Sol or Opus. The same model, and often the same session driver, may plan and orchestrate one ticket; the roles stay separate. | Owner, per ticket and availability |
 | **Implementer** | The [implementer ladder](#implementer-ladder) below. | Plan selects; orchestrator may re-select |
 | **Independent reviewer** | The Independent Review row below. | Orchestrator, at dispatch, after seeing the real diff |
@@ -201,9 +201,9 @@ lies; the review gate makes that acceptable.
 
 | Rung | The plan delegates… | Typical work (examples, not limits) | Primary model | Permitted alternatives |
 |---|---|---|---|---|
-| **Bounded** | a well-defined outcome and scope; architecture and important invariants are already decided in the plan | small and medium well-specified bug fixes; bounded features; localized multi-file changes; mechanical refactors following an established pattern; tests for defined behaviour; lint/type/test fixes; presentation work with clear acceptance criteria; repetitive edits across known locations; bounded exploration followed by bounded implementation | `MAI-Code-1.1-Flash` (`n/a — adaptive`) | `claude-sonnet-5-5` (`high`), `gpt-5.6-terra` (`medium`), `gemini-3.8-flash` (`high`) |
-| **Judgement** | substantial engineering judgement or resolution of real ambiguity | meaningful choices between alternative designs; inferring intended behaviour across several components; significant but bounded refactoring decisions; ambiguity the plan could not settle; work a Bounded attempt showed to exceed that rung | `gpt-5.6-luna` (`high`) | `claude-sonnet-5-5` (`xhigh`), `gpt-5.6-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
-| **High-risk** | substantial reasoning responsibility or risk inside the implementation itself | persistence and data integrity; concurrency and races; stale-state reconciliation; lifecycle and state machines (e.g. server lifecycle); transactional or destructive operations; complex cross-file invariants; debugging with no established cause; potentially architectural refactors; several interacting failure modes at once | `gpt-5.6-luna` (`xhigh`) | `claude-sonnet-5-5` (`xhigh`), `gpt-5.6-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
+| **Bounded** | a well-defined outcome and scope; architecture and important invariants are already decided in the plan | small and medium well-specified bug fixes; bounded features; localized multi-file changes; mechanical refactors following an established pattern; tests for defined behaviour; lint/type/test fixes; presentation work with clear acceptance criteria; repetitive edits across known locations; bounded exploration followed by bounded implementation | `MAI-Code-1.1-Flash` (`n/a — adaptive`) | `claude-sonnet-5-5` (`high`), `gpt-6-luna` (`medium`), `gemini-3.8-flash` (`high`) |
+| **Judgement** | substantial engineering judgement or resolution of real ambiguity | meaningful choices between alternative designs; inferring intended behaviour across several components; significant but bounded refactoring decisions; ambiguity the plan could not settle; work a Bounded attempt showed to exceed that rung | `gpt-6-luna` (`high`) | `claude-sonnet-5-5` (`xhigh`), `gpt-6.1-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
+| **High-risk** | substantial reasoning responsibility or risk inside the implementation itself | persistence and data integrity; concurrency and races; stale-state reconciliation; lifecycle and state machines (e.g. server lifecycle); transactional or destructive operations; complex cross-file invariants; debugging with no established cause; potentially architectural refactors; several interacting failure modes at once | `gpt-6-luna` (`xhigh`) | `claude-sonnet-5-5` (`xhigh`), `gpt-6.1-sol` (`high`), `gemini-3.1-pro-preview` (`high`) |
 
 The Bounded rung may still be tried on work near the High-risk boundary when
 the plan has made the implementation effectively mechanical. When a Bounded
@@ -214,7 +214,7 @@ attempt stops or fails, the orchestrator may re-select a higher rung under
 
 | Review Role | Model Selection & Effort Rationale | Recommended Model & Native Effort |
 |---|---|---|
-| **Independent Review** | Reviewing implementation diffs against plan checklists and likely findings. | `claude-opus-5-5` (`high`), `gpt-5.6-sol` (`high`), or `gemini-3.1-pro-preview` (`high`) |
+| **Independent Review** | Reviewing implementation diffs against plan checklists and likely findings. | `claude-opus-5-5` (`high`), `gpt-6.1-sol` (`high`), or `gemini-3.1-pro-preview` (`high`) |
 
 Implementer-only models (currently `MAI-Code-1.1-Flash`) are not independent
 review options.
@@ -223,9 +223,12 @@ review options.
 
 | Provider | Model Family | Exact Model ID | Native Reasoning Control | Allowed Effort Values / Support Notes | Stability / Source |
 |---|---|---|---|---|---|
-| **OpenAI** | GPT-5.6 | `gpt-5.6-sol` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` | Stable — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model) |
-| **OpenAI** | GPT-5.6 | `gpt-5.6-terra` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` | Stable — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model) |
-| **OpenAI** | GPT-5.6 | `gpt-5.6-luna` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` | Stable — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model) |
+| **OpenAI** | GPT-6 | `gpt-6-astra` | `reasoning.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `medium`); `none` is unsupported | Stable — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model), [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) |
+| **OpenAI** | GPT-6 | `gpt-6.1-sol` | `reasoning.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `medium`); `none` and `minimal` are unsupported | Stable — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model), [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
+| **OpenAI** | GPT-6 | `gpt-6-luna` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` (defaults to `medium`) | Stable — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model), [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) |
+| **OpenAI** | GPT-5.6 | `gpt-5.6-sol` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` | Previous generation, no deprecation listed — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model), [OpenAI Deprecations](https://developers.openai.com/api/docs/deprecations) |
+| **OpenAI** | GPT-5.6 | `gpt-5.6-terra` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` | Previous generation, no deprecation listed — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model), [OpenAI Deprecations](https://developers.openai.com/api/docs/deprecations) |
+| **OpenAI** | GPT-5.6 | `gpt-5.6-luna` | `reasoning.effort` | `none`, `low`, `medium`, `high`, `xhigh`, `max` | Previous generation, no deprecation listed — [OpenAI Models Guidance](https://developers.openai.com/api/docs/guides/latest-model), [OpenAI Deprecations](https://developers.openai.com/api/docs/deprecations) |
 | **Anthropic** | Claude | `claude-fable-5-1` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `high`) | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
 | **Anthropic** | Claude | `claude-opus-5-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `medium`) | Stable — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
 | **Anthropic** | Claude | `claude-opus-5` | `output_config.effort` | `low`, `medium`, `high`, `xhigh`, `max` (defaults to `high`) | Legacy, still available — [Anthropic Models](https://platform.claude.com/docs/en/models/overview), [Anthropic Effort](https://platform.claude.com/docs/en/build-with-claude/effort) |

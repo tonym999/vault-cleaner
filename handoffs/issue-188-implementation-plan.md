@@ -541,3 +541,44 @@ Planned #188 in [handoffs/issue-188-implementation-plan.md](https://github.com/t
 - **Implementer model & effort:** `MAI-Code-1.1-Flash` (`n/a — adaptive`); re-selection fallback `claude-sonnet-5-5` (`medium`), not Gemini (PR #160).
 - **Implementation branch:** `fix/issue-188-stale-doc-facts`
 - **Likely findings:** collateral Markdown edits beside E1–E13; a missed Opus location or swapped default; a file-wide or partial Sonnet swap (E12); table or fence breakage in E6/E8/E13, or a blank line before the E10 item; missing dispatch record in `WORKLOG.md`.
+
+# Amendment — OpenAI model refresh (2026-10-03, owner-authorised direct route)
+
+**Finding (F12):** the OpenAI roster, implementer ladder, independent-reviewer
+mapping and provider catalog in `handoffs/README.md`, and the example model ID
+in `handoffs/templates/planner.md`, named GPT-5.6, while OpenAI's current
+lineup is `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`. It was raised as a P2
+on PR #199.
+
+**Route:** the owner authorised applying the fix directly on the
+implementation branch, as a documentation-only change, rather than through a
+re-cut plan PR.
+
+**Owner decisions (2026-10-03):**
+
+- Map name for name: `gpt-5.6-sol` becomes `gpt-6.1-sol` and `gpt-5.6-luna`
+  becomes `gpt-6-luna`, with effort levels unchanged.
+- `gpt-5.6-terra` on the Bounded rung is replaced by `gpt-6-luna` (`medium`).
+- `gpt-6-astra` is catalog-only; no roster or ladder row uses it.
+- The three GPT-5.6 catalog rows stay, relabelled as previous generation.
+
+**Verification (2026-10-03):** the orchestrator checked
+https://developers.openai.com/api/docs/guides/latest-model,
+https://developers.openai.com/api/docs/models, the per-model pages for
+`gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`, and
+https://developers.openai.com/api/docs/deprecations. The deprecations page has
+no GPT-5.6 entry, the models page no longer lists GPT-5.6 Sol, Terra or Luna,
+and the GPT-6 lineup has no Terra.
+
+**Edits:**
+
+- E14: `handoffs/README.md` verification line gains "OpenAI rows verified 2026-10-03".
+- E15: `gpt-5.6-sol` becomes `gpt-6.1-sol` in the four roster, ladder and reviewer locations above the catalog heading.
+- E16: `gpt-5.6-luna` becomes `gpt-6-luna` in the two ladder primaries above the catalog heading.
+- E17: the Bounded ladder fallback `gpt-5.6-terra` (`medium`) becomes `gpt-6-luna` (`medium`).
+- E18: the three GPT-5.6 catalog rows become three GPT-6 rows plus the same three GPT-5.6 rows relabelled "Previous generation, no deprecation listed".
+- E19: `handoffs/templates/planner.md` example ID `gpt-5.6-luna` becomes `gpt-6-luna`.
+
+The mechanical inclusion test is extended to "E1–E19, P, and the two worklog
+entries W and W2", where P is this section. Historical plans and `WORKLOG.md`
+entries that name GPT-5.6 are point-in-time records and stay unchanged.

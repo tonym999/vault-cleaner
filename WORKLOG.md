@@ -3,6 +3,38 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #188 fix round 1: OpenAI model refresh (PR #199)
+
+Fix round 1 on `fix/issue-188-stale-doc-facts`, from previous head `cba8b62`.
+Refs #188.
+
+- **Finding (P2 on PR #199, F12):** the OpenAI roster, ladder, reviewer
+  mapping and catalog in `handoffs/README.md`, and the example ID in
+  `handoffs/templates/planner.md`, named GPT-5.6, while OpenAI's current
+  lineup is `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`.
+- **Owner decisions (2026-10-03):** fix it in this PR, using the
+  documentation-only direct route instead of a separate plan PR. Map name for
+  name (`gpt-5.6-sol` to `gpt-6.1-sol`, `gpt-5.6-luna` to `gpt-6-luna`) with
+  effort levels unchanged. Replace `gpt-5.6-terra` on the Bounded rung with
+  `gpt-6-luna` (`medium`). `gpt-6-astra` is catalog-only. The three GPT-5.6
+  catalog rows stay, relabelled as previous generation.
+- **Applied:** E14–E19 and P (the amendment section appended to
+  `handoffs/issue-188-implementation-plan.md`), exactly as specified, each
+  located by its old text with the expected match count (E15: four, E16: two,
+  E17: one, E19: one). No deviation. Files touched: `handoffs/README.md`,
+  `handoffs/templates/planner.md`, `handoffs/issue-188-implementation-plan.md`
+  and this file.
+- **Verification sources (checked by the orchestrator, 2026-10-03):**
+  OpenAI's latest-model guide, models page, the per-model pages for
+  `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`, and the deprecations page
+  (no GPT-5.6 deprecation entry; no Terra in the GPT-6 lineup).
+- **Dispatch:** orchestrator `claude-opus-5-5`; implementer `claude-sonnet-5-5`
+  resumed in the same subagent session; effort is not settable.
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass; the only
+  `gpt-5.6` hits in `handoffs/README.md` and `handoffs/templates/planner.md`
+  are the three relabelled catalog rows.
+
 ## 2026-10-03 — #188 implementation: stale workflow and plan facts (PR 2)
 
 Implemented #188 on `fix/issue-188-stale-doc-facts` from `main` at
