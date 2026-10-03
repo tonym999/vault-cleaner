@@ -39,7 +39,7 @@ role.
    - **Constraint:** Never writes production code or implements tickets directly. Does not change scope, the mechanical inclusion test, or stop conditions; those go back to the planner.
 
 3. **Implementer**
-   - **Responsibility:** Executes the handoff instructions on the allocated branch (`fix/issue-N-...` or `feat/issue-N-...`). Follows the plan's mechanical inclusion test, adds tests, updates [WORKLOG.md](../WORKLOG.md) and documentation, verifies with tests and linters, and reports results back to the orchestrator.
+   - **Responsibility:** Executes the handoff instructions on the allocated branch (`fix/issue-N-...` or `feat/issue-N-...`). Follows the plan's mechanical inclusion test, adds tests, adds a worklog entry file under [worklog/](../worklog/), updates documentation, verifies with tests and linters, and reports results back to the orchestrator.
    - **Constraint:** Does not open pull requests, widen implementation scope, or approve its own work. Approval belongs to the orchestrator's review and, on an independent path, the independent reviewer.
 
 4. **Independent adversarial reviewer (optional, transient)**
@@ -53,7 +53,7 @@ phases and mutations have been authorized under `AGENTS.md`:
 
 1. **Plan Phase (PR 1):**
    - The planner creates `handoffs/issue-N-implementation-plan.md` on a short-lived plan branch (`handoff/issue-N-implementation-plan`).
-   - Appends a dated entry to [WORKLOG.md](../WORKLOG.md) recording the planning session.
+   - Adds a dated worklog entry file under [worklog/](../worklog/) recording the planning session.
    - Opens PR 1 targeting `main` only when that action is authorized.
    - Once its merge and the coordination action are authorized, the planner posts a dispatch comment on the issue thread with the plan's path on `main`, the implementer model & effort, allocated branch name, and likely findings.
 
@@ -61,7 +61,7 @@ phases and mutations have been authorized under `AGENTS.md`:
    - The orchestrator reads the merged plan from `main` (`handoffs/issue-N-implementation-plan.md`).
    - Dispatches the implementer to work on the allocated implementation branch.
    - Chooses the final review path after inspecting the real diff, conducts the standard review or dispatches an independent adversarial reviewer, and routes accepted, in-scope findings back to the implementer.
-   - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` and executes any required issue comments only when those external mutations are authorized; the PR includes a dated [WORKLOG.md](../WORKLOG.md) entry.
+   - Once reviewed and verified, the orchestrator opens PR 2 targeting `main` and executes any required issue comments only when those external mutations are authorized; the PR includes a dated entry file under [worklog/](../worklog/).
 
 ## Naming Convention
 
@@ -123,14 +123,14 @@ the [implementer ladder](#implementer-ladder), before dispatch or after a
 stopped or failed attempt, when inspection or the attempt shows materially
 different complexity, judgement, or risk than the plan expected. It records the
 plan's selection, the actual model and effort, and a one-line reason in the
-dispatch record and the `WORKLOG.md` entry. Re-selection never changes scope.
+dispatch record and the worklog entry. Re-selection never changes scope.
 
 ## Implementer Outcome Notes
 
 The normal plan → implement → review loop is how the project learns each
 implementer's capability boundary; no separate benchmark is required before a
 roster model is used on real tickets. When the outcome is notable, the
-orchestrator's `WORKLOG.md` entry adds one line saying so, for example: clean
+orchestrator's worklog entry adds one line saying so, for example: clean
 completion; misread the plan; expanded scope; needed substantial reviewer
 correction; stopped at a stop condition; reassigned to another implementer;
 handled work previously assumed to need a higher rung. Changes to the roster or

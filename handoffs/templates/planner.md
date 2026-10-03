@@ -13,7 +13,7 @@ handoffs/issue-N-implementation-plan.md
 When acting as the **Planner**:
 
 1. **Read and Measure First:**
-   - Read the target issue body, neighbouring/overlapping issues, `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and relevant source files.
+   - Read the target issue body, neighbouring/overlapping issues, `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), and relevant source files.
    - Measure real system state before prescribing changes (e.g. run layout measurements, inspect schemas, check exact line counts).
    - Pin every claim to an exact repository-relative path and line number relative to the repository root (e.g. `src/vault_cleaner/ui/review_ui.js:1125`) or an empirical measurement script/command. In markdown links within the handoff file itself, use paths relative to the `handoffs/` directory (e.g. `[review_ui.js](../src/vault_cleaner/ui/review_ui.js#L1125)`). Do NOT use non-portable machine-local `file:///` URIs.
 
@@ -129,12 +129,12 @@ Implement issue #N in `tonym999/vault-cleaner` using the committed handoff on `m
 handoffs/issue-N-implementation-plan.md
 ```
 
-Read the entire handoff, issue #N, `AGENTS.md`, `PLAN.md`, recent `WORKLOG.md`, and current relevant code before editing.
+Read the entire handoff, issue #N, `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), and current relevant code before editing.
 
 Rules:
 - work on `<allocated-branch-name>`; branch from latest `main` and record the base SHA;
 - apply the plan's mechanical inclusion test to every production hunk;
-- update `WORKLOG.md` with a dated entry;
+- add a dated worklog entry file under `worklog/` (format in `AGENTS.md`, *Worklog*);
 - run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py` (if touching UI), `git diff --check origin/main...HEAD`;
 - commit and push the implementation branch; and
 - **do not open a pull request.**

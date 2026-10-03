@@ -5,7 +5,7 @@ exports, for re-import into DIM. No Bungie API, no credentials — pure file in,
 file out. The tool only *tags* (with a reason per item); deletion stays a
 manual, in-game step via a `tag:junk` search in DIM.
 
-**Spec:** [PLAN.md](PLAN.md) · **Session history:** [WORKLOG.md](WORKLOG.md) ·
+**Spec:** [PLAN.md](PLAN.md) · **Session history:** [worklog/](worklog/) (archive: [WORKLOG.md](WORKLOG.md)) ·
 **Agent guide:** [AGENTS.md](AGENTS.md)
 
 ## How it works
