@@ -134,7 +134,7 @@ git show <plan_sha>:handoffs/issue-N-implementation-plan.md
 Read the entire handoff at that SHA, issue #N, `AGENTS.md`, `PLAN.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), and current relevant code before editing.
 
 Rules:
-- work on the existing `<allocated-branch-name>`, which already holds the plan commit; do not create another branch, rebase, or force-push, and record the branch head you start from as the base SHA;
+- work on the existing `<allocated-branch-name>`, which already holds the plan commit; do not create another branch, rebase, or force-push, and record the branch head you start from as your attempt's starting SHA (the orchestrator keeps the ticket's review base, which a later attempt does not move);
 - never edit `handoffs/issue-N-implementation-plan.md`;
 - apply the plan's mechanical inclusion test to every production hunk;
 - add a dated worklog entry file under `worklog/` (format in `AGENTS.md`, *Worklog*);

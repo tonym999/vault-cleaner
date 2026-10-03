@@ -61,5 +61,27 @@ Changed the handoff lifecycle from two PRs to one on
   lifecycle"), #144 ("two-PR lifecycle … remain intact") and #192. #192's
   historical marker is simpler now, because a plan reaches `main` only with
   its implementation.
-- The owner's decision is recorded here and in the PR, not yet as a comment
-  on #195, which is the issue's first acceptance criterion.
+- At the first push the owner's decision was not yet on #195. The owner
+  recorded it there on 2026-10-03 (see *Review round 1*), which is the
+  issue's first acceptance criterion.
+
+## Review round 1 (PR #204, reviewed head `703bff6`)
+
+Three findings; all accepted.
+
+- **P2, owner: plan ancestry was checked only before dispatch.** The content
+  check passes after a rebase drops the approved commit but keeps the plan's
+  bytes. `git merge-base --is-ancestor <plan_sha> <head_sha>` now runs beside
+  the content check before review and before opening the PR, and is in the
+  reviewer prompt. CodeRabbit raised the same finding.
+- **P2, owner: the review base moved with each attempt.** A redispatch after
+  an amendment recorded a new base, so `base_sha...head_sha` lost the earlier
+  implementation. The review base is now fixed at the ticket's first dispatch
+  and kept by the orchestrator; the implementer records only its own
+  attempt's starting SHA.
+- **Minor, CodeRabbit: the worklog treated the decision as recorded.** The
+  owner has since commented the decision on #195; the bullet above is
+  corrected.
+
+This PR still uses `Refs #195`; whether merging it should close the issue is
+the owner's call.

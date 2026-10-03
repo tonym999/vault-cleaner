@@ -69,9 +69,10 @@ mutations have been authorized under `AGENTS.md`:
 
 - The plan is canonical at the approved plan SHA, not by being on `main`. A commit SHA is immutable; the owner's approval is what makes it reviewed.
 - An amendment is a planner commit on the same branch that touches only the plan file and the worklog. It produces a new plan SHA, which the owner approves and the orchestrator records before work continues. No separate PR and no merge from `main` is needed.
-- The implementer never edits the plan file. Before review, and again before opening the PR, the orchestrator runs `git diff --quiet <plan_sha> <head_sha> -- handoffs/issue-N-implementation-plan.md`; a difference means the plan at the head is not the approved one, and blocks PR creation.
-- The review base SHA is the commit the implementer started from, so the plan's first commit is outside `base_sha...head_sha`.
-- Do not rewrite the branch's history: a rebase or force-push that drops the approved plan SHA voids the approval.
+- The implementer never edits the plan file and never rewrites the branch's history. Before review, and again before opening the PR, the orchestrator runs both plan checks against the head; a failure of either blocks PR creation:
+  - `git merge-base --is-ancestor <plan_sha> <head_sha>`: the approved commit is still in the branch's history. A rebase or force-push that drops it voids the approval, even when the plan's content is unchanged.
+  - `git diff --quiet <plan_sha> <head_sha> -- handoffs/issue-N-implementation-plan.md`: the plan at the head is the approved one.
+- The **review base SHA** is the branch head at the ticket's first implementer dispatch. The orchestrator records it once and keeps it for the whole ticket: amendments, retries and implementer re-selection do not move it, so `base_sha...head_sha` always holds the complete implementation. The head an individual attempt started from is used only for incremental audits of that attempt. An amendment made after implementation began therefore appears inside the review range, where the plan checks above cover it.
 
 ## Naming Convention
 
