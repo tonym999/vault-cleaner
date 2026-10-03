@@ -623,3 +623,16 @@ The mechanical inclusion test and the supersession note above now read:
 edits E1–E25, the plan sections P, S and P2, and the worklog entries W, W2,
 W3 and W4. Wherever an earlier section of this plan gives a shorter list,
 this one replaces it.
+
+# Amendment 3 — reviewer preference wording (2026-10-03, owner-directed)
+
+E26: `handoffs/README.md` gains one sentence under the Independent Review
+Mapping table: prefer a reviewer from a different model family than the
+implementer; any listed model is allowed in a fresh read-only session. It
+restates the existing Review Path rule next to the table, because after
+Amendment 2 Opus and Sol are both implementer primaries and review options.
+No rule changes.
+
+The inclusion list now reads: edits E1–E26, the plan sections P, S, P2 and
+P3, and the worklog entries W, W2, W3, W4 and W5. This replaces every shorter
+list above.

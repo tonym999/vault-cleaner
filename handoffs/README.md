@@ -216,6 +216,9 @@ attempt stops or fails, the orchestrator may re-select a higher rung under
 |---|---|---|
 | **Independent Review** | Reviewing implementation diffs against plan checklists and likely findings. | `claude-opus-5-5` (`high`), `gpt-6.1-sol` (`high`), or `gemini-3.1-pro-preview` (`high`) |
 
+Prefer a model from a different family than the implementer; any listed model
+is allowed in a fresh read-only session.
+
 Implementer-only models (currently `MAI-Code-1.1-Flash`) are not independent
 review options.
 

@@ -3,6 +3,28 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #188 fix round 4: reviewer preference wording (PR #199)
+
+Fix round 4 on `fix/issue-188-stale-doc-facts`, from previous head `9b88e61`.
+Refs #188.
+
+- **Owner direction (2026-10-03) and why:** after round 3, Opus and Sol are
+  both implementer primaries and independent-review options. The Review Path
+  section already prefers a different model family from the implementer and
+  requires a fresh read-only session; the owner wanted the Independent Review
+  Mapping table to carry that preference too.
+- **Applied:** E26 (one paragraph under the table in `handoffs/README.md`)
+  and P3 (Amendment 3 appended to
+  `handoffs/issue-188-implementation-plan.md`), exactly as specified, with E26's
+  old text matching once. No deviation. Files touched: those two and this
+  file.
+- **No rule change:** this presents an existing rule next to the table.
+- **Dispatch:** same as earlier rounds (orchestrator `claude-opus-5-5`;
+  implementer `claude-sonnet-5-5` resumed in the same subagent session;
+  effort is not settable).
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass.
+
 ## 2026-10-03 — #188 fix round 3: owner-directed roster policy (PR #199)
 
 Fix round 3 on `fix/issue-188-stale-doc-facts`, from previous head `7325b5e`.
