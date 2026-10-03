@@ -541,3 +541,98 @@ Planned #188 in [handoffs/issue-188-implementation-plan.md](https://github.com/t
 - **Implementer model & effort:** `MAI-Code-1.1-Flash` (`n/a — adaptive`); re-selection fallback `claude-sonnet-5-5` (`medium`), not Gemini (PR #160).
 - **Implementation branch:** `fix/issue-188-stale-doc-facts`
 - **Likely findings:** collateral Markdown edits beside E1–E13; a missed Opus location or swapped default; a file-wide or partial Sonnet swap (E12); table or fence breakage in E6/E8/E13, or a blank line before the E10 item; missing dispatch record in `WORKLOG.md`.
+
+# Amendment — OpenAI model refresh (2026-10-03, owner-authorised direct route)
+
+**Finding (F12):** the OpenAI roster, implementer ladder, independent-reviewer
+mapping and provider catalog in `handoffs/README.md`, and the example model ID
+in `handoffs/templates/planner.md`, named GPT-5.6, while OpenAI's current
+lineup is `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`. It was raised as a P2
+on PR #199.
+
+**Route:** the owner authorised applying the fix directly on the
+implementation branch, as a documentation-only change, rather than through a
+re-cut plan PR.
+
+**Owner decisions (2026-10-03):**
+
+- Map name for name: `gpt-5.6-sol` becomes `gpt-6.1-sol` and `gpt-5.6-luna`
+  becomes `gpt-6-luna`, with effort levels unchanged.
+- `gpt-5.6-terra` on the Bounded rung is replaced by `gpt-6-luna` (`medium`).
+- `gpt-6-astra` is catalog-only; no roster or ladder row uses it.
+- The three GPT-5.6 catalog rows stay, relabelled as previous generation.
+
+**Verification (2026-10-03):** the orchestrator checked
+https://developers.openai.com/api/docs/guides/latest-model,
+https://developers.openai.com/api/docs/models, the per-model pages for
+`gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`, and
+https://developers.openai.com/api/docs/deprecations. The deprecations page has
+no GPT-5.6 entry, the models page no longer lists GPT-5.6 Sol, Terra or Luna,
+and the GPT-6 lineup has no Terra.
+
+**Edits:**
+
+- E14: `handoffs/README.md` verification line gains "OpenAI rows verified 2026-10-03".
+- E15: `gpt-5.6-sol` becomes `gpt-6.1-sol` in the four roster, ladder and reviewer locations above the catalog heading.
+- E16: `gpt-5.6-luna` becomes `gpt-6-luna` in the two ladder primaries above the catalog heading.
+- E17: the Bounded ladder fallback `gpt-5.6-terra` (`medium`) becomes `gpt-6-luna` (`medium`).
+- E18: the three GPT-5.6 catalog rows become three GPT-6 rows plus the same three GPT-5.6 rows relabelled "Previous generation, no deprecation listed".
+- E19: `handoffs/templates/planner.md` example ID `gpt-5.6-luna` becomes `gpt-6-luna`.
+
+The mechanical inclusion test is extended to "E1–E19, P, and the two worklog
+entries W and W2", where P is this section. Historical plans and `WORKLOG.md`
+entries that name GPT-5.6 are point-in-time records and stay unchanged.
+
+**Supersession (fix round 2, 2026-10-03):** this amendment supersedes the edit
+and worklog lists in `# Reusable implementer execution prompt` and
+`# Review checklist` above. Those sections are kept as dispatched for the
+original E1–E13 round. Wherever they say "E1–E13", read "E1–E19 and P";
+wherever they say "W" or expect one worklog entry, read "the worklog entries
+W, W2 and W3". W3 is the fix-round-2 worklog entry that records this
+paragraph, and the mechanical inclusion test covers both.
+
+# Amendment 2 — roster policy (2026-10-03, owner-directed)
+
+These are policy changes directed by the owner in PR #199. They go beyond
+#188's original "do not change workflow policy, roles or authorisation gates"
+scope line, and the owner explicitly authorised making them in this PR.
+
+**Owner decisions (2026-10-03):**
+
+1. Planner effort is `high` by default and `xhigh` when the ticket needs it;
+   the Sonnet planner alternative is `high`.
+2. The Judgement and High-risk implementer rungs follow the planner row:
+   primary Sol or Opus at `high` (`xhigh` when needed), alternatives Sonnet
+   (`high`) and Gemini Pro (`high`). `gpt-6-luna` stays only as a
+   Bounded-rung alternative. The orchestrator's recorded reason: OpenAI
+   describes GPT-6 Luna as its most efficient model for focused, high-volume
+   tasks, and no ticket in this repository has used it on a higher rung.
+3. `claude-fable-5-1` fills no role. It already has a catalog row and appears
+   in no roster, ladder or reviewer row, so no edit is needed.
+
+**Edits:**
+
+- E20: `handoffs/README.md` Planner row says `high` effort by default and `xhigh` when needed, with the Sonnet alternative at `high`.
+- E21: `handoffs/README.md` paragraph after the roster table gives Sonnet as `high`.
+- E22: `handoffs/README.md` Judgement ladder row: primary `gpt-6.1-sol` or `claude-opus-5-5` (`high`; `xhigh` when needed); alternatives Sonnet and Gemini Pro at `high`.
+- E23: `handoffs/README.md` High-risk ladder row: same primary and alternatives as E22.
+- E24: `AGENTS.md` roster summary sentence names MAI for the Bounded rung, then Sol or Opus for Judgement and High-risk.
+- E25: `handoffs/templates/planner.md` example becomes `gpt-6.1-sol` with `high` effort.
+
+The mechanical inclusion test and the supersession note above now read:
+edits E1–E25, the plan sections P, S and P2, and the worklog entries W, W2,
+W3 and W4. Wherever an earlier section of this plan gives a shorter list,
+this one replaces it.
+
+# Amendment 3 — reviewer preference wording (2026-10-03, owner-directed)
+
+E26: `handoffs/README.md` gains one sentence under the Independent Review
+Mapping table: prefer a reviewer from a different model family than the
+implementer; any listed model is allowed in a fresh read-only session. It
+restates the existing Review Path rule next to the table, because after
+Amendment 2 Opus and Sol are both implementer primaries and review options.
+No rule changes.
+
+The inclusion list now reads: edits E1–E26, the plan sections P, S, P2 and
+P3, and the worklog entries W, W2, W3, W4 and W5. This replaces every shorter
+list above.

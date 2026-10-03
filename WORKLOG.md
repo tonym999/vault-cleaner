@@ -3,6 +3,149 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #188 fix round 4: reviewer preference wording (PR #199)
+
+Fix round 4 on `fix/issue-188-stale-doc-facts`, from previous head `9b88e61`.
+Refs #188.
+
+- **Owner direction (2026-10-03) and why:** after round 3, Opus and Sol are
+  both implementer primaries and independent-review options. The Review Path
+  section already prefers a different model family from the implementer and
+  requires a fresh read-only session; the owner wanted the Independent Review
+  Mapping table to carry that preference too.
+- **Applied:** E26 (one paragraph under the table in `handoffs/README.md`)
+  and P3 (Amendment 3 appended to
+  `handoffs/issue-188-implementation-plan.md`), exactly as specified, with E26's
+  old text matching once. No deviation. Files touched: those two and this
+  file.
+- **No rule change:** this presents an existing rule next to the table.
+- **Dispatch:** same as earlier rounds (orchestrator `claude-opus-5-5`;
+  implementer `claude-sonnet-5-5` resumed in the same subagent session;
+  effort is not settable).
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass.
+
+## 2026-10-03 — #188 fix round 3: owner-directed roster policy (PR #199)
+
+Fix round 3 on `fix/issue-188-stale-doc-facts`, from previous head `7325b5e`.
+Refs #188.
+
+- **Owner decisions (2026-10-03):** planner effort is `high` by default and
+  `xhigh` when the ticket needs it, with Sonnet as `high`. The Judgement and
+  High-risk rungs follow the planner row: primary Sol or Opus at `high`
+  (`xhigh` when needed), alternatives Sonnet (`high`) and Gemini Pro
+  (`high`); `gpt-6-luna` stays only as a Bounded-rung alternative.
+  `claude-fable-5-1` fills no role and needed no edit.
+- **Scope:** these are policy changes and exceed #188's original "do not
+  change workflow policy, roles or authorisation gates" scope line, by
+  explicit owner direction in PR #199.
+- **Applied:** E20–E25 and P2 (Amendment 2 appended to
+  `handoffs/issue-188-implementation-plan.md`), exactly as specified, each
+  old fragment matching exactly once. No deviation. Files touched:
+  `handoffs/README.md`, `AGENTS.md`, `handoffs/templates/planner.md`,
+  `handoffs/issue-188-implementation-plan.md` and this file.
+- **Review finding resolved:** CodeRabbit's Minor at `7325b5e` (the
+  inclusion-test sentence listed only W and W2) is resolved by P2's closing
+  paragraph, which restates the list as E1–E25, P, S, P2 and W–W4.
+- **Surprises the next agent should know about:** Judgement and High-risk now
+  share the same models and differ only in what the plan delegates to the
+  implementer. `gpt-6-luna` is untested in this repository.
+- **Dispatch:** same as earlier rounds (orchestrator `claude-opus-5-5`;
+  implementer `claude-sonnet-5-5` resumed in the same subagent session;
+  effort is not settable).
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass.
+
+## 2026-10-03 — #188 fix round 2: amendment supersession note (PR #199)
+
+Fix round 2 on `fix/issue-188-stale-doc-facts`, from previous head `f9193b2`.
+Refs #188.
+
+- **Finding 1 (reviewer P2; CodeRabbit Major, same finding): accepted.** The
+  amendment extends the inclusion test to E1–E19, P, W and W2, but the plan's
+  `# Reusable implementer execution prompt` and `# Review checklist` still
+  say E1–E13 and W. Fixed by labelling supersession in the amendment (S).
+  The original prompt and checklist lines were deliberately left as
+  dispatched, because they are the record of what was dispatched.
+- **Finding 2 (CodeRabbit Minor, `handoffs/README.md` planner paragraph):
+  rejected, no edit.** The "remain permitted planners; Sol and Opus are the
+  models in regular use" wording states roster policy, which #188 says not
+  to change, and the suggested replacement dropped the "regular use" and
+  "first-class for planning and orchestration" statements.
+- **Applied:** S appended verbatim at the end of
+  `handoffs/issue-188-implementation-plan.md`, plus this entry (W3). Files
+  touched: those two only.
+- **Dispatch:** same as round 1 (orchestrator `claude-opus-5-5`; implementer
+  `claude-sonnet-5-5` resumed in the same subagent session; effort is not
+  settable).
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass.
+
+## 2026-10-03 — #188 fix round 1: OpenAI model refresh (PR #199)
+
+Fix round 1 on `fix/issue-188-stale-doc-facts`, from previous head `cba8b62`.
+Refs #188.
+
+- **Finding (P2 on PR #199, F12):** the OpenAI roster, ladder, reviewer
+  mapping and catalog in `handoffs/README.md`, and the example ID in
+  `handoffs/templates/planner.md`, named GPT-5.6, while OpenAI's current
+  lineup is `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`.
+- **Owner decisions (2026-10-03):** fix it in this PR, using the
+  documentation-only direct route instead of a separate plan PR. Map name for
+  name (`gpt-5.6-sol` to `gpt-6.1-sol`, `gpt-5.6-luna` to `gpt-6-luna`) with
+  effort levels unchanged. Replace `gpt-5.6-terra` on the Bounded rung with
+  `gpt-6-luna` (`medium`). `gpt-6-astra` is catalog-only. The three GPT-5.6
+  catalog rows stay, relabelled as previous generation.
+- **Applied:** E14–E19 and P (the amendment section appended to
+  `handoffs/issue-188-implementation-plan.md`), exactly as specified, each
+  located by its old text with the expected match count (E15: four, E16: two,
+  E17: one, E19: one). No deviation. Files touched: `handoffs/README.md`,
+  `handoffs/templates/planner.md`, `handoffs/issue-188-implementation-plan.md`
+  and this file.
+- **Verification sources (checked by the orchestrator, 2026-10-03):**
+  OpenAI's latest-model guide, models page, the per-model pages for
+  `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`, and the deprecations page
+  (no GPT-5.6 deprecation entry; no Terra in the GPT-6 lineup).
+- **Dispatch:** orchestrator `claude-opus-5-5`; implementer `claude-sonnet-5-5`
+  resumed in the same subagent session; effort is not settable.
+- **Verification results:** `ruff`, `pytest -q`, `git diff --check
+  origin/main...HEAD` and `test -z "$(git ls-files data/)"` pass; the only
+  `gpt-5.6` hits in `handoffs/README.md` and `handoffs/templates/planner.md`
+  are the three relabelled catalog rows.
+
+## 2026-10-03 — #188 implementation: stale workflow and plan facts (PR 2)
+
+Implemented #188 on `fix/issue-188-stale-doc-facts` from `main` at
+`9f3926bcc6d5188935ca898069b4269b0e1883aa`. Implementer: Anthropic Sonnet 5.5,
+model ID observed in this session as `claude-sonnet-5-5`. Refs #188.
+
+- **Dispatch record:**
+  - Orchestrator: `claude-opus-5-5` (Anthropic, Claude Code desktop session;
+    the runtime does not expose a native effort setting for this session).
+  - Plan's implementer selection: `MAI-Code-1.1-Flash` (`n/a — adaptive`),
+    Bounded rung.
+  - Actual implementer: Anthropic Sonnet 5.5 (`claude-sonnet-5-5`), launched
+    in-runtime as a Claude Code subagent via the Agent tool's `sonnet` model
+    alias. The Agent tool exposes no effort parameter, so effort is the
+    runtime default for subagents, not an explicitly set level.
+  - Re-selection reason: owner instruction on 2026-10-03 to use Sonnet 5.5 as
+    the implementer; it is the plan's own named re-selection fallback and a
+    permitted Bounded-rung alternative. Scope unchanged.
+  - Launch surface: in-runtime subagent (no manual cross-provider execution).
+  - Review path: standard orchestrator review, per the plan.
+- **What landed:** E1–E13 applied verbatim, each located by its old text, which
+  matched exactly once (E12: exactly five tokens above the catalog heading,
+  replaced one by one with the Edit tool, not a file-wide replace). Files
+  touched: `handoffs/README.md` (E1–E6, E12, E13), `AGENTS.md` (E7),
+  `PLAN.md` (E8, E10, E11), `.gitignore` (E9), plus this entry (W). No
+  deviation from the plan.
+- **Verification:** `ruff check src tests scripts`, `pytest -q`,
+  `git diff --check origin/main...HEAD` and `test -z "$(git ls-files data/)"`
+  all pass; see the implementer's completion report for the raw output. The
+  browser suite was not run because no UI file changes.
+- **Surprises the next agent should know about:** none. The plan's old text
+  was current at `9f3926b`.
+
 ## 2026-09-27 — #188 planning: stale workflow and plan facts (PR 1)
 
 Planned #188 on `handoff/issue-188-implementation-plan` from `main` at
