@@ -25,6 +25,8 @@ jobs:
           fi
       - name: Real-export fixtures pass the sanitised-fixture guard
         run: python3 scripts/check_real_fixtures.py
+      - name: Model roster schema and stale-row warnings
+        run: python3 scripts/check_model_roster.py
       - name: Whitespace and line endings
         if: github.event_name == 'pull_request'
         env:

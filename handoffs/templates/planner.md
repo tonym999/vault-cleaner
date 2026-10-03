@@ -26,7 +26,7 @@ When acting as the **Planner**:
    - State exact user-facing copy verbatim where copy is decided.
 
 4. **Select Implementer Model & Native Reasoning Effort:**
-   - Consult the role roster, implementer ladder, and provider catalog in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix).
+   - Read the selection policy in [handoffs/README.md](../README.md#model-family--provider-native-reasoning-effort-matrix), then select from the assignments and catalog rows in [handoffs/models.toml](../models.toml). If `python3 scripts/check_model_roster.py` reports the selected model's row as stale, re-verify it under [Re-verification](../README.md#re-verification) before relying on it.
    - Choose the ladder rung by how much ambiguity, engineering judgement, and risk the plan delegates to the implementer, not by file count. Select and justify the implementer's exact model ID and native reasoning effort (e.g. `gpt-6.1-sol` with `high` effort), or `n/a — adaptive` for a model with no user-settable effort such as `MAI-Code-1.1-Flash`. Do not reserve the Bounded rung for trivial or single-file work; when the plan settles the architecture and invariants, it is a legitimate choice for substantial work.
    - Record your own model as the planner model. The owner chooses the planner and orchestrator models; the orchestrator may re-select the implementer before or after an attempt, and selects any adversarial reviewer's exact model and effort only after inspecting the real diff.
    - Note the manual cross-provider boundary: the orchestrator will verify whether its active runtime supports the target model, or prepare the prompt for a human operator.

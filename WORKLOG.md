@@ -3,6 +3,70 @@
 Newest first. One entry per working session: what happened, decisions made,
 surprises the next agent should know about.
 
+## 2026-10-03 — #191 implementation: structured model roster (PR 2)
+
+Implemented #191 on `feat/issue-191-model-roster-data` from `main` at
+`a88deb2` (the base after the #191 planning PR #200; `handoffs/README.md`
+and the other edited files are unchanged since the plan baseline `fa98e8e`).
+No pull request opened. Refs #191.
+
+- **Dispatch record:**
+  - Orchestrator: Anthropic `claude-opus-5-5`, effort `high` (Claude Code
+    desktop session).
+  - Plan's implementer selection: Microsoft `MAI-Code-1.1-Flash`
+    (`n/a — adaptive`), Bounded rung.
+  - First attempt: `MAI-Code-1.1-Flash` (`n/a — adaptive`), launched
+    manually by the owner from a local GitHub Copilot session on Windows
+    (manual cross-provider execution). Stopped by the owner after about 45
+    minutes with nothing committed or pushed: the session repeatedly
+    compacted its context (256K window; 18.3M input tokens consumed), lost
+    track of its progress and restarted the plan's reading list. None of its
+    work is used here.
+  - Actual implementer: Anthropic `claude-sonnet-5-5`, Bounded-rung
+    alternative and the plan's named fallback, dispatched as a subagent of
+    the orchestrator's Claude Code session. The plan lists effort `high`;
+    the subagent launch surface does not expose an effort setting, so the
+    effort is the runtime default, not confirmed as `high`.
+  - Re-selection reason: owner-directed after the stopped MAI attempt
+    (second MAI context-compaction failure, after #170). Scope unchanged.
+- **What landed:** `handoffs/models.toml` (N1, 7 models, 21 assignments),
+  `scripts/check_model_roster.py` (N2), `tests/test_model_roster.py` (N3),
+  edits E1–E11 to `handoffs/README.md`, both templates, `AGENTS.md` and the
+  CI hygiene job, and this entry (W). No `verified` date or other N1 value
+  was changed.
+- **How the verbatim parts were applied:** a throwaway script in the
+  scratchpad extracted the N1 block and every E-edit's old/new text from the
+  plan file and applied them, asserting each old text occurred exactly once
+  (E3 from its heading to end of file), so there was no hand transcription.
+  The resulting diff matches the plan's trial: five modified files plus
+  `models.toml`, +68/−53 outside the new file.
+- **Implementation choices:**
+  - `validate` keeps one `_validate_model` and one `_validate_assignment`
+    helper and collects every error; type traps use `type(x) is int` and
+    `type(x) is date`.
+  - `RosterError` messages begin with the path, so `main` prints them as
+    `error: <message>` rather than repeating the path.
+  - A private `_stale` returns `(id, message)` pairs so `main` can find the
+    row's `id = "..."` line for the annotation; `stale_rows` returns just the
+    messages as specified.
+  - N3 tests beyond the required list: a fresh file prints no warnings and a
+    missing file exits 1. Revert spot-checks were run on the checker (datetime
+    rejection, `bool`/`float` schema_version, unused-row check, `>` to `>=`
+    on the stale comparison); each turned a specific test red and the
+    checker was restored.
+- **Checker on the real file:** `python3 scripts/check_model_roster.py`
+  exits 0 with `7 models, 21 assignments, 0 stale` today (2026-10-03). With
+  `--today 2026-10-04` the two Google rows warn as stale (verified
+  2026-09-03, past the 30-day threshold), still exit 0, as the plan
+  expected; they stay unverified because the planner could not reach
+  `ai.google.dev`.
+- **Verification:** `ruff check src tests scripts` clean; `pytest -q` 1280
+  passed; `git diff --check origin/main...HEAD` clean;
+  `test -z "$(git ls-files data/)"` passes. Browser suite not run (no UI
+  file changes). `grep -nE 'gpt-|claude-|gemini-|MAI-Code'` over `AGENTS.md`,
+  `handoffs/README.md` and `handoffs/templates/*.md` matches only the two
+  examples at `handoffs/templates/planner.md:30`.
+
 ## 2026-10-03 — #191 planning: structured model roster (PR 1)
 
 Planned #191 on `claude/issue-191-planning-40q3uw` from `main` at

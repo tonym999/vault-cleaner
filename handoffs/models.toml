@@ -1,0 +1,276 @@
+# Model roster and provider catalog for the multi-agent handoff workflow.
+#
+# handoffs/README.md holds the selection policy (rung definitions, reviewer
+# independence, re-verification); this file holds which models fill each
+# role. scripts/check_model_roster.py validates it and warns about stale rows.
+#
+# Re-verify a [[models]] row against its sources when it is older than
+# stale_after_days, or when a dispatch to it fails or is rejected, and update
+# its `verified` date in the same change.
+
+schema_version = 1
+stale_after_days = 30
+
+# --- Catalog -------------------------------------------------------------
+# effort_control = "adaptive" means the model has no user-settable effort:
+# effort_values is empty and every assignment records "n/a — adaptive".
+# launch_surfaces lists the local surfaces a model must be launched from
+# (handoffs/README.md, Manual Cross-Provider Execution).
+
+[[models]]
+id = "gpt-6.1-sol"
+provider = "OpenAI"
+family = "GPT-6"
+effort_control = "reasoning.effort"
+effort_values = ["low", "medium", "high", "xhigh", "max"]
+default_effort = "medium"
+notes = "`none` and `minimal` are unsupported."
+stability = "Stable"
+verified = 2026-10-03
+sources = [
+  "https://developers.openai.com/api/docs/guides/latest-model",
+  "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+]
+
+[[models]]
+id = "gpt-6-luna"
+provider = "OpenAI"
+family = "GPT-6"
+effort_control = "reasoning.effort"
+effort_values = ["none", "low", "medium", "high", "xhigh", "max"]
+default_effort = "medium"
+stability = "Stable"
+verified = 2026-10-03
+sources = [
+  "https://developers.openai.com/api/docs/guides/latest-model",
+  "https://developers.openai.com/api/docs/models/gpt-6-luna",
+]
+
+[[models]]
+id = "claude-opus-5-5"
+provider = "Anthropic"
+family = "Claude"
+effort_control = "output_config.effort"
+effort_values = ["low", "medium", "high", "xhigh", "max"]
+default_effort = "medium"
+stability = "Stable"
+verified = 2026-10-02
+sources = [
+  "https://platform.claude.com/docs/en/models/overview",
+  "https://platform.claude.com/docs/en/build-with-claude/effort",
+]
+
+[[models]]
+id = "claude-sonnet-5-5"
+provider = "Anthropic"
+family = "Claude"
+effort_control = "output_config.effort"
+effort_values = ["low", "medium", "high", "xhigh", "max"]
+default_effort = "high"
+notes = "Levels recalibrated from Sonnet 5."
+stability = "Stable"
+verified = 2026-10-02
+sources = [
+  "https://platform.claude.com/docs/en/models/overview",
+  "https://platform.claude.com/docs/en/build-with-claude/effort",
+]
+
+[[models]]
+id = "gemini-3.1-pro-preview"
+provider = "Google"
+family = "Gemini 3.x"
+effort_control = "thinking_level"
+effort_values = ["low", "medium", "high"]
+stability = "Preview"
+verified = 2026-09-03
+sources = [
+  "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview",
+  "https://ai.google.dev/gemini-api/docs/thinking",
+]
+
+[[models]]
+id = "gemini-3.8-flash"
+provider = "Google"
+family = "Gemini 3.x"
+effort_control = "thinking_level"
+effort_values = ["low", "medium", "high"]
+notes = "`minimal` is unsupported and returns an error."
+stability = "Stable"
+verified = 2026-09-03
+sources = [
+  "https://ai.google.dev/gemini-api/docs/latest-model",
+  "https://ai.google.dev/gemini-api/docs/thinking",
+]
+
+[[models]]
+id = "MAI-Code-1.1-Flash"
+provider = "Microsoft"
+family = "MAI"
+effort_control = "adaptive"
+effort_values = []
+notes = "The model sets its own reasoning budget. 256K context. Launched through GitHub Copilot; see handoffs/README.md, Manual Cross-Provider Execution."
+launch_surfaces = [
+  "GitHub Copilot agent mode in VS Code",
+  "GitHub Copilot CLI (where available)",
+]
+stability = "GitHub Copilot GA; Azure Foundry Preview"
+verified = 2026-09-19
+sources = [
+  "https://microsoft.ai/pdf/MAI-Code-1.1-Flash-Model-Card.PDF",
+  "https://github.blog/changelog/2026-08-11-mai-code-1-1-flash-available-in-github-copilot/",
+  "https://ai.azure.com/catalog/models/MAI-Code-1.1-Flash",
+]
+
+# --- Roster --------------------------------------------------------------
+# standing = "primary": a regular choice for the role or rung.
+# standing = "alternative": permitted, not in regular use.
+# effort_when_needed: the higher level the policy allows when the ticket
+# needs it.
+
+# Planner
+[[assignments]]
+role = "planner"
+standing = "primary"
+model = "gpt-6.1-sol"
+effort = "high"
+effort_when_needed = "xhigh"
+
+[[assignments]]
+role = "planner"
+standing = "primary"
+model = "claude-opus-5-5"
+effort = "high"
+effort_when_needed = "xhigh"
+
+[[assignments]]
+role = "planner"
+standing = "alternative"
+model = "claude-sonnet-5-5"
+effort = "high"
+
+[[assignments]]
+role = "planner"
+standing = "alternative"
+model = "gemini-3.1-pro-preview"
+effort = "high"
+
+# Orchestrator (no effort is set by policy)
+[[assignments]]
+role = "orchestrator"
+standing = "primary"
+model = "gpt-6.1-sol"
+
+[[assignments]]
+role = "orchestrator"
+standing = "primary"
+model = "claude-opus-5-5"
+
+# Implementer, Bounded rung
+[[assignments]]
+role = "implementer"
+rung = "bounded"
+standing = "primary"
+model = "MAI-Code-1.1-Flash"
+effort = "n/a — adaptive"
+
+[[assignments]]
+role = "implementer"
+rung = "bounded"
+standing = "alternative"
+model = "claude-sonnet-5-5"
+effort = "high"
+
+[[assignments]]
+role = "implementer"
+rung = "bounded"
+standing = "alternative"
+model = "gpt-6-luna"
+effort = "medium"
+
+[[assignments]]
+role = "implementer"
+rung = "bounded"
+standing = "alternative"
+model = "gemini-3.8-flash"
+effort = "high"
+
+# Implementer, Judgement rung
+[[assignments]]
+role = "implementer"
+rung = "judgement"
+standing = "primary"
+model = "gpt-6.1-sol"
+effort = "high"
+effort_when_needed = "xhigh"
+
+[[assignments]]
+role = "implementer"
+rung = "judgement"
+standing = "primary"
+model = "claude-opus-5-5"
+effort = "high"
+effort_when_needed = "xhigh"
+
+[[assignments]]
+role = "implementer"
+rung = "judgement"
+standing = "alternative"
+model = "claude-sonnet-5-5"
+effort = "high"
+
+[[assignments]]
+role = "implementer"
+rung = "judgement"
+standing = "alternative"
+model = "gemini-3.1-pro-preview"
+effort = "high"
+
+# Implementer, High-risk rung
+[[assignments]]
+role = "implementer"
+rung = "high-risk"
+standing = "primary"
+model = "gpt-6.1-sol"
+effort = "high"
+effort_when_needed = "xhigh"
+
+[[assignments]]
+role = "implementer"
+rung = "high-risk"
+standing = "primary"
+model = "claude-opus-5-5"
+effort = "high"
+effort_when_needed = "xhigh"
+
+[[assignments]]
+role = "implementer"
+rung = "high-risk"
+standing = "alternative"
+model = "claude-sonnet-5-5"
+effort = "high"
+
+[[assignments]]
+role = "implementer"
+rung = "high-risk"
+standing = "alternative"
+model = "gemini-3.1-pro-preview"
+effort = "high"
+
+# Independent reviewer
+[[assignments]]
+role = "reviewer"
+standing = "primary"
+model = "claude-opus-5-5"
+effort = "high"
+
+[[assignments]]
+role = "reviewer"
+standing = "primary"
+model = "gpt-6.1-sol"
+effort = "high"
+
+[[assignments]]
+role = "reviewer"
+standing = "primary"
+model = "gemini-3.1-pro-preview"
+effort = "high"
