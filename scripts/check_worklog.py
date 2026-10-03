@@ -58,7 +58,10 @@ NAME_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2})-(?:issue-[1-9]\d*-|(?!issue-))[a-z0-9]+(?:-[a-z0-9]+)*\.md$",
     re.ASCII,
 )
-HEADING_RE = re.compile(r"^# (\d{4}-\d{2}-\d{2}) — \S.*$", re.ASCII)
+# No re.ASCII here: \S must be the Unicode one, so a title made only of
+# non-ASCII whitespace (U+00A0, U+2028, ...) is empty. The heading date is
+# compared with the ASCII-validated name date, so \d needs no flag.
+HEADING_RE = re.compile(r"^# (\d{4}-\d{2}-\d{2}) — \S.*$")
 
 POINTER = "see AGENTS.md, *Worklog*"
 

@@ -70,10 +70,15 @@ entry, so it is not also added to the `WORKLOG.md` archive.
   must update the constant in the same pull request.
 - The name expression is the plan's, character for character, applied with
   `re.fullmatch` and `re.ASCII` so that `\d` cannot match non-ASCII digits
-  and a trailing newline in a name cannot satisfy `$`.
-- The first line is split on `\n` only, never `str.splitlines()`, so U+2028
-  and similar separators cannot hide a heading problem; one trailing `\r` is
-  stripped.
+  and a trailing newline in a name cannot satisfy `$`. The heading
+  expression has the plan's text but no `re.ASCII` (see fix round 1), so
+  `\S` is the Unicode one.
+- The first line is split on `\n` only, never `str.splitlines()`, as the
+  Hard rules' invisible-character gotcha advises; one trailing `\r` is
+  stripped. This is a defensive choice, not a behavioural one: fix round 1
+  found no input for which the two splits give different verdicts, because
+  every line separator is whitespace and the heading's title must start with
+  a non-whitespace character.
 - T2 ("holds no entry file") fires when no regular file with a valid entry
   name exists, so a directory holding only `README.md` reports T2 and T3.
 - A `--base` revision beginning with `-` is rejected before `git` is run, so
@@ -92,3 +97,30 @@ entry, so it is not also added to the `WORKLOG.md` archive.
 - The old plans under `handoffs/issue-*-implementation-plan.md` still tell
   the implementer to update `WORKLOG.md`; that is left for #192, as the plan
   says.
+
+## Fix round 1 (orchestrator review of `ac86890`)
+
+Three accepted P3 findings, all in N1 and N2. A new commit on the same
+branch; the first commit is not amended.
+
+- **F1:** `test_t3_name_with_trailing_newline_is_rejected` passed for the
+  wrong reason (the path did not exist, so `check_entry` returned the
+  "regular file" error before matching the name). It now calls
+  `_name_date("2026-10-04-x.md\n")` and asserts the name error. Replacing
+  `NAME_RE.fullmatch` with `NAME_RE.match` now fails that test.
+- **F2:** the U+2028 test did not distinguish `split("\n", 1)[0]` from
+  `splitlines()[0]`. No input does: a cut at a line separator could only
+  change the verdict if the separator were a non-whitespace title
+  character, and it is not. So the test was renamed
+  `test_t4_heading_containing_line_separator_passes` and its comment now
+  says what it asserts (a heading with U+2028 in its title is one
+  LF-delimited line and is valid). The raw U+FEFF and U+2028 characters in
+  the test source are now `\ufeff` and `\u2028` escapes. The
+  `splitlines()` mutation is still caught, but only incidentally, by the
+  empty-file case (`IndexError` on `[0]`).
+- **F3:** `HEADING_RE` was compiled with `re.ASCII`, so `\S` accepted
+  non-ASCII whitespace and a title of only U+00A0 passed. `re.ASCII` is
+  dropped from `HEADING_RE` only; `NAME_RE` keeps it, and `ARCHIVE_SHA256`
+  and the name pattern text are unchanged. T4 gained two negative cases:
+  a title of only U+00A0 and a title of only U+2028 (both fail the old
+  code and pass the new, as mutation-checked).

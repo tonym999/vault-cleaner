@@ -204,8 +204,12 @@ def test_t3_symlink(tmp_path):
 
 
 def test_t3_name_with_trailing_newline_is_rejected():
-    errors = wl.check_entry(Path("worklog") / "2026-10-04-x.md\n")
-    assert errors
+    # Exercise the name match itself: with re.match instead of fullmatch the
+    # "$" would accept the trailing newline.
+    name_date, error = wl._name_date("2026-10-04-x.md\n")
+    assert name_date is None
+    assert error is not None
+    assert "name does not match" in error
 
 
 @pytest.mark.parametrize(
@@ -217,8 +221,10 @@ def test_t3_name_with_trailing_newline_is_rejected():
         "# 2026-10-04 —\n",
         "# 2026-10-04 —  \n",
         "# 2026-10-05 — x\n",
+        "# 2026-10-04 — \u00a0\n",
+        "# 2026-10-04 — \u2028\n",
         b"# 2026-10-04 \xe2\x80\x94 x \xff\n",
-        "﻿# 2026-10-04 — x\n",
+        "\ufeff# 2026-10-04 — x\n",
         "\n# 2026-10-04 — x\n",
     ],
     ids=[
@@ -228,6 +234,8 @@ def test_t3_name_with_trailing_newline_is_rejected():
         "no-title",
         "blank-title",
         "date-mismatch",
+        "title-only-nbsp",
+        "title-only-line-separator",
         "invalid-utf8",
         "bom",
         "heading-not-first",
@@ -246,11 +254,13 @@ def test_t4_crlf_first_line_passes(tmp_path):
     assert _tree_errors(root) == []
 
 
-def test_t4_separator_after_heading_does_not_hide_a_bad_first_line(tmp_path):
-    # U+2028 would split a splitlines()-based scan; the heading must still be
-    # judged on the LF-delimited first line.
+def test_t4_heading_containing_line_separator_passes(tmp_path):
+    # A heading with U+2028 inside its title is one LF-delimited line and is
+    # valid. (No input tells split("\n") from splitlines() apart: every
+    # separator is whitespace, which \S rejects, so a cut can neither make an
+    # invalid heading valid nor the reverse.)
     root = _tree(tmp_path)
-    _write(root / "worklog" / "2026-10-04-x.md", "# 2026-10-04 — x y\n")
+    _write(root / "worklog" / "2026-10-04-x.md", "# 2026-10-04 — x\u2028y\n")
     assert _tree_errors(root) == []
 
 
