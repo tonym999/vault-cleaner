@@ -1,0 +1,56 @@
+/* Class names are read from the shipped source only, so the stylesheet does
+   not change when a test, a contract sample or a proof script does. */
+@import "tailwindcss" source("./");
+@source not "./contract";
+@source not "./lib/*.test.ts";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+/*
+ * daisyUI's only data: URI is a noise texture layered on buttons.  The
+ * server's policy has no img-src, so it would be blocked (experiment S7).
+ * The texture is invisible at daisyUI's default --noise: 0, so turn it off
+ * and keep the policy unchanged.
+ */
+:root {
+  --fx-noise: none;
+}
+
+/*
+ * daisyUI's dark theme puts near-white text on a mid indigo primary, which
+ * measures 4.1:1 (experiment S13).  A slightly darker primary reaches AA.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: oklch(50% 0.233 277.117);
+  }
+}
+
+@layer base {
+  /* The contract's floor: one clearly visible focus indicator everywhere. */
+  :focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  /* Ids, hashes, names and reasons wrap anywhere; nothing is truncated and
+     the page never scrolls sideways (contract section 8). */
+  body {
+    overflow-wrap: anywhere;
+  }
+}
+
+@layer components {
+  .badge {
+    height: auto;
+    white-space: normal;
+  }
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: color-mix(in oklab, var(--color-base-content) 75%, transparent);
+  }
+}

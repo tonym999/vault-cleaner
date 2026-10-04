@@ -1,0 +1,52 @@
+--- a/src/lib/filters.test.ts
++++ b/src/lib/filters.test.ts
+@@ -38,6 +38,15 @@ describe('filters', () => {
+     expect(result.dropped).toEqual(['class Hunter']);
+   });
+ 
++  it('filters by slot, with its own options and scope word', () => {
++    const slot = FACETS.find((facet) => facet.key === 'type')!;
++    expect(facetOptions(groups, 'all', slot).map((option) => option.label)).toEqual(['Chest Armor (2 groups)']);
++    const filters = { kind: 'all' as const, facets: { type: 'Chest Armor' } };
++    expect(scopeText(groups, applyFilters(groups, filters), filters)).toBe(
++      '2 of 2 groups · 4 of 4 pieces — filtered to slot Chest Armor',
++    );
++  });
++
+   it('keeps a selection that still applies', () => {
+     const filters = { kind: 'same_stat' as const, facets: { guardian_class: 'Hunter' } };
+     expect(reconcile(groups, filters)).toEqual({ filters, dropped: [] });
+--- a/src/lib/filters.ts
++++ b/src/lib/filters.ts
+@@ -23,6 +23,13 @@ export const FACETS: Facet[] = [
+     scopeWord: 'class',
+     value: (group) => categorical(group.guardianClass).text,
+   },
++  {
++    key: 'type',
++    label: 'Slot / type',
++    anyLabel: 'any slot / type',
++    scopeWord: 'slot',
++    value: (group) => categorical(group.type).text,
++  },
+ ];
+ 
+ export interface Filters {
+--- a/src/lib/view.ts
++++ b/src/lib/view.ts
+@@ -67,6 +67,7 @@ export interface GroupView {
+   members: MemberView[];
+   /** The raw values the filter facets match on. */
+   guardianClass: string;
++  type: string;
+ }
+ 
+ interface Field<M> {
+@@ -221,6 +222,7 @@ function commonView(group: ExactGroup | SameStatGroup) {
+     facts: groupFacts(group),
+     stats: statViews(group.stats, group.tier),
+     guardianClass: group.guardian_class,
++    type: group.type,
+   };
+ }
+ 

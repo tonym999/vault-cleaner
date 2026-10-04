@@ -1,0 +1,10 @@
+--- a/src/lib/view.ts
++++ b/src/lib/view.ts
+@@ -121,7 +121,6 @@ const DISPOSITIONS: Record<string, string> = {
+ };
+ 
+ export const VERDICT_LABELS: Record<Verdict, string> = {
+-  '': 'Unreviewed',
+   approved: 'Approved',
+   vetoed: 'Vetoed',
+ };

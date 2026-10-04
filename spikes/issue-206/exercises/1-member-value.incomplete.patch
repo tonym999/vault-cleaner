@@ -1,0 +1,14 @@
+--- a/src/lib/view.ts
++++ b/src/lib/view.ts
+@@ -103,6 +103,11 @@ const COMMON_FIELDS: Field<MemberBase>[] = [
+   { key: 'locked', label: 'Locked', cell: (m) => yesNo(m.locked) },
+   { key: 'masterwork_tier', label: 'Masterwork tier', cell: (m) => count(m.masterwork_tier) },
+   { key: 'power', label: 'Power', cell: (m) => count(m.power) },
++  {
++    key: 'selected_partner_id',
++    label: 'Compared with',
++    cell: (m) => (m.selected_partner_id === null ? absent('none') : real(m.selected_partner_id)),
++  },
+ ];
+ 
+ const SAME_STAT_FIELDS: Field<SameStatMember>[] = [
