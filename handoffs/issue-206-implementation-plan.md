@@ -38,6 +38,17 @@ verdict against the installed wheel; and **H8 (lower maintenance effort) and
 H9 (a usable development loop) are now required for GO**, with a new
 experiment S14.
 
+**Amendment 3 (2026-10-04).** `732de2286328763d86781b300ae8c00dd56a692e` was
+approved and dispatched, and the implementer stopped at the licence stop
+condition before writing any code: `vite@8.3.2` and Tailwind 4 both depend on
+`lightningcss`, which is MPL-2.0. The owner then decided two things (see
+*Licences*): MPL-2.0 is accepted for build-time-only development
+dependencies, and Flowbite Svelte leaves the shortlist for daisyUI. This
+amendment changes the toolchain table, the shortlist, S12, S13 and the
+licence stop condition, and adds the *Licences* section, likely finding 7
+and one checklist line. The approval of `732de22` does not
+carry over.
+
 ## Objective
 
 Decide, with measured evidence, whether the review frontend should be rebuilt
@@ -154,7 +165,7 @@ versions, licences and Svelte peer ranges from `npm view` on 2026-10-04:
 | --- | --- | --- | --- |
 | `svelte` | 5.57.1 | MIT | |
 | `vite` | 8.3.2 | MIT | |
-| `typescript` | 7.0.2 | Apache-2.0 | |
+| `typescript` | 6.0.3 | Apache-2.0 | |
 | `@sveltejs/vite-plugin-svelte` | 7.3.1 | MIT | `^5.46.4` |
 | `svelte-check` | 4.7.6 | MIT | `^4 \|\| ^5` |
 | `vitest` | 5.0.3 | MIT | |
@@ -167,6 +178,33 @@ versions, licences and Svelte peer ranges from `npm view` on 2026-10-04:
 
 All four library candidates declare Svelte 5 support. The shadcn-svelte
 documentation has an installation path for plain Vite without SvelteKit.
+
+`typescript` is pinned to 6.0.3, not the current 7.0.2, because
+`svelte-check@4.7.6` peers `typescript ^5.0.0 || ^6.0.0`.
+
+### Licences
+
+The table above lists only each direct package's licence. Checked against
+the registry on 2026-10-04 after the first dispatch stopped:
+
+- `vite@8.3.2` depends on `lightningcss ^1.33.0`, and
+  `@tailwindcss/node@4.3.3` on `lightningcss 1.32.0`. `lightningcss` is
+  **MPL-2.0**. It is a build tool that processes CSS.
+- `axe-core`, the example tool for S13, is **MPL-2.0**.
+- `flowbite-svelte@1.33.1` depends on `apexcharts ^5.10.4`, whose licence
+  field is `SEE LICENSE IN LICENSE`. The implementer reported it as a custom
+  dual licence with a revenue threshold.
+
+**Owner decisions (2026-10-04).**
+
+- **MPL-2.0 is accepted for build-time-only development dependencies:**
+  packages that run on the developer's machine or in CI and contribute no
+  code to the built frontend. `lightningcss` and `axe-core` are the known
+  cases. A package whose code is in the built output must still be MIT,
+  Apache-2.0, BSD or ISC. This plan calls the two lists together **the
+  approved licences**. S12 measures both halves.
+- **Flowbite Svelte is dropped from the shortlist** and daisyUI takes its
+  place. `apexcharts` is not approved.
 
 ### Repository facts that shape the proof
 
@@ -221,9 +259,10 @@ Planner decisions the owner approves with this plan:
   router or server runtime. The record should say so and note what SvelteKit
   would add (its CSP nonce and hash support applies to server-rendered
   markup, which this app does not have).
-- **Shortlist: shadcn-svelte (on Bits UI), Skeleton, Flowbite Svelte.** All
-  MIT, all Svelte 5. The implementer may swap one for daisyUI with a stated
-  reason. Each gets a small CSP probe; **one** is used to build the slice.
+- **Shortlist: shadcn-svelte (on Bits UI), Skeleton, daisyUI.** All MIT;
+  the first two are Svelte 5 component libraries and daisyUI is CSS only.
+  Flowbite Svelte was dropped (see *Licences*). Each gets a small CSP probe;
+  **one** is used to build the slice.
 - **The proof wraps `create_app`,** as #137 did, and serves the built
   frontend at a spike path beside the production page.
 - **Screenshots are committed** as PNG files under
@@ -348,8 +387,8 @@ Each produces a transcript in the evidence file.
 | S9 | 5 | **Request envelope.** Every spike route has production's security headers and refuses unauthenticated, wrong-Host and wrong-Origin requests. Production routes served by the spike app keep the unchanged policy byte for byte. | No header differs; the policy on a spike route differs from production's only by pre-approved additions that S7 shows are needed |
 | S10 | 1, 6 | **Development loop.** Measure a cold build, a rebuild after a one-line edit, the time from saving a component edit to seeing it against real server data, and the output size (raw and gzip). Establish an edit-and-see loop against the Flask server given the `Origin` rule, started by one command, and say exactly how it works. If it relies on anything that relaxes a server check (a proxy rewriting `Origin`, a development-only flag), show that it exists only in the development path and is absent from the built wheel. Record `svelte-check` and the unit-test run. | Recorded, with the mechanism stated exactly |
 | S11 | 6 | **Type drift.** Rename one view-model or envelope field on the Python side and show where the mismatch surfaces: type check, build, test, or only at runtime. | Recorded |
-| S12 | 3, 6 | **Code comparison.** Line counts for the slice by category: components and markup, application logic (requests, revisions, reconciliation, lifecycle), filtering, types, Python, tests. Set them beside production's 908 and the hybrid's 155 + 474 + 187. Count the installed npm packages and record `npm audit`. | Recorded |
-| S13 | 2 | **Automated accessibility check** (for example axe-core) on the slice in both colour schemes. | Violations listed; none left unexplained |
+| S12 | 3, 6 | **Code comparison.** Line counts for the slice by category: components and markup, application logic (requests, revisions, reconciliation, lifecycle), filtering, types, Python, tests. Set them beside production's 908 and the hybrid's 155 + 474 + 187. Count the installed npm packages and record `npm audit`. **Licence scan:** list the licence of every package in the tree installed by `npm ci`, read from the installed `package.json` files (and the `LICENSE` file where the field is missing), and fail if any is outside the approved licences. Then list every package that contributes a module to the built output, taken from the build's own module list or source maps and not from a hand-kept list, and fail if any of those is not MIT, Apache-2.0, BSD or ISC. | Recorded; the scan passes, and no MPL-2.0 package contributes to the built output |
+| S13 | 2 | **Automated accessibility check** (for example axe-core, which is MPL-2.0 and allowed as a development-only tool that is never bundled) on the slice in both colour schemes. | Violations listed; none left unexplained |
 | S14 | 3, 6 | **Change exercises.** Make three small changes to the finished slice, each saved as a patch file under `spikes/issue-206/` that applies cleanly to the committed slice, and not left applied: (1) show one more per-member comparison value; (2) add one more filter facet; (3) change the wording of one verdict state. For each, record the files and places touched in the Svelte slice, and identify by `file:line` every place the same change would touch in the current page and in #137's Jinja hybrid. Record whether the type check or a test caught a deliberately incomplete version of the change. | Recorded for all three, for all three codebases |
 
 ### Decision record
@@ -483,7 +522,10 @@ Stop implementation and return to orchestrator if:
 - the proof would need a policy on any **production** route to change;
 - the toolchain cannot be installed or run here (registry unreachable, an
   install script that needs elevated access, Chromium unavailable);
-- a needed package has a licence other than MIT, Apache-2.0, BSD or ISC;
+- a needed package is outside the approved licences (see *Licences*): a
+  package that contributes code to the built output and is not MIT,
+  Apache-2.0, BSD or ISC, or a build-time-only package that is none of those
+  and not MPL-2.0;
 - real vault data would be needed;
 - the slice needs a field the envelope does not carry.
 
@@ -525,6 +567,9 @@ the active runtime can instantiate it.
 6. **Scope and hygiene.** `node_modules` or build output tracked; a root
    `.gitignore` or `pyproject.toml` edit; two libraries fully built; issues
    created instead of drafted.
+7. **A licence scan that proves less than it says.** The built-output half
+   checked against a hand-kept list of packages, or the tree scan run on a
+   tree other than the one the lockfile installs.
 
 # Reusable implementer execution prompt
 
@@ -599,7 +644,8 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] Library claims cite official documentation with the date read.
 - [ ] Migration drafts are bounded and ordered; no issue was created.
 - [ ] No real data, real ids or `data/` paths appear in the evidence or screenshots.
-- [ ] Likely findings 1 to 6 were each checked.
+- [ ] S12's licence scan covers the tree the lockfile installs and passes; the packages contributing to the built output come from the build's own module list, and none is MPL-2.0. Flowbite Svelte and `apexcharts` are not installed.
+- [ ] Likely findings 1 to 7 were each checked.
 
 # Dispatch comment draft
 
@@ -607,4 +653,4 @@ Planned #206 in [handoffs/issue-206-implementation-plan.md](https://github.com/t
 
 - **Implementer model & effort:** `claude-opus-5-5` at `high` (Judgement rung)
 - **Implementation branch:** `feat/issue-206-svelte-frontend-spike`
-- **Likely findings:** a CSP result claimed from a happy path or wider than needed; the projection reimplemented in TypeScript; finalise handled only on a fresh load; a development loop that needs a weakened server; H8 or H9 passed on a line count alone; tracked `node_modules` or build output, or other scope leakage.
+- **Likely findings:** a CSP result claimed from a happy path or wider than needed; the projection reimplemented in TypeScript; finalise handled only on a fresh load; a development loop that needs a weakened server; H8 or H9 passed on a line count alone; tracked `node_modules` or build output, or other scope leakage; a licence scan that proves less than it says.

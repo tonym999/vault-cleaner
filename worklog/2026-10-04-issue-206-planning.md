@@ -139,3 +139,40 @@ All four are accepted.
 Likely findings gained a sixth (H8 or H9 passed on a number), and the review
 checklist follows each change. The amendment touches only the plan and this
 entry.
+
+## Amendment 3 (2026-10-04): licences, after the first dispatch stopped
+
+The owner approved `732de2286328763d86781b300ae8c00dd56a692e`. The dispatch
+comment was posted
+(<https://github.com/tonym999/vault-cleaner/issues/206#issuecomment-5979714598>)
+and a `claude-opus-5-5` implementer was dispatched as a Claude Code subagent.
+It stopped at the licence stop condition before writing any code: the branch
+stayed at `732de22` and nothing was committed. The review base stays
+`732de22`.
+
+- **What stopped it.** `vite@8.3.2` depends on `lightningcss ^1.33.0` and
+  `@tailwindcss/node@4.3.3` on `lightningcss 1.32.0`; `lightningcss` is
+  MPL-2.0. The plan's toolchain table had checked only each direct package's
+  licence. The orchestrator confirmed these with `npm view`, and also that
+  `axe-core` is MPL-2.0 and that `flowbite-svelte@1.33.1` depends on
+  `apexcharts`, whose licence field is `SEE LICENSE IN LICENSE`.
+- **Reported by the implementer, not re-checked:** every shortlisted library
+  and daisyUI needs Tailwind 4; a tree with Vite 7.3.6 and plugin-svelte
+  6.2.4 has nothing outside the original list; `apexcharts` is dual-licensed
+  with a revenue threshold.
+- **Owner decisions.** MPL-2.0 is accepted for build-time-only development
+  dependencies that contribute no code to the built output. Flowbite Svelte
+  is dropped from the shortlist and daisyUI replaces it.
+- **Plan changes.** A *Licences* section; the shortlist; the licence stop
+  condition; a licence scan in S12 covering the installed tree and the
+  packages that contribute to the built output; S13's note on axe-core;
+  likely finding 7 and one checklist line.
+- **TypeScript pinned to 6.0.3,** not 7.0.2: `svelte-check@4.7.6` peers
+  `typescript ^5.0.0 || ^6.0.0`.
+- **Role note.** The amendment was written in the orchestrator's session
+  acting as planner (`claude-opus-5-5`), at the owner's direction. It
+  touches only the plan and this entry.
+
+The amended plan needs a new approval by SHA before the implementer is
+dispatched again. The dispatch comment on the issue names `732de22` and has
+not been updated.
