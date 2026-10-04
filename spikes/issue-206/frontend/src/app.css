@@ -15,6 +15,9 @@
  */
 :root {
   --fx-noise: none;
+  /* S15's acknowledged approval exposed a 4.46:1 default success label.
+     Darker text on the same green fill clears AA in both schemes. */
+  --color-success-content: oklch(22% 0.02 160);
 }
 
 /*
@@ -24,6 +27,11 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --color-primary: oklch(50% 0.233 277.117);
+  }
+  /* The darker primary fill above cannot also serve as text on an outlined
+     badge. S15 measures the real tier-5 stat-role badges at 2.39:1. */
+  .badge-outline.badge-primary {
+    color: oklch(80% 0.10 277.117);
   }
 }
 

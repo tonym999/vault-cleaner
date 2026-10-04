@@ -1,11 +1,11 @@
 """The development loop: edit a component, see it against the real server.
 
-    .venv/bin/python spikes/issue-206/dev.py [--fixture NAME.csv] [--port 5173]
+    .venv/bin/python spikes/issue-206/dev.py [--fixture real|NAME.csv] [--port 5173]
 
 One command starts two processes and prints one link to open:
 
 * the unmodified Flask review server (the spike app), on a free loopback
-  port, with a fake fixture already uploaded so there is data to look at;
+  port, with a synthetic or sanitised fixture already uploaded;
 * Vite's development server on ``127.0.0.1:5173``, which serves the Svelte
   source with hot module replacement and proxies ``/api`` and ``/bootstrap``
   to the Flask server.
@@ -31,7 +31,7 @@ and ``vite build`` puts none of it in the output (experiment S10 checks).
 In development the page is served by Vite, so the Flask CSP does not apply
 to it; the CSP is proved on the built page (S7, S8).
 
-Fake fixtures only.  Stop with Ctrl-C.
+``--fixture real`` uses only the tracked sanitised armor fixture. Stop with Ctrl-C.
 """
 
 from __future__ import annotations
@@ -50,10 +50,10 @@ DEV_HOST = "127.0.0.1"
 
 
 def preload(live: harness.LiveSpike, fixture: str) -> None:
-    """Upload a fake fixture with the session's own cookie, as the page would."""
+    """Upload a fixed fixture with the session's own cookie, as the page would."""
     request = urllib.request.Request(
         f"{live.origin}/api/exports/armor",
-        data=(harness.FIXTURES / fixture).read_bytes(),
+        data=harness.fixture_path(fixture).read_bytes(),
         headers={
             "Origin": live.origin,
             "Content-Type": "text/csv",
@@ -83,7 +83,7 @@ def vite_dev(frontend: Path, backend: str, port: int) -> Iterator[subprocess.Pop
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--fixture", default="armor_close.csv", choices=harness.SLICE_FIXTURES)
+    parser.add_argument("--fixture", default="armor_close.csv", choices=harness.TRY_FIXTURES)
     parser.add_argument("--port", type=int, default=5173)
     arguments = parser.parse_args()
     if not (harness.FRONTEND / "node_modules").is_dir():

@@ -1,12 +1,13 @@
 """Try it: build the frontend and serve the proof.
 
-    .venv/bin/python spikes/issue-206/serve.py [--fixture NAME.csv]
+    .venv/bin/python spikes/issue-206/serve.py [--fixture real|NAME.csv]
 
 It runs ``npm ci`` (first time only) and ``npm run build`` in ``frontend/``,
 starts the unmodified review server with the built frontend added at
-``/spike/``, uploads a fake fixture, and prints two links: the one-time
+``/spike/``, uploads a fixed fixture, and prints two links: the one-time
 sign-in link, which lands on the current production page, and the spike page
-in the same session.  Fake fixtures only.  Stop with Ctrl-C.
+in the same session. ``--fixture real`` loads the tracked sanitised armor
+fixture. Stop with Ctrl-C.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from dev import preload
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--fixture", default="armor_close.csv", choices=harness.SLICE_FIXTURES)
+    parser.add_argument("--fixture", default="armor_close.csv", choices=harness.TRY_FIXTURES)
     arguments = parser.parse_args()
     if not (harness.FRONTEND / "node_modules").is_dir():
         subprocess.run(["npm", "ci"], cwd=harness.FRONTEND, check=True)

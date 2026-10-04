@@ -3,12 +3,14 @@
 Verbatim transcripts for the experiments behind
 [docs/frontend-framework-decision.md](../../frontend-framework-decision.md).
 Each `bash` fence is one command, run from the repository root, and the
-`text` fence under it is that command's complete output (standard output,
-then standard error), with terminal colour codes removed. One fence has one
-further edit, stated above it; nothing else was edited.
+`text` fence under it is that command's complete output, with terminal colour
+codes removed. The emission order for each capture generation is stated below.
+One fence has one further edit, stated above it; nothing else was edited.
 
-Everything here uses the fake fixtures under `tests/fixtures/`. No real
-export was read. The proof code is in
+S1 to S14 use the synthetic fixtures under `tests/fixtures/`. S15 uses only
+the tracked sanitised armor fixture
+`tests/fixtures/real/2026-09-01T-current/armor.csv`, without an overlay.
+No unsanitised export or file under `data/` was read. The proof code is in
 [spikes/issue-206/](../../../spikes/issue-206/README.md).
 
 Captured 2026-10-04 on the implementation branch for #206, and captured
@@ -16,8 +18,17 @@ again in full after fix round 1 changed the slice and the proofs. After the
 capture every proof fence was rerun and compared with the text recorded
 here; only the S10 timings differed. Two kinds of line are not repeatable
 and are named where they occur: durations and timestamps printed by npm,
-Vite, vitest and svelte-check; and the timings in S10. The proofs print no
-port, path or token.
+Vite, vitest and svelte-check; and the timings in S10. Amendment 4 reran every proof. S1 to S8 and S11
+were unchanged; S9 (CSS bytes), S10 (sizes/timings/check summary), S12
+(line counts), S13 (settled contrast), and S14 (prose check output omits its
+informational machine ERROR lines) are recaptured below. S14 still verifies
+the incomplete changes fail their checks; its script is unchanged. S15 and
+the frontend fence are new captures. These new and recaptured fences merge
+stderr into stdout in process emission order. The earlier unchanged captures keep their original
+stdout-then-stderr order. S15 timing numbers vary between runs;
+counts and pass results must remain. The proof captures print no runtime port,
+absolute checkout or temporary path, or session token; repository-relative
+fixture, screenshot and source-citation paths are included.
 
 Ids such as `6032` and `8201` in the transcripts are the fake instance ids in
 the committed fixtures. `18446744073709551615`, `007` and `9"<'> x` are the
@@ -27,8 +38,12 @@ experiment S1 overlays.
 
 ## Screenshots
 
-Written by `proof_s6_layout.py --screenshots`, from the fake fixtures, each
-with one veto recorded.
+Written by `proof_s6_layout.py --screenshots`, from the synthetic fixtures,
+each with one veto recorded. All six were regenerated after S15 changed
+two contrast colours. The sanitised screenshots are written by
+`proof_s15_scale.py --screenshots`, with an approval on the final group; they
+are full page (all 74 groups), about 61,000 px high at desktop and 101,000 px
+at 390 px. Every displayed fixture id carries the sanitised `1000` prefix.
 
 | File | Fixture | Width | Scheme |
 | --- | --- | --- | --- |
@@ -38,6 +53,10 @@ with one veto recorded.
 | [both-kinds-narrow-dark.png](both-kinds-narrow-dark.png) | `armor_close.csv` | 390 px | dark |
 | [four-members-desktop-light.png](four-members-desktop-light.png) | `armor_same_stat_four_ui.csv` | 1440 px | light |
 | [four-members-narrow-light.png](four-members-narrow-light.png) | `armor_same_stat_four_ui.csv` | 390 px | light |
+| [real-desktop-light.png](real-desktop-light.png) | sanitised armor, all groups | 1440 px | light |
+| [real-desktop-dark.png](real-desktop-dark.png) | sanitised armor, all groups | 1440 px | dark |
+| [real-narrow-light.png](real-narrow-light.png) | sanitised armor, all groups | 390 px | light |
+| [real-narrow-dark.png](real-narrow-dark.png) | sanitised armor, all groups | 390 px | dark |
 
 ## Environment
 
@@ -97,30 +116,36 @@ chromium 151.0.7922.34 (headless)
 From a clean `npm ci`. The timestamps, durations and the `npm notice` lines vary from run to run; the counts and sizes do not (`dist/modules.json` holds paths relative to the frontend directory, so its size does not depend on where the checkout is). This capture is edited in one respect, so it is not strictly verbatim: svelte-check and vitest print the checkout's absolute directory, and that prefix is replaced with `<repo>` in two lines.
 
 ```bash
-(cd spikes/issue-206/frontend && rm -rf node_modules dist && npm ci && npm run check && npm test && npm run build)
+(cd spikes/issue-206/frontend && npm ci && npm run check && npm test && npm run build)
 ```
 
 Output:
 
 ```text
 
-added 76 packages, and audited 77 packages in 1s
+added 76 packages in 1s
 
 18 packages are looking for funding
   run `npm fund` for details
+npm notice run vault-cleaner-spike-206-frontend@0.0.0 check
+npm notice run svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
+Loading svelte-check in workspace: <repo>/spikes/issue-206/frontend
+Getting Svelte diagnostics...
 
-found 0 vulnerabilities
-1791120617766 START "<repo>/spikes/issue-206/frontend"
-1791120617767 COMPLETED 295 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
+svelte-check found 0 errors and 0 warnings
+npm notice run vault-cleaner-spike-206-frontend@0.0.0 test
+npm notice run vitest run
 
  RUN  v5.0.3 <repo>/spikes/issue-206/frontend
 
 
  Test Files  3 passed (3)
       Tests  32 passed (32)
-   Start at  13:30:18
-   Duration  571ms (transform 82%, import 12%, tests 5%, worker 1%)
+   Start at  16:26:22
+   Duration  591ms (transform 79%, import 15%, tests 5%, worker 1%)
 
+npm notice run vault-cleaner-spike-206-frontend@0.0.0 build
+npm notice run vite build
 vite v8.3.2 building client environment for production...
 transforming...
 /*! 🌼 daisyUI 5.7.47 */
@@ -129,16 +154,10 @@ rendering chunks...
 computing gzip size...
 dist/index.html       0.43 kB │ gzip:  0.28 kB
 dist/modules.json     3.59 kB │ gzip:  0.57 kB
-dist/assets/app.css  56.91 kB │ gzip:  9.87 kB
+dist/assets/app.css  57.01 kB │ gzip:  9.90 kB
 dist/assets/app.js   63.44 kB │ gzip: 23.09 kB
 
-✓ built in 351ms
-npm notice run vault-cleaner-spike-206-frontend@0.0.0 check
-npm notice run svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
-npm notice run vault-cleaner-spike-206-frontend@0.0.0 test
-npm notice run vitest run
-npm notice run vault-cleaner-spike-206-frontend@0.0.0 build
-npm notice run vite build
+✓ built in 352ms
 ```
 
 ## Probes: install and build
@@ -559,7 +578,7 @@ Output:
 production asset headers: {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
 /spike/: HTTP 200, text/html; charset=utf-8, 439 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
 /spike/assets/app.js: HTTP 200, text/javascript; charset=utf-8, 63440 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
-/spike/assets/app.css: HTTP 200, text/css; charset=utf-8, 56917 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
+/spike/assets/app.css: HTTP 200, text/css; charset=utf-8, 57017 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
 production route /: HTTP 200; policy byte-identical to SERVER_CSP=True
 production route /assets/review.css: HTTP 200; policy byte-identical to SERVER_CSP=True
 production route /assets/review_ui.js: HTTP 200; policy byte-identical to SERVER_CSP=True
@@ -596,18 +615,18 @@ Output:
 
 ```text
 -- build --
-cold build: exit 0, 0.7 s; rebuild after a one-line edit: exit 0, 0.8 s
-(each figure includes starting npm and Vite; Vite's own report of the build step was: ✓ built in 321ms)
+cold build: exit 0, 0.8 s; rebuild after a one-line edit: exit 0, 0.8 s
+(each figure includes starting npm and Vite; Vite's own report of the build step was: ✓ built in 360ms)
 index.html: 439 bytes, 282 gzip
 assets/app.js: 63440 bytes, 22786 gzip
-assets/app.css: 56917 bytes, 9759 gzip
+assets/app.css: 57017 bytes, 9792 gzip
 -- type check and unit tests --
-svelte-check: exit 0, 2.0 s: COMPLETED 295 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
-vitest: exit 0, 1.3 s: ['Test Files  3 passed (3)', 'Tests  32 passed (32)']
+svelte-check: exit 0, 2.0 s: found 0 errors and 0 warnings
+vitest: exit 0, 1.2 s: ['Test Files  3 passed (3)', 'Tests  32 passed (32)']
 -- edit and see, against the real server --
 one command to first render, through the proxy: 1.2 s; page address is the dev server's: True
 a verdict through the proxy: the page sent ['POST /api/verdicts'] to the dev server; server verdicts=[{'id': '6032', 'verdict': 'vetoed'}]
-save to visible: 77 ms; no page reload: True; the server's verdict is still shown: True
+save to visible: 70 ms; no page reload: True; the server's verdict is still shown: True
 -- what the proxy does to Origin --
 POST through the proxy with the dev server's own Origin: HTTP 400 (reached the route; 400 is its answer to a malformed body)
 POST through the proxy with a foreign Origin: HTTP 403 (forwarded unchanged, refused)
@@ -669,13 +688,13 @@ slice, presentation projection (wording, shared/differing split): 298 lines in 1
 slice, application logic (requests, revisions, reconciliation, lifecycle): 277 lines in 3 files
 slice, filtering: 102 lines in 1 files
 slice, types: 110 lines in 1 files
-slice, stylesheet: 51 lines in 1 files
+slice, stylesheet: 59 lines in 1 files
 slice, Python: serving the build: 164 lines in 1 files
-slice, everything that runs or is served: 1410 lines
+slice, everything that runs or is served: 1418 lines
 slice, unit tests and the type-contract module: 347 lines in 4 files
 slice, build configuration: 113 lines in 3 files
 slice, Python: contract sample generator: 92 lines in 1 files
-proof and tooling scripts (not part of any comparison): 3210 lines in 20 files
+proof and tooling scripts (not part of any comparison): 3576 lines in 21 files
 imperative DOM calls (createElement, el(), appendChild, textContent=, setAttribute): slice 0; the production ranges 87
 -- npm tree and audit --
 frontend: 76 packages installed; 122 in the lockfile; installed but not as locked: []; locked but not installed here (other platforms' optional binaries): 46, all optional=True, lockfile licences {'MIT': 26, 'MPL-2.0': 20}
@@ -718,18 +737,18 @@ reviewing, one veto, 1440px light: rules passed=40, violations=[]; contrast axe 
 reviewing, one veto, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.64:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
 reviewing, one veto, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.88:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
 reviewing, one veto, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.88:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
-filtered, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-filtered, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-filtered, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-filtered, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-finalised, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-finalised, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-finalised, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-finalised, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: ['select']; not measured: []
-no report, 1440px light: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: []; not measured: []
-no report, 1440px dark: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: []; not measured: []
-no report, 390px light: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: []; not measured: []
-no report, 390px dark: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.12:1 (#vc-status), below 4.5:1: []; with a real background image: []; not measured: []
+filtered, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+no report, 1440px light: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 1440px dark: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 390px light: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 390px dark: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
 RESULT: PASS
 ```
 
@@ -749,8 +768,6 @@ Output:
   Svelte slice: 1 places in 1 files {'src/lib/view.ts': 1}; tests added or changed: {'src/lib/view.test.ts': 1}
   with the patch: type check exit 0, unit tests exit 0 ['Tests  32 passed (32)'], build exit 0
   deliberately incomplete version: type check exit 1, unit tests exit 1
-    ERROR "src/lib/view.ts" 109:21 "Property 'selected_partner_id' does not exist on type 'MemberBase'."
-    ERROR "src/lib/view.ts" 109:76 "Property 'selected_partner_id' does not exist on type 'MemberBase'."
   current page: 3 places in 1 files
     src/vault_cleaner/ui/review_ui.js:569 already normalised here (3 lines), or it would be added: found at that line=True
     src/vault_cleaner/ui/review_ui.js:592 already carried on the member, or it would be added: found at that line=True
@@ -762,7 +779,6 @@ Output:
   Svelte slice: 3 places in 2 files {'src/lib/filters.ts': 1, 'src/lib/view.ts': 2}; tests added or changed: {'src/lib/filters.test.ts': 1}
   with the patch: type check exit 0, unit tests exit 0 ['Tests  33 passed (33)'], build exit 0
   deliberately incomplete version: type check exit 1, unit tests exit 0
-    ERROR "src/lib/filters.ts" 31:41 "Property 'type' does not exist on type 'GroupView'."
   current page: 6 places in 2 files
     src/vault_cleaner/ui/review_server.js:106 initial filter state: found at that line=True
     src/vault_cleaner/ui/review_server.js:264 fields reconciled when a report or kind changes: found at that line=True
@@ -785,7 +801,6 @@ Output:
   Svelte slice: 1 places in 1 files {'src/lib/view.ts': 1}; tests added or changed: none
   with the patch: type check exit 0, unit tests exit 0 ['Tests  32 passed (32)'], build exit 0
   deliberately incomplete version: type check exit 1, unit tests exit 0
-    ERROR "src/lib/view.ts" 130:14 "Property '\"\"' is missing in type '{ approved: string; vetoed: string; }' but required in type 'Record<Verdict, string>'."
   current page: 1 places in 1 files
     src/vault_cleaner/ui/review_server.js:425 the wording: found at that line=True
   Jinja hybrid (#137): 1 places in 1 files
@@ -922,4 +937,106 @@ apexcharts: SEE LICENSE IN LICENSE
 daisyui: MIT
 bits-ui: MIT
 @skeletonlabs/skeleton-svelte: MIT
+```
+
+
+## S15: real scale (gates H1, H4, H5)
+
+The entire sanitised report, no overlay: S1's independent oracle compares all
+groups/members/required values at both widths and after a real acknowledgement;
+E10's nine filter sequences run on both pages; all spirit-bearing exact groups
+are checked. S6's whole-document geometry and keyboard lap cover every group
+at all three widths in both schemes; the four screenshots are full page.
+A verdict on the final group checks both node identity and viewport position:
+scroll anchoring adjusts scrollY as the status wraps, but the control does not
+move in the viewport. Axe and the independent contrast checks cover the whole
+report after colour transitions finish.
+
+Five alternating runs per page use one authenticated report/session/machine,
+All groups, no Class filter, 1440 px/light. Production activates its ready
+surface control in-page before building duplicates; its Proposals DOM and both
+matrix orientations are counted. Readiness requires every group to be laid
+out. Navigation time starts at performance.timeOrigin; acknowledgement time
+starts after decoding the verdict JSON, before returning it to application
+code. MutationObserver measures the target aria-pressed change and the next
+animation frame. These measure DOM completion/frame opportunity, not physical
+display scanout. Timing numbers vary on rerun. An isolated repeat confirmed
+the direction: the slice is slower, despite fewer elements. Correctness checks
+pass; the recommendation and H5 performance condition are bounded conditional.
+
+S15 exposed two colour defects, fixed narrowly in the slice stylesheet:
+approved success text at 4.46:1 and dark outlined tier-5 role text at 2.39:1.
+Exact Seasonal Mod and positive Holofoil still rest on S1's overlay; this
+fixture supplies the spirit signatures without one.
+
+```bash
+.venv/bin/python spikes/issue-206/proof_s15_scale.py --screenshots
+```
+
+Output:
+
+```text
+fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; no overlay
+report: exact=9, same-stat=65; same-stat sizes={2: 57, 3: 6, 4: 2}; members=158; wire bytes=690503
+unreviewed 1440px: groups=74, members=158, value/role assertions=3401, differences=0
+unreviewed 390px: groups=74, members=158, value/role assertions=3401, differences=0
+spirit signatures from unmodified upload: 5/5 exact groups correct
+1440px no filter: equal=True; groups=74; scope='74 groups · 158 pieces'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected=''
+1440px kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+1440px kind=same_stat: equal=True; groups=65; scope='65 of 74 groups · 140 of 158 pieces — filtered to same-stat groups'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected=''
+1440px class=Titan: equal=True; groups=40; scope='40 of 74 groups · 88 of 158 pieces — filtered to class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Titan'
+1440px kind=exact, then class=Titan: equal=True; groups=6; scope='6 of 74 groups · 12 of 158 pieces — filtered to exact duplicates, class Titan'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected='Titan'
+1440px class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Hunter'
+1440px kind=same_stat, then class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to same-stat groups, class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Hunter'
+1440px class=Titan, then kind=same_stat: equal=True; groups=34; scope='34 of 74 groups · 76 of 158 pieces — filtered to same-stat groups, class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Titan'
+1440px class=Hunter, then kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+  dropped-class notices: slice='Filter no longer applies and was cleared: class Hunter.'; production='Local view state dropped: duplicate filter guardianClass Hunter.'
+1440px E10 sequences: executed=9, unsupported=0; real-upload Hunter-to-Exact drops=1
+390px no filter: equal=True; groups=74; scope='74 groups · 158 pieces'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected=''
+390px kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+390px kind=same_stat: equal=True; groups=65; scope='65 of 74 groups · 140 of 158 pieces — filtered to same-stat groups'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected=''
+390px class=Titan: equal=True; groups=40; scope='40 of 74 groups · 88 of 158 pieces — filtered to class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Titan'
+390px kind=exact, then class=Titan: equal=True; groups=6; scope='6 of 74 groups · 12 of 158 pieces — filtered to exact duplicates, class Titan'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected='Titan'
+390px class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Hunter'
+390px kind=same_stat, then class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to same-stat groups, class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Hunter'
+390px class=Titan, then kind=same_stat: equal=True; groups=34; scope='34 of 74 groups · 76 of 158 pieces — filtered to same-stat groups, class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Titan'
+390px class=Hunter, then kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+  dropped-class notices: slice='Filter no longer applies and was cleared: class Hunter.'; production='Local view state dropped: duplicate filter guardianClass Hunter.'
+390px E10 sequences: executed=9, unsupported=0; real-upload Hunter-to-Exact drops=1
+far-down acknowledged verdict: group=74/74; scroll before=100533px; same focused node=True; scroll change=20px; control viewport change=0px
+acknowledged 1440px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1440px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+wrote docs/evidence/issue-206/real-desktop-light.png: full page 1440x60949, all 74 groups
+acknowledged 1440px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1440px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+wrote docs/evidence/issue-206/real-desktop-dark.png: full page 1440x60949, all 74 groups
+acknowledged 1024px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1024px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1024px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1024px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 390px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 390px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+wrote docs/evidence/issue-206/real-narrow-light.png: full page 390x101453, all 74 groups
+acknowledged 390px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 390px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+wrote docs/evidence/issue-206/real-narrow-dark.png: full page 390x101453, all 74 groups
+sanitised report, acknowledged verdict, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
+timing run 1 slice: all groups=74; navigation=215.9ms, next frame=229.4ms; ack-to-DOM=14.7ms, next frame=21.2ms; DOM elements=13143
+timing run 1 production: all groups=74; navigation=172.2ms, next frame=179.9ms; ack-to-DOM=12.6ms, next frame=25.9ms; DOM elements=17138
+timing run 2 production: all groups=74; navigation=141.4ms, next frame=148.4ms; ack-to-DOM=10.2ms, next frame=14.3ms; DOM elements=17138
+timing run 2 slice: all groups=74; navigation=209.5ms, next frame=222.3ms; ack-to-DOM=15.9ms, next frame=22.3ms; DOM elements=13143
+timing run 3 slice: all groups=74; navigation=218.6ms, next frame=233.2ms; ack-to-DOM=35.7ms, next frame=42.8ms; DOM elements=13143
+timing run 3 production: all groups=74; navigation=165.5ms, next frame=172.9ms; ack-to-DOM=10.1ms, next frame=18.7ms; DOM elements=17138
+timing run 4 production: all groups=74; navigation=151.9ms, next frame=158.1ms; ack-to-DOM=10.9ms, next frame=12.5ms; DOM elements=17138
+timing run 4 slice: all groups=74; navigation=201.6ms, next frame=216.6ms; ack-to-DOM=25.8ms, next frame=32.3ms; DOM elements=13143
+timing run 5 slice: all groups=74; navigation=201.7ms, next frame=213.5ms; ack-to-DOM=17.5ms, next frame=23.6ms; DOM elements=13143
+timing run 5 production: all groups=74; navigation=147.9ms, next frame=155.1ms; ack-to-DOM=10.8ms, next frame=15.8ms; DOM elements=17138
+verdict target: group 74/74, chosen from the envelope
+slice medians (5 runs): navigation=209.5ms, next frame=222.3ms; ack-to-DOM=17.5ms, next frame=23.6ms; DOM elements=13143
+production medians (5 runs): navigation=151.9ms, next frame=158.1ms; ack-to-DOM=10.8ms, next frame=15.8ms; DOM elements=17138
+RESULT: PASS
 ```

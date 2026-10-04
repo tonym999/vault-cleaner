@@ -1,7 +1,8 @@
 """Shared plumbing for the #206 proof scripts.
 
 Every proof boots the spike app (the production app plus the built frontend)
-on a loopback port, with fake fixtures only.  Browser proofs use the pinned
+on a loopback port, with synthetic fixtures or the one tracked sanitised
+armor fixture. Browser proofs use the pinned
 Playwright Chromium and stop with an error when it is missing; they never
 skip.  The frontend must have been built first (``npm ci && npm run build``
 in ``frontend/``); a proof fails with that instruction when it has not.
@@ -40,10 +41,21 @@ SLICE_FIXTURES = (
     "armor_same_stat_ui.csv",
     "armor_same_stat_four_ui.csv",
 )
+REAL_FIXTURE = FIXTURES / "real" / "2026-09-01T-current" / "armor.csv"
+TRY_FIXTURES = (*SLICE_FIXTURES, "real")
 LIVE_REGIONS = ("vc-status", "vc-reconciliation", "vc-scope")
 
 # Request logs carry the port and a timestamp; keep proof output repeatable.
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+
+def fixture_path(fixture: str) -> Path:
+    """Resolve only the fixed command-line fixture choices, never an input path."""
+    if fixture == "real":
+        return REAL_FIXTURE
+    if fixture in SLICE_FIXTURES:
+        return FIXTURES / fixture
+    raise ValueError(f"Unknown spike fixture: {fixture}")
 
 
 @dataclass(frozen=True)

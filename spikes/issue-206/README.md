@@ -9,8 +9,9 @@ can be rerun, and so that the decision in
 [docs/frontend-framework-decision.md](../../docs/frontend-framework-decision.md)
 can be checked against code.
 
-Do not import it from production code. All data is the fake fixtures under
-`tests/fixtures/`.
+Do not import it from production code. Data is the synthetic fixtures and
+the tracked sanitised armor fixture under `tests/fixtures/`; no personal export
+or file under `data/` is read.
 
 ## Try it
 
@@ -18,20 +19,22 @@ One command builds the frontend and serves the proof (Node 24 and the project
 environment are needed):
 
 ```bash
-.venv/bin/python spikes/issue-206/serve.py
+.venv/bin/python spikes/issue-206/serve.py --fixture real
 ```
 
 It prints two links. Open the first to sign in (it lands on the current
 production page), then the second for the Svelte slice in the same session.
-`--fixture armor_same_stat_four_ui.csv` loads the four-member group instead.
+`--fixture real` loads all 893 sanitised armor rows (74 duplicate groups).
+`--fixture armor_same_stat_four_ui.csv` loads the small synthetic four-member
+group instead. With no option both commands retain their synthetic default.
 
 ## The development loop
 
 ```bash
-.venv/bin/python spikes/issue-206/dev.py
+.venv/bin/python spikes/issue-206/dev.py --fixture real
 ```
 
-It starts the unmodified Flask review server with a fake fixture uploaded,
+It starts the unmodified Flask review server with the sanitised fixture uploaded,
 starts Vite's development server in front of it, and prints one link. Edit
 any file under `frontend/src/` and the open page updates without a reload.
 How the proxy satisfies the server's `Host` and `Origin` checks is written
@@ -109,9 +112,15 @@ The browser proofs need the pinned Playwright Chromium
 | S12 code, tree and licences | `.venv/bin/python spikes/issue-206/proof_s12_code.py` | no |
 | S13 accessibility | `.venv/bin/python spikes/issue-206/proof_s13_axe.py` | yes |
 | S14 change exercises | `.venv/bin/python spikes/issue-206/proof_s14_changes.py` | no |
+| S15 real scale | `.venv/bin/python spikes/issue-206/proof_s15_scale.py` | yes |
 
 `proof_s6_layout.py --screenshots` also rewrites the PNG files under
-`docs/evidence/issue-206/`.
+`docs/evidence/issue-206/`. `proof_s15_scale.py --screenshots` writes four
+full-page sanitised-report captures (all groups, both schemes at 1440/390 px).
+S15 reports five-run medians beside production, and takes several minutes
+because keyboard traversal and axe cover the whole page. The recommendation
+is now bounded conditional on resolving its measured performance slowdown;
+see the decision record.
 
 `proof_s8_wheel.py` builds a wheel and a fresh virtual environment in a
 temporary directory, as `scripts/check_wheel_install.py` does, so it needs

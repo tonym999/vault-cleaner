@@ -88,7 +88,9 @@ FOCUS_JS = """
 def tab_through(page: Any) -> list[dict]:
     """Press Tab until the cycle repeats; return one lap, from the first control."""
     stops: list[dict] = []
-    for _ in range(120):
+    # One lap plus the body stop and a margin, including large reports (S15).
+    limit = page.locator("a[href], button, select, input").count() + 5
+    for _ in range(limit):
         page.keyboard.press("Tab")
         stop = page.evaluate(FOCUS_JS)
         if stop["order"] == -1:

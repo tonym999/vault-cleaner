@@ -66,7 +66,7 @@ def main() -> int:
         with frontend_copy() as frontend:
             for name, envelope in drifted.items():
                 (frontend / "src" / "contract" / name).write_text(contract.render(envelope), encoding="utf-8")
-            code, lines = run(["npm", "run", "check"], frontend)
+            code, lines = run(["npm", "run", "check", "--", "--output", "machine"], frontend)
             errors = [line.split(" ", 1)[1] for line in lines if " ERROR " in line]
             summary = next(line.split(" ", 1)[1] for line in lines if "COMPLETED" in line)
             print(f"2. type check after regenerating the samples: exit {code}: {summary}")

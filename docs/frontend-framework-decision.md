@@ -10,11 +10,16 @@ no production code. The migration is the ticket drafts in
 Every measured claim links to a transcript in
 [docs/evidence/issue-206/README.md](evidence/issue-206/README.md). The proof
 code is in [spikes/issue-206/](../spikes/issue-206/README.md). All data is
-fake fixtures.
+synthetic fixtures and the one tracked sanitised armor fixture.
 
 ## 1. Recommendation
 
-**GO.** Rebuild the review frontend as:
+**Bounded conditional.** Svelte 5 + TypeScript + Vite with Tailwind 4 and
+daisyUI 5 remains the recommended stack, but S15 found a repeatable slowdown
+on the sanitised report. Proceed with migration only after a focused
+presentation-performance change passes the same whole-report comparison;
+keep the current page until that gate passes. Correctness, focus, layout and
+security pass. The proposed architecture remains:
 
 - **Svelte 5 with TypeScript, built by Vite 8.** Plain Svelte, not SvelteKit.
 - **Tailwind CSS 4 with daisyUI 5** for styling, on native HTML controls.
@@ -27,15 +32,16 @@ fake fixtures.
   beside the other UI resources, so an installed wheel and a Python-only
   contributor never need Node.
 
-All nine gates pass for the slice (the Armor duplicates surface):
+Eight gates pass for the Armor duplicates slice. H5 is conditional on the
+real-scale performance comparison, although its layout checks pass:
 
 | Gate | Requirement | Result | Evidence |
 | --- | --- | --- | --- |
-| H1 | The slice shows what the server says | Pass. Every required value equal for four fixtures, without and with verdicts, at 1440 and 390 px. Three group values no fixture carries (spirit signature, and an exact group's Seasonal Mod and Holofoil) are measured on an in-memory overlay of the server's answer; scope and Class options equal to production's for nine filter sequences; the negative control fails | [S1](evidence/issue-206/README.md#s1-information-parity-gate-h1) |
+| H1 | The slice shows what the server says | Pass. Every required value equal for four fixtures, without and with verdicts, at 1440 and 390 px. S15 additionally compares every value in all 74 sanitised groups (158 members, 3401 value/role assertions per width), and all five real-upload spirit signatures; exact Seasonal Mod and positive Holofoil still rest on S1's overlay. Scope and Class options match for all nine sequences, including the real Hunter-to-Exact drop; the negative control fails | [S1](evidence/issue-206/README.md#s1-information-parity-gate-h1), [S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) |
 | H2 | Untrusted values inert; ids and hashes opaque | Pass, in two passes. With all 602 strings replaced: no element created, no dialog, no violation, ids byte-identical in the DOM, and no member has verdict buttons. With the three values that decide eligibility kept (574 strings replaced): the same, and the id is byte-identical in the verdict request body | [S2](evidence/issue-206/README.md#s2-hostile-content-gate-h2), [source rules](evidence/issue-206/README.md#source-rules-gates-h2-h8) |
 | H3 | Acknowledged state only; no replay; correct across finalise, reset and disconnect | Pass. The already-open page reaches the frozen state with the revision pair unchanged | [S3](evidence/issue-206/README.md#s3-acknowledged-state-only-gate-h3), [S4](evidence/issue-206/README.md#s4-finalise-reset-disconnect-gate-h3) |
-| H4 | Contract section 7 met; focus survives a verdict | Pass, with one stated change of mechanism (`aria-disabled`, [section 4](#4-design)) | [S5](evidence/issue-206/README.md#s5-focus-and-live-regions-gate-h4), [S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4) |
-| H5 | Narrow layout usable; page never scrolls sideways | Pass at 1440, 1024 and 390 px, light and dark | [S6](evidence/issue-206/README.md#s6-layouts-gate-h5) |
+| H4 | Contract section 7 met; focus survives a verdict | Pass, with one stated change of mechanism (`aria-disabled`, [section 4](#4-design)) | [S5](evidence/issue-206/README.md#s5-focus-and-live-regions-gate-h4), [S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4), [S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) |
+| H5 | Narrow layout usable; page never scrolls sideways; S15 performance condition | **Conditional.** Layout passes at 1440, 1024 and 390 px, both schemes, including all three-/four-member groups and 444 keyboard controls. S15 repeatedly renders and repaints slower than production; section 6 names the follow-up gate | [S6](evidence/issue-206/README.md#s6-layouts-gate-h5), [S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) |
 | H6 | Works from an installed wheel without Node | Pass. Chromium rendered a group and completed a verdict against the wheel, Node absent from the server's `PATH` | [S8](evidence/issue-206/README.md#s8-installed-wheel-in-a-browser-gate-h6) |
 | H7 | Auth, Host, Origin and `no-store` unchanged; CSP unchanged or within the approved envelope | Pass with the **unchanged** policy. No addition is used | [S7](evidence/issue-206/README.md#s7-content-security-policy-gate-h7), [S9](evidence/issue-206/README.md#s9-request-envelope-gate-h7) |
 | H8 | Maintenance effort is clearly lower | Pass, on structure and not on size. Verdict and reasons in [section 6](#6-comparison) | [S12](evidence/issue-206/README.md#s12-code-comparison-npm-tree-and-licences-gate-h8), [S14](evidence/issue-206/README.md#s14-change-exercises-gate-h8) |
@@ -238,10 +244,14 @@ decision, #206).
 ### Presentation choices changed
 
 1. **Visual target.** daisyUI's `light` and `dark` themes, following
-   `prefers-color-scheme`. One override: the dark `primary` is darkened,
+   `prefers-color-scheme`. The dark `primary` is darkened,
    because the default measured 4.1:1 against its text
    ([S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4)).
-   System fonts; no web font.
+   S15 exposed two more contrast defects: the default acknowledged Approve
+   label at 4.46:1 and tier-5 outlined stat-role text at 2.39:1 in dark mode.
+   Two narrow stylesheet overrides darken success text and lighten outlined
+   primary badge text. Their whole-report axe/contrast checks pass after the
+   fix; no layout or component markup changed. System fonts; no web font.
 2. **The comparison matrix is gone.** Production builds two tables per group
    and switches orientation with container queries. The slice has one
    structure: values that are the same for every piece are listed once under
@@ -308,6 +318,17 @@ The four-member group:
 [desktop](evidence/issue-206/four-members-desktop-light.png),
 [narrow](evidence/issue-206/four-members-narrow-light.png).
 
+### Sanitised report screenshots
+
+All 74 groups are captured, with the acknowledged verdict on the final group.
+These full-page images are long; the automated geometry and oracle checks
+also cover every group rather than only what fits in the first viewport.
+
+| Desktop | 390 px |
+| --- | --- |
+| [Light, full report](evidence/issue-206/real-desktop-light.png) | [Light, full report](evidence/issue-206/real-narrow-light.png) |
+| [Dark, full report](evidence/issue-206/real-desktop-dark.png) | [Dark, full report](evidence/issue-206/real-narrow-dark.png) |
+
 ## 5. Browser responsibility keep/remove map
 
 The ten responsibilities and their line ranges are #137's
@@ -348,7 +369,7 @@ Non-blank lines.
 | Imperative DOM calls in that code | 87 | not counted | 0 |
 
 **The slice is not smaller.** Its rendering code is 816 lines against 908,
-and the whole slice that runs or is served is 1,410 lines, because it also
+and the whole slice that runs or is served is 1,418 lines, because it also
 contains its own session logic, stylesheet and serving code. The difference
 is in kind: no line builds or patches DOM, all of it is type-checked, and
 the logic is tested in process.
@@ -382,15 +403,61 @@ Timings are from one machine and vary.
 
 | | Measured |
 | --- | --- |
-| Cold production build, and a rebuild after a one-line edit | 0.7 s and 0.8 s, including starting npm |
+| Cold production build, and a rebuild after a one-line edit | 0.8 s and 0.8 s, including starting npm |
 | Output | `app.js` 63 kB (23 kB gzip), `app.css` 57 kB (10 kB gzip), `index.html` 0.4 kB |
-| Type check; unit tests | 2.0 s; 1.3 s (32 tests, no browser) |
+| Type check; unit tests | 2.0 s; 1.2 s (32 tests, no browser) |
 | One command to first render through the proxy | 1.2 s |
 | Save a component to seeing it, no reload, server data kept | under 0.1 s |
 
 The current page has no build and no type check; an edit is seen on reload,
 and a mistake is seen at runtime or in the Node-harness tests. The hybrid
 has no build either; a template edit is seen on the next request.
+
+### Real scale beside production
+
+[S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) uploads all
+893 rows of the tracked sanitised armor fixture without an overlay. Its 9
+exact and 65 same-stat groups contain 158 member occurrences (including six
+three-member and two four-member groups). Every required value matches the
+independent S1 oracle. All nine E10 filter sequences match at both widths;
+Hunter is dropped when switching to Exact, whose class options lack it.
+All five spirit signatures are shown from the real upload.
+
+All six width/scheme combinations fit without sideways scrolling or clipping;
+Tab reaches all 444 controls in order. The final group's acknowledged verdict
+keeps the focused node and its viewport position. ScrollY adjusts 20 px as the
+status message wraps, through normal scroll anchoring; the target moves 0 px
+in the viewport, so there is no visible jump. Whole-document axe and the
+independent contrast check pass after the two narrow colour fixes above.
+
+The comparison uses five alternating runs per page on one machine, the same
+authenticated session/report, All groups, no Class selection, 1440 px/light.
+Production activates its report-ready duplicates control in-page without
+human or Playwright dwell. Readiness requires every group to have a laid-out
+box, then records the next animation frame. Verdict timing starts when the
+JSON body is decoded, before application code resumes; an observer records
+the acknowledged control change and its next frame opportunity. These are DOM
+and frame-opportunity measurements, not physical display scanout.
+
+| Five-run medians | Svelte slice | Production |
+| --- | --- | --- |
+| Navigation to every group laid out | 209.5 ms | 151.9 ms |
+| Navigation to next animation frame | 222.3 ms | 158.1 ms |
+| Acknowledgement to DOM repaint | 17.5 ms | 10.8 ms |
+| Acknowledgement to next animation frame | 23.6 ms | 15.8 ms |
+| Document elements | 13,143 | 17,138 |
+
+The scope differs: production also constructs the Proposals DOM and both
+comparison orientations; the slice has one surface and one structure. Despite
+fewer elements the slice is slower in both navigation and acknowledged repaint.
+An isolated repeat confirmed the direction. This changes H5 and the
+recommendation to **bounded conditional**; it does not invalidate the passing
+information, focus or narrow-layout results. Before switch-over, a focused
+presentation change (for example retaining report-scoped projection and
+updating only verdict-dependent presentation) must remove the observed
+slowdown under this comparison. If that does not suffice, measure paging or
+virtualisation of whole groups, preserving within-group simultaneous values,
+focus, offline filtering and scope counts. Those alternatives were not built.
 
 ### H8: is maintenance effort clearly lower? Yes, on structure
 
@@ -417,7 +484,7 @@ has no build either; a template edit is seen on the next request.
   reason given above.
 - **(d) The remaining application logic is typed and unit-tested without a
   browser:** held responses, stale revisions, a finalise made elsewhere, a
-  stopped server, in 32 tests that run in 1.3 s.
+  stopped server, in 32 tests that run in 1.2 s.
 
 It is **not** lower on size, and it adds a toolchain to maintain
 ([section 7](#7-costs)). If the owner weighs a second toolchain more heavily
@@ -529,10 +596,10 @@ Awkward, each found by a proof:
   migration must decide how much runtime validation to keep.
 - **Fixtures have no read-only same-stat member and no exact survivor with
   a later proposal.** Those two cases are covered by unit tests only.
-- **No fixture carries a spirit signature, or an exact group with a
-  Seasonal Mod or a Holofoil.** S1 measures those three on the server's real
-  answer changed in memory before the page sees it, and unit tests cover
-  them; no real upload produced them.
+- **Exact-group Seasonal Mod and positive Holofoil still rest on S1's
+  in-memory overlay and unit tests.** The sanitised fixture has no exact
+  Seasonal Mod and its exact groups have Holofoil `false`; all five spirit
+  signatures now come from S15's unmodified upload.
 - **The stylesheet half of S12's built-output licence scan is a text match.**
   The JavaScript half reads the bundler's own module list. For the
   stylesheet the bundler lists only the entry file, because Tailwind inlines
@@ -551,9 +618,14 @@ Awkward, each found by a proof:
 - **Line counts** compare a spike with production code.
 - **Probe package counts** per library were not put in the evidence file;
   the sizes and violations were.
-- **Timings** are from one machine and one run each.
-- **Performance on a large report** was not measured. The slice renders
-  every group; a real vault may need paging or virtualisation.
+- **Timings** are from one machine. S10 measures one development-loop run;
+  S15 uses five alternating runs per implementation and reports medians.
+  Navigation and DOM/frame timing at 1440 px/light are measured; performance
+  at other widths, other machines and reports beyond this 893-row fixture
+  remains unmeasured. The slower slice needs a focused follow-up before GO.
+- **The full-page stacked layout is long:** about 61,000 px at desktop and
+  101,000 px at 390 px. Every group is tested and captured, but no human
+  task-completion or large-report navigation study was run.
 - **The stat-role derivation** stays in the browser because the envelope
   has no field for it.
 
@@ -620,7 +692,23 @@ the server.
 **Stop if** a sort or grouping rule would have to be decided in the browser
 beyond what `review_ui.js` already does.
 
-### 5. M10: switch over and retire the old page
+### 5. M10: real-scale presentation performance gate
+
+**Scope.** A focused reduction of report-wide presentation work on load and
+verdict adoption, with a regression comparison against the current page on
+the tracked sanitised report. Start with report-scoped projection and selective
+verdict-dependent updates; measure paging or whole-group virtualisation only
+if needed. Reuse S15's all-group oracle, filter, focus, keyboard, accessibility
+and five-run timing checks. Keep every differing value visible per member.
+
+**Scope rule.** Presentation performance only, on the second path; no schema,
+rule, eligibility, lifecycle or protocol change.
+
+**Stop if** the comparison still shows the measured slowdown, or an
+optimization sacrifices comparison information, focus, offline filters,
+scope counts or CSP. The migration remains conditional and does not switch over.
+
+### 6. M10: switch over and retire the old page
 
 **Scope.** Serve the new frontend at `/`. Delete `review_ui.js`,
 `review_server.js`, `review.css`, `review_server.html` and the two
@@ -633,11 +721,12 @@ why.
 
 **Stop if** the mapping finds a pinned behaviour with no new test.
 
-### 6. M10: final gate
+### 7. M10: final gate
 
 **Scope.** The full Playwright suite against an installed wheel; an
 accessibility pass that includes a screen reader, recorded in
-`docs/browser-verification.md`; a large-report performance check; and
+`docs/browser-verification.md`; a repeat of the sanitised-report performance gate, plus a larger fixture
+if available through approved sanitisation; and
 removal of `spikes/issue-206/` and `spikes/issue-137/` or a note that they
 stay as frozen evidence.
 

@@ -110,7 +110,10 @@ def run(page: Any, label: str, failures: list[str]) -> None:
         for scheme in ("light", "dark"):
             page.set_viewport_size({"width": width, "height": 900})
             page.emulate_media(color_scheme=scheme)
-            page.wait_for_timeout(100)
+            # Theme changes transition button colours. Measure settled styles
+            # rather than a contrast ratio halfway between the two themes.
+            page.evaluate("async () => { await Promise.all(document.getAnimations().map("
+                          "animation => animation.finished.catch(() => undefined))); }")
             result = page.evaluate(RUN_JS)
             ratios = [entry["ratio"] for entry in result["measured"]]
             low = min(result["measured"], key=lambda entry: entry["ratio"], default=None)
