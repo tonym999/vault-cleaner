@@ -106,3 +106,25 @@ was edited. Only synthetic fixtures and the single tracked sanitised armor
 fixture were read; no `data/` access. Limits remain those of S15: DOM/frame
 opportunities, one machine/report, no physical scanout or human navigation
 study, screen reader or other-browser measurement.
+
+## Orchestrator accounting follow-up
+
+After committing/pushing the focus repair at
+`3e47b7478dfe73e67ec5a560a7c5d18162a37760`, the orchestrator's incremental
+audit found one bounded **P3**: S12's explicit proof/tooling file list omitted
+the new `focus_contrast.py`, so its 3593/21 count included only the S13 edits.
+**Accepted and repaired** in an appended commit on the same branch, starting
+at that SHA; no amend, rebase or force-push.
+
+Exact extra hunk inventory: add `focus_contrast.py` to S12's existing count
+list; replace only that count line in its evidence fence; extend this entry
+with the finding/disposition and verification. The new count is 3708 lines in 22 files.
+No CSS, proof behavior, decision-record/source citations, S15 figure, other
+transcript or screenshot changed.
+
+S12 rerun passes, with the full output compared against its evidence fence.
+Mandatory repository/spike lint passes and full pytest reports **1342 passed**
+(32.45 s) before this appended commit; hygiene and approved-plan identity
+checks also pass. The browser,
+frontend and S1–S15 runs already recorded above validate unchanged inputs;
+no claim is made that they were rerun for this count-only follow-up.

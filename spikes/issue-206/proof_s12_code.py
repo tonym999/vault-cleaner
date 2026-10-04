@@ -168,7 +168,7 @@ def main() -> int:
     for label, patterns in NOT_SHIPPED:
         total, files = lines(patterns)
         print(f"slice, {label}: {total} lines in {files} files")
-    proofs, proof_files = lines(["proof_*.py", "expected.py", "harness.py", "check_source.py",
+    proofs, proof_files = lines(["proof_*.py", "expected.py", "harness.py", "focus_contrast.py", "check_source.py",
                                  "wheel_server.py", "dev.py", "serve.py"])
     print(f"proof and tooling scripts (not part of any comparison): {proofs} lines in {proof_files} files")
     imperative = sum(

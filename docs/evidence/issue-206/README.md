@@ -698,7 +698,7 @@ slice, everything that runs or is served: 1420 lines
 slice, unit tests and the type-contract module: 347 lines in 4 files
 slice, build configuration: 113 lines in 3 files
 slice, Python: contract sample generator: 92 lines in 1 files
-proof and tooling scripts (not part of any comparison): 3593 lines in 21 files
+proof and tooling scripts (not part of any comparison): 3708 lines in 22 files
 imperative DOM calls (createElement, el(), appendChild, textContent=, setAttribute): slice 0; the production ranges 87
 -- npm tree and audit --
 frontend: 76 packages installed; 122 in the lockfile; installed but not as locked: []; locked but not installed here (other platforms' optional binaries): 46, all optional=True, lockfile licences {'MIT': 26, 'MPL-2.0': 20}
