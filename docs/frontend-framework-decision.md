@@ -32,7 +32,7 @@ All nine gates pass for the slice (the Armor duplicates surface):
 | Gate | Requirement | Result | Evidence |
 | --- | --- | --- | --- |
 | H1 | The slice shows what the server says | Pass. Every required value equal for four fixtures, without and with verdicts, at 1440 and 390 px. Three group values no fixture carries (spirit signature, and an exact group's Seasonal Mod and Holofoil) are measured on an in-memory overlay of the server's answer; scope and Class options equal to production's for nine filter sequences; the negative control fails | [S1](evidence/issue-206/README.md#s1-information-parity-gate-h1) |
-| H2 | Untrusted values inert; ids and hashes opaque | Pass. 602 strings replaced; no element created, no dialog, no violation; ids byte-identical in the DOM and in the request body | [S2](evidence/issue-206/README.md#s2-hostile-content-gate-h2), [source rules](evidence/issue-206/README.md#source-rules-gates-h2-h8) |
+| H2 | Untrusted values inert; ids and hashes opaque | Pass, in two passes. With all 602 strings replaced: no element created, no dialog, no violation, ids byte-identical in the DOM, and no member has verdict buttons. With the three values that decide eligibility kept (574 strings replaced): the same, and the id is byte-identical in the verdict request body | [S2](evidence/issue-206/README.md#s2-hostile-content-gate-h2), [source rules](evidence/issue-206/README.md#source-rules-gates-h2-h8) |
 | H3 | Acknowledged state only; no replay; correct across finalise, reset and disconnect | Pass. The already-open page reaches the frozen state with the revision pair unchanged | [S3](evidence/issue-206/README.md#s3-acknowledged-state-only-gate-h3), [S4](evidence/issue-206/README.md#s4-finalise-reset-disconnect-gate-h3) |
 | H4 | Contract section 7 met; focus survives a verdict | Pass, with one stated change of mechanism (`aria-disabled`, [section 4](#4-design)) | [S5](evidence/issue-206/README.md#s5-focus-and-live-regions-gate-h4), [S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4) |
 | H5 | Narrow layout usable; page never scrolls sideways | Pass at 1440, 1024 and 390 px, light and dark | [S6](evidence/issue-206/README.md#s6-layouts-gate-h5) |
@@ -382,7 +382,7 @@ Timings are from one machine and vary.
 
 | | Measured |
 | --- | --- |
-| Cold production build, and a rebuild after a one-line edit | 0.7 s each, including starting npm |
+| Cold production build, and a rebuild after a one-line edit | 0.7 s and 0.8 s, including starting npm |
 | Output | `app.js` 63 kB (23 kB gzip), `app.css` 57 kB (10 kB gzip), `index.html` 0.4 kB |
 | Type check; unit tests | 2.0 s; 1.3 s (32 tests, no browser) |
 | One command to first render through the proxy | 1.2 s |

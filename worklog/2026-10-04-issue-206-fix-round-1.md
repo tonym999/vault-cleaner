@@ -58,7 +58,7 @@ pull request opened, no issue touched, no production file changed. Refs #206.
 
 ## Other edits
 
-- The three `exercises/*.patch` files that touch `view.ts` or `view.test.ts`
+- The four `exercises/*.patch` files that touch `view.ts` or `view.test.ts`
   were regenerated, because their context lines moved. Their content is the
   same change.
 - The record's figures follow the code: 32 unit tests (was 28), 298 lines of

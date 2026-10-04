@@ -206,8 +206,8 @@ def main() -> int:
     print("-- what is in the built output --")
     listing = (FRONTEND / "dist" / "modules.json").read_text(encoding="utf-8")
     modules = json.loads(listing)
-    relative = not any(module.startswith("/") or ":\\" in module
-                       for ids in modules["outputs"].values() for module in ids)
+    listed = [module for ids in modules["outputs"].values() for module in ids] + modules["css"]
+    relative = not any(module.startswith("/") or ":\\" in module for module in listed)
     print(f"dist/modules.json: {len(listing.encode())} bytes; every path relative to frontend/: {relative}")
     if not relative:
         failures.append("modules.json holds an absolute path")
