@@ -176,3 +176,55 @@ stayed at `732de22` and nothing was committed. The review base stays
 The amended plan needs a new approval by SHA before the implementer is
 dispatched again. The dispatch comment on the issue names `732de22` and has
 not been updated.
+
+## Review outcome at `870b171`, and Amendment 4 (2026-10-04): real scale
+
+**Review outcome not recorded elsewhere.** After fix round 2 the same
+independent reviewer (Anthropic `claude-opus-5-5`, fresh read-only Claude
+Code subagent, disposable checkout pinned to
+`870b1714770cdaa5751ba7dc574ee20d7e7ec159`) re-reviewed the complete range
+`732de22...870b171` and audited `1402026..870b171`. It reported no actionable
+finding at any severity: A, B and C resolved, the six round-1 findings still
+resolved. It independently reran the verification suite, the frontend and
+probe builds from a clean `npm ci`, and `proof_s1` to `proof_s14`, all
+passing; it did not rerun `proof_s6_layout.py --screenshots`, the `npm view`
+licence fence or the build-reproducibility fence. The orchestrator then
+removed the disposable checkout. No pull request was opened.
+
+**Why another amendment.** The owner asked why the spike had not used the
+sanitised real-export fixture. The plan had said "fake fixtures only" and
+listed four synthetic files, so the implementer never loaded
+`tests/fixtures/real/2026-09-01T-current/armor.csv`, and `serve.py` accepts
+only the four names. The owner had assumed that fixture would be used, since
+it was built for this. Issue #207 was created to put the rule into
+`AGENTS.md` and the planner template; it is separate from this ticket.
+
+**Measured for the amendment** (the sanitised fixture, not a real export):
+uploaded to the spike server at `870b171` and read back from `/api/report`.
+The envelope is about 743 kB. 9 exact duplicate groups, all of two members,
+all tier 5, 5 with a spirit signature, none with a Seasonal Mod, all with
+Holofoil `false`. 65 same-stat groups: 57 of two members, 6 of three, 2 of
+four; none with a spirit signature. Exact members: 9 `preferred_survivor`,
+8 `proposed_junk`, 1 `proposed_review`. So a real upload can replace S1's
+overlay for the spirit signature, but not for an exact group's Seasonal Mod
+or Holofoil.
+
+**Plan changes.** Experiment S15 (real scale: full oracle comparison, filter
+parity, layout, one verdict far down the page, the accessibility check,
+timings beside production's, screenshots); the sanitised fixture in
+`serve.py` and `dev.py`; H1, H4 and H5 cite S15; how S15 bears on the gates
+and the record; the fixture wording in the stop condition, the evidence
+section, the execution prompt and the checklist; likely finding 8.
+
+**Implementer re-selected to `gpt-6.1-sol` at `high`.** The owner will run
+this round on an OpenAI model to save Claude usage, and named `gpt-6.1-sol`
+or `gpt-6-luna`. `gpt-6.1-sol` is a Judgement primary; `gpt-6-luna` is
+rostered only as a Bounded alternative. This runtime cannot launch either,
+so it is a manual cross-provider launch by the owner. Who orchestrates and
+reviews that round is the owner's choice and is not settled here.
+
+**For the next agent.** The review base stays `732de22`; the previous
+reviewed head is `870b171`. The amended plan needs approval by SHA before
+dispatch. The dispatch comments on the issue name `732de22` and `522f2fb`.
+A `proof_s10_devloop.py` timeout seen once in fix round 1 is still
+unexplained.

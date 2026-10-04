@@ -12,7 +12,7 @@
 
 **Planner model:** `claude-opus-5-5` (Claude Code desktop session; the session does not report its native effort, so none is recorded)
 
-**Implementation model selected:** `claude-opus-5-5` at `high` (Judgement rung; justified below)
+**Implementation model selected:** `gpt-6.1-sol` at `high` for the Amendment 4 work (Judgement rung; justified below). `claude-opus-5-5` implemented S1 to S14 under plan `522f2fb`.
 
 **Plan baseline:** `main` at `c978a5b6d8f6512539810436b743d87bbc3c166c` (2026-10-04)
 
@@ -48,6 +48,18 @@ amendment changes the toolchain table, the shortlist, S12, S13 and the
 licence stop condition, and adds the *Licences* section, likely finding 7
 and one checklist line. The approval of `732de22` does not
 carry over.
+
+**Amendment 4 (2026-10-04).** `522f2fb228755b7631685649c9d136bd80ebaa53` was
+approved, implemented and independently reviewed; the reviewed head is
+`870b1714770cdaa5751ba7dc574ee20d7e7ec159` (GO, all nine gates passing, no
+open finding). The owner then pointed out that the spike never used the
+sanitised real-export fixture, which exists for this purpose: the plan had
+said "fake fixtures only" and listed four small synthetic files, so the slice
+was never rendered at real scale. This amendment adds experiment **S15** and
+the sanitised fixture to the try-it and development commands, corrects the
+fixture wording, and re-selects the implementer because the owner will run
+this round on an OpenAI model. S1 to S14 are not redone. The approval of
+`522f2fb` does not carry over.
 
 ## Objective
 
@@ -215,10 +227,21 @@ the registry on 2026-10-04 after the first dispatch stopped:
 - `scripts/check_wheel_install.py` copies tracked files into a temporary
   tree and builds from that; #137's `proof_e7_wheel.py` shows how to overlay
   extra files on such a copy without touching `pyproject.toml`.
-- Fake fixtures for the slice: `tests/fixtures/armor_close.csv` (an exact
+- Synthetic fixtures for the slice: `tests/fixtures/armor_close.csv` (an exact
   group with one proposal member and one read-only member, plus a same-stat
   group), `armor_duplicates_ui.csv` (three-member exact),
   `armor_same_stat_ui.csv`, `armor_same_stat_four_ui.csv` (four-member).
+- **The sanitised real-export fixture** is
+  `tests/fixtures/real/2026-09-01T-current/armor.csv` (893 rows; produced by
+  `scripts/sanitize_export.py`, every id carrying the `1000` marker). It is
+  tracked, it is not under `data/`, and using it is allowed. Measured on
+  2026-10-04 by uploading it to the spike server at `870b171` and reading
+  `/api/report`: the envelope is about 743 kB; **9 exact duplicate groups**,
+  all of two members, all tier 5, **5 of them with a spirit signature**, none
+  with a Seasonal Mod, all with Holofoil `false`; **65 same-stat groups** (57
+  of two members, 6 of three, 2 of four), none with a spirit signature. Exact
+  members: 9 `preferred_survivor`, 8 `proposed_junk`, 1 `proposed_review`.
+  No group is unnamed.
 - Baseline: `.venv/bin/pytest -q` → `1342 passed`.
   `python3 scripts/check_model_roster.py` → `2 stale` (neither is the
   `claude-opus-5-5` row, verified 2026-10-02).
@@ -390,6 +413,7 @@ Each produces a transcript in the evidence file.
 | S12 | 3, 6 | **Code comparison.** Line counts for the slice by category: components and markup, application logic (requests, revisions, reconciliation, lifecycle), filtering, types, Python, tests. Set them beside production's 908 and the hybrid's 155 + 474 + 187. Count the installed npm packages and record `npm audit`. **Licence scan:** list the licence of every package in the tree installed by `npm ci`, read from the installed `package.json` files (and the `LICENSE` file where the field is missing), and fail if any is outside the approved licences. Then list every package that contributes a module to the built output, taken from the build's own module list or source maps and not from a hand-kept list, and fail if any of those is not MIT, Apache-2.0, BSD or ISC. | Recorded; the scan passes, and no MPL-2.0 package contributes to the built output |
 | S13 | 2 | **Automated accessibility check** (for example axe-core, which is MPL-2.0 and allowed as a development-only tool that is never bundled) on the slice in both colour schemes. | Violations listed; none left unexplained |
 | S14 | 3, 6 | **Change exercises.** Make three small changes to the finished slice, each saved as a patch file under `spikes/issue-206/` that applies cleanly to the committed slice, and not left applied: (1) show one more per-member comparison value; (2) add one more filter facet; (3) change the wording of one verdict state. For each, record the files and places touched in the Svelte slice, and identify by `file:line` every place the same change would touch in the current page and in #137's Jinja hybrid. Record whether the type check or a test caught a deliberately incomplete version of the change. | Recorded for all three, for all three codebases |
+| S15 | 2, 4 | **Real scale.** `serve.py` and `dev.py` accept the sanitised fixture (for example `--fixture real`), read from its tracked path and never from `data/`. Upload it and: (1) run S1's oracle comparison over **every** group and member of the report at 1440 px and at 390 px, printing the number of groups, members and values compared; (2) compare scope text and Class options with the production page for the E10 filter sequences on this report; (3) assert a spirit signature is shown for each exact group whose envelope has one, from the real upload with no overlay; (4) repeat S6's checks at 1440, 1024 and 390 px, light and dark: no sideways scroll, ids wrap, the three- and four-member groups comparable without member-by-member navigation; (5) complete one acknowledged verdict on a group far down the page and show the focused control is the same node and the page did not jump; (6) run S13's accessibility check on this page in both schemes; (7) measure, for the slice and for the production page on the same report and machine, the time from navigation to every group rendered, the time from a verdict's acknowledgement to the repaint, and the DOM node count, as the median of at least five runs each; (8) capture screenshots: desktop and 390 px, light and dark. | Every value correct for every group; layout holds; the timings recorded beside production's; or each defect listed with its consequence for H1, H4 or H5 |
 
 ### Decision record
 
@@ -431,11 +455,11 @@ correct but no easier to maintain or to work on is not a GO.
 
 | Gate | Requirement | Evidence |
 | --- | --- | --- |
-| H1 | The slice shows what the server says | S1 |
+| H1 | The slice shows what the server says | S1, S15 |
 | H2 | Untrusted values inert; ids and hashes opaque | S2 |
 | H3 | Acknowledged state only; no replay; correct across finalise, reset and disconnect | S3, S4 |
-| H4 | Contract section 7 met; focus survives a verdict | S5, S13 |
-| H5 | Narrow layout usable; page never scrolls sideways | S6 |
+| H4 | Contract section 7 met; focus survives a verdict | S5, S13, S15 |
+| H5 | Narrow layout usable; page never scrolls sideways | S6, S15 |
 | H6 | Works from an installed wheel without Node | S8 |
 | H7 | Auth, Host, Origin and `no-store` unchanged; the CSP unchanged or within the approved envelope | S7, S9 |
 | H8 | **Maintenance effort is clearly lower.** All of: (a) no rule exists in both Python and the browser; (b) the slice has no hand-written DOM construction, repaint or node bookkeeping outside declarative component markup, apart from listed and justified exceptions such as a `focus()` call; (c) in each S14 exercise the change touches fewer places than in the current page, or the record says why not; (d) the application logic that remains (requests, revisions, reconciliation, lifecycle) is typed and unit-tested without a browser | S12, S14 |
@@ -450,6 +474,20 @@ experience is finally the owner's to judge: the README's try-it command and
 a short "make a change yourself" walkthrough, built from one S14 exercise,
 exist for that.
 
+**S15 and the gates.** S15 has no numeric threshold. If the slice is correct
+at real scale and not clearly slower than the production page, the gates
+stand. A defect S15 finds in the slice may be fixed in the slice when the fix
+is within the mechanical inclusion test; say what was fixed. A defect that
+cannot be fixed there, or a page clearly slower or harder to use than
+production's on the same report, changes the affected gate and the
+recommendation, and the record must say what the migration would need
+(paging, virtualisation, or a named alternative). The record's sections 1, 4,
+6 and 8 and the migration drafts are updated to match what S15 measured:
+"no large report was rendered" is removed from the limits, and the record
+says which required values still rest on S1's in-memory overlay (an exact
+group's Seasonal Mod and Holofoil, which the sanitised fixture does not
+carry).
+
 A pre-approved addition does not make the result conditional, but the record
 must state the exact policy the recommended stack needs, which component
 needs each addition, and what the unchanged policy would have required
@@ -463,9 +501,11 @@ tried and the trade-off. Never describe such an option as compatible.
 
 #### [NEW] `docs/evidence/issue-206/README.md` and screenshots
 
-Verbatim transcripts for S1 to S13, each fence reproducible from the
-repository root after `npm ci` and a build. Fake data only. Screenshots:
-light and dark, desktop and 390 px.
+Verbatim transcripts for S1 to S15, each fence reproducible from the
+repository root after `npm ci` and a build. Synthetic fixtures and the
+sanitised real-export fixture only; nothing from `data/`. S15's transcript
+prints counts, timings and results, not rows. Screenshots: light and dark,
+desktop and 390 px, for the synthetic fixtures and for the sanitised one.
 
 #### [NEW] `worklog/YYYY-MM-DD-issue-206-implementation.md`
 
@@ -508,6 +548,13 @@ Worked examples:
   actions beyond what S4 needs to trigger a finalise and a reset.
 - **OUT OF SCOPE:** importing from `spikes/issue-137/`, or editing it.
 - **OUT OF SCOPE:** creating, editing or commenting on any GitHub issue.
+- **IN SCOPE (Amendment 4):** reading
+  `tests/fixtures/real/2026-09-01T-current/armor.csv` from the spike's
+  scripts.
+- **OUT OF SCOPE (Amendment 4):** editing or regenerating anything under
+  `tests/fixtures/real/`, running `scripts/sanitize_export.py`, reading
+  `data/`, the weapons or ghosts exports, or redoing S1 to S14 beyond
+  rerunning a proof whose inputs changed.
 
 ### Stop conditions
 
@@ -526,7 +573,7 @@ Stop implementation and return to orchestrator if:
   package that contributes code to the built output and is not MIT,
   Apache-2.0, BSD or ISC, or a build-time-only package that is none of those
   and not MPL-2.0;
-- real vault data would be needed;
+- anything under `data/`, or any export that is not sanitised, would be needed;
 - the slice needs a field the envelope does not carry.
 
 A failed gate, or every shortlisted library needing more than the approved
@@ -540,8 +587,19 @@ Escalation route: `implementer → orchestrator → planner`.
 boundaries. It delegates the architecture, the library choice and the visual
 design, which are meaningful choices between alternatives. It is not
 High-risk: no production code, persistence or lifecycle changes.
-`claude-opus-5-5` is a Judgement primary, its roster row is not stale, and
-the active runtime can instantiate it.
+`claude-opus-5-5` is a Judgement primary and implemented S1 to S14.
+
+**Amendment 4: `gpt-6.1-sol` at `high`.** The owner will run this round on
+an OpenAI model and named `gpt-6.1-sol` or `gpt-6-luna`. The work stays on
+the Judgement rung: S15 is specified, but judging the slice at real scale,
+deciding whether a defect is fixable inside the slice, and revising the
+recommendation and the record are judgement. `gpt-6.1-sol` is a Judgement
+primary and its roster row was verified 2026-10-03. `gpt-6-luna` is rostered
+only as a Bounded alternative at `medium`; the orchestrator may re-select it
+under *Implementer Re-selection* with a recorded reason, for example if the
+round is cut down to the mechanical parts of S15. The planner's runtime
+cannot instantiate either, so the launch is manual cross-provider execution
+by the owner (`handoffs/README.md`).
 
 ## Likely findings
 
@@ -570,6 +628,12 @@ the active runtime can instantiate it.
 7. **A licence scan that proves less than it says.** The built-output half
    checked against a hand-kept list of packages, or the tree scan run on a
    tree other than the one the lockfile installs.
+8. **Real scale claimed from less than the whole report.** S15's comparison
+   run over the first few groups, or over one viewport; a timing from a
+   single run, or with no production figure beside it; screenshots that show
+   only the top of the page; the record's limits or recommendation left as
+   they were without saying what S15 showed; a collateral edit to S1 to S14
+   or their fences that the summary does not list.
 
 # Reusable implementer execution prompt
 
@@ -582,11 +646,12 @@ git show <plan_sha>:handoffs/issue-206-implementation-plan.md
 Read the entire handoff at that SHA, issue #206, tracker #138, `AGENTS.md`, `PLAN.md`, `docs/review-ui-design-contract.md`, `docs/review-rendering-architecture.md`, `docs/evidence/issue-137/README.md`, `spikes/issue-137/README.md`, `docs/browser-verification.md`, the recent worklog (defined in `AGENTS.md`, *Worklog*), and current relevant code before editing.
 
 Rules:
+- this dispatch covers Amendment 4 only: experiment S15, the sanitised fixture in `serve.py` and `dev.py`, and the record, evidence and README changes that follow from them, on top of the implemented and reviewed head `870b1714770cdaa5751ba7dc574ee20d7e7ec159`. Read `worklog/2026-10-04-issue-206-implementation.md` and both fix-round entries first. Do not redo or restyle S1 to S14; rerun any proof whose inputs you changed and list every edit outside S15;
 - work on the existing `feat/issue-206-svelte-frontend-spike`, which already holds the plan commit; do not create another branch, rebase, or force-push, and record the branch head you start from as your attempt's starting SHA (the orchestrator keeps the ticket's review base, which a later attempt does not move);
 - never edit `handoffs/issue-206-implementation-plan.md`;
 - apply the plan's mechanical inclusion test to every hunk; this spike changes no file under `src/`, `tests/`, `scripts/`, `.github/`, `spikes/issue-137/`, or `pyproject.toml`, `.gitignore`, `PLAN.md`, `AGENTS.md`;
 - pin exact npm versions, commit the lockfile, install with `npm ci`, and track no `node_modules` or build output;
-- use fake fixtures only; never read `data/`;
+- use only the synthetic fixtures and the sanitised real-export fixture `tests/fixtures/real/2026-09-01T-current/armor.csv`; never read `data/`, and never edit or regenerate anything under `tests/fixtures/real/`;
 - create, edit or comment on no GitHub issue; draft migration tickets in the decision record;
 - add a dated worklog entry file under `worklog/` (format in `AGENTS.md`, *Worklog*);
 - run all verification commands:
@@ -620,6 +685,12 @@ stale-state claims that #137's review showed are easy to get subtly wrong. A
 fresh reviewer who reruns the proofs and probes the CSP and finalise cases is
 the right check.
 
+The independent review of S1 to S14 finished clean at `870b171` after two fix
+rounds. For Amendment 4 the review base stays
+`732de2286328763d86781b300ae8c00dd56a692e`, the previous reviewed head is
+`870b1714770cdaa5751ba7dc574ee20d7e7ec159`, and the re-review audits the
+incremental diff from that head as a fix round as well as the whole range.
+
 The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
 # Review checklist
@@ -643,14 +714,17 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] The keep/remove map's `file:line` ranges were opened at the head.
 - [ ] Library claims cite official documentation with the date read.
 - [ ] Migration drafts are bounded and ordered; no issue was created.
-- [ ] No real data, real ids or `data/` paths appear in the evidence or screenshots.
+- [ ] No unsanitised data or `data/` path appears in the evidence or screenshots; every id shown from the sanitised fixture carries the `1000` marker.
 - [ ] S12's licence scan covers the tree the lockfile installs and passes; the packages contributing to the built output come from the build's own module list, and none is MPL-2.0. Flowbite Svelte and `apexcharts` are not installed.
-- [ ] Likely findings 1 to 7 were each checked.
+- [ ] S15 compared every group and member of the sanitised report at 1440 and 390 px and prints the counts (9 exact and 65 same-stat groups at the plan's measurement); spirit signatures are asserted from the real upload; the timings are medians with production's beside them; the screenshots show the sanitised report in both schemes at both widths.
+- [ ] The record's recommendation, limits and migration drafts match what S15 measured, and say which values still rest on S1's overlay.
+- [ ] Nothing under `tests/fixtures/real/` or `data/` changed or was read beyond the one tracked armor fixture; the diff from `870b171` touches S1 to S14 and their fences only where the summary says so.
+- [ ] Likely findings 1 to 8 were each checked.
 
 # Dispatch comment draft
 
 Planned #206 in [handoffs/issue-206-implementation-plan.md](https://github.com/tonym999/vault-cleaner/blob/<plan_sha>/handoffs/issue-206-implementation-plan.md), approved at plan SHA `<plan_sha>`.
 
-- **Implementer model & effort:** `claude-opus-5-5` at `high` (Judgement rung)
+- **Implementer model & effort:** `gpt-6.1-sol` at `high` (Judgement rung), manual cross-provider launch; Amendment 4 scope only, on top of reviewed head `870b171`
 - **Implementation branch:** `feat/issue-206-svelte-frontend-spike`
-- **Likely findings:** a CSP result claimed from a happy path or wider than needed; the projection reimplemented in TypeScript; finalise handled only on a fresh load; a development loop that needs a weakened server; H8 or H9 passed on a line count alone; tracked `node_modules` or build output, or other scope leakage; a licence scan that proves less than it says.
+- **Likely findings:** a CSP result claimed from a happy path or wider than needed; the projection reimplemented in TypeScript; finalise handled only on a fresh load; a development loop that needs a weakened server; H8 or H9 passed on a line count alone; tracked `node_modules` or build output, or other scope leakage; a licence scan that proves less than it says; real scale claimed from less than the whole report.
