@@ -68,3 +68,38 @@ of the plan SHA and a separate authorization.
 - `docs/review-rendering-architecture.md` still reads "GO, hybrid" as #137's
   own conclusion. Only the PR description and issue #206 say the owner has
   not adopted it.
+
+## Amendment 1 (2026-10-04): the owner's CSP policy
+
+The first plan commit, `b6a7c467bceba0e509266935bab0ff8fceab0bd8`, was never
+approved. The owner asked what relaxing the CSP would cost and then decided,
+in this session:
+
+- **Pre-approved additions:** `img-src 'self' data:`, `font-src 'self'`, and
+  `'unsafe-inline'` in `style-src`. None lets injected content run code.
+- **Unchanged:** `script-src 'self'`, `connect-src 'self'`,
+  `default-src 'none'`, `object-src 'none'`, `base-uri 'none'`,
+  `frame-ancestors 'none'`, `form-action 'none'`. No remote origin in any
+  directive.
+
+What the amendment changes in the plan, and nothing else: experiments S7 and
+S9, gate H7 and the paragraph under the gate table, one stop condition (plus
+a new one protecting production routes), likely finding 1, the costs item in
+the decision record, and two checklist lines.
+
+- The unchanged policy is still measured first and still preferred. An
+  addition is used only when a component needs it, and the record names that
+  component.
+- A pre-approved addition no longer makes the result conditional. Anything
+  beyond those three still does.
+- If an addition is used, the migration drafts must carry the `SERVER_CSP`
+  change as its own reviewable item.
+
+Measured for the amendment: Flask runs `after_request` functions in reverse
+order of registration (a two-function probe printed `['second', 'first']`),
+so production's `secure_response` runs last and a spike cannot override the
+header that way. The plan tells the implementer to wrap `app.wsgi_app` for
+spike paths only.
+
+Issue #206's body still carries the stricter wording. It was not edited; the
+plan records the divergence under *Dependencies and assumptions*.

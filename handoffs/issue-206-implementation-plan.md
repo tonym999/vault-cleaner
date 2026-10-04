@@ -22,6 +22,13 @@ The implementer must **not** open a pull request or edit this file. The branch i
 
 This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
 
+**Amendment 1 (2026-10-04).** The first plan commit,
+`b6a7c467bceba0e509266935bab0ff8fceab0bd8`, treated any CSP change as making
+the result conditional. The owner then pre-approved three additions (see
+*The security envelope a built frontend must fit*). This amendment changes
+only the CSP handling: experiments S7 and S9, gate H7, one stop condition,
+likely finding 1 and two checklist lines. `b6a7c46` was never approved.
+
 ## Objective
 
 Decide, with measured evidence, whether the review frontend should be rebuilt
@@ -84,16 +91,42 @@ default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self';
 object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
 ```
 
+**Owner decision on the policy (2026-10-04).** Three additions are
+pre-approved, because they let a page load its own images and fonts and let
+a component set styles, and none of them lets injected content run code:
+
+| Pre-approved addition | Allows |
+| --- | --- |
+| `img-src 'self' data:` | images and icons from the build, including Vite's inlined assets |
+| `font-src 'self'` | fonts bundled in the build |
+| `'unsafe-inline'` in `style-src` | `<style>` elements and `style` attributes that a component injects |
+
+Everything else stays as it is: `script-src 'self'`, `connect-src 'self'`,
+`object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`,
+`form-action 'none'`, and `default-src 'none'`. No remote origin is ever
+allowed in any directive. This plan calls the result **the approved
+envelope**. The unchanged policy is still preferred: use an addition only
+when a measured need exists, and record which component needs it.
+
 Consequences to measure, not assume:
 
-- **No `img-src` or `font-src`,** so both fall back to `'none'`. Image files,
-  `data:` URIs, icon fonts and web fonts are all blocked. Icons must be inline
-  SVG elements. Vite inlines small assets as `data:` URIs by default.
+- **No `img-src` or `font-src`,** so both fall back to `'none'`. Under the
+  unchanged policy image files, `data:` URIs, icon fonts and web fonts are
+  all blocked and icons must be inline SVG elements. Vite inlines small
+  assets as `data:` URIs by default. The pre-approved additions lift this
+  for same-origin files and `data:` images only.
 - **`style-src 'self'`** blocks `<style>` elements and `style="…"`
   attributes in parsed markup. Styles set through the CSSOM
   (`element.style.setProperty`) are not blocked. Which of these Svelte 5 and
   each component library use is the spike's question.
-- **`script-src 'self'`** rules out inline scripts and `eval`.
+- **`script-src 'self'`** rules out inline scripts and `eval`. This is not
+  negotiable in the spike.
+- **The spike cannot change the header with `after_request`.** Flask runs
+  `after_request` functions in reverse order of registration, so production's
+  `secure_response` runs last and overwrites anything the spike sets. To
+  serve a spike route under the approved envelope, wrap `app.wsgi_app` in
+  the spike's own factory and rewrite the header for spike paths only.
+  Production routes must keep the unchanged policy.
 - **A `POST` needs `Origin` equal to the server's own origin**
   ([app.py:339-351](../src/vault_cleaner/server/app.py#L339-L351)). A Vite
   development server on another port sends a different `Origin`, so the
@@ -167,6 +200,11 @@ documentation has an installation path for plain Vite without SvelteKit.
 - **"No dependency change" means Python and production.** The spike has its
   own `package.json` and lockfile under `spikes/issue-206/`.
 - **Follow-up tickets are drafted, never created,** by the implementer.
+- **The issue body predates the owner's policy decision.** It says any
+  policy change must be recorded as a requirement and not described as
+  compatible. Since 2026-10-04 the three pre-approved additions above are
+  allowed. The issue's rule still applies in full to every other change, and
+  an addition that is used must still be recorded exactly.
 
 Planner decisions the owner approves with this plan:
 
@@ -254,9 +292,9 @@ Each produces a transcript in the evidence file.
 | S4 | 3, 4 | **Finalise, reset, disconnect.** Finalise with a veto in place: the open page must reach the frozen state and the persisted-veto wording with the revision pair unchanged, and match production loaded fresh in meaning. Reset. Stop the server and filter. | Correct in all three |
 | S5 | 3 | **Focus and live regions.** After an acknowledgement the focused control is the same node. State and measure the focus policy on a report change. The status, reconciliation and scope regions are the same nodes throughout, and each acknowledgement is one announcement. | Recorded; contract section 7 met |
 | S6 | 2 | **Layouts.** At 1440, 1024 and 390 px, light and dark: the page does not scroll sideways; a group's members can be compared without member-by-member horizontal navigation; ids wrap; every control is reachable by keyboard in a sensible order; no hidden duplicate control is in the tab order. Capture the screenshots. | Recorded with screenshots |
-| S7 | 2, 5 | **CSP.** Chromium reports zero violations for the whole slice under the unchanged policy, including every component used and any transition. For each shortlisted library, build a minimal probe page (button, toggle, select or equivalent, one overlay if the library has one) and record the violations. Check the build for `data:` URIs, fonts and inline styles. | Unchanged policy, or the exact directive each candidate needs |
+| S7 | 2, 5 | **CSP.** First run the whole slice under the **unchanged** policy and record every violation, including every component used and any transition. Then, only if needed, run it under the approved envelope with the fewest additions that give zero violations, and name the component that needs each one. For each shortlisted library, build a minimal probe page (button, toggle, select or equivalent, one overlay if the library has one) and record its violations under the unchanged policy and which additions clear them. Check the build for `data:` URIs, fonts, inline styles and any remote URL. | Zero violations under the unchanged policy or the approved envelope, with each addition used attributed; or the exact further directive a candidate needs |
 | S8 | 5 | **Installed wheel.** Modelled on #137's `proof_e7_wheel.py`: overlay the built assets and the `package-data` change on a temporary copy of the tracked source, build a wheel, install it into a fresh environment with no Node on the path, confirm the package origin, and load the slice over HTTP. | Works with Node absent, or a concrete blocker |
-| S9 | 5 | **Request envelope.** Every spike route has production's security headers and refuses unauthenticated, wrong-Host and wrong-Origin requests. | No header or directive differs |
+| S9 | 5 | **Request envelope.** Every spike route has production's security headers and refuses unauthenticated, wrong-Host and wrong-Origin requests. Production routes served by the spike app keep the unchanged policy byte for byte. | No header differs; the policy on a spike route differs from production's only by pre-approved additions that S7 shows are needed |
 | S10 | 1, 6 | **Development loop.** Measure a cold build, a rebuild after a one-line edit, and the output size (raw and gzip). Establish a working edit-and-see loop against the Flask server given the `Origin` rule, and say exactly how it works and what it costs. Record `svelte-check` and the unit-test run. | Recorded |
 | S11 | 6 | **Type drift.** Rename one view-model or envelope field on the Python side and show where the mismatch surfaces: type check, build, test, or only at runtime. | Recorded |
 | S12 | 3, 6 | **Code comparison.** Line counts for the slice by category: components and markup, application logic (requests, revisions, reconciliation, lifecycle), filtering, types, Python, tests. Set them beside production's 908 and the hybrid's 155 + 474 + 187. Count the installed npm packages and record `npm audit`. | Recorded |
@@ -285,8 +323,11 @@ In this order:
 6. **Comparison** with the current page and the Jinja hybrid, on measured
    figures, plus a short honest account of the development experience.
 7. **Costs:** Node in development and CI, the dependency tree, the
-   `PLAN.md`/`AGENTS.md` dependency lines that would need amending, and what
-   happens to the 8,653 lines of Node-harness UI tests.
+   `PLAN.md`/`AGENTS.md` dependency lines that would need amending, what
+   happens to the 8,653 lines of Node-harness UI tests, and the exact
+   production CSP the stack needs. If any pre-approved addition is used, the
+   migration drafts must carry the `SERVER_CSP` change as an explicit,
+   separately reviewable item with its tests.
 8. **Limits of the evidence.**
 9. **Migration ticket drafts** if GO or conditional: bounded, ordered, each
    with a scope rule, stop conditions and dependencies. **Drafts only.**
@@ -301,13 +342,18 @@ Decision gates. GO requires H1 to H7; H8 and H9 inform the comparison:
 | H4 | Contract section 7 met; focus survives a verdict | S5, S13 |
 | H5 | Narrow layout usable; page never scrolls sideways | S6 |
 | H6 | Works from an installed wheel without Node | S8 |
-| H7 | Auth, Host, Origin, `no-store` and the CSP unchanged | S7, S9 |
+| H7 | Auth, Host, Origin and `no-store` unchanged; the CSP unchanged or within the approved envelope | S7, S9 |
 | H8 | No rule exists in both Python and the browser; handcrafted browser code for the slice is clearly smaller | S12 |
 | H9 | A workable development loop | S10, S11 |
 
-If H7 can be met only with a CSP change, the result is at most **conditional**:
-name the exact directive, the alternatives tried and the trade-off. Never
-describe such an option as compatible.
+A pre-approved addition does not make the result conditional, but the record
+must state the exact policy the recommended stack needs, which component
+needs each addition, and what the unchanged policy would have required
+instead. If H7 can be met only by going **beyond** the approved envelope
+(anything in `script-src`, `connect-src`, `default-src`, `object-src`,
+`base-uri`, `frame-ancestors` or `form-action`, or any remote origin), the
+result is at most **conditional**: name the exact directive, the alternatives
+tried and the trade-off. Never describe such an option as compatible.
 
 ### Evidence and worklog
 
@@ -367,16 +413,17 @@ Stop implementation and return to orchestrator if:
 - a gate can be met only by changing the snapshot or envelope schema, the
   session lifecycle, the auth/Origin/Host contract, revision or verdict
   validation, persistence, duplicate rules or finalisation semantics;
-- plain Svelte 5 output itself, with no component library, cannot run under
-  the unchanged CSP;
+- plain Svelte 5 output itself, with no component library, cannot run within
+  the approved envelope;
+- the proof would need a policy on any **production** route to change;
 - the toolchain cannot be installed or run here (registry unreachable, an
   install script that needs elevated access, Chromium unavailable);
 - a needed package has a licence other than MIT, Apache-2.0, BSD or ISC;
 - real vault data would be needed;
 - the slice needs a field the envelope does not carry.
 
-A failed gate, or every shortlisted library needing a CSP change, is **not**
-a stop. It is a finding and may be the NO-GO or the condition.
+A failed gate, or every shortlisted library needing more than the approved
+envelope, is **not** a stop. It is a finding and may be the NO-GO or the condition.
 
 Escalation route: `implementer → orchestrator → planner`.
 
@@ -391,10 +438,12 @@ the active runtime can instantiate it.
 
 ## Likely findings
 
-1. **"CSP-compatible" claimed from a happy path.** Zero violations recorded
-   for a page that never opened an overlay, ran a transition, or rendered
-   the component that injects a style. Check S7 exercised every component
-   the slice uses, and that the build has no `data:` URI or font.
+1. **A CSP result claimed from a happy path, or wider than needed.** Zero
+   violations recorded for a page that never opened an overlay, ran a
+   transition, or rendered the component that injects a style; or all three
+   pre-approved additions switched on without showing which component needs
+   each. Check S7 ran the unchanged policy first, exercised every component
+   the slice uses, and that no remote URL is in the build.
 2. **The projection quietly reimplemented in TypeScript.** Eligibility,
    survivor or disposition logic re-derived in the browser while H8 is
    passed. Read the slice's TypeScript against the plan's source rules.
@@ -441,7 +490,7 @@ Rules:
 
 Make ordinary implementation decisions yourself (local structure, naming, helpers, test shape, following established patterns, fixing failures your own change caused) and explain notable ones in your completion handoff. Choosing the architecture, the component library and the visual design from the evidence is the work of this ticket, not an escalation. If any stop condition is reached, or the work needs a design decision the plan did not settle, stop implementation and return to the orchestrator with the exact conflict; do not broaden scope or silently redesign the solution.
 
-When complete, provide the implementer → orchestrator handoff: starting and head SHAs; the recommendation in one sentence; the result of each gate H1 to H9 with its evidence fence; the CSP result stated exactly; every verification command with its output tail; the try-it command; anything not measured; notable implementation choices; and the migration ticket drafts' titles in order.
+When complete, provide the implementer → orchestrator handoff: starting and head SHAs; the recommendation in one sentence; the result of each gate H1 to H9 with its evidence fence; the CSP result stated exactly (the full policy string the stack needs, and which component needs each addition); every verification command with its output tail; the try-it command; anything not measured; notable implementation choices; and the migration ticket drafts' titles in order.
 
 # Ticket-specific review decision
 
@@ -468,7 +517,8 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] S2 overlays every string field including ids and hashes, checks the verdict request body, and the source scan rejects `{@html}`, `innerHTML` and numeric conversion of ids.
 - [ ] S3 shows no change before the acknowledgement and no replay; S4 covers the already-open page across a finalise.
 - [ ] S5 shows the focused control is the same node after a verdict and states the report-change focus policy.
-- [ ] S7 exercised every component the slice uses, has a probe result for each shortlisted library, and states the CSP result exactly. No policy change is described as compatible.
+- [ ] S7 ran the unchanged policy first, exercised every component the slice uses, has a probe result for each shortlisted library, and states the exact policy needed. Every addition used is one of the three pre-approved ones and is attributed to a component; nothing beyond the approved envelope is described as compatible; `script-src` and `connect-src` are `'self'` only.
+- [ ] Production routes served by the spike app carry the unchanged policy.
 - [ ] S8 ran with Node absent from the fresh environment and checked the package origin.
 - [ ] S10 says exactly how the development loop satisfies the `Origin` rule.
 - [ ] The decision record classifies the design contract, lists every presentation choice changed, and includes light and dark, desktop and narrow screenshots.
@@ -484,4 +534,4 @@ Planned #206 in [handoffs/issue-206-implementation-plan.md](https://github.com/t
 
 - **Implementer model & effort:** `claude-opus-5-5` at `high` (Judgement rung)
 - **Implementation branch:** `feat/issue-206-svelte-frontend-spike`
-- **Likely findings:** CSP compatibility claimed from a happy path; the projection reimplemented in TypeScript; finalise handled only on a fresh load; a development loop that needs a weakened server; tracked `node_modules` or build output, or other scope leakage.
+- **Likely findings:** a CSP result claimed from a happy path or wider than needed; the projection reimplemented in TypeScript; finalise handled only on a fresh load; a development loop that needs a weakened server; tracked `node_modules` or build output, or other scope leakage.
