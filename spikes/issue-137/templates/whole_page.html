@@ -1,0 +1,44 @@
+{#- Experiment E9 only: the whole-page shape.  The report content is rendered
+    into the document itself and the page is requested again after every
+    acknowledged mutation.  It has no paint step, so it shows neither the
+    frozen state nor the persisted-veto wording; E9 exercises neither. -#}
+{% from "_armor_group.html" import armor_group %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vault-cleaner review (issue 137 spike, whole page)</title>
+  <link rel="stylesheet" href="/assets/review.css">
+  <link rel="stylesheet" href="/spike/assets/spike.css">
+</head>
+<body data-report-revision="{{ report_revision }}" data-verdict-revision="{{ verdict_revision }}" data-fingerprint="{{ fingerprint }}">
+  <main class="wrap">
+    <h1 id="vc-skip-target" tabindex="-1">vault-cleaner review (issue 137 spike, whole page)</h1>
+    <p id="vc-status" role="status" aria-live="polite" class="hint">Report loaded.</p>
+    <section class="panel" id="vc-filters" aria-labelledby="vc-filters-title">
+      <h2 id="vc-filters-title">Filters</h2>
+      <label class="field" for="vc-dup-search">
+        <span>Search armor name or instance id</span>
+        <input type="search" id="vc-dup-search" placeholder="e.g. Dupe Plate or 5002">
+      </label>
+    </section>
+    <form id="vc-form-post" method="post" action="/api/verdicts">
+      <button id="vc-form-submit" type="submit">Script-free form post (probe)</button>
+    </form>
+    <section class="panel" id="vc-duplicates" aria-labelledby="vc-duplicates-title">
+      <h2 id="vc-duplicates-title">Armor duplicates</h2>
+      <p id="vc-duplicate-scope" class="scope-summary" role="status" aria-live="polite">{{ scope_text }}</p>
+      <div id="vc-duplicate-list">
+{%- for section in sections %}
+<div class="armor-section-head" data-vc-section="{{ section.kind }}"><h3>{{ section.heading }}</h3><span class="rule">{{ section.rule }}</span></div>
+{%- for group in section.groups %}
+{{ armor_group(group) }}
+{%- endfor %}
+{%- endfor %}
+      </div>
+    </section>
+  </main>
+  <script src="/spike/assets/whole.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+{#- One Armor duplicates group card: header, DIM query panel, both matrix
+    orientations.  Class names and data-* attributes are production's, so
+    review.css applies unchanged. -#}
+{% from "_verdict.html" import verdict_cell %}
+
+{% macro member_heading(member) -%}
+<span class="armor-member-number">{{ member.number }}</span>
+<span class="mono">{{ member.id }}</span>
+<span class="sub">{{ member.location }}</span>
+<span class="badge status">{{ member.label }}</span>
+{%- endmacro %}
+
+{% macro stat_summary(spike) -%}
+{% if spike.tier5 -%}
+<div class="armor-stat-summary spike" aria-label="Base stat summary">
+{%- for row in spike.rows %}
+<div class="sv {{ row.css }}"><span class="lbl">{{ row.name }}</span><span class="val">{{ row.value }}</span><span class="bar"></span><span class="role">{{ row.role }}</span></div>
+{%- endfor %}
+</div>
+{%- else -%}
+<div class="armor-stat-summary" aria-label="Base stat summary">
+{%- for tile in spike.tiles %}
+<div class="tile"><span class="k">Base stat</span><span class="n">{{ tile }}</span></div>
+{%- endfor %}
+</div>
+{%- endif %}
+{%- endmacro %}
+
+{% macro group_header(group) -%}
+<header class="armor-group-header">
+<div class="armor-group-headline">
+<div class="armor-group-title"><h4>{{ group.name }}</h4><span class="badge arch">{{ group.archetype }}</span></div>
+<p class="armor-group-pieces">{{ group.pieces }}</p>
+</div>
+<div class="armor-group-meta">
+<span class="sub">{{ group.type_text }}</span>
+<span class="sub">{{ group.class_text }}</span>
+<span class="sub">{{ group.tier_text }}</span>
+<span class="sub mono">{{ group.hash_text }}</span>
+</div>
+<div class="armor-group-context">
+<p class="sub armor-group-kind">{{ group.kind_text }}</p>
+{{ stat_summary(group.spike) }}
+{% if group.spike.zero_summary -%}
+<p class="hint armor-stat-zero">{{ group.spike.zero_summary }}</p>
+{%- endif %}
+<p class="tuneline{% if group.banner.warn %} warn{% endif %}"><span class="k">Tuning Mod Slot</span><span>{{ group.banner.text }}</span></p>
+{% if group.identical_line -%}
+<p class="hint armor-identical-axes">{{ group.identical_line }}</p>
+{%- endif %}
+{% if group.extras -%}
+<div class="armor-group-extra">
+{%- for kind, value in group.extras %}
+<div class="tile"><span class="k">{{ kind }}</span><span class="n">{{ value }}</span></div>
+{%- endfor %}
+</div>
+{%- endif %}
+</div>
+</header>
+{%- endmacro %}
+
+{% macro dim_query_panel(group) -%}
+<div class="dim-query-panel">
+<p class="dim-query-explanation">These queries only find items in DIM. Generating or selecting the text changes no vault-cleaner verdict, tag, note, or item.</p>
+<div class="dim-query-actions">
+<button type="button" class="dim-query-btn">Generate whole-group query</button>
+<button type="button" class="dim-query-btn"{% if not group.has_junk %} disabled{% endif %}>Generate junk-candidates query</button>
+{% if not group.has_junk -%}
+<span class="dim-query-empty-hint">This group has no junk candidates.</span>
+{%- endif %}
+</div>
+<div class="dim-query-output"></div>
+</div>
+{%- endmacro %}
+
+{% macro rows_table(group) -%}
+<table class="armor-group-table armor-matrix-rows">
+<thead><tr>
+<th scope="col">Member</th>
+{%- for axis in group.axes %}
+<th scope="col"{% if axis.tuning %} class="armor-matrix-tuning-axis"{% endif %}>{{ axis.label }}</th>
+{%- endfor %}
+<th scope="col">Verdict</th>
+</tr></thead>
+<tbody>
+{%- for member in group.members %}
+{%- set member_index = loop.index0 %}
+<tr>
+<th scope="row" class="armor-member-heading">{{ member_heading(member) }}</th>
+{%- for axis in group.axes %}
+<td{% if axis.tuning %} class="armor-matrix-tuning-axis"{% endif %}>{{ axis.cells[member_index] }}</td>
+{%- endfor %}
+{{ verdict_cell(member, "rows") }}
+</tr>
+{%- endfor %}
+</tbody>
+</table>
+{%- endmacro %}
+
+{% macro columns_table(group) -%}
+<table class="armor-matrix-columns">
+<thead><tr>
+<th scope="col" class="armor-matrix-corner">Differs on</th>
+{%- for member in group.members %}
+<th scope="col" class="armor-member-heading armor-matrix-col-heading">{{ member_heading(member) }}</th>
+{%- endfor %}
+</tr></thead>
+<tbody>
+{%- for axis in group.axes %}
+<tr{% if axis.tuning %} class="armor-matrix-tuning-axis"{% endif %}>
+<th scope="row" class="armor-matrix-axis-label">{{ axis.label }}</th>
+{%- for cell in axis.cells %}
+<td class="armor-matrix-col-cell">{{ cell }}</td>
+{%- endfor %}
+</tr>
+{%- endfor %}
+<tr>
+<th scope="row" class="armor-matrix-axis-label">Verdict</th>
+{%- for member in group.members %}
+{{ verdict_cell(member, "columns") }}
+{%- endfor %}
+</tr>
+</tbody>
+</table>
+{%- endmacro %}
+
+{% macro armor_group(group) -%}
+<article class="armor-group" data-group-id="{{ group.dom_id }}" data-group-kind="{{ group.kind }}" data-member-count="{{ group.member_count }}" data-vc-filter-kind="{{ group.filter_kind }}" data-vc-guardian-class="{{ group.guardian_class }}">
+{{ group_header(group) }}
+{{ dim_query_panel(group) }}
+<div class="armor-comparison"><div class="scroller">
+{{ rows_table(group) }}
+{{ columns_table(group) }}
+</div></div>
+</article>
+{%- endmacro %}
