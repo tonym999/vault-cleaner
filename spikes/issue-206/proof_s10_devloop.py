@@ -12,7 +12,8 @@ run to run; everything else in the output is repeatable.
    and times how long the open page takes to show the edit, without a
    reload and with the server's data still on screen.
 4. What the proxy does to ``Origin``, and that a foreign ``Origin`` is still
-   refused.
+   refused; and what stands in for Flask's exact-``Host`` check, which the
+   proxy bypasses by always presenting the server's own ``Host``.
 5. That none of the development path is in the build.
 
     .venv/bin/python spikes/issue-206/proof_s10_devloop.py
@@ -48,6 +49,14 @@ def post(port: int, host: str, origin: str, cookie: str) -> int:
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     connection.request("POST", "/api/reset", body=b"not json", headers={
         "Host": host, "Origin": origin, "Cookie": cookie, "Content-Type": "application/json"})
+    status = connection.getresponse().status
+    connection.close()
+    return status
+
+
+def get(port: int, host: str, cookie: str) -> int:
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request("GET", "/api/report", headers={"Host": host, "Cookie": cookie})
     status = connection.getresponse().status
     connection.close()
     return status
@@ -137,6 +146,27 @@ def main() -> int:
                 print(f"POST straight to Flask with the dev server's Origin: HTTP {direct} (Flask itself is not relaxed)")
                 if (own, foreign, direct) != (400, 403, 403):
                     failures.append("the proxy's Origin handling is not as described")
+
+                print("-- what stands in for Flask's exact-Host check --")
+                print("the proxy always presents the Flask server's own Host, so in development the "
+                      "only Host check is Vite's allow-list (server.allowedHosts, left at its default)")
+                flask_port = live.session.bound_port
+                through = {
+                    name: get(DEV_PORT, f"{name}:{DEV_PORT}", cookie)
+                    for name in ("127.0.0.1", "evil.example", "localhost", "foo.localhost")
+                }
+                straight = {
+                    name: get(flask_port, f"{name}:{flask_port}", cookie)
+                    for name in ("127.0.0.1", "evil.example", "localhost", "foo.localhost")
+                }
+                print(f"GET /api/report through the proxy, by Host name (dev port): {through}")
+                print(f"GET /api/report straight to Flask, by Host name (its own port): {straight}")
+                print("so Vite refuses a foreign Host, but accepts localhost and any *.localhost "
+                      "name, which Flask itself refuses")
+                if through != {"127.0.0.1": 200, "evil.example": 403, "localhost": 200, "foo.localhost": 200}:
+                    failures.append("Vite's Host allow-list does not behave as recorded")
+                if straight != {"127.0.0.1": 200, "evil.example": 400, "localhost": 400, "foo.localhost": 400}:
+                    failures.append("Flask's own Host check does not behave as recorded")
                 context.close()
 
         print("-- none of the development path is in the build --")

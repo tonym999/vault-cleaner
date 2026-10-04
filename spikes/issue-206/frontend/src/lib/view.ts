@@ -120,6 +120,13 @@ const DISPOSITIONS: Record<string, string> = {
   proposed_review: 'Proposed review',
 };
 
+/** The disposition that goes with each proposal action, as the server pairs them. */
+const PROPOSAL_DISPOSITIONS: Record<string, string> = {
+  proposed_junk: 'junk',
+  proposed_review: 'review',
+};
+const VERDICT_ACTIONS = new Set(['junk', 'review']);
+
 export const VERDICT_LABELS: Record<Verdict, string> = {
   '': 'Unreviewed',
   approved: 'Approved',
@@ -166,7 +173,7 @@ function memberView<M extends MemberBase>(
   member: M,
   fields: Field<M>[],
   status: string,
-  ownsProposal: boolean,
+  canVerdict: (decision: Decision) => boolean,
   lookups: Lookups,
 ): MemberView {
   const decision = lookups.proposals.get(member.id);
@@ -179,7 +186,7 @@ function memberView<M extends MemberBase>(
     proposal: decision
       ? { action: decision.action, reason: categorical(decision.reason) }
       : null,
-    hasControls: decision !== undefined && ownsProposal,
+    hasControls: decision !== undefined && canVerdict(decision),
     verdict: verdict === 'approved' || verdict === 'vetoed' ? verdict : '',
     persistedVeto: lookups.persistedVetoes.has(member.id),
   };
@@ -230,7 +237,12 @@ function exactView(group: ExactGroup, lookups: Lookups): GroupView {
       member,
       COMMON_FIELDS,
       DISPOSITIONS[member.disposition] ?? member.disposition,
-      member.proposal_action !== null,
+      // Production's rule (review_ui.js, isProposalMember): the disposition and
+      // the member's own proposal action agree.  The section's proposal must
+      // carry the same action.
+      (decision) =>
+        PROPOSAL_DISPOSITIONS[member.disposition] === decision.action &&
+        member.proposal_action === decision.action,
       lookups,
     ),
   );
@@ -262,7 +274,9 @@ function sameStatView(group: SameStatGroup, lookups: Lookups): GroupView {
       lookups.proposals.has(member.id)
         ? `Existing proposal: ${lookups.proposals.get(member.id)!.action}`
         : 'Comparison only',
-      true,
+      // Production's rule (armorMemberCanVerdict): the section's proposal for
+      // this member is exactly junk or review.
+      (decision) => VERDICT_ACTIONS.has(decision.action),
       lookups,
     ),
   );

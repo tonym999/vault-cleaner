@@ -18,6 +18,7 @@ DISPOSITIONS = {
     "proposed_junk": "Proposed junk",
     "proposed_review": "Proposed review",
 }
+PROPOSAL_DISPOSITIONS = {"proposed_junk": "junk", "proposed_review": "review"}
 VERDICTS = {None: "Unreviewed", "approved": "Approved", "vetoed": "Vetoed"}
 PRESSED = {None: "Unset", "approved": "Approve", "vetoed": "Veto"}
 SPIKE = {30: "primary", 25: "secondary", 20: "tertiary"}
@@ -125,10 +126,16 @@ def _group(kind: str, group: dict, proposals: dict, verdicts: dict, persisted: s
         if kind == "exact":
             # An unknown disposition is shown as it arrived, never guessed.
             status = DISPOSITIONS.get(member["disposition"], member["disposition"])
-            controls = proposal is not None and member["proposal_action"] is not None
+            # Production's rule: disposition and proposal action agree, and the
+            # section's proposal carries that action.
+            controls = (
+                proposal is not None
+                and PROPOSAL_DISPOSITIONS.get(member["disposition"]) == proposal["action"]
+                and member["proposal_action"] == proposal["action"]
+            )
         else:
             status = f"Existing proposal: {proposal['action']}" if proposal else "Comparison only"
-            controls = proposal is not None
+            controls = proposal is not None and proposal["action"] in ("junk", "review")
         verdict = verdicts.get(member["id"])
         rows.append({
             "id": member["id"],

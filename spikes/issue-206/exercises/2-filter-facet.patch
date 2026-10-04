@@ -42,7 +42,7 @@
  }
  
  interface Field<M> {
-@@ -221,6 +222,7 @@ function commonView(group: ExactGroup | SameStatGroup) {
+@@ -228,6 +229,7 @@ function commonView(group: ExactGroup | SameStatGroup) {
      facts: groupFacts(group),
      stats: statViews(group.stats, group.tier),
      guardianClass: group.guardian_class,

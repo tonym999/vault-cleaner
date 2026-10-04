@@ -13,6 +13,9 @@ No browser.  Three parts:
    BSD or ISC: the JavaScript modules are taken from the list the bundler
    wrote (``dist/modules.json``), and the stylesheet's sources from the
    ``@import`` and ``@plugin`` lines of the CSS entry file in that list.
+   That stylesheet half is a text match on the entry file: Tailwind inlines
+   its imports itself, so the bundler has no finer list, and a package pulled
+   in by an imported stylesheet rather than by ``app.css`` would not be seen.
 
     .venv/bin/python spikes/issue-206/proof_s12_code.py
 """
@@ -103,12 +106,12 @@ def installed(root: Path) -> dict[str, tuple[str, str]]:
 
 def package_of(module: str) -> Path | None:
     """The package directory a bundled module id belongs to, or None for the slice."""
-    if "/node_modules/" not in module:
+    if "node_modules/" not in module:
         return None
-    head, tail = module.rsplit("/node_modules/", 1)
+    head, tail = module.rsplit("node_modules/", 1)
     parts = tail.split("/")
     name = "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
-    return Path(head) / "node_modules" / name
+    return FRONTEND / head / "node_modules" / name
 
 
 def scan_tree(label: str, project: Path, failures: list[str]) -> None:
@@ -201,7 +204,13 @@ def main() -> int:
         failures.append("npm audit could not be run")
 
     print("-- what is in the built output --")
-    modules = json.loads((FRONTEND / "dist" / "modules.json").read_text(encoding="utf-8"))
+    listing = (FRONTEND / "dist" / "modules.json").read_text(encoding="utf-8")
+    modules = json.loads(listing)
+    relative = not any(module.startswith("/") or ":\\" in module
+                       for ids in modules["outputs"].values() for module in ids)
+    print(f"dist/modules.json: {len(listing.encode())} bytes; every path relative to frontend/: {relative}")
+    if not relative:
+        failures.append("modules.json holds an absolute path")
     contributing: dict[str, tuple[str, int]] = {}
     own = 0
     for output, ids in modules["outputs"].items():
@@ -216,9 +225,9 @@ def main() -> int:
         print(f"{output}: {len(ids)} modules, {own} of them the slice's own source")
     css_sources: list[str] = []
     for entry in modules["css"]:
-        text = Path(entry).read_text(encoding="utf-8")
+        text = (FRONTEND / entry).read_text(encoding="utf-8")
         css_sources += re.findall(r'@(?:import|plugin)\s+"([^"./][^"]*)"', text)
-        print(f"assets/app.css: built from {Path(entry).relative_to(FRONTEND)}, which pulls in {css_sources}")
+        print(f"assets/app.css: built from {entry}, which pulls in {css_sources}")
     for name in css_sources:
         package = FRONTEND / "node_modules" / name
         data = json.loads((package / "package.json").read_text(encoding="utf-8"))

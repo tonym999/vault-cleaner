@@ -11,18 +11,19 @@ Everything here uses the fake fixtures under `tests/fixtures/`. No real
 export was read. The proof code is in
 [spikes/issue-206/](../../../spikes/issue-206/README.md).
 
-Captured 2026-10-04 on the implementation branch for #206, at the committed
-state of the spike. After the commit every proof fence was rerun and compared
-with the text recorded here; only the S10 timings differed. (S8 first printed its
-asset responses in arrival order, which varied; it now sorts them, and its
-fence was captured again.) Three kinds of line are not repeatable and are named
-where they occur: durations and timestamps printed by npm, Vite, vitest and
-svelte-check; and the timings in S10. The proofs print no port, path or
-token.
+Captured 2026-10-04 on the implementation branch for #206, and captured
+again in full after fix round 1 changed the slice and the proofs. After the
+capture every proof fence was rerun and compared with the text recorded
+here; only the S10 timings differed. Two kinds of line are not repeatable
+and are named where they occur: durations and timestamps printed by npm,
+Vite, vitest and svelte-check; and the timings in S10. The proofs print no
+port, path or token.
 
 Ids such as `6032` and `8201` in the transcripts are the fake instance ids in
 the committed fixtures. `18446744073709551615`, `007` and `9"<'> x` are the
-hostile ids experiment S2 substitutes.
+hostile ids experiment S2 substitutes. `Spirit of the Fixture`, `Spirit of
+the Proof`, `Spirit of the Twin` and `Fake Seasonal Mod` are the values
+experiment S1 overlays.
 
 ## Screenshots
 
@@ -93,7 +94,7 @@ chromium 151.0.7922.34 (headless)
 
 ## Frontend: install, type check, unit tests, build
 
-From a clean `npm ci`. The timestamps, durations and the `npm notice` lines vary from run to run; the counts do not. This capture is edited in one respect, so it is not strictly verbatim: svelte-check and vitest print the checkout's absolute directory, and that prefix is replaced with `<repo>` in two lines.
+From a clean `npm ci`. The timestamps, durations and the `npm notice` lines vary from run to run; the counts and sizes do not (`dist/modules.json` holds paths relative to the frontend directory, so its size does not depend on where the checkout is). This capture is edited in one respect, so it is not strictly verbatim: svelte-check and vitest print the checkout's absolute directory, and that prefix is replaced with `<repo>` in two lines.
 
 ```bash
 (cd spikes/issue-206/frontend && rm -rf node_modules dist && npm ci && npm run check && npm test && npm run build)
@@ -109,16 +110,16 @@ added 76 packages, and audited 77 packages in 1s
   run `npm fund` for details
 
 found 0 vulnerabilities
-1791119010777 START "<repo>/spikes/issue-206/frontend"
-1791119010779 COMPLETED 295 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
+1791120617766 START "<repo>/spikes/issue-206/frontend"
+1791120617767 COMPLETED 295 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
 
  RUN  v5.0.3 <repo>/spikes/issue-206/frontend
 
 
  Test Files  3 passed (3)
-      Tests  28 passed (28)
-   Start at  13:03:31
-   Duration  611ms (transform 81%, import 14%, tests 4%, worker 1%)
+      Tests  32 passed (32)
+   Start at  13:30:18
+   Duration  571ms (transform 82%, import 12%, tests 5%, worker 1%)
 
 vite v8.3.2 building client environment for production...
 transforming...
@@ -127,11 +128,11 @@ transforming...
 rendering chunks...
 computing gzip size...
 dist/index.html       0.43 kB │ gzip:  0.28 kB
-dist/modules.json     7.93 kB │ gzip:  0.64 kB
+dist/modules.json     3.59 kB │ gzip:  0.57 kB
 dist/assets/app.css  56.91 kB │ gzip:  9.87 kB
-dist/assets/app.js   63.30 kB │ gzip: 23.05 kB
+dist/assets/app.js   63.44 kB │ gzip: 23.09 kB
 
-✓ built in 349ms
+✓ built in 351ms
 npm notice run vault-cleaner-spike-206-frontend@0.0.0 check
 npm notice run svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
 npm notice run vault-cleaner-spike-206-frontend@0.0.0 test
@@ -178,7 +179,7 @@ dist/assets/chunk-disclose-version.js   53.52 kB │ gzip: 20.58 kB
 dist/assets/skeleton.js                 65.69 kB │ gzip: 20.75 kB
 dist/assets/shadcn.js                  203.15 kB │ gzip: 61.03 kB
 
-✓ built in 2.00s
+✓ built in 1.86s
 npm notice run vault-cleaner-spike-206-probes@0.0.0 build
 npm notice run vite build
 ```
@@ -216,7 +217,7 @@ lib/filters.ts:60 .sort(([left], [right]) => left.localeCompare(right, 'en', { s
 -- build output --
 assets/app.css: 56917 bytes; URL strings 2 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: ['--fx-noise:url("data:image/svg+xml']; @import/@font-face/remote url(): []
   the one data: URI is daisyUI's --fx-noise definition; the same file overrides it with --fx-noise:none: True
-assets/app.js: 63302 bytes; URL strings 15 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
+assets/app.js: 63440 bytes; URL strings 15 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
 index.html: 439 bytes; URL strings 0 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
 index.html inline scripts, style elements, style or event attributes: []
 RESULT: PASS
@@ -238,7 +239,7 @@ RESULT: PASS
 
 ## S1: information parity (gate H1)
 
-Every item under the plan's *Required information*, for four fixtures, without and with verdicts, at 1440 and 390 px; the filter sequences of #137's E10 beside the production page; a negative control.
+Every item under the plan's *Required information*, for four fixtures, without and with verdicts, at 1440 and 390 px; three group values no fixture carries, overlaid in memory on the server's answer; the filter sequences of #137's E10 beside the production page; a negative control.
 
 ```bash
 .venv/bin/python spikes/issue-206/proof_s1_parity.py
@@ -264,6 +265,11 @@ armor_same_stat_four_ui.csv unreviewed at 1440px: 1 groups, 4 members, 28 differ
 armor_same_stat_four_ui.csv unreviewed at 390px: 1 groups, 4 members, 28 differing member values all visible=True, page scrolls sideways=False, differences=0
 armor_same_stat_four_ui.csv with 4 verdicts at 1440px: 1 groups, 4 members, 28 differing member values all visible=True, page scrolls sideways=False, differences=0
 armor_same_stat_four_ui.csv with 4 verdicts at 390px: 1 groups, 4 members, 28 differing member values all visible=True, page scrolls sideways=False, differences=0
+-- group values no fixture has, overlaid in memory on the server's answer --
+exact:6031 shows: {'spirit_signature': 'Spirit of the Fixture · Spirit of the Proof', 'seasonal_mod': 'Fake Seasonal Mod', 'holofoil': 'true'}
+same_stat:6081 shows: {'spirit_signature': 'Spirit of the Twin'}
+armor_close.csv with spirit signatures, Seasonal Mod and Holofoil at 1440px: 2 groups, 4 members, 6 differing member values all visible=True, page scrolls sideways=False, differences=0
+armor_close.csv with spirit signatures, Seasonal Mod and Holofoil at 390px: 2 groups, 4 members, 6 differing member values all visible=True, page scrolls sideways=False, differences=0
 -- filters: the slice beside the production page, same session --
 no filter: equal to production=True; groups=['exact_duplicate:6031', 'same_stat:6081']
   scope: 2 groups · 4 pieces
@@ -302,7 +308,7 @@ RESULT: PASS
 
 ## S2: hostile content (gate H2)
 
-Every string in the envelope replaced, at two widths.
+Every string in the envelope replaced, at two widths. The first pass also replaces the values that decide who has verdict buttons, and the page must then show none; the second keeps those three so a verdict can be pressed on a hostile id.
 
 ```bash
 .venv/bin/python spikes/issue-206/proof_s2_hostile.py
@@ -319,6 +325,8 @@ hashes in the DOM identical: True: ['005<script>alert(4)</script>', '0014<script
 names shown as exact text, internal double spaces kept: True; length 404
 elements created from values (img, script, i, b, u): 0; script elements in the document: 1 (the bundle)
 page scrolls sideways with 300-character unbroken values: False
+verdict buttons with every disposition and action hostile: 0 (no member's disposition and action agree, so none is a proposal member)
+second pass, disposition and action values kept: strings replaced 574; verdict buttons 9; differences from the envelope 0
 verdict request body: {"report_revision":1,"verdict_revision":0,"fingerprint":"b212ae6e8f2fc0a7ee7977227f78d32f431149e14af3d81c60698ffec47b9397","decisions":[{"id":"007","verdict":"vetoed"}]}
 id in the request equals the envelope's id: True; is a JSON string: True
 status after the acknowledgement names the id as text: True
@@ -331,6 +339,8 @@ hashes in the DOM identical: True: ['005<script>alert(4)</script>', '0014<script
 names shown as exact text, internal double spaces kept: True; length 404
 elements created from values (img, script, i, b, u): 0; script elements in the document: 1 (the bundle)
 page scrolls sideways with 300-character unbroken values: False
+verdict buttons with every disposition and action hostile: 0 (no member's disposition and action agree, so none is a proposal member)
+second pass, disposition and action values kept: strings replaced 574; verdict buttons 9; differences from the envelope 0
 verdict request body: {"report_revision":1,"verdict_revision":0,"fingerprint":"b212ae6e8f2fc0a7ee7977227f78d32f431149e14af3d81c60698ffec47b9397","decisions":[{"id":"9\"<'> x","verdict":"vetoed"}]}
 id in the request equals the envelope's id: True; is a JSON string: True
 status after the acknowledgement names the id as text: True
@@ -548,7 +558,7 @@ Output:
 -- served as the slice is: additions [] --
 production asset headers: {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
 /spike/: HTTP 200, text/html; charset=utf-8, 439 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
-/spike/assets/app.js: HTTP 200, text/javascript; charset=utf-8, 63302 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
+/spike/assets/app.js: HTTP 200, text/javascript; charset=utf-8, 63440 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
 /spike/assets/app.css: HTTP 200, text/css; charset=utf-8, 56917 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
 production route /: HTTP 200; policy byte-identical to SERVER_CSP=True
 production route /assets/review.css: HTTP 200; policy byte-identical to SERVER_CSP=True
@@ -576,7 +586,7 @@ RESULT: PASS
 
 ## S10: development loop (gate H9)
 
-Build times, sizes, the type check and unit tests, the edit-and-see loop and what its proxy does. **The timings vary from run to run**; every other line is repeatable.
+Build times, sizes, the type check and unit tests, the edit-and-see loop, what its proxy does to `Origin`, and what stands in for Flask's `Host` check in development. **The timings vary from run to run**; every other line is repeatable.
 
 ```bash
 .venv/bin/python spikes/issue-206/proof_s10_devloop.py
@@ -586,22 +596,27 @@ Output:
 
 ```text
 -- build --
-cold build: exit 0, 0.7 s; rebuild after a one-line edit: exit 0, 0.7 s
-(each figure includes starting npm and Vite; Vite's own report of the build step was: ✓ built in 335ms)
+cold build: exit 0, 0.7 s; rebuild after a one-line edit: exit 0, 0.8 s
+(each figure includes starting npm and Vite; Vite's own report of the build step was: ✓ built in 321ms)
 index.html: 439 bytes, 282 gzip
-assets/app.js: 63302 bytes, 22751 gzip
+assets/app.js: 63440 bytes, 22786 gzip
 assets/app.css: 56917 bytes, 9759 gzip
 -- type check and unit tests --
 svelte-check: exit 0, 2.0 s: COMPLETED 295 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
-vitest: exit 0, 1.3 s: ['Test Files  3 passed (3)', 'Tests  28 passed (28)']
+vitest: exit 0, 1.3 s: ['Test Files  3 passed (3)', 'Tests  32 passed (32)']
 -- edit and see, against the real server --
 one command to first render, through the proxy: 1.2 s; page address is the dev server's: True
 a verdict through the proxy: the page sent ['POST /api/verdicts'] to the dev server; server verdicts=[{'id': '6032', 'verdict': 'vetoed'}]
-save to visible: 71 ms; no page reload: True; the server's verdict is still shown: True
+save to visible: 77 ms; no page reload: True; the server's verdict is still shown: True
 -- what the proxy does to Origin --
 POST through the proxy with the dev server's own Origin: HTTP 400 (reached the route; 400 is its answer to a malformed body)
 POST through the proxy with a foreign Origin: HTTP 403 (forwarded unchanged, refused)
 POST straight to Flask with the dev server's Origin: HTTP 403 (Flask itself is not relaxed)
+-- what stands in for Flask's exact-Host check --
+the proxy always presents the Flask server's own Host, so in development the only Host check is Vite's allow-list (server.allowedHosts, left at its default)
+GET /api/report through the proxy, by Host name (dev port): {'127.0.0.1': 200, 'evil.example': 403, 'localhost': 200, 'foo.localhost': 200}
+GET /api/report straight to Flask, by Host name (its own port): {'127.0.0.1': 200, 'evil.example': 400, 'localhost': 400, 'foo.localhost': 400}
+so Vite refuses a foreign Host, but accepts localhost and any *.localhost name, which Flask itself refuses
 -- none of the development path is in the build --
 index.html: development-only strings found: []
 assets/app.js: development-only strings found: []
@@ -629,7 +644,7 @@ committed samples equal what the server returns: True
        ... but required in type 'ExactMember'
    src/contract/samples.ts 11:83: ... Property 'disposition' is missing in type '{ equipped: boolean; id: string; in_loa ...
        ... but required in type 'ExactMember'
-3. unit tests: exit 1: ['Test Files  1 failed | 2 passed (3)', 'Tests  1 failed | 27 passed (28)']
+3. unit tests: exit 1: ['Test Files  1 failed | 2 passed (3)', 'Tests  1 failed | 31 passed (32)']
 4. production build: exit 0: ✓ built (Vite does not type-check; the build is not the gate)
 so the rename surfaces at step 1 without Node, and at the type check and the unit tests with it; nothing reaches the browser unless all three are skipped
 RESULT: PASS
@@ -637,7 +652,7 @@ RESULT: PASS
 
 ## S12: code comparison, npm tree and licences (gate H8)
 
-Line counts by category, the installed tree against the lockfile, `npm audit`, and the licence of everything installed and of everything in the built output.
+Line counts by category, the installed tree against the lockfile, `npm audit`, and the licence of everything installed and of everything in the built output. The JavaScript half of the built-output scan reads the bundler's own module list. The stylesheet half is a text match on the `@import` and `@plugin` lines of the CSS entry file, because the bundler lists only that file; a package pulled in by an imported stylesheet would not be seen.
 
 ```bash
 .venv/bin/python spikes/issue-206/proof_s12_code.py
@@ -650,17 +665,17 @@ Output:
 production JavaScript the slice replaces: 908 lines in 6 ranges (anchors found: True)
 Jinja hybrid (#137 evidence, quoted): 93 lines of fragment seam and 62 lines of browser-owned filtering in JavaScript, a 474-line Python context builder and 187 lines of templates: quote found=True
 slice, components and markup: 408 lines in 9 files
-slice, presentation projection (wording, shared/differing split): 285 lines in 1 files
+slice, presentation projection (wording, shared/differing split): 298 lines in 1 files
 slice, application logic (requests, revisions, reconciliation, lifecycle): 277 lines in 3 files
 slice, filtering: 102 lines in 1 files
 slice, types: 110 lines in 1 files
 slice, stylesheet: 51 lines in 1 files
 slice, Python: serving the build: 164 lines in 1 files
-slice, everything that runs or is served: 1397 lines
-slice, unit tests and the type-contract module: 299 lines in 4 files
-slice, build configuration: 105 lines in 3 files
+slice, everything that runs or is served: 1410 lines
+slice, unit tests and the type-contract module: 347 lines in 4 files
+slice, build configuration: 113 lines in 3 files
 slice, Python: contract sample generator: 92 lines in 1 files
-proof and tooling scripts (not part of any comparison): 3094 lines in 20 files
+proof and tooling scripts (not part of any comparison): 3210 lines in 20 files
 imperative DOM calls (createElement, el(), appendChild, textContent=, setAttribute): slice 0; the production ranges 87
 -- npm tree and audit --
 frontend: 76 packages installed; 122 in the lockfile; installed but not as locked: []; locked but not installed here (other platforms' optional binaries): 46, all optional=True, lockfile licences {'MIT': 26, 'MPL-2.0': 20}
@@ -676,6 +691,7 @@ probes: 132 packages installed; 178 in the lockfile; installed but not as locked
 frontend direct dependencies: runtime 0, development 11; every version exact: True
 npm audit: {'info': 0, 'low': 0, 'moderate': 0, 'high': 0, 'critical': 0, 'total': 0}
 -- what is in the built output --
+dist/modules.json: 3595 bytes; every path relative to frontend/: True
 assets/app.js: 61 modules, 14 of them the slice's own source
 assets/app.css: built from src/app.css, which pulls in ['tailwindcss', 'daisyui']
   contributes to the output: clsx@2.1.1 (MIT), 1 modules
@@ -731,7 +747,7 @@ Output:
 -- exercise 1: show one more per-member comparison value (a same-stat member's selected partner) --
   patch applies cleanly to the committed slice: True
   Svelte slice: 1 places in 1 files {'src/lib/view.ts': 1}; tests added or changed: {'src/lib/view.test.ts': 1}
-  with the patch: type check exit 0, unit tests exit 0 ['Tests  28 passed (28)'], build exit 0
+  with the patch: type check exit 0, unit tests exit 0 ['Tests  32 passed (32)'], build exit 0
   deliberately incomplete version: type check exit 1, unit tests exit 1
     ERROR "src/lib/view.ts" 109:21 "Property 'selected_partner_id' does not exist on type 'MemberBase'."
     ERROR "src/lib/view.ts" 109:76 "Property 'selected_partner_id' does not exist on type 'MemberBase'."
@@ -744,7 +760,7 @@ Output:
 -- exercise 2: add one more filter facet (Slot / type) --
   patch applies cleanly to the committed slice: True
   Svelte slice: 3 places in 2 files {'src/lib/filters.ts': 1, 'src/lib/view.ts': 2}; tests added or changed: {'src/lib/filters.test.ts': 1}
-  with the patch: type check exit 0, unit tests exit 0 ['Tests  29 passed (29)'], build exit 0
+  with the patch: type check exit 0, unit tests exit 0 ['Tests  33 passed (33)'], build exit 0
   deliberately incomplete version: type check exit 1, unit tests exit 0
     ERROR "src/lib/filters.ts" 31:41 "Property 'type' does not exist on type 'GroupView'."
   current page: 6 places in 2 files
@@ -767,15 +783,31 @@ Output:
 -- exercise 3: change the wording of one verdict state (Unreviewed) --
   patch applies cleanly to the committed slice: True
   Svelte slice: 1 places in 1 files {'src/lib/view.ts': 1}; tests added or changed: none
-  with the patch: type check exit 0, unit tests exit 0 ['Tests  28 passed (28)'], build exit 0
+  with the patch: type check exit 0, unit tests exit 0 ['Tests  32 passed (32)'], build exit 0
   deliberately incomplete version: type check exit 1, unit tests exit 0
-    ERROR "src/lib/view.ts" 123:14 "Property '\"\"' is missing in type '{ approved: string; vetoed: string; }' but required in type 'Record<Verdict, string>'."
+    ERROR "src/lib/view.ts" 130:14 "Property '\"\"' is missing in type '{ approved: string; vetoed: string; }' but required in type 'Record<Verdict, string>'."
   current page: 1 places in 1 files
     src/vault_cleaner/ui/review_server.js:425 the wording: found at that line=True
   Jinja hybrid (#137): 1 places in 1 files
     spikes/issue-137/context.py:101 the wording: found at that line=True
 the committed slice is byte-identical before and after this proof: True
 RESULT: PASS
+```
+
+## Build reproducibility
+
+Two builds from the same lockfile on the same machine, compared byte for byte. This is what a "committed build equals a fresh build" check in CI would rely on; one machine and one platform were measured.
+
+```bash
+(cd spikes/issue-206/frontend && npm run build >/dev/null 2>&1 && sha256sum dist/index.html dist/assets/app.js dist/assets/app.css > /tmp/vc-206-build.sha && npm run build >/dev/null 2>&1 && sha256sum --check /tmp/vc-206-build.sha && rm /tmp/vc-206-build.sha)
+```
+
+Output:
+
+```text
+dist/index.html: OK
+dist/assets/app.js: OK
+dist/assets/app.css: OK
 ```
 
 ## Keep/remove line ranges
@@ -890,20 +922,4 @@ apexcharts: SEE LICENSE IN LICENSE
 daisyui: MIT
 bits-ui: MIT
 @skeletonlabs/skeleton-svelte: MIT
-```
-
-## Build reproducibility
-
-Two builds from the same lockfile on the same machine, compared byte for byte. This is what a "committed build equals a fresh build" check in CI would rely on; one machine and one platform were measured.
-
-```bash
-(cd spikes/issue-206/frontend && npm run build >/dev/null 2>&1 && sha256sum dist/index.html dist/assets/app.js dist/assets/app.css > /tmp/vc-206-build.sha && npm run build >/dev/null 2>&1 && sha256sum --check /tmp/vc-206-build.sha && rm /tmp/vc-206-build.sha)
-```
-
-Output:
-
-```text
-dist/index.html: OK
-dist/assets/app.js: OK
-dist/assets/app.css: OK
 ```

@@ -1,6 +1,6 @@
 --- a/src/lib/view.test.ts
 +++ b/src/lib/view.test.ts
-@@ -52,7 +52,9 @@ describe('duplicateGroups', () => {
+@@ -104,7 +104,9 @@ describe('duplicateGroups', () => {
      expect(exact!.shared.map((fact) => fact.key)).toEqual([
        'tuning_mod_slot', 'protection', 'in_loadout', 'equipped', 'locked', 'power',
      ]);

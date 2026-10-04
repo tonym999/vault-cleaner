@@ -31,7 +31,7 @@ All nine gates pass for the slice (the Armor duplicates surface):
 
 | Gate | Requirement | Result | Evidence |
 | --- | --- | --- | --- |
-| H1 | The slice shows what the server says | Pass. Every required value equal for four fixtures, without and with verdicts, at 1440 and 390 px; scope and Class options equal to production's for nine filter sequences; the negative control fails | [S1](evidence/issue-206/README.md#s1-information-parity-gate-h1) |
+| H1 | The slice shows what the server says | Pass. Every required value equal for four fixtures, without and with verdicts, at 1440 and 390 px. Three group values no fixture carries (spirit signature, and an exact group's Seasonal Mod and Holofoil) are measured on an in-memory overlay of the server's answer; scope and Class options equal to production's for nine filter sequences; the negative control fails | [S1](evidence/issue-206/README.md#s1-information-parity-gate-h1) |
 | H2 | Untrusted values inert; ids and hashes opaque | Pass. 602 strings replaced; no element created, no dialog, no violation; ids byte-identical in the DOM and in the request body | [S2](evidence/issue-206/README.md#s2-hostile-content-gate-h2), [source rules](evidence/issue-206/README.md#source-rules-gates-h2-h8) |
 | H3 | Acknowledged state only; no replay; correct across finalise, reset and disconnect | Pass. The already-open page reaches the frozen state with the revision pair unchanged | [S3](evidence/issue-206/README.md#s3-acknowledged-state-only-gate-h3), [S4](evidence/issue-206/README.md#s4-finalise-reset-disconnect-gate-h3) |
 | H4 | Contract section 7 met; focus survives a verdict | Pass, with one stated change of mechanism (`aria-disabled`, [section 4](#4-design)) | [S5](evidence/issue-206/README.md#s5-focus-and-live-regions-gate-h4), [S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4) |
@@ -79,16 +79,21 @@ What the browser computes, each a lookup, a count or wording:
 
 - which verdict a member has, and whether it has an active persisted veto;
 - a member's proposal, by looking its id up in its section's `decisions`;
-- whether a member has verdict controls: an exact member when its own
-  `proposal_action` is set and the section has that proposal; a same-stat
-  member when the section has a proposal for it. Both are read, as
-  production reads them (`review_ui.js:1289-1295`);
+- whether a member has verdict controls, by production's rule
+  (`review_ui.js:1209-1212`, `:1289-1295`). An exact member has them when
+  its `disposition` and its `proposal_action` agree (`proposed_junk` with
+  `junk`, `proposed_review` with `review`) and the section's proposal for it
+  carries that action. A same-stat member has them when the section's
+  proposal for it is exactly `junk` or `review`. One difference: where the
+  values disagree, production's normaliser rejects the whole snapshot
+  (`review_ui.js:414-418`), and the slice shows that member without
+  controls;
 - which comparison fields have one value across a group's members and which
   differ;
 - filtering, the scope sentence and facet counts;
 - **one derivation the envelope does not carry:** which stat of a tier-5
   piece is primary, secondary and tertiary, from the fixed 30/25/20 spike.
-  Production derives it in the browser too (`review_ui.js:806-838`). It
+  Production derives it in the browser too (`review_ui.js:806-844`). It
   exists in one language, but it is a candidate for a snapshot field.
 
 No grouping, member order, survivor choice or disposition is computed. The
@@ -337,13 +342,13 @@ Non-blank lines.
 
 | | Current page | Jinja hybrid (#137) | Svelte slice |
 | --- | --- | --- | --- |
-| Rendering the duplicates surface | 908 lines of JavaScript | 93 lines of fragment seam in JavaScript, 474 of Python, 187 of templates | 408 of components and markup, 285 of projection, 110 of types |
+| Rendering the duplicates surface | 908 lines of JavaScript | 93 lines of fragment seam in JavaScript, 474 of Python, 187 of templates | 408 of components and markup, 298 of projection, 110 of types |
 | Filtering | 152 lines for six filters (#137's E10 count), partly inside the 908 | 62 (two filters) | 102 (two filters, written so a third is one entry) |
 | Requests, revisions, reconciliation, lifecycle | not in the 908 | 238 lines that production already has | 277 |
 | Imperative DOM calls in that code | 87 | not counted | 0 |
 
-**The slice is not smaller.** Its rendering code is 803 lines against 908,
-and the whole slice that runs or is served is 1,397 lines, because it also
+**The slice is not smaller.** Its rendering code is 816 lines against 908,
+and the whole slice that runs or is served is 1,410 lines, because it also
 contains its own session logic, stylesheet and serving code. The difference
 is in kind: no line builds or patches DOM, all of it is type-checked, and
 the logic is tested in process.
@@ -379,7 +384,7 @@ Timings are from one machine and vary.
 | --- | --- |
 | Cold production build, and a rebuild after a one-line edit | 0.7 s each, including starting npm |
 | Output | `app.js` 63 kB (23 kB gzip), `app.css` 57 kB (10 kB gzip), `index.html` 0.4 kB |
-| Type check; unit tests | 2.0 s; 1.3 s (28 tests, no browser) |
+| Type check; unit tests | 2.0 s; 1.3 s (32 tests, no browser) |
 | One command to first render through the proxy | 1.2 s |
 | Save a component to seeing it, no reload, server data kept | under 0.1 s |
 
@@ -389,9 +394,21 @@ has no build either; a template edit is seen on the next request.
 
 ### H8: is maintenance effort clearly lower? Yes, on structure
 
-- **(a) No rule is in both Python and the browser.** The browser reads
-  groups, order, dispositions and proposals. Its one derivation, the tier-5
-  stat roles, is not in Python's output at all.
+- **(a) No grouping, ranking, survivor or eligibility rule is in both
+  Python and the browser.** The browser reads groups, order, dispositions
+  and proposals. It does hold knowledge of the server's values, which a
+  change on the Python side could silently outdate:
+  - the tier-5 stat roles, derived from the 30/25/20 spike (not in Python's
+    output at all);
+  - the `none/unknown` sentinel for Tuning Mod Slot, copied from
+    `duplicate_reference.py:34`;
+  - the convention that a Holofoil value of `false` means "not holofoil";
+  - the names of enumerated values: the frozen states (`finalized`,
+    `closed`), the dispositions and their pairing with `junk` and `review`,
+    the override status `active`, and the verdicts `approved` and `vetoed`.
+
+  These are names and conventions, not decisions, but they are a second
+  copy. The type contract does not cover them (see H9).
 - **(b) No hand-written DOM construction or repaint.** Zero imperative DOM
   calls against 87 in the code it replaces. The listed exceptions are the
   mount point and the focus policy
@@ -400,7 +417,7 @@ has no build either; a template edit is seen on the next request.
   reason given above.
 - **(d) The remaining application logic is typed and unit-tested without a
   browser:** held responses, stale revisions, a finalise made elsewhere, a
-  stopped server, in 28 tests that run in 1.3 s.
+  stopped server, in 32 tests that run in 1.3 s.
 
 It is **not** lower on size, and it adds a toolchain to maintain
 ([section 7](#7-costs)). If the owner weighs a second toolchain more heavily
@@ -412,11 +429,24 @@ than hand-maintained DOM code, this gate is the one to dispute.
 - A component edit was visible against real server data in under 0.1 s,
   without a reload.
 - A Python-to-browser type mismatch is caught before runtime, by a
-  Python-only check and by the type check.
+  Python-only check and by the type check. This covers field names and
+  field types. It does **not** cover enumerated values: they are typed
+  `string`, so a renamed `state`, `disposition`, override `status` or
+  `verdict` value passes the type check. The stale-sample check
+  (`contract.py --check`) and the unit tests catch those (the reviewer
+  renamed each in the samples: the type check passed and the unit tests
+  failed every time).
 - Nothing in the loop weakens the built product. The Flask server is
   unmodified. The dev proxy presents the server's `Host` and rewrites
   `Origin` only when it is exactly the dev server's own; a foreign `Origin`
   through the proxy is refused with 403. None of it is in the build.
+- **In development only, one server check is replaced by a weaker one.**
+  Because the proxy always presents the Flask server's `Host`, Flask's
+  exact-`Host` check never sees what the browser sent. Its stand-in is
+  Vite's `server.allowedHosts`, left at its default. Measured through the
+  proxy: a foreign name is refused (403), but `localhost` and any
+  `*.localhost` name are accepted (200), where Flask itself answers 400 to
+  both.
 
 One caveat: in development the page is served by Vite, so Flask's CSP does
 not apply to it. A CSP regression shows only on the built page, so the
@@ -499,6 +529,18 @@ Awkward, each found by a proof:
   migration must decide how much runtime validation to keep.
 - **Fixtures have no read-only same-stat member and no exact survivor with
   a later proposal.** Those two cases are covered by unit tests only.
+- **No fixture carries a spirit signature, or an exact group with a
+  Seasonal Mod or a Holofoil.** S1 measures those three on the server's real
+  answer changed in memory before the page sees it, and unit tests cover
+  them; no real upload produced them.
+- **The stylesheet half of S12's built-output licence scan is a text match.**
+  The JavaScript half reads the bundler's own module list. For the
+  stylesheet the bundler lists only the entry file, because Tailwind inlines
+  imports itself, so the proof reads the `@import` and `@plugin` lines of
+  `app.css`. A package pulled in by an imported stylesheet, rather than
+  named in `app.css`, would be missed.
+- **The development loop's `Host` check is Vite's, not Flask's** (section 6,
+  H9).
 - **The hostile overlay is applied between server and page,** because the
   server will not hold such ids. The verdict acknowledgement in S2 is
   therefore simulated; the request body is real.
@@ -528,7 +570,11 @@ lifecycle or the CSP.
 daisyUI 5, exact versions, committed lockfile) that builds an empty shell.
 The envelope types, `contract.py` and its samples. A CI job: `npm ci`, type
 check, unit tests, build, committed-build freshness, contract check, source
-scan, licence scan. The `PLAN.md` and `AGENTS.md` dependency and setup
+scan, licence scan. The freshness check compares the three served files.
+`dist/modules.json`, which the licence scan reads, is not served and is not
+committed; its paths are relative to the frontend directory, and must stay
+so (or the file must be excluded) so that nothing built depends on where the
+checkout is. The `PLAN.md` and `AGENTS.md` dependency and setup
 lines. The built files committed in `vault_cleaner/ui/` but served by no
 route yet.
 

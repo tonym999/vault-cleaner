@@ -3,7 +3,10 @@
 For each of the four fake fixtures, without and then with verdicts, the
 proof computes what must be shown from the server's envelope (``expected.py``,
 which shares no code with the frontend) and compares it with what the page
-shows, at 1440 px and at 390 px, with no interaction.  It then compares the
+shows, at 1440 px and at 390 px, with no interaction.  Three required group
+values appear in none of the fixtures (a spirit signature, and an exact
+group's Seasonal Mod and Holofoil), so one more case overlays them in memory
+on the server's answer and checks them the same way.  It then compares the
 scope sentence and the Class options with the production page for the filter
 sequences of #137's E10, and ends with a negative control.
 
@@ -97,6 +100,31 @@ def check(page: Any, envelope: dict, label: str, failures: list[str]) -> None:
             failures.append(f"{label} at {width}px: the page scrolls sideways")
 
 
+def with_group_extras(overlaid: dict):
+    """Give the groups the three values none of the four fixtures carries.
+
+    No fixture has a spirit signature, and no exact group in them has a
+    Seasonal Mod or a Holofoil.  The real answer to ``GET /api/report`` is
+    changed in memory before the page sees it; ``overlaid`` receives the
+    changed envelope, from which ``expected.py`` computes what must be shown.
+    """
+
+    def handler(route: Any) -> None:
+        real = route.fetch()
+        envelope = real.json()
+        armor = envelope["snapshot"]["sections"][0]["armor"]
+        exact = armor["exact_duplicate_groups"][0]
+        exact["spirit_signature"] = ["Spirit of the Fixture", "Spirit of the Proof"]
+        exact["seasonal_mod"] = "Fake Seasonal Mod"
+        exact["holofoil"] = "true"
+        armor["same_stat_groups"][0]["spirit_signature"] = ["Spirit of the Twin"]
+        overlaid.clear()
+        overlaid.update(envelope)
+        route.fulfill(response=real, json=envelope)
+
+    return handler
+
+
 def apply_slice(page: Any, steps: tuple) -> None:
     page.locator("button", has_text="Reset filters").first.click()
     for kind, value in steps:
@@ -134,6 +162,28 @@ def main() -> int:
                 reload_report(page)
                 check(page, answer.json(), f"{fixture} with {len(decisions)} verdicts", failures)
                 context.close()
+
+        print("-- group values no fixture has, overlaid in memory on the server's answer --")
+        with live_spike() as live:
+            context = authenticated_context(browser, live)
+            upload(context, live, "armor_close.csv")
+            overlaid: dict = {}
+            page = context.new_page()
+            page.route("**/api/report", with_group_extras(overlaid))
+            page.goto(f"{live.origin}/spike/", wait_until="domcontentloaded")
+            page.wait_for_selector("article[data-group]")
+            wanted = {
+                "exact:6031": {"spirit_signature": "Spirit of the Fixture · Spirit of the Proof",
+                               "seasonal_mod": "Fake Seasonal Mod", "holofoil": "true"},
+                "same_stat:6081": {"spirit_signature": "Spirit of the Twin"},
+            }
+            for group in read_slice(page)["groups"]:
+                shown = {name: group["shared"].get(name, {}).get("text") for name in wanted[group["key"]]}
+                print(f"{group['key']} shows: {shown}")
+                if shown != wanted[group["key"]]:
+                    failures.append(f"{group['key']} does not show its overlaid group values")
+            check(page, overlaid, "armor_close.csv with spirit signatures, Seasonal Mod and Holofoil", failures)
+            context.close()
 
         with live_spike() as live:
             context = authenticated_context(browser, live)

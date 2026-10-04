@@ -1,5 +1,6 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
+import { relative, sep } from 'node:path';
 import { defineConfig, type Plugin } from 'vitest/config';
 
 // The Flask server to develop against (`python spikes/issue-206/dev.py` sets
@@ -11,8 +12,11 @@ const devOrigin = `http://127.0.0.1:${devPort}`;
 /**
  * Write the bundler's own list of the modules in each output file, so the
  * licence scan (experiment S12) reads what was built, not a hand-kept list.
+ * Paths are written relative to this directory, so the file does not depend
+ * on where the checkout is.
  */
 function moduleList(): Plugin {
+  const here = (id: string) => relative(import.meta.dirname, id).split(sep).join('/');
   return {
     name: 'spike-module-list',
     apply: 'build',
@@ -23,8 +27,8 @@ function moduleList(): Plugin {
         if (chunk.type !== 'chunk') continue;
         outputs[fileName] = Object.entries(chunk.modules)
           .filter(([, module]) => module.renderedLength > 0)
-          .map(([id]) => id);
-        for (const id of chunk.moduleIds) if (/\.css($|\?)/.test(id)) css.add(id);
+          .map(([id]) => here(id));
+        for (const id of chunk.moduleIds) if (/\.css($|\?)/.test(id)) css.add(here(id));
       }
       this.emitFile({
         type: 'asset',
@@ -66,6 +70,10 @@ export default defineConfig({
     // Origin are its own.  The proxy presents the backend's Host, and
     // rewrites Origin only when it is exactly this dev server's own origin;
     // any other Origin is forwarded untouched and Flask refuses it.
+    // Because the proxy always presents the backend's Host, Flask's exact-Host
+    // check does not see the browser's.  Vite's default `allowedHosts` stands
+    // in for it here: it refuses a foreign name but accepts localhost and
+    // *.localhost, which Flask refuses.
     proxy: backend
       ? Object.fromEntries(
           ['/api', '/bootstrap'].map((path) => [

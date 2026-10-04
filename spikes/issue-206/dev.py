@@ -18,6 +18,13 @@ the dev server's own origin**; any other ``Origin`` is forwarded unchanged
 and Flask refuses it.  The session cookie works on both ports because
 cookies are not scoped by port.
 
+The ``Host`` check is the one thing the loop does weaken, in development
+only.  Because the proxy always presents the Flask server's ``Host``, Flask's
+exact-``Host`` check no longer sees what the browser sent.  Its stand-in is
+Vite's own allow-list (``server.allowedHosts``, left at its default), which
+refuses a foreign name but accepts ``localhost`` and any ``*.localhost``
+name; Flask itself refuses those (experiment S10 measures both).
+
 Nothing on the Flask side is relaxed: it is the same app the proofs run.
 The relaxation is the proxy, it exists only in Vite's ``server`` options,
 and ``vite build`` puts none of it in the output (experiment S10 checks).

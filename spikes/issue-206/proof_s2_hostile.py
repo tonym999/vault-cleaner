@@ -6,7 +6,10 @@ intercepts ``GET /api/report`` in the browser, takes the server's real
 answer, replaces **every string value** (and every stat name) with a hostile
 one, and hands that to the page.  Structural values the page branches on
 (``state``, ``kind``, ``group_kind``, ``status``, ``verdict`` and the
-fingerprint it sends back) are kept.  Ids and hashes are replaced
+fingerprint it sends back) are kept.  ``disposition``, ``action`` and
+``proposal_action`` are replaced in a first pass, where the page must then
+show no verdict buttons, and kept in a second pass so a verdict can be
+pressed.  Ids and hashes are replaced
 consistently, so the same hostile id appears wherever the real one did.
 
 It then checks that nothing ran or was injected, that the text shown is the
@@ -38,6 +41,10 @@ LONG = "W" * 300
 SPECIAL_IDS = ("18446744073709551615", "007", "9\"<'> x")
 ID_KEYS = {"id", "group_id", "preferred_survivor_id", "selected_partner_id", "kept_id"}
 KEEP = {"state", "kind", "group_kind", "status", "verdict", "fingerprint"}
+# The three values that decide whether a member has verdict buttons.  The
+# first pass replaces them too; the second keeps them so a verdict can be
+# pressed on a member with a hostile id.
+ELIGIBILITY = {"disposition", "action", "proposal_action"}
 
 
 class Overlay:
@@ -45,6 +52,7 @@ class Overlay:
         self.ids: dict[str, str] = {}
         self.hashes: dict[str, str] = {}
         self.replaced = 0
+        self.keep = set(KEEP)
 
     def _id(self, value: str) -> str:
         if value not in self.ids:
@@ -76,7 +84,7 @@ class Overlay:
             return {name: self.apply(child, name) for name, child in value.items()}
         if isinstance(value, list):
             return [self.apply(child, key) for child in value]
-        if not isinstance(value, str) or key in KEEP:
+        if not isinstance(value, str) or key in self.keep:
             return value
         self.replaced += 1
         if key in ID_KEYS or key in ("cited_ids",):
@@ -178,6 +186,23 @@ def one_width(browser: Any, live: Any, width: int, state: Any, failures: list[st
         failures.append("a value did not round-trip exactly")
     if found["elements"] or found["scripts"] != 1 or found["sideways"]:
         failures.append("a hostile value created an element or widened the page")
+
+    controls = page.locator("[data-member] button").count()
+    print(f"verdict buttons with every disposition and action hostile: {controls} "
+          "(no member's disposition and action agree, so none is a proposal member)")
+    if controls:
+        failures.append("a member with a hostile disposition or action got verdict buttons")
+
+    overlay.keep |= ELIGIBILITY
+    overlay.replaced = 0
+    with page.expect_response("**/api/report"):
+        page.locator("button", has_text="Reload report").click()
+    page.wait_for_selector("[data-member] button")
+    again = compare(read_slice(page), hostile)
+    print(f"second pass, disposition and action values kept: strings replaced {overlay.replaced}; "
+          f"verdict buttons {page.locator('[data-member] button').count()}; "
+          f"differences from the envelope {len(again)}")
+    failures.extend(again[:5])
 
     target = member_ids[1] if width == 1440 else member_ids[2]
     row = page.locator("[data-member]").nth(member_ids.index(target))

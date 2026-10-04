@@ -37,6 +37,58 @@ describe('duplicateGroups', () => {
     expect(survivor.hasControls).toBe(false);
   });
 
+  it('gives an exact member no controls when disposition and proposal action disagree', () => {
+    for (const change of [
+      { disposition: 'proposed_review' }, // the proposal says junk
+      { disposition: 'preferred_survivor' },
+      { proposal_action: 'review' },
+      { proposal_action: null },
+    ]) {
+      const envelope: Envelope = structuredClone(samples.reviewing);
+      const member = envelope.snapshot!.sections[0]!.armor!.exact_duplicate_groups[0]!.members[1]!;
+      Object.assign(member, change);
+      const view = duplicateGroups(envelope)[0]!.members[1]!;
+      expect(view.proposal?.action).toBe('junk');
+      expect(view.hasControls).toBe(false);
+    }
+  });
+
+  it('gives a same-stat member no controls when its proposal is neither junk nor review', () => {
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    const section = envelope.snapshot!.sections[0]!;
+    section.decisions.find((decision) => decision.id === '6081')!.action = 'keep';
+    const [first, second] = duplicateGroups(envelope)[1]!.members;
+    expect(first).toMatchObject({ status: 'Existing proposal: keep', hasControls: false });
+    expect(second!.hasControls).toBe(true);
+  });
+
+  it('shows a spirit signature on either kind of group, joined in server order', () => {
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    const armor = envelope.snapshot!.sections[0]!.armor!;
+    armor.exact_duplicate_groups[0]!.spirit_signature = ['Spirit A', 'Spirit B'];
+    armor.same_stat_groups[0]!.spirit_signature = ['Spirit C'];
+    const [exactGroup, sameStatGroup] = duplicateGroups(envelope);
+    const cell = { text: 'Spirit A · Spirit B', unknown: false };
+    expect(exactGroup!.shared.find((fact) => fact.key === 'spirit_signature')).toMatchObject({ cell });
+    expect(sameStatGroup!.shared.find((fact) => fact.key === 'spirit_signature')!.cell.text).toBe('Spirit C');
+    expect(groups[0]!.shared.some((fact) => fact.key === 'spirit_signature')).toBe(false);
+  });
+
+  it('shows an exact group\'s Seasonal Mod and Holofoil only when it has them', () => {
+    const keys = (envelope: Envelope) => duplicateGroups(envelope)[0]!.shared.map((fact) => fact.key);
+    expect(keys(samples.reviewing)).not.toContain('seasonal_mod');
+    expect(keys(samples.reviewing)).not.toContain('holofoil'); // the sample's value is "false"
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    const group = envelope.snapshot!.sections[0]!.armor!.exact_duplicate_groups[0]!;
+    group.seasonal_mod = 'Fake Seasonal Mod';
+    group.holofoil = 'true';
+    const shared = duplicateGroups(envelope)[0]!.shared;
+    expect(shared.find((fact) => fact.key === 'seasonal_mod')!.cell).toEqual({ text: 'Fake Seasonal Mod', unknown: false });
+    expect(shared.find((fact) => fact.key === 'holofoil')!.cell).toEqual({ text: 'true', unknown: false });
+    group.holofoil = 'FALSE';
+    expect(keys(envelope)).not.toContain('holofoil');
+  });
+
   it('gives a same-stat member controls only when the section has a proposal for it', () => {
     expect(sameStat!.members.map((member) => member.hasControls)).toEqual([true, true]);
     const envelope: Envelope = structuredClone(samples.reviewing);
