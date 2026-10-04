@@ -289,8 +289,16 @@ decision, #206).
 12. **Status and notices** are coloured notices; the three live regions
     keep their roles and are never recreated.
 13. **Same-stat notice and section copy** are reworded.
-14. **Focus indicator.** One global rule: a 3px outline in the primary
-    colour, 2px offset (the contract's floor).
+14. **Focus indicator.** One global rule outside the cascade layers: a 3px
+    outline in the theme's base-content colour, 2px offset. Independent review
+    found daisyUI's component rule overriding the old layered floor: dark
+    primary controls had a 2px outline at 2.40:1. S13 recreates that failure
+    as a negative control and measures actual Tab-focused links, selects and
+    buttons in each state; S15 applies the same check to all 444 controls.
+    The corrected primary rings measure 17.72:1 light and 14.75:1 dark.
+    This meets the contract's floor and the [3:1 authored focus-indicator
+    requirement](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)
+    (read 2026-10-04). Fills and text colours did not change for this repair.
 
 ### One change of mechanism in a binding item
 
@@ -369,7 +377,7 @@ Non-blank lines.
 | Imperative DOM calls in that code | 87 | not counted | 0 |
 
 **The slice is not smaller.** Its rendering code is 816 lines against 908,
-and the whole slice that runs or is served is 1,418 lines, because it also
+and the whole slice that runs or is served is 1,420 lines, because it also
 contains its own session logic, stylesheet and serving code. The difference
 is in kind: no line builds or patches DOM, all of it is type-checked, and
 the logic is tested in process.
@@ -405,8 +413,8 @@ Timings are from one machine and vary.
 | --- | --- |
 | Cold production build, and a rebuild after a one-line edit | 0.8 s and 0.8 s, including starting npm |
 | Output | `app.js` 63 kB (23 kB gzip), `app.css` 57 kB (10 kB gzip), `index.html` 0.4 kB |
-| Type check; unit tests | 2.0 s; 1.2 s (32 tests, no browser) |
-| One command to first render through the proxy | 1.2 s |
+| Type check; unit tests | 2.2 s; 1.3 s (32 tests, no browser) |
+| One command to first render through the proxy | 1.3 s |
 | Save a component to seeing it, no reload, server data kept | under 0.1 s |
 
 The current page has no build and no type check; an edit is seen on reload,
@@ -441,10 +449,10 @@ and frame-opportunity measurements, not physical display scanout.
 
 | Five-run medians | Svelte slice | Production |
 | --- | --- | --- |
-| Navigation to every group laid out | 209.5 ms | 151.9 ms |
-| Navigation to next animation frame | 222.3 ms | 158.1 ms |
-| Acknowledgement to DOM repaint | 17.5 ms | 10.8 ms |
-| Acknowledgement to next animation frame | 23.6 ms | 15.8 ms |
+| Navigation to every group laid out | 202.4 ms | 152.4 ms |
+| Navigation to next animation frame | 215.0 ms | 158.7 ms |
+| Acknowledgement to DOM repaint | 20.2 ms | 10.5 ms |
+| Acknowledgement to next animation frame | 26.4 ms | 18.0 ms |
 | Document elements | 13,143 | 17,138 |
 
 The scope differs: production also constructs the Proposals DOM and both
@@ -484,7 +492,7 @@ focus, offline filtering and scope counts. Those alternatives were not built.
   reason given above.
 - **(d) The remaining application logic is typed and unit-tested without a
   browser:** held responses, stale revisions, a finalise made elsewhere, a
-  stopped server, in 32 tests that run in 1.2 s.
+  stopped server, in 32 tests that run in 1.3 s.
 
 It is **not** lower on size, and it adds a toolchain to maintain
 ([section 7](#7-costs)). If the owner weighs a second toolchain more heavily

@@ -26,7 +26,9 @@ the incomplete changes fail their checks; its script is unchanged. S15 and
 the frontend fence are new captures. These new and recaptured fences merge
 stderr into stdout in process emission order. The earlier unchanged captures keep their original
 stdout-then-stderr order. S15 timing numbers vary between runs;
-counts and pass results must remain. The proof captures print no runtime port,
+counts and pass results must remain. Fix round 3 recaptured frontend, source,
+S9, S10, S12, S13 and S15 after correcting the focus floor, in merged process
+emission order; all other proof transcripts were unchanged. The proof captures print no runtime port,
 absolute checkout or temporary path, or session token; repository-relative
 fixture, screenshot and source-citation paths are included.
 
@@ -123,10 +125,12 @@ Output:
 
 ```text
 
-added 76 packages in 1s
+added 76 packages, and audited 77 packages in 1s
 
 18 packages are looking for funding
   run `npm fund` for details
+
+found 0 vulnerabilities
 npm notice run vault-cleaner-spike-206-frontend@0.0.0 check
 npm notice run svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
 Loading svelte-check in workspace: <repo>/spikes/issue-206/frontend
@@ -141,8 +145,8 @@ npm notice run vitest run
 
  Test Files  3 passed (3)
       Tests  32 passed (32)
-   Start at  16:26:22
-   Duration  591ms (transform 79%, import 15%, tests 5%, worker 1%)
+   Start at  17:02:00
+   Duration  567ms (transform 78%, import 16%, tests 5%, worker 1%)
 
 npm notice run vault-cleaner-spike-206-frontend@0.0.0 build
 npm notice run vite build
@@ -154,7 +158,7 @@ rendering chunks...
 computing gzip size...
 dist/index.html       0.43 kB │ gzip:  0.28 kB
 dist/modules.json     3.59 kB │ gzip:  0.57 kB
-dist/assets/app.css  57.01 kB │ gzip:  9.90 kB
+dist/assets/app.css  57.02 kB │ gzip:  9.90 kB
 dist/assets/app.js   63.44 kB │ gzip: 23.09 kB
 
 ✓ built in 352ms
@@ -234,7 +238,7 @@ main.ts:8 document.getElementById: the mount point, once at start-up
 -- ordering computed in the browser --
 lib/filters.ts:60 .sort(([left], [right]) => left.localeCompare(right, 'en', { sensitivity: 'base' }))
 -- build output --
-assets/app.css: 56917 bytes; URL strings 2 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: ['--fx-noise:url("data:image/svg+xml']; @import/@font-face/remote url(): []
+assets/app.css: 57022 bytes; URL strings 2 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: ['--fx-noise:url("data:image/svg+xml']; @import/@font-face/remote url(): []
   the one data: URI is daisyUI's --fx-noise definition; the same file overrides it with --fx-noise:none: True
 assets/app.js: 63440 bytes; URL strings 15 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
 index.html: 439 bytes; URL strings 0 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
@@ -578,7 +582,7 @@ Output:
 production asset headers: {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
 /spike/: HTTP 200, text/html; charset=utf-8, 439 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
 /spike/assets/app.js: HTTP 200, text/javascript; charset=utf-8, 63440 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
-/spike/assets/app.css: HTTP 200, text/css; charset=utf-8, 57017 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
+/spike/assets/app.css: HTTP 200, text/css; charset=utf-8, 57022 bytes; security headers equal production's=True; refusals={'no cookie': 401, 'wrong Host': 400, 'wrong Origin': 403, 'POST': 404}
 production route /: HTTP 200; policy byte-identical to SERVER_CSP=True
 production route /assets/review.css: HTTP 200; policy byte-identical to SERVER_CSP=True
 production route /assets/review_ui.js: HTTP 200; policy byte-identical to SERVER_CSP=True
@@ -616,17 +620,17 @@ Output:
 ```text
 -- build --
 cold build: exit 0, 0.8 s; rebuild after a one-line edit: exit 0, 0.8 s
-(each figure includes starting npm and Vite; Vite's own report of the build step was: ✓ built in 360ms)
+(each figure includes starting npm and Vite; Vite's own report of the build step was: ✓ built in 334ms)
 index.html: 439 bytes, 282 gzip
 assets/app.js: 63440 bytes, 22786 gzip
-assets/app.css: 57017 bytes, 9792 gzip
+assets/app.css: 57022 bytes, 9786 gzip
 -- type check and unit tests --
-svelte-check: exit 0, 2.0 s: found 0 errors and 0 warnings
-vitest: exit 0, 1.2 s: ['Test Files  3 passed (3)', 'Tests  32 passed (32)']
+svelte-check: exit 0, 2.2 s: found 0 errors and 0 warnings
+vitest: exit 0, 1.3 s: ['Test Files  3 passed (3)', 'Tests  32 passed (32)']
 -- edit and see, against the real server --
-one command to first render, through the proxy: 1.2 s; page address is the dev server's: True
+one command to first render, through the proxy: 1.3 s; page address is the dev server's: True
 a verdict through the proxy: the page sent ['POST /api/verdicts'] to the dev server; server verdicts=[{'id': '6032', 'verdict': 'vetoed'}]
-save to visible: 70 ms; no page reload: True; the server's verdict is still shown: True
+save to visible: 85 ms; no page reload: True; the server's verdict is still shown: True
 -- what the proxy does to Origin --
 POST through the proxy with the dev server's own Origin: HTTP 400 (reached the route; 400 is its answer to a malformed body)
 POST through the proxy with a foreign Origin: HTTP 403 (forwarded unchanged, refused)
@@ -688,13 +692,13 @@ slice, presentation projection (wording, shared/differing split): 298 lines in 1
 slice, application logic (requests, revisions, reconciliation, lifecycle): 277 lines in 3 files
 slice, filtering: 102 lines in 1 files
 slice, types: 110 lines in 1 files
-slice, stylesheet: 59 lines in 1 files
+slice, stylesheet: 61 lines in 1 files
 slice, Python: serving the build: 164 lines in 1 files
-slice, everything that runs or is served: 1418 lines
+slice, everything that runs or is served: 1420 lines
 slice, unit tests and the type-contract module: 347 lines in 4 files
 slice, build configuration: 113 lines in 3 files
 slice, Python: contract sample generator: 92 lines in 1 files
-proof and tooling scripts (not part of any comparison): 3576 lines in 21 files
+proof and tooling scripts (not part of any comparison): 3593 lines in 21 files
 imperative DOM calls (createElement, el(), appendChild, textContent=, setAttribute): slice 0; the production ranges 87
 -- npm tree and audit --
 frontend: 76 packages installed; 122 in the lockfile; installed but not as locked: []; locked but not installed here (other platforms' optional binaries): 46, all optional=True, lockfile licences {'MIT': 26, 'MPL-2.0': 20}
@@ -723,7 +727,12 @@ RESULT: PASS
 
 ## S13: automated accessibility check (gate H4)
 
-axe-core in both colour schemes at two widths, in four states, with the contrast axe could not judge measured directly.
+axe-core in both colour schemes at two widths, in seven states, with the
+contrast axe could not judge measured directly. An actual Tab lap checks all
+links, selects and buttons (including unreviewed, held, approved, vetoed and
+frozen verdict controls) for the 3px/2px floor and at least 3:1 contrast against
+the adjacent background. The old cascade is restored temporarily through
+CSSOM as a failing negative control, then the shipped rule is restored.
 
 ```bash
 .venv/bin/python spikes/issue-206/proof_s13_axe.py
@@ -733,22 +742,63 @@ Output:
 
 ```text
 axe-core 4.13.0 (MPL-2.0), development-only
-reviewing, one veto, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.64:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
-reviewing, one veto, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.64:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
+pre-fix cascade negative control: Skip to review content=2.40:1/2px; Finalise review=2.40:1/2px; All (2)=2.40:1/2px; rejected=True
+reviewing, unreviewed, 1440px light: rules passed=39, violations=[]; contrast axe could not judge: 20 nodes, measured here 20, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, unreviewed, 1440px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+reviewing, unreviewed, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, unreviewed, 1440px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
+reviewing, unreviewed, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, unreviewed, 390px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+reviewing, unreviewed, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, unreviewed, 390px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
+approval in flight, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 8 nodes, measured here 8, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+approval in flight, 1440px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+approval in flight, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 8 nodes, measured here 8, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+approval in flight, 1440px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
+approval in flight, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 8 nodes, measured here 8, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+approval in flight, 390px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+approval in flight, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 8 nodes, measured here 8, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+approval in flight, 390px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
+reviewing, one approval, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one approval, 1440px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+reviewing, one approval, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one approval, 1440px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
+reviewing, one approval, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one approval, 390px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+reviewing, one approval, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one approval, 390px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
+reviewing, one veto, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.88:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one veto, 1440px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
+reviewing, one veto, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.88:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one veto, 1440px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
 reviewing, one veto, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.88:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one veto, 390px light: keyboard focus=18/18; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (2)', 17.72)]; outline floor=3px/2px; problems=[]
 reviewing, one veto, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 19 nodes, measured here 19, lowest 4.88:1 (.btn-error), below 4.5:1: []; with a real background image: ['select']; not measured: []
+reviewing, one veto, 390px dark: keyboard focus=18/18; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (2)', 14.75)]; outline floor=3px/2px; problems=[]
 filtered, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 1440px light: keyboard focus=15/15; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('Same stats (1)', 17.72)]; outline floor=3px/2px; problems=[]
 filtered, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 1440px dark: keyboard focus=15/15; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('Same stats (1)', 14.75)]; outline floor=3px/2px; problems=[]
 filtered, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 390px light: keyboard focus=15/15; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('Same stats (1)', 17.72)]; outline floor=3px/2px; problems=[]
 filtered, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 15 nodes, measured here 15, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+filtered, 390px dark: keyboard focus=15/15; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('Same stats (1)', 14.75)]; outline floor=3px/2px; problems=[]
 finalised, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 1440px light: keyboard focus=15/15; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Download reviewed CSV', 17.72), ('Same stats (1)', 17.72)]; outline floor=3px/2px; problems=[]
 finalised, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 1440px dark: keyboard focus=15/15; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Download reviewed CSV', 14.75), ('Same stats (1)', 14.75)]; outline floor=3px/2px; problems=[]
 finalised, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 390px light: keyboard focus=15/15; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Download reviewed CSV', 17.72), ('Same stats (1)', 17.72)]; outline floor=3px/2px; problems=[]
 finalised, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 9 nodes, measured here 9, lowest 5.24:1 (.badge-warning), below 4.5:1: []; with a real background image: ['select']; not measured: []
+finalised, 390px dark: keyboard focus=15/15; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Download reviewed CSV', 14.75), ('Same stats (1)', 14.75)]; outline floor=3px/2px; problems=[]
 no report, 1440px light: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 1440px light: keyboard focus=5/5; lowest 16.68:1 (main review page); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72)]; outline floor=3px/2px; problems=[]
 no report, 1440px dark: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
-no report, 390px light: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 1440px dark: keyboard focus=5/5; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75)]; outline floor=3px/2px; problems=[]
+no report, 390px light: rules passed=31, violations=[]; contrast axe could not judge: 6 nodes, measured here 6, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 390px light: keyboard focus=5/5; lowest 16.68:1 (main review page); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72)]; outline floor=3px/2px; problems=[]
 no report, 390px dark: rules passed=32, violations=[]; contrast axe could not judge: 5 nodes, measured here 5, lowest 5.24:1 (#vc-reconciliation), below 4.5:1: []; with a real background image: []; not measured: []
+no report, 390px dark: keyboard focus=5/5; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75)]; outline floor=3px/2px; problems=[]
 RESULT: PASS
 ```
 
@@ -950,7 +1000,9 @@ at all three widths in both schemes; the four screenshots are full page.
 A verdict on the final group checks both node identity and viewport position:
 scroll anchoring adjusts scrollY as the status wraps, but the control does not
 move in the viewport. Axe and the independent contrast checks cover the whole
-report after colour transitions finish.
+report after colour transitions finish. The shared S13 check additionally
+measures every one of the 444 actual keyboard-focused controls for the
+outline floor and at least 3:1 against the adjacent background.
 
 Five alternating runs per page use one authenticated report/session/machine,
 All groups, no Class filter, 1440 px/light. Production activates its ready
@@ -1021,22 +1073,26 @@ acknowledged 390px dark: groups=74, members=158, value/role assertions=3401, dif
 layout 390px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
 wrote docs/evidence/issue-206/real-narrow-dark.png: full page 390x101453, all 74 groups
 sanitised report, acknowledged verdict, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 1440px light: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
 sanitised report, acknowledged verdict, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 1440px dark: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
 sanitised report, acknowledged verdict, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 390px light: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
 sanitised report, acknowledged verdict, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+sanitised report, acknowledged verdict, 390px dark: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
 slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
-timing run 1 slice: all groups=74; navigation=215.9ms, next frame=229.4ms; ack-to-DOM=14.7ms, next frame=21.2ms; DOM elements=13143
-timing run 1 production: all groups=74; navigation=172.2ms, next frame=179.9ms; ack-to-DOM=12.6ms, next frame=25.9ms; DOM elements=17138
-timing run 2 production: all groups=74; navigation=141.4ms, next frame=148.4ms; ack-to-DOM=10.2ms, next frame=14.3ms; DOM elements=17138
-timing run 2 slice: all groups=74; navigation=209.5ms, next frame=222.3ms; ack-to-DOM=15.9ms, next frame=22.3ms; DOM elements=13143
-timing run 3 slice: all groups=74; navigation=218.6ms, next frame=233.2ms; ack-to-DOM=35.7ms, next frame=42.8ms; DOM elements=13143
-timing run 3 production: all groups=74; navigation=165.5ms, next frame=172.9ms; ack-to-DOM=10.1ms, next frame=18.7ms; DOM elements=17138
-timing run 4 production: all groups=74; navigation=151.9ms, next frame=158.1ms; ack-to-DOM=10.9ms, next frame=12.5ms; DOM elements=17138
-timing run 4 slice: all groups=74; navigation=201.6ms, next frame=216.6ms; ack-to-DOM=25.8ms, next frame=32.3ms; DOM elements=13143
-timing run 5 slice: all groups=74; navigation=201.7ms, next frame=213.5ms; ack-to-DOM=17.5ms, next frame=23.6ms; DOM elements=13143
-timing run 5 production: all groups=74; navigation=147.9ms, next frame=155.1ms; ack-to-DOM=10.8ms, next frame=15.8ms; DOM elements=17138
+timing run 1 slice: all groups=74; navigation=207.4ms, next frame=219.5ms; ack-to-DOM=35.1ms, next frame=41.1ms; DOM elements=13143
+timing run 1 production: all groups=74; navigation=158.7ms, next frame=166.0ms; ack-to-DOM=11.2ms, next frame=23.3ms; DOM elements=17138
+timing run 2 production: all groups=74; navigation=151.9ms, next frame=158.2ms; ack-to-DOM=10.5ms, next frame=10.7ms; DOM elements=17138
+timing run 2 slice: all groups=74; navigation=200.4ms, next frame=215.0ms; ack-to-DOM=16.1ms, next frame=22.8ms; DOM elements=13143
+timing run 3 slice: all groups=74; navigation=213.6ms, next frame=226.6ms; ack-to-DOM=20.8ms, next frame=26.7ms; DOM elements=13143
+timing run 3 production: all groups=74; navigation=152.4ms, next frame=158.7ms; ack-to-DOM=9.9ms, next frame=18.0ms; DOM elements=17138
+timing run 4 production: all groups=74; navigation=156.4ms, next frame=162.2ms; ack-to-DOM=11.3ms, next frame=21.4ms; DOM elements=17138
+timing run 4 slice: all groups=74; navigation=201.3ms, next frame=214.5ms; ack-to-DOM=20.2ms, next frame=26.4ms; DOM elements=13143
+timing run 5 slice: all groups=74; navigation=202.4ms, next frame=214.3ms; ack-to-DOM=16.1ms, next frame=22.8ms; DOM elements=13143
+timing run 5 production: all groups=74; navigation=150.9ms, next frame=158.1ms; ack-to-DOM=10.3ms, next frame=16.5ms; DOM elements=17138
 verdict target: group 74/74, chosen from the envelope
-slice medians (5 runs): navigation=209.5ms, next frame=222.3ms; ack-to-DOM=17.5ms, next frame=23.6ms; DOM elements=13143
-production medians (5 runs): navigation=151.9ms, next frame=158.1ms; ack-to-DOM=10.8ms, next frame=15.8ms; DOM elements=17138
+slice medians (5 runs): navigation=202.4ms, next frame=215.0ms; ack-to-DOM=20.2ms, next frame=26.4ms; DOM elements=13143
+production medians (5 runs): navigation=152.4ms, next frame=158.7ms; ack-to-DOM=10.5ms, next frame=18.0ms; DOM elements=17138
 RESULT: PASS
 ```

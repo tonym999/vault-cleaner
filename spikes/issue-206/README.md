@@ -122,6 +122,11 @@ because keyboard traversal and axe cover the whole page. The recommendation
 is now bounded conditional on resolving its measured performance slowdown;
 see the decision record.
 
+S13 and S15 share `focus_contrast.py`: an actual keyboard lap checks every
+focus outline against its adjacent background (at least 3:1, 3px with 2px
+offset). S13 also recreates the pre-fix cascade to prove dark primary rings
+fail, and covers unreviewed, in-flight, approved, vetoed and frozen controls.
+
 `proof_s8_wheel.py` builds a wheel and a fresh virtual environment in a
 temporary directory, as `scripts/check_wheel_install.py` does, so it needs
 the same access to a package index or pip cache. `proof_s10_devloop.py` uses

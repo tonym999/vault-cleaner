@@ -1,9 +1,12 @@
 """S13: automated accessibility check (gate H4).
 
 axe-core runs on the slice in the light and the dark scheme, at 1440 and
-390 px, for a report with both kinds of group and one verdict, and again
+390 px, unreviewed, while an approval is held, after approval and veto, and
 after finalising (when every verdict control is off and the persisted-veto
-notice is shown).  All of axe's rules are run, including best practices.
+notice is shown). All of axe's rules are run, including best practices.
+An actual Tab lap also measures every focus outline against its adjacent
+background, requiring the contract's 3px/2px floor and at least 3:1 contrast.
+The old layered floor is a failing negative control on dark primary controls.
 
 axe reports "needs review" for the contrast of any element with a
 ``background-image`` declaration, and daisyUI declares ``background-image:
@@ -25,6 +28,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from focus_contrast import SETTLE_JS, check, negative_control
 from harness import (
     FRONTEND,
     authenticated_context,
@@ -37,6 +41,7 @@ from harness import (
     verdict_button,
     wait_status,
 )
+from proof_s5_focus import hold_one
 
 AXE = FRONTEND / "node_modules" / "axe-core"
 RUN_JS = """
@@ -110,10 +115,10 @@ def run(page: Any, label: str, failures: list[str]) -> None:
         for scheme in ("light", "dark"):
             page.set_viewport_size({"width": width, "height": 900})
             page.emulate_media(color_scheme=scheme)
+            page.mouse.move(0, 0)
             # Theme changes transition button colours. Measure settled styles
             # rather than a contrast ratio halfway between the two themes.
-            page.evaluate("async () => { await Promise.all(document.getAnimations().map("
-                          "animation => animation.finished.catch(() => undefined))); }")
+            page.evaluate(SETTLE_JS)
             result = page.evaluate(RUN_JS)
             ratios = [entry["ratio"] for entry in result["measured"]]
             low = min(result["measured"], key=lambda entry: entry["ratio"], default=None)
@@ -130,6 +135,7 @@ def run(page: Any, label: str, failures: list[str]) -> None:
                 or any(target != "select" for target in painted)
             ):
                 failures.append(f"{label}, {width}px {scheme}: an accessibility problem is unexplained")
+            check(page, f"{label}, {width}px {scheme}", failures)
 
 
 def main() -> int:
@@ -145,6 +151,17 @@ def main() -> int:
         upload(context, live, "armor_close.csv")
         page = open_slice(context, live)
         page.evaluate(source + "\n;undefined")
+        negative_control(page)
+        run(page, "reviewing, unreviewed", failures)
+        held = hold_one(page)
+        verdict_button(page, "6032", "Approve").click()
+        while not held:
+            page.wait_for_timeout(20)
+        run(page, "approval in flight", failures)
+        held[0][0].fulfill(response=held[0][1])
+        wait_status(page, "recorded your approval")
+        page.unroute("**/api/verdicts")
+        run(page, "reviewing, one approval", failures)
         verdict_button(page, "6032", "Veto").click()
         wait_status(page, "recorded your veto")
         run(page, "reviewing, one veto", failures)

@@ -35,13 +35,15 @@
   }
 }
 
-@layer base {
-  /* The contract's floor: one clearly visible focus indicator everywhere. */
-  :focus-visible {
-    outline: 3px solid var(--color-primary);
-    outline-offset: 2px;
-  }
+/* Outside the layers so daisyUI's component focus rules cannot weaken the
+   contract's floor. Base content contrasts with the adjacent canvas in both
+   themes, including primary and acknowledged verdict controls (S13/S15). */
+:focus-visible {
+  outline: 3px solid var(--color-base-content);
+  outline-offset: 2px;
+}
 
+@layer base {
   /* Ids, hashes, names and reasons wrap anywhere; nothing is truncated and
      the page never scrolls sideways (contract section 8). */
   body {
