@@ -12,7 +12,10 @@ export was read. The proof code is in
 [spikes/issue-206/](../../../spikes/issue-206/README.md).
 
 Captured 2026-10-04 on the implementation branch for #206, at the committed
-state of the spike. Three kinds of line are not repeatable and are named
+state of the spike. After the commit every proof fence was rerun and compared
+with the text recorded here; only the S10 timings differed. (S8 first printed its
+asset responses in arrival order, which varied; it now sorts them, and its
+fence was captured again.) Three kinds of line are not repeatable and are named
 where they occur: durations and timestamps printed by npm, Vite, vitest and
 svelte-check; and the timings in S10. The proofs print no port, path or
 token.
@@ -522,10 +525,10 @@ server process: vault_cleaner imported from the fresh environment=True, from the
 node on the proof's own PATH (so the absence above is real): True; PATH given to the server has 1 entry
 bootstrap exchanged in the browser; fake fixture uploaded: HTTP 200
 groups rendered by the installed JavaScript and CSS: ['exact:6031', 'same_stat:6081']
-  response: /spike/ 200 text/html; charset=utf-8
-  response: /spike/assets/app.js 200 text/javascript; charset=utf-8
-  response: /spike/assets/app.css 200 text/css; charset=utf-8
   response: /api/report 200 application/json
+  response: /spike/ 200 text/html; charset=utf-8
+  response: /spike/assets/app.css 200 text/css; charset=utf-8
+  response: /spike/assets/app.js 200 text/javascript; charset=utf-8
 verdict acknowledged: status='The server recorded your veto for item 6032.'; Veto pressed=true; server verdict_revision 0 -> 1; server verdicts=[{'id': '6032', 'verdict': 'vetoed'}]
 stylesheet applied: True; console errors: []; CSP violations: []
 RESULT: PASS

@@ -164,7 +164,7 @@ def main() -> int:
                 groups = page.locator("article[data-group]").evaluate_all(
                     "nodes => nodes.map((node) => node.getAttribute('data-group'))")
                 print(f"groups rendered by the installed JavaScript and CSS: {groups}")
-                for line in responses:
+                for line in sorted(responses):
                     print(f"  response: {line}")
                 before = context.request.get(f"{origin}/api/report").json()["verdict_revision"]
                 page.get_by_role("button", name="Veto item 6032", exact=True).click()
