@@ -103,3 +103,39 @@ spike paths only.
 
 Issue #206's body still carries the stricter wording. It was not edited; the
 plan records the divergence under *Dependencies and assumptions*.
+
+## Amendment 2 (2026-10-04): the owner's review of `b8a8680`
+
+The owner reviewed plan SHA `b8a86806ae5a3e86f615bfcdc57f5d481239b87b`, did
+not approve it, and raised three P2 findings and one main recommendation.
+All four are accepted.
+
+- **P2, conflicting inline-style requirements.** Amendment 1 allowed
+  component-generated inline styles, but the binding-constraints table still
+  said "no inline style or script". The row now keeps the inline-script
+  prohibition, forbids hand-written inline styles in the slice's source, and
+  allows component-generated ones only inside the approved envelope.
+- **P2, information parity missed the comparison content.** S1 checked
+  membership, dispositions, verdicts and counts, so a simplified page could
+  drop tuning slots or protection and still pass. The plan gains a *Required
+  information* section, taken from what production shows
+  (`review_ui.js:1201-1288`, `:1319-1422`, `:1489-1557`), and S1 now tests
+  those values from the envelope, asserts that every value differing within
+  a group is visible for each member with no interaction, and carries a
+  negative control. Layout, styling and wording stay free.
+- **P2, the installed-wheel proof needed a browser.** A 200 for the HTML does
+  not show the JavaScript and CSS load. S8 now has Chromium render a group
+  and complete an acknowledged verdict against the installed wheel, with Node
+  absent from the server environment's `PATH`.
+- **Main recommendation: maintenance effort and the development loop decide
+  the outcome.** H8 and H9 only informed the comparison, so a correct slice
+  could get a GO without delivering the benefit the owner wants. GO now
+  requires all nine gates. H8 and H9 have criteria but no numeric threshold;
+  an unclear H8 or H9 makes the result conditional. A new experiment, S14,
+  makes three small changes to the slice and sets them beside the same
+  changes in the current page and the Jinja hybrid, and the README gains a
+  "make a change yourself" walkthrough for the owner.
+
+Likely findings gained a sixth (H8 or H9 passed on a number), and the review
+checklist follows each change. The amendment touches only the plan and this
+entry.
