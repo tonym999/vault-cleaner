@@ -1,0 +1,16 @@
+--- a/src/lib/filters.ts
++++ b/src/lib/filters.ts
+@@ -23,6 +23,13 @@ export const FACETS: Facet[] = [
+     scopeWord: 'class',
+     value: (group) => categorical(group.guardianClass).text,
+   },
++  {
++    key: 'type',
++    label: 'Slot / type',
++    anyLabel: 'any slot / type',
++    scopeWord: 'slot',
++    value: (group) => categorical(group.type).text,
++  },
+ ];
+ 
+ export interface Filters {

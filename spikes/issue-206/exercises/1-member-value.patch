@@ -1,0 +1,27 @@
+--- a/src/lib/view.test.ts
++++ b/src/lib/view.test.ts
+@@ -104,7 +104,9 @@ describe('duplicateGroups', () => {
+     expect(exact!.shared.map((fact) => fact.key)).toEqual([
+       'tuning_mod_slot', 'protection', 'in_loadout', 'equipped', 'locked', 'power',
+     ]);
+-    expect(sameStat!.differing.map((field) => field.key)).toEqual(['tuning_mod_slot', 'tuning_stat']);
++    expect(sameStat!.differing.map((field) => field.key)).toEqual([
++      'tuning_mod_slot', 'tuning_stat', 'selected_partner_id',
++    ]);
+     for (const group of groups) {
+       for (const member of group.members) {
+         for (const field of group.differing) expect(member.cells[field.key]).toBeDefined();
+--- a/src/lib/view.ts
++++ b/src/lib/view.ts
+@@ -110,6 +110,11 @@ const SAME_STAT_FIELDS: Field<SameStatMember>[] = [
+   { key: 'tuning_stat', label: 'Tuning Stat', cell: (m) => categorical(m.tuning_stat) },
+   { key: 'seasonal_mod', label: 'Seasonal Mod', cell: (m) => categorical(m.seasonal_mod) },
+   { key: 'holofoil', label: 'Holofoil', cell: (m) => categorical(m.holofoil) },
++  {
++    key: 'selected_partner_id',
++    label: 'Compared with',
++    cell: (m) => (m.selected_partner_id === null ? absent('none') : real(m.selected_partner_id)),
++  },
+   ...COMMON_FIELDS,
+ ];
+ 

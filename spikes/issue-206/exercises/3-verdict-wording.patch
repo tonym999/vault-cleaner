@@ -1,0 +1,11 @@
+--- a/src/lib/view.ts
++++ b/src/lib/view.ts
+@@ -128,7 +128,7 @@ const PROPOSAL_DISPOSITIONS: Record<string, string> = {
+ const VERDICT_ACTIONS = new Set(['junk', 'review']);
+ 
+ export const VERDICT_LABELS: Record<Verdict, string> = {
+-  '': 'Unreviewed',
++  '': 'Not reviewed yet',
+   approved: 'Approved',
+   vetoed: 'Vetoed',
+ };

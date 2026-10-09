@@ -1,0 +1,3 @@
+# Unified diffs keep a single space on an empty context line; that is the
+# format, not a whitespace error (see the #206 implementation worklog entry).
+*.patch -whitespace
