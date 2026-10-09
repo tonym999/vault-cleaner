@@ -116,7 +116,9 @@ The browser proofs need the pinned Playwright Chromium
 
 `proof_s6_layout.py --screenshots` also rewrites the PNG files under
 `docs/evidence/issue-206/`. `proof_s15_scale.py --screenshots` writes four
-full-page sanitised-report captures (all groups, both schemes at 1440/390 px).
+sanitised-report captures (both schemes at 1440/390 px). Each is only the
+top 2,400 px of the page, to keep the files small; a full-page capture of all
+74 groups was about 7 MB per image. The checks still cover every group.
 S15 reports five-run medians beside production, and takes several minutes
 because keyboard traversal and axe cover the whole page. The recommendation
 is now bounded conditional on resolving its measured performance slowdown;

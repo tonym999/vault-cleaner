@@ -328,14 +328,15 @@ The four-member group:
 
 ### Sanitised report screenshots
 
-All 74 groups are captured, with the acknowledged verdict on the final group.
-These full-page images are long; the automated geometry and oracle checks
-also cover every group rather than only what fits in the first viewport.
+Each image is only the top 2,400 px of the report (the first groups), not
+all 74 groups: full-page captures were about 7 MB each and were removed for
+size. The automated geometry and oracle checks cover every group; the
+acknowledged verdict on the final group is checked, not pictured.
 
 | Desktop | 390 px |
 | --- | --- |
-| [Light, full report](evidence/issue-206/real-desktop-light.png) | [Light, full report](evidence/issue-206/real-narrow-light.png) |
-| [Dark, full report](evidence/issue-206/real-desktop-dark.png) | [Dark, full report](evidence/issue-206/real-narrow-dark.png) |
+| [Light, top of report](evidence/issue-206/real-desktop-light.png) | [Light, top of report](evidence/issue-206/real-narrow-light.png) |
+| [Dark, top of report](evidence/issue-206/real-desktop-dark.png) | [Dark, top of report](evidence/issue-206/real-narrow-dark.png) |
 
 ## 5. Browser responsibility keep/remove map
 
@@ -449,10 +450,10 @@ and frame-opportunity measurements, not physical display scanout.
 
 | Five-run medians | Svelte slice | Production |
 | --- | --- | --- |
-| Navigation to every group laid out | 202.4 ms | 152.4 ms |
-| Navigation to next animation frame | 215.0 ms | 158.7 ms |
-| Acknowledgement to DOM repaint | 20.2 ms | 10.5 ms |
-| Acknowledgement to next animation frame | 26.4 ms | 18.0 ms |
+| Navigation to every group laid out | 200.0 ms | 150.2 ms |
+| Navigation to next animation frame | 212.6 ms | 156.3 ms |
+| Acknowledgement to DOM repaint | 17.9 ms | 10.3 ms |
+| Acknowledgement to next animation frame | 24.8 ms | 16.7 ms |
 | Document elements | 13,143 | 17,138 |
 
 The scope differs: production also constructs the Proposals DOM and both
@@ -632,8 +633,9 @@ Awkward, each found by a proof:
   at other widths, other machines and reports beyond this 893-row fixture
   remains unmeasured. The slower slice needs a focused follow-up before GO.
 - **The full-page stacked layout is long:** about 61,000 px at desktop and
-  101,000 px at 390 px. Every group is tested and captured, but no human
-  task-completion or large-report navigation study was run.
+  101,000 px at 390 px. Every group is tested, but only the top 2,400 px is
+  pictured, and no human task-completion or large-report navigation study
+  was run.
 - **The stat-role derivation** stays in the browser because the envelope
   has no field for it.
 

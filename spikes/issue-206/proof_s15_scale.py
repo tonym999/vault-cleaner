@@ -5,9 +5,10 @@
 
 No overlay, no export outside the one tracked sanitised armor fixture. S1's
 independent oracle compares all groups/members; S6's layout/keyboard checks
-and S13's axe/contrast checks run on the whole document. Screenshots are full
-page. Timings are five alternating runs of each page at 1440px/light in the
-same authenticated session/report, with no filters. Production selects the
+and S13's axe/contrast checks run on the whole document. Screenshots are
+only the top SHOT_HEIGHT px of the page. Timings are five alternating runs
+of each page at 1440px/light in the same authenticated session/report, with
+no filters. Production selects the
 duplicates surface in-page immediately after its DOM is built, so no human
 or Playwright dwell is timed; its Proposals and hidden matrix DOM still count.
 
@@ -53,6 +54,9 @@ from proof_s13_axe import run as axe_check
 
 EVIDENCE = REPO / "docs" / "evidence" / "issue-206"
 RUNS = 5
+# Each sanitised-report PNG is the top of the page, at most this many CSS px
+# tall: a full-page capture of 74 groups was 7 MB per image.
+SHOT_HEIGHT = 2400
 
 # Test instrumentation only: installed before either page's scripts run.
 TIMING_JS = r"""
@@ -358,9 +362,12 @@ def main() -> int:
                 if write and (width, scheme) in SHOTS:
                     page.evaluate("() => { document.activeElement.blur(); window.scrollTo(0, 0); }")
                     target = EVIDENCE / f"real-{SHOTS[width, scheme]}.png"
-                    page.screenshot(path=str(target), full_page=True)
                     height = page.evaluate("() => document.documentElement.scrollHeight")
-                    print(f"wrote {target.relative_to(REPO)}: full page {width}x{height}, all {len(groups)} groups")
+                    shown = min(height, SHOT_HEIGHT)
+                    page.screenshot(path=str(target), full_page=True,
+                                    clip={"x": 0, "y": 0, "width": width, "height": shown})
+                    print(f"wrote {target.relative_to(REPO)}: top {width}x{shown} of a {width}x{height} page; "
+                          f"all {len(groups)} groups checked")
         page.mouse.move(0, 0)
         page.evaluate((AXE / "axe.min.js").read_text(encoding="utf-8") + "\n;undefined")
         axe_check(page, "sanitised report, acknowledged verdict", failures)

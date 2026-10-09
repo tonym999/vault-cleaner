@@ -43,9 +43,13 @@ experiment S1 overlays.
 Written by `proof_s6_layout.py --screenshots`, from the synthetic fixtures,
 each with one veto recorded. All six were regenerated after S15 changed
 two contrast colours. The sanitised screenshots are written by
-`proof_s15_scale.py --screenshots`, with an approval on the final group; they
-are full page (all 74 groups), about 61,000 px high at desktop and 101,000 px
-at 390 px. Every displayed fixture id carries the sanitised `1000` prefix.
+`proof_s15_scale.py --screenshots`, with an approval on the final group.
+Each of those four is only the **top 2,400 px** of the page (the first
+groups), not the whole report: a full-page capture of all 74 groups was about
+7 MB per image (page heights about 61,000 px at desktop and 101,000 px at
+390 px) and was removed for size. The checks S15 runs still cover every
+group; the approved final group is not in the image. Every displayed fixture
+id carries the sanitised `1000` prefix.
 
 | File | Fixture | Width | Scheme |
 | --- | --- | --- | --- |
@@ -55,10 +59,10 @@ at 390 px. Every displayed fixture id carries the sanitised `1000` prefix.
 | [both-kinds-narrow-dark.png](both-kinds-narrow-dark.png) | `armor_close.csv` | 390 px | dark |
 | [four-members-desktop-light.png](four-members-desktop-light.png) | `armor_same_stat_four_ui.csv` | 1440 px | light |
 | [four-members-narrow-light.png](four-members-narrow-light.png) | `armor_same_stat_four_ui.csv` | 390 px | light |
-| [real-desktop-light.png](real-desktop-light.png) | sanitised armor, all groups | 1440 px | light |
-| [real-desktop-dark.png](real-desktop-dark.png) | sanitised armor, all groups | 1440 px | dark |
-| [real-narrow-light.png](real-narrow-light.png) | sanitised armor, all groups | 390 px | light |
-| [real-narrow-dark.png](real-narrow-dark.png) | sanitised armor, all groups | 390 px | dark |
+| [real-desktop-light.png](real-desktop-light.png) | sanitised armor, top 2,400 px | 1440 px | light |
+| [real-desktop-dark.png](real-desktop-dark.png) | sanitised armor, top 2,400 px | 1440 px | dark |
+| [real-narrow-light.png](real-narrow-light.png) | sanitised armor, top 2,400 px | 390 px | light |
+| [real-narrow-dark.png](real-narrow-dark.png) | sanitised armor, top 2,400 px | 390 px | dark |
 
 ## Environment
 
@@ -996,7 +1000,8 @@ The entire sanitised report, no overlay: S1's independent oracle compares all
 groups/members/required values at both widths and after a real acknowledgement;
 E10's nine filter sequences run on both pages; all spirit-bearing exact groups
 are checked. S6's whole-document geometry and keyboard lap cover every group
-at all three widths in both schemes; the four screenshots are full page.
+at all three widths in both schemes; the four screenshots show only the top
+2,400 px.
 A verdict on the final group checks both node identity and viewport position:
 scroll anchoring adjusts scrollY as the status wraps, but the control does not
 move in the viewport. Axe and the independent contrast checks cover the whole
@@ -1058,20 +1063,20 @@ spirit signatures from unmodified upload: 5/5 exact groups correct
 far-down acknowledged verdict: group=74/74; scroll before=100533px; same focused node=True; scroll change=20px; control viewport change=0px
 acknowledged 1440px light: groups=74, members=158, value/role assertions=3401, differences=0
 layout 1440px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
-wrote docs/evidence/issue-206/real-desktop-light.png: full page 1440x60949, all 74 groups
+wrote docs/evidence/issue-206/real-desktop-light.png: top 1440x2400 of a 1440x60949 page; all 74 groups checked
 acknowledged 1440px dark: groups=74, members=158, value/role assertions=3401, differences=0
 layout 1440px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
-wrote docs/evidence/issue-206/real-desktop-dark.png: full page 1440x60949, all 74 groups
+wrote docs/evidence/issue-206/real-desktop-dark.png: top 1440x2400 of a 1440x60949 page; all 74 groups checked
 acknowledged 1024px light: groups=74, members=158, value/role assertions=3401, differences=0
 layout 1024px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
 acknowledged 1024px dark: groups=74, members=158, value/role assertions=3401, differences=0
 layout 1024px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
 acknowledged 390px light: groups=74, members=158, value/role assertions=3401, differences=0
 layout 390px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
-wrote docs/evidence/issue-206/real-narrow-light.png: full page 390x101453, all 74 groups
+wrote docs/evidence/issue-206/real-narrow-light.png: top 390x2400 of a 390x101453 page; all 74 groups checked
 acknowledged 390px dark: groups=74, members=158, value/role assertions=3401, differences=0
 layout 390px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
-wrote docs/evidence/issue-206/real-narrow-dark.png: full page 390x101453, all 74 groups
+wrote docs/evidence/issue-206/real-narrow-dark.png: top 390x2400 of a 390x101453 page; all 74 groups checked
 sanitised report, acknowledged verdict, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
 sanitised report, acknowledged verdict, 1440px light: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
 sanitised report, acknowledged verdict, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
@@ -1081,18 +1086,18 @@ sanitised report, acknowledged verdict, 390px light: keyboard focus=444/444; low
 sanitised report, acknowledged verdict, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
 sanitised report, acknowledged verdict, 390px dark: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
 slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
-timing run 1 slice: all groups=74; navigation=207.4ms, next frame=219.5ms; ack-to-DOM=35.1ms, next frame=41.1ms; DOM elements=13143
-timing run 1 production: all groups=74; navigation=158.7ms, next frame=166.0ms; ack-to-DOM=11.2ms, next frame=23.3ms; DOM elements=17138
-timing run 2 production: all groups=74; navigation=151.9ms, next frame=158.2ms; ack-to-DOM=10.5ms, next frame=10.7ms; DOM elements=17138
-timing run 2 slice: all groups=74; navigation=200.4ms, next frame=215.0ms; ack-to-DOM=16.1ms, next frame=22.8ms; DOM elements=13143
-timing run 3 slice: all groups=74; navigation=213.6ms, next frame=226.6ms; ack-to-DOM=20.8ms, next frame=26.7ms; DOM elements=13143
-timing run 3 production: all groups=74; navigation=152.4ms, next frame=158.7ms; ack-to-DOM=9.9ms, next frame=18.0ms; DOM elements=17138
-timing run 4 production: all groups=74; navigation=156.4ms, next frame=162.2ms; ack-to-DOM=11.3ms, next frame=21.4ms; DOM elements=17138
-timing run 4 slice: all groups=74; navigation=201.3ms, next frame=214.5ms; ack-to-DOM=20.2ms, next frame=26.4ms; DOM elements=13143
-timing run 5 slice: all groups=74; navigation=202.4ms, next frame=214.3ms; ack-to-DOM=16.1ms, next frame=22.8ms; DOM elements=13143
-timing run 5 production: all groups=74; navigation=150.9ms, next frame=158.1ms; ack-to-DOM=10.3ms, next frame=16.5ms; DOM elements=17138
+timing run 1 slice: all groups=74; navigation=203.5ms, next frame=217.3ms; ack-to-DOM=17.9ms, next frame=24.5ms; DOM elements=13143
+timing run 1 production: all groups=74; navigation=150.2ms, next frame=156.3ms; ack-to-DOM=10.5ms, next frame=22.0ms; DOM elements=17138
+timing run 2 production: all groups=74; navigation=147.8ms, next frame=153.9ms; ack-to-DOM=12.1ms, next frame=24.0ms; DOM elements=17138
+timing run 2 slice: all groups=74; navigation=198.7ms, next frame=210.9ms; ack-to-DOM=17.8ms, next frame=24.8ms; DOM elements=13143
+timing run 3 slice: all groups=74; navigation=200.0ms, next frame=212.6ms; ack-to-DOM=16.3ms, next frame=22.8ms; DOM elements=13143
+timing run 3 production: all groups=74; navigation=154.0ms, next frame=159.5ms; ack-to-DOM=8.9ms, next frame=13.8ms; DOM elements=17138
+timing run 4 production: all groups=74; navigation=141.2ms, next frame=148.2ms; ack-to-DOM=9.9ms, next frame=14.6ms; DOM elements=17138
+timing run 4 slice: all groups=74; navigation=201.7ms, next frame=213.8ms; ack-to-DOM=23.8ms, next frame=30.9ms; DOM elements=13143
+timing run 5 slice: all groups=74; navigation=198.0ms, next frame=209.7ms; ack-to-DOM=19.2ms, next frame=26.3ms; DOM elements=13143
+timing run 5 production: all groups=74; navigation=155.3ms, next frame=161.2ms; ack-to-DOM=10.3ms, next frame=16.7ms; DOM elements=17138
 verdict target: group 74/74, chosen from the envelope
-slice medians (5 runs): navigation=202.4ms, next frame=215.0ms; ack-to-DOM=20.2ms, next frame=26.4ms; DOM elements=13143
-production medians (5 runs): navigation=152.4ms, next frame=158.7ms; ack-to-DOM=10.5ms, next frame=18.0ms; DOM elements=17138
+slice medians (5 runs): navigation=200.0ms, next frame=212.6ms; ack-to-DOM=17.9ms, next frame=24.8ms; DOM elements=13143
+production medians (5 runs): navigation=150.2ms, next frame=156.3ms; ack-to-DOM=10.3ms, next frame=16.7ms; DOM elements=17138
 RESULT: PASS
 ```

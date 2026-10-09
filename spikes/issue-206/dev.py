@@ -38,15 +38,22 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
+import sys
+import threading
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import IO
 
 import harness
 
 DEV_HOST = "127.0.0.1"
+# Vite's ready banner ("ready in 363 ms") or its "Local:" URL line.  A bare
+# "ready in" would also match the error "Port 5173 is already in use".
+READY = re.compile(r"\bready in \d|Local:")
 
 
 def preload(live: harness.LiveSpike, fixture: str) -> None:
@@ -63,22 +70,48 @@ def preload(live: harness.LiveSpike, fixture: str) -> None:
     urllib.request.urlopen(request, timeout=30).read()
 
 
+class ViteNotReady(RuntimeError):
+    """Vite exited before it printed its ready line; the message has its output."""
+
+
+def _drain(stream: IO[str]) -> None:
+    """Read and discard ``stream`` to EOF, so Vite never blocks on a full pipe."""
+    for _ in stream:
+        pass
+
+
 @contextmanager
 def vite_dev(frontend: Path, backend: str, port: int) -> Iterator[subprocess.Popen]:
-    """Run ``vite`` in ``frontend`` with the proxy pointed at ``backend``."""
+    """Run ``vite`` in ``frontend`` with the proxy pointed at ``backend``.
+
+    Raises ``ViteNotReady`` carrying Vite's own output if it exits before it
+    is ready (for example when ``port`` is taken: ``strictPort`` is set).
+    """
     environment = dict(os.environ, VC_SPIKE_BACKEND=backend, VC_SPIKE_DEV_PORT=str(port))
     process = subprocess.Popen(
         ["npx", "vite", "--clearScreen", "false"], cwd=frontend, env=environment,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     try:
+        printed: list[str] = []
         for line in process.stdout:
-            if "ready in" in line or "Local:" in line:
+            printed.append(line)
+            if READY.search(line):
                 break
+        else:
+            status = process.wait(timeout=10)
+            raise ViteNotReady(
+                f"vite exited with status {status} before it was ready:\n{''.join(printed).rstrip()}"
+            )
+        threading.Thread(target=_drain, args=(process.stdout,), daemon=True).start()
         yield process
     finally:
         process.terminate()
-        process.wait(timeout=10)
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
 
 
 def main() -> int:
@@ -91,18 +124,22 @@ def main() -> int:
     harness.FRONTEND.joinpath("dist", "assets").mkdir(parents=True, exist_ok=True)
     if not (harness.FRONTEND / "dist" / "index.html").is_file():
         subprocess.run(["npm", "run", "build"], cwd=harness.FRONTEND, check=True)
-    with harness.live_spike() as live:
-        preload(live, arguments.fixture)
-        with vite_dev(harness.FRONTEND, live.origin, arguments.port):
-            dev = f"http://{DEV_HOST}:{arguments.port}"
-            print(f"Flask review server: {live.origin} (fixture {arguments.fixture} uploaded)", flush=True)
-            print(f"Vite dev server:     {dev}", flush=True)
-            print(f"Open this link:      {dev}/bootstrap?token={live.session.bootstrap_token}", flush=True)
-            print("Edit a file under spikes/issue-206/frontend/src/ and the page updates. Ctrl-C stops.", flush=True)
-            try:
-                live.server_thread_join()
-            except KeyboardInterrupt:
-                pass
+    try:
+        with harness.live_spike() as live:
+            preload(live, arguments.fixture)
+            with vite_dev(harness.FRONTEND, live.origin, arguments.port):
+                dev = f"http://{DEV_HOST}:{arguments.port}"
+                print(f"Flask review server: {live.origin} (fixture {arguments.fixture} uploaded)", flush=True)
+                print(f"Vite dev server:     {dev}", flush=True)
+                print(f"Open this link:      {dev}/bootstrap?token={live.session.bootstrap_token}", flush=True)
+                print("Edit a file under spikes/issue-206/frontend/src/ and the page updates. Ctrl-C stops.", flush=True)
+                try:
+                    live.server_thread_join()
+                except KeyboardInterrupt:
+                    pass
+    except ViteNotReady as failure:
+        print(f"error: {failure}", file=sys.stderr)
+        return 1
     return 0
 
 
