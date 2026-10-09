@@ -292,7 +292,7 @@ function sameStatView(group: SameStatGroup, lookups: Lookups): GroupView {
 }
 
 /** Every duplicate group: exact first, then same-stat, each in server order. */
-export function duplicateGroups(envelope: Envelope | null): GroupView[] {
+export function duplicateGroups(envelope: Envelope | null, previous: GroupView[] = []): GroupView[] {
   if (!envelope?.snapshot) return [];
   const verdicts = new Map(envelope.verdicts.map((entry) => [entry.id, entry.verdict]));
   const persistedVetoes = new Set(
@@ -310,7 +310,20 @@ export function duplicateGroups(envelope: Envelope | null): GroupView[] {
     for (const group of section.armor.exact_duplicate_groups) exact.push(exactView(group, lookups));
     for (const group of section.armor.same_stat_groups) sameStat.push(sameStatView(group, lookups));
   }
-  return [...exact, ...sameStat];
+  const oldGroups = new Map(previous.map((group) => [group.key, group]));
+  return [...exact, ...sameStat].map((group) => {
+    const old = oldGroups.get(group.key);
+    if (!old) return group;
+    const members = new Map(old.members.map((member) => [member.id, member]));
+    group.members = group.members.map((member) => retain(members.get(member.id), member));
+    group.name = retain(old.name, group.name);
+    group.facts = retain(old.facts, group.facts);
+    group.stats = retain(old.stats, group.stats);
+    group.shared = retain(old.shared, group.shared);
+    group.differing = retain(old.differing, group.differing);
+    group.members = retain(old.members, group.members);
+    return retain(old, group);
+  });
 }
 
 export const SECTION_COPY: Record<GroupKind, { heading: string; rule: string }> = {
@@ -326,3 +339,19 @@ export const SECTION_COPY: Record<GroupKind, { heading: string; rule: string }> 
 
 export const pieces = (groups: GroupView[]): number =>
   groups.reduce((sum, group) => sum + group.members.length, 0);
+
+/** Complete presented-value equality, independent of every revision or fingerprint. */
+export function sameView(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const a = Object.keys(left);
+  const b = Object.keys(right);
+  const l = left as Record<string, unknown>;
+  const r = right as Record<string, unknown>;
+  return a.length === b.length && a.every((key) => Object.hasOwn(r, key) && sameView(l[key], r[key]));
+}
+
+function retain<T>(previous: T | undefined, next: T): T {
+  return previous !== undefined && sameView(previous, next) ? previous : next;
+}

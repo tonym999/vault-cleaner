@@ -167,3 +167,50 @@ describe('ReviewSession', () => {
     expect(session.reconciliation).toBe('Filter no longer applies and was cleared: class Hunter.');
   });
 });
+
+describe('value-stable adoption', () => {
+  it('keeps every unaffected member and group identical after one verdict', async () => {
+    const after = structuredClone(unreviewed);
+    after.verdicts = [{ id: '6032', verdict: 'approved' }];
+    const { session } = await loaded({ verdicts: [ok(after)] });
+    const before = session.groups;
+    const filters = session.filters;
+    await session.setVerdict('6032', 'approved');
+    expect(session.filters).toBe(filters);
+    for (const [i, group] of before.entries()) {
+      const next = session.groups[i]!;
+      if (!group.members.some((m) => m.id === '6032')) expect(next).toBe(group);
+      for (const [j, member] of group.members.entries()) {
+        if (member.id === '6032') {
+          expect(next.members[j]).not.toBe(member);
+          expect(next.members[j]!.verdict).toBe('approved');
+        } else expect(next.members[j]).toBe(member);
+      }
+    }
+  });
+
+  it('reflects state and override status with both revisions unchanged', async () => {
+    const after = structuredClone(unreviewed);
+    after.state = 'finalized';
+    after.override_status = [{ id: '6032', status: 'active' }];
+    const { session } = await loaded({ report: [ok(after)] });
+    await session.load();
+    expect(session.envelope).toBe(after);
+    expect(session.serverState).toBe('finalized');
+    expect(session.frozen).toBe(true);
+    expect(session.groups[0]!.members[1]!.persistedVeto).toBe(true);
+  });
+
+  it('reflects a changed snapshot with the revision pair unchanged', async () => {
+    const after = structuredClone(unreviewed);
+    after.snapshot!.sections[0]!.armor!.exact_duplicate_groups[0]!.name = 'Changed snapshot name';
+    after.snapshot!.sections[0]!.armor!.exact_duplicate_groups[0]!.members[0]!.location = 'Changed location';
+    const { session } = await loaded({ report: [ok(after)] });
+    const before = session.groups;
+    await session.load();
+    expect(session.groups[0]!.name.text).toBe('Changed snapshot name');
+    expect(session.groups[0]!.members[0]!.location.text).toBe('Changed location');
+    expect(session.groups[0]).not.toBe(before[0]);
+    expect(session.groups[1]).toBe(before[1]);
+  });
+});

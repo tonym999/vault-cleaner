@@ -43,7 +43,7 @@ All seven comparisons fail on the copy, as expected.
 The unchanged S1 proof against the copy passed. Full pre-copy pytest first hit
 sandbox socket/Chromium restrictions; escalated run passes 1342 in 32.52s.
 
-## Step 1 and step 2 investigation (in progress)
+## Step 1 and step 2 investigation
 
 Step 1 retains complete presented values by equality, never a revision key, and
 retains filters when reconciliation changes no value. Three added unit tests cover
@@ -65,3 +65,9 @@ these on all 435 buttons twice. Changing transitions would change intermediate
 presentation, so the orchestrator rejected it as diagnostic-only. No stylesheet
 candidate was retained. Step 2 invocation 4 uses unchanged step-1 source and still
 fails all seven comparisons. Allowed step 3 rendering containment is next.
+
+Baseline tooling commit `a25e997e8c289e2adaa0ea180097091f4844a95b` keeps the
+frontend byte-identical to the copy, making step 0 reproducible in a disposable
+checkout. The next kept-step commit contains step 1 and step 2 captures. The gate's
+warm Node projection diagnostic was added after invocation 4, outside timed windows;
+this adds diagnostic output only, not a changed stamp or sample window.

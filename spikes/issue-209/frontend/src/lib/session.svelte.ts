@@ -18,7 +18,7 @@ import {
   type Filters,
   type KindFilter,
 } from './filters';
-import { duplicateGroups } from './view';
+import { duplicateGroups, sameView, type GroupView } from './view';
 
 export type Connection = 'connecting' | 'connected' | 'disconnected' | 'terminal';
 export type Tone = 'info' | 'ok' | 'error';
@@ -39,7 +39,7 @@ export class ReviewSession {
   reconciliation = $state('');
   filters = $state.raw<Filters>(NO_FILTERS);
 
-  readonly groups = $derived(duplicateGroups(this.envelope));
+  groups = $state.raw<GroupView[]>([]);
   readonly shown = $derived(applyFilters(this.groups, this.filters));
   readonly scope = $derived(scopeText(this.groups, this.shown, this.filters));
   readonly serverState = $derived(this.envelope?.state ?? 'idle');
@@ -139,11 +139,12 @@ export class ReviewSession {
 
   #applyFilters(wanted: Filters): void {
     const { filters, dropped } = reconcile(this.groups, wanted);
-    this.filters = filters;
+    if (!sameView(this.filters, filters)) this.filters = filters;
     this.reconciliation = dropped.length ? `Filter no longer applies and was cleared: ${dropped.join('; ')}.` : '';
   }
 
   #adopt(envelope: Envelope): void {
+    this.groups = duplicateGroups(envelope, this.groups);
     this.envelope = envelope;
     this.connection = 'connected';
     this.#applyFilters(this.filters);
