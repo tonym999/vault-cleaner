@@ -1,25 +1,37 @@
 # Frontend framework decision
 
-Status: decision record for
-[#206](https://github.com/tonym999/vault-cleaner/issues/206), written
-2026-10-04. It answers whether the review frontend should be rebuilt in
-Svelte 5 + TypeScript + Vite, keeping Python/Flask as the backend. It changes
-no production code. The migration is the ticket drafts in
-[section 9](#9-migration-ticket-drafts); none has been created.
+Status: **NO-GO**, 2026-10-09, after
+[#209](https://github.com/tonym999/vault-cleaner/issues/209)'s approved
+presentation-performance gate. [Evidence](evidence/issue-209/README.md) records
+every invocation and the failed visual comparison. This decision began with
+[#206](https://github.com/tonym999/vault-cleaner/issues/206) on 2026-10-04;
+its original tables and evidence remain below. No production code changes.
+Migration drafts are in [section 9](#9-migration-ticket-drafts); draft 5 was
+carried out by #209. No issue was created or edited during implementation.
 
-Every measured claim links to a transcript in
-[docs/evidence/issue-206/README.md](evidence/issue-206/README.md). The proof
-code is in [spikes/issue-206/](../spikes/issue-206/README.md). All data is
-synthetic fixtures and the one tracked sanitised armor fixture.
+The frozen #206 proofs and [evidence](evidence/issue-206/README.md) remain
+rerunnable. #209's [spike](../spikes/issue-209/README.md) measures a copied
+frontend with production beside it, using only tracked synthetic and sanitised
+fixtures. Nothing in either spike ships.
 
 ## 1. Recommendation
 
-**Bounded conditional.** Svelte 5 + TypeScript + Vite with Tailwind 4 and
-daisyUI 5 remains the recommended stack, but S15 found a repeatable slowdown
-on the sanitised report. Proceed with migration only after a focused
-presentation-performance change passes the same whole-report comparison;
-keep the current page until that gate passes. Correctness, focus, layout and
-security pass. The proposed architecture remains:
+**NO-GO.** Keep the current page. The 2026-10-09 performance candidate
+improves navigation through whole-group rendering containment, but fails the
+approved gate in both final invocations: acknowledgement to DOM remains
+1.1 ms and 0.5 ms slower. Acknowledgement to settled fails by 1.1 ms in the
+first final invocation and passes in the second; passing only once does not
+meet the bar. The visual gate also fails: skipped off-screen group content is
+blank inside the required top-2,400-px captures. A keyboard jump focuses the
+last control outside the viewport. The unchanged S15 correctness proof also
+did not complete within 900s. These gaps and changes were
+not accepted by the owner. The issue permits explicit owner acceptance of a
+remaining gap; this record does not infer it.
+
+The candidate is preserved as a failed measured spike, with no further
+optimization after the stop condition. Svelte 5 + TypeScript + Vite remains
+the stack investigated by #206; migration is not released by this result.
+The proposed architecture remains:
 
 - **Svelte 5 with TypeScript, built by Vite 8.** Plain Svelte, not SvelteKit.
 - **Tailwind CSS 4 with daisyUI 5** for styling, on native HTML controls.
@@ -32,8 +44,8 @@ security pass. The proposed architecture remains:
   beside the other UI resources, so an installed wheel and a Python-only
   contributor never need Node.
 
-Eight gates pass for the Armor duplicates slice. H5 is conditional on the
-real-scale performance comparison, although its layout checks pass:
+The H1–H9 table preserves #206’s architectural results. H5 now records
+#209’s NO-GO result; its earlier layout checks alone do not release migration:
 
 | Gate | Requirement | Result | Evidence |
 | --- | --- | --- | --- |
@@ -41,15 +53,16 @@ real-scale performance comparison, although its layout checks pass:
 | H2 | Untrusted values inert; ids and hashes opaque | Pass, in two passes. With all 602 strings replaced: no element created, no dialog, no violation, ids byte-identical in the DOM, and no member has verdict buttons. With the three values that decide eligibility kept (574 strings replaced): the same, and the id is byte-identical in the verdict request body | [S2](evidence/issue-206/README.md#s2-hostile-content-gate-h2), [source rules](evidence/issue-206/README.md#source-rules-gates-h2-h8) |
 | H3 | Acknowledged state only; no replay; correct across finalise, reset and disconnect | Pass. The already-open page reaches the frozen state with the revision pair unchanged | [S3](evidence/issue-206/README.md#s3-acknowledged-state-only-gate-h3), [S4](evidence/issue-206/README.md#s4-finalise-reset-disconnect-gate-h3) |
 | H4 | Contract section 7 met; focus survives a verdict | Pass, with one stated change of mechanism (`aria-disabled`, [section 4](#4-design)) | [S5](evidence/issue-206/README.md#s5-focus-and-live-regions-gate-h4), [S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4), [S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) |
-| H5 | Narrow layout usable; page never scrolls sideways; S15 performance condition | **Conditional.** Layout passes at 1440, 1024 and 390 px, both schemes, including all three-/four-member groups and 444 keyboard controls. S15 repeatedly renders and repaints slower than production; section 6 names the follow-up gate | [S6](evidence/issue-206/README.md#s6-layouts-gate-h5), [S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) |
+| H5 | Narrow layout usable; page never scrolls sideways; real-scale performance condition | **NO-GO.** #209 improves navigation but fails acknowledgement-to-DOM in both final invocations, acknowledgement-to-settled in one, the required visual gate, and keyboard traversal. Original #206 layout results remain historical evidence | [#209 finals](evidence/issue-209/README.md#step-3-and-final-invocation-5--containment), [visual comparison](evidence/issue-209/README.md#gate-d--visual-comparison) |
 | H6 | Works from an installed wheel without Node | Pass. Chromium rendered a group and completed a verdict against the wheel, Node absent from the server's `PATH` | [S8](evidence/issue-206/README.md#s8-installed-wheel-in-a-browser-gate-h6) |
 | H7 | Auth, Host, Origin and `no-store` unchanged; CSP unchanged or within the approved envelope | Pass with the **unchanged** policy. No addition is used | [S7](evidence/issue-206/README.md#s7-content-security-policy-gate-h7), [S9](evidence/issue-206/README.md#s9-request-envelope-gate-h7) |
 | H8 | Maintenance effort is clearly lower | Pass, on structure and not on size. Verdict and reasons in [section 6](#6-comparison) | [S12](evidence/issue-206/README.md#s12-code-comparison-npm-tree-and-licences-gate-h8), [S14](evidence/issue-206/README.md#s14-change-exercises-gate-h8) |
 | H9 | A usable development loop | Pass. Verdict and reasons in [section 6](#6-comparison) | [S10](evidence/issue-206/README.md#s10-development-loop-gate-h9), [S11](evidence/issue-206/README.md#s11-type-drift-gate-h9) |
 
-No stop condition was reached in this attempt. The first attempt stopped at
-the licence stop condition; the plan's Amendment 3 records the owner's
-decision.
+#209 reached the approved stop condition after steps 1–3. No paging,
+virtualisation or animation change was built to work around the result. #206’s
+first attempt separately stopped at its licence condition; its Amendment 3
+records that owner decision.
 
 The exact production policy the recommended stack needs is the one
 production has today:
@@ -459,7 +472,7 @@ and frame-opportunity measurements, not physical display scanout.
 The scope differs: production also constructs the Proposals DOM and both
 comparison orientations; the slice has one surface and one structure. Despite
 fewer elements the slice is slower in both navigation and acknowledged repaint.
-An isolated repeat confirmed the direction. This changes H5 and the
+An isolated repeat confirmed the direction. At #206 this changed H5 and the
 recommendation to **bounded conditional**; it does not invalidate the passing
 information, focus or narrow-layout results. Before switch-over, a focused
 presentation change (for example retaining report-scoped projection and
@@ -467,6 +480,95 @@ updating only verdict-dependent presentation) must remove the observed
 slowdown under this comparison. If that does not suffice, measure paging or
 virtualisation of whole groups, preserving within-group simultaneous values,
 focus, offline filtering and scope counts. Those alternatives were not built.
+
+### #209: the approved presentation-performance gate
+
+[#209 evidence](evidence/issue-209/README.md) keeps all six gate invocations:
+one incomplete instrumentation attempt, then five complete invocations.
+The corrected proof applies S15’s focus invariant only to the slice, as S15
+itself does; production’s disabled-control focus loss remains baseline behavior.
+Final invocations 5 and 6 use the same candidate, with no change or excluded run.
+
+Step 0 reproduced the planning direction. Slice/production navigation was
+198.1/158.2 ms; acknowledgement to DOM 27.1/9.6 ms. CDP verdict style
+recalculation was 138.7/3.1 ms. S15’s first animation-frame stamp runs before
+that frame’s style/layout: acknowledgement to its frame was 33.9/17.7 ms,
+but acknowledgement to the second nested frame was 176.0/19.9 ms. The new
+settled measures include that omitted work; they do not measure display scanout.
+
+Warm Node measurements in final invocations 5/6: JSON.parse 1.297/1.518 ms,
+projection 0.342/0.421 ms, value-stable projection 0.790/0.921 ms on a
+743,025-byte envelope. Re-derivation’s cost is chiefly lost identity and the
+bindings it wakes, rather than the projection’s own execution time.
+
+| Step | Change kept or rejected | Measured result |
+| --- | --- | --- |
+| 0, invocation 2 | Verbatim copy | All seven comparisons fail; verdict style 138.7/3.1 ms |
+| 1, invocation 3 | Complete presented-value equality retains unaffected members/groups and reconciled filters; no revision-keyed cache | Acknowledgement-to-DOM 27.1 → 17.4 ms; script 29.4 → 16.1 ms; navigation still fails |
+| 2, invocation 4 | No source change retained. CSSOM probes tried scoped join, all `:has`, disabled rules, theme roots, direct properties, individual color/background rules, simpler selectors and no transitions | Fixed baseline diagnostic: unchanged 59.5 ms vs no-transitions 5.5 ms; removing transitions rejected because intermediate presentation changes. All seven gated comparisons still fail |
+| 3, invocation 5 | Whole-group `content-visibility: auto; contain-intrinsic-size: auto 800px` | Navigation 118.0/151.4 ms; verdict style 8.5/3.4 ms; A3 and B3 still fail by 1.1 ms. Stop condition reached |
+| Final invocation 6 | Unchanged failed candidate | A3 fails by 0.5 ms; B3 passes this invocation only. No further optimization |
+
+The expensive stylesheet rule is daisyUI’s `.btn` transition: `color,
+background-color, border-color, box-shadow, transform`, duration `0.2s`.
+Its disabled selectors change those properties on all 435 verdict buttons
+when a request starts and when it ends. The fixed diagnostic shows that
+removing only scoped join, `:has`, variables, color or background declarations
+does not remove the cost. Containment reduces off-screen animated style work
+without altering the animation on visible controls: the all-button M4 flip
+falls to 3.3/4.0 ms in the final invocations. Every button retains its
+`aria-disabled` state and node identity.
+
+| Comparison, ms | Final 5 slice | Production | Result | Final 6 slice | Production | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| A1 Navigation to every group box | 118.0 | 151.4 | Pass | 135.5 | 173.1 | Pass |
+| A2 Navigation to next frame | 120.9 | 157.7 | Pass | 137.2 | 181.2 | Pass |
+| A3 Acknowledgement to DOM | 11.2 | 10.1 | **Fail +1.1** | 11.7 | 11.2 | **Fail +0.5** |
+| A4 Acknowledgement to next frame | 11.8 | 20.8 | Pass | 12.5 | 21.6 | Pass |
+| B1 Navigation to settled | 135.9 | 165.3 | Pass | 152.4 | 190.8 | Pass |
+| B2 Key press to settled | 46.7 | 49.2 | Pass | 43.5 | 56.9 | Pass |
+| B3 Acknowledgement to settled | 26.0 | 24.9 | **Fail +1.1** | 19.0 | 26.2 | Pass |
+
+**Gate A fails; gate B fails the two-invocation bar. Gate C fails:** unchanged
+S15 did not complete within 900s. It passed the six layout/Tab checks and
+1440px light/dark axe and focus laps, then remained in the unchanged animation
+settle promise before 390px light. Its browser was closed at the verification
+bound, captured traceback preserved, and all owned processes exited. The cause
+is unproven; separate bounded diagnostics did not reproduce a nonresolving wait
+through 800 successful settle calls. S1–S6, S13 and source rules pass, as do
+clean install/type/unit/build checks. There is no completed final S15 timing
+phase and no claim that the modified diagnostic is a correctness pass.
+Gate D also fails
+all four idle capture pairs and the held-request pair. Off-screen groups render
+when approaching the viewport, so a crop taller than the live viewport can
+contain blank skipped group bodies. The [baseline image](evidence/issue-209/baseline-desktop-light.png)
+and [candidate image](evidence/issue-209/containment-desktop-light.png) show this
+explicit difference; candidate byte counts can vary with deferred rendering.
+The off-state animation was kept. The first visual run also exposed held-route
+cleanup noise; the second releases those routes before closure and still fails
+all five comparisons. The third explicitly preserves the fixed difference pair;
+the fourth proves default runs leave both PNG hashes unchanged. All four fail
+every comparison; none is a passing reroll.
+
+**Traversal also fails.** After two Shift+Tabs the last control is focused but
+outside the viewport. Final traversal takes 61 slice steps, largest 46.6 ms, total
+1613.7 ms plus navigation 159.1 ms = 1772.8 ms; production takes 59 steps,
+largest 31.3 ms, total 1811.9 ms plus navigation 177.5 ms = 1989.4 ms. Neither
+has a scrolling Long Task. Slice height grows 60392→60949 px (+557), and a
+middle article moves 30118.2→29558.0 px (-560.2) at restored scrollY 0;
+production height 58059 and middle top 29816.6 remain fixed. Reading that
+article's box may itself affect containment. The proof independently fails drift above 1 px; these figures are not a stability
+pass. All three traversal attempts are retained. S15-precondition axe coverage matches #206 in both themes: 13137 targets,
+74 groups, 444 controls, 0 violations, 582 incomplete contrast rows measured.
+The full Tab lap and all-box reads can render deferred groups themselves.
+
+The optimization adds **34 non-blank served-source lines**, counted as S12:
+projection +27 (325 total), session +1, stylesheet +6 (67 total). Components,
+filtering and types are unchanged; application logic becomes 278 lines and the
+served slice plus unchanged #206 serving helper becomes 1,454 lines. Three
+added frontend tests bring the unit count to 35. H8 still passes on structure,
+with zero hand-written DOM construction/repaint and the same two focus effects;
+it does not claim reduced size or that this failed candidate is migration-ready.
 
 ### H8: is maintenance effort clearly lower? Yes, on structure
 
@@ -629,19 +731,29 @@ Awkward, each found by a proof:
   the sizes and violations were.
 - **Timings** are from one machine. S10 measures one development-loop run;
   S15 uses five alternating runs per implementation and reports medians.
-  Navigation and DOM/frame timing at 1440 px/light are measured; performance
-  at other widths, other machines and reports beyond this 893-row fixture
-  remains unmeasured. The slower slice needs a focused follow-up before GO.
+  #209 adds two consecutive final invocations and second nested-frame stamps.
+  S15’s verdict stamps exclude style/layout after its first-frame callback;
+  they must not stand in for settled rendering. Performance at other widths,
+  other machines and reports beyond this 893-row fixture remains unmeasured.
+  #209 is NO-GO on the approved bar, despite the improved first screen.
 - **The full-page stacked layout is long:** about 61,000 px at desktop and
   101,000 px at 390 px. Every group is tested, but only the top 2,400 px is
   pictured, and no human task-completion or large-report navigation study
   was run.
+- **#209 containment defers work.** Off-screen group content renders on approach,
+  while all groups remain in the document. Navigation stamps only require
+  group boxes, so they cannot establish that every descendant was rendered.
+  Traversal, geometry and accessibility coverage are reported separately in
+  #209 evidence. In-page find, other browsers, screen readers and human
+  navigation are unmeasured. The performance result belongs to #206’s visual
+  design and must be repeated after #210’s redesign.
 - **The stat-role derivation** stays in the browser because the envelope
   has no field for it.
 
 ## 9. Migration ticket drafts
 
-Drafts only. None has been created. Each is one ticket, in this order; each
+Migration drafts; draft 5 was carried out by #209 with NO-GO. The other
+drafts are not released by that result. Each is one ticket, in this order; each
 depends on the one before unless it says otherwise. All inherit the hard
 rules in `AGENTS.md`, and none changes the envelope, the routes, the session
 lifecycle or the CSP.
@@ -672,7 +784,10 @@ the Armor duplicates surface with all six filters, served at a second
 allow-listed path beside the current page. Playwright tests for it, taken
 from the behaviours `tests/test_server_browser.py` pins for this surface.
 The wheel proof extended to the new files. A decision, with tests, on
-runtime envelope validation.
+runtime envelope validation. Carry #209’s complete-value identity reuse and
+unchanged-filter reconciliation only after fresh correctness/performance checks;
+never cache state/override status/snapshot by a revision pair. Rendering
+containment is a failed candidate here, not an accepted migration pattern.
 
 **Scope rule.** The page at `/` is untouched.
 
@@ -703,6 +818,12 @@ the server.
 beyond what `review_ui.js` already does.
 
 ### 5. M10: real-scale presentation performance gate
+
+**Carried out by #209, 2026-10-09: NO-GO.** The approved plan widened the
+original scope to settled frames and preserved the #206 design. All seven
+comparisons must pass twice consecutively; final invocations fail A3 in both,
+B3 in one, the unchanged-appearance gate, and keyboard traversal. No switch-over is released.
+The scope below is the original draft, retained as history.
 
 **Scope.** A focused reduction of report-wide presentation work on load and
 verdict adoption, with a regression comparison against the current page on
@@ -735,7 +856,9 @@ why.
 
 **Scope.** The full Playwright suite against an installed wheel; an
 accessibility pass that includes a screen reader, recorded in
-`docs/browser-verification.md`; a repeat of the sanitised-report performance gate, plus a larger fixture
+`docs/browser-verification.md`; a repeat of #209’s [seven-comparison gate](../spikes/issue-209/proof_gate.py)
+and [traversal proof](../spikes/issue-209/proof_traversal.py), including visual
+parity and full accessibility coverage, plus a larger fixture
 if available through approved sanitisation; and
 removal of `spikes/issue-206/` and `spikes/issue-137/` or a note that they
 stay as frozen evidence.

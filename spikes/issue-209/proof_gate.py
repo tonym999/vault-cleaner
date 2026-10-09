@@ -252,6 +252,10 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         code = main()
+    except SystemExit as error:
+        if error.code not in (None, 0):
+            print("RESULT: FAIL (proof exited before completion)", flush=True)
+        raise
     except Exception:
         print("RESULT: FAIL (proof raised an exception)", flush=True)
         raise

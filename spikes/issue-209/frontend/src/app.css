@@ -64,3 +64,10 @@
     color: color-mix(in oklab, var(--color-base-content) 75%, transparent);
   }
 }
+
+/* Every group stays in the document; off-screen groups render as they
+   approach the viewport. The traversal proof accounts for deferred work. */
+article[data-group] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 800px;
+}

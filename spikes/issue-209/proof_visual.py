@@ -2,7 +2,7 @@
 
 Only fixed baseline assets are substituted through Playwright routing; both
 pages fetch the same report from the unmodified server. Captures stay in
-memory. Four width/scheme idle pairs and one held-request pair are compared.
+memory by default; --write-difference preserves one fixed pair. Four width/scheme idle pairs and one held-request pair are compared.
 No Python image dependency, no screenshot written into frozen evidence.
 """
 
@@ -18,6 +18,7 @@ from dev import preload
 from harness import authenticated_context, chromium, finish, live_spike
 from proof_s5_focus import hold_one
 
+EVIDENCE = Path(__file__).resolve().parents[2] / "docs" / "evidence" / "issue-209"
 BASELINE = Path(__file__).resolve().parents[1] / "issue-206" / "frontend" / "dist"
 
 
@@ -37,6 +38,10 @@ def capture(page, width: int) -> bytes:
 
 
 def main() -> int:
+    write = sys.argv[1:] == ["--write-difference"]
+    if sys.argv[1:] and not write:
+        print("RESULT: FAIL (only --write-difference is accepted; no path input)")
+        return 1
     failures: list[str] = []
     with live_spike() as live, chromium() as browser:
         preload(live, "real")
@@ -59,6 +64,11 @@ def main() -> int:
                       f"top 2400px PNG identical={equal}")
                 if not equal:
                     failures.append(f"idle {width}px {scheme} differs")
+                    if write and (width, scheme) == (1440, "light"):
+                        for label, image in zip(("baseline", "containment"), images, strict=True):
+                            target = EVIDENCE / f"{label}-desktop-light.png"
+                            target.write_bytes(image)
+                            print(f"wrote docs/evidence/issue-209/{target.name}: difference evidence")
         pages = [context.new_page(), context.new_page()]
         baseline_assets(pages[0])
         held = []
@@ -80,9 +90,22 @@ def main() -> int:
               f"all 435 verdict controls aria-disabled; top 2400px PNG identical={equal}")
         if not equal:
             failures.append("in-flight state differs")
+        for page, pending in zip(pages, held, strict=True):
+            pending[0][0].fulfill(response=pending[0][1])
+            page.unroute("**/api/verdicts")
+            page.wait_for_function("() => document.querySelector('[data-busy]').getAttribute('data-busy') === ''")
         context.close()
     return finish(failures)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        code = main()
+    except SystemExit as error:
+        if error.code not in (None, 0):
+            print("RESULT: FAIL (proof exited before completion)", flush=True)
+        raise
+    except Exception:
+        print("RESULT: FAIL (proof raised an exception)", flush=True)
+        raise
+    sys.exit(code)
