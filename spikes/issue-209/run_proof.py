@@ -106,7 +106,7 @@ sys.exit(result)
     process = subprocess.Popen([sys.executable, "-u", "-c", code], cwd=HERE, start_new_session=True)
     result = wait_bounded(process)
     if result:
-        print("RESULT: FAIL (S15 exited before completion)", flush=True)
+        print("RESULT: FAIL (S15 child returned nonzero status)", flush=True)
     return result
 
 

@@ -12,8 +12,10 @@ import sys
 from run_proof import configure
 
 configure()
+import proof_s15_scale as scale
 from dev import preload
 from expected import expected_groups
+from focus_contrast import SETTLE_JS, check
 from harness import (
     authenticated_context,
     chromium,
@@ -23,9 +25,11 @@ from harness import (
     verdict_button,
 )
 from proof_gate import SETTLED_JS, TIMING_JS, TWO_FRAMES
-from proof_s13_axe import AXE, RUN_JS
+from proof_s13_axe import RUN_JS
 from proof_s15_scale import far_member
-from proof_visual import baseline_assets
+from run_proof import FRONTEND
+
+BASELINE_FRONTEND = FRONTEND.parents[1] / "issue-206" / "frontend"
 
 LONG_TASK_JS = """
 window.__longTasks = [];
@@ -48,19 +52,25 @@ y => new Promise(resolve => {
 })
 """
 COVERAGE_JS = """
-async () => {
-  const result = await axe.run(document, {resultTypes: ['passes', 'violations', 'incomplete', 'inapplicable']});
-  const nodes = new Set();
-  const groups = new Set();
-  for (const entries of [result.passes, result.violations, result.incomplete]) {
-    for (const entry of entries) for (const node of entry.nodes) {
-      const selector = node.target.join(' ');
-      nodes.add(selector);
-      const group = document.querySelector(selector)?.closest('article[data-group]');
-      if (group) groups.add(group.getAttribute('data-group'));
+() => {
+  const original = axe.run;
+  axe.run = async (context, options) => {
+    // Observe the SAME rule run as RUN_JS, without a second axe/layout pass.
+    const result = await original.call(axe, context, {...options,
+      resultTypes: ['passes', 'violations', 'incomplete', 'inapplicable']});
+    const nodes = new Set();
+    const groups = new Set();
+    for (const entries of [result.passes, result.violations, result.incomplete]) {
+      for (const entry of entries) for (const node of entry.nodes) {
+        const selector = node.target.join(' ');
+        nodes.add(selector);
+        const group = document.querySelector(selector)?.closest('article[data-group]');
+        if (group) groups.add(group.getAttribute('data-group'));
+      }
     }
-  }
-  return {nodes: nodes.size, groups: groups.size, violations: result.violations.length};
+    window.__coverage = {nodes: nodes.size, groups: groups.size};
+    return result;
+  };
 }
 """
 
@@ -100,40 +110,73 @@ def traversal(context, live, name: str) -> dict:
     return {"bad": bad_steps, "before": before, "after": after}
 
 
-def accessibility(context, live) -> bool:
+def accessibility() -> bool:
+    """Supplemental instrumented comparator; the primary S15 stays unchanged."""
     results = []
-    for baseline in (True, False):
-        page = context.new_page()
-        if baseline:
-            baseline_assets(page)
-        page.goto(live.origin + "/spike/", wait_until="domcontentloaded")
-        page.wait_for_function("() => __settled.navigation !== null")
-        # Like S15, first read every required value/box, then make a full Tab
-        # lap. These are the exact preconditions of its unchanged axe call.
-        from harness import read_slice
-        from proof_s6_layout import tab_through
+    failures = []
+    original = scale.axe_check, scale.timings, scale.finish, scale.AXE
+    try:
+        for name, frontend in (("#206", BASELINE_FRONTEND), ("#209", FRONTEND)):
+            configure(frontend)
+            scale.AXE = frontend / "node_modules" / "axe-core"
+            per_state = {}
 
-        assert len(read_slice(page)["groups"]) == 74
-        stops = tab_through(page)
-        assert len(stops) == 444
-        page.evaluate((AXE / "axe.min.js").read_text(encoding="utf-8") + "\n;undefined")
-        per_scheme = []
-        for scheme in ("light", "dark"):
-            page.emulate_media(color_scheme=scheme)
-            page.mouse.move(0, 0)
-            page.wait_for_timeout(300)
-            coverage = page.evaluate(COVERAGE_JS)
-            contrast = page.evaluate(RUN_JS)
-            per_scheme.append((coverage, contrast["incomplete"], len(contrast["measured"])))
-            print(f"{'#206' if baseline else '#209'} axe {scheme}: unique targets={coverage['nodes']}; "
-                  f"groups examined={coverage['groups']}; violations={coverage['violations']}; "
-                  f"contrast incomplete={contrast['incomplete']}, measured={len(contrast['measured'])}; "
-                  f"controls reached={len(stops)}")
-        results.append(per_scheme)
-        page.close()
-    equal = results[0] == results[1]
-    print(f"S15 axe/contrast coverage identical to #206={equal}")
-    return equal
+            def compare(page, label, preparation_failures, name=name, per_state=per_state):
+                page.evaluate(COVERAGE_JS)
+                # Exact S13 state/settle/contrast/focus order, after S15's full
+                # acknowledged-verdict and six layout/parity/Tab preparations.
+                # No all-box read or extra Tab warm-up after these width changes.
+                for width in (1440, 390):
+                    for scheme in ("light", "dark"):
+                        state = f"{name}, {width}px {scheme}"
+                        page.set_viewport_size({"width": width, "height": 900})
+                        page.emulate_media(color_scheme=scheme)
+                        page.mouse.move(0, 0)
+                        page.evaluate(SETTLE_JS)
+                        contrast = page.evaluate(RUN_JS)
+                        coverage = page.evaluate("() => __coverage")
+                        measured = len(contrast["measured"])
+                        unmeasured = len(contrast["unmeasured"])
+                        low = min((e["ratio"] for e in contrast["measured"]), default=0)
+                        painted = [e["target"] for e in contrast["measured"] if not e["plain"]]
+                        per_state[width, scheme] = {**coverage, "measured": measured,
+                                                   "incomplete": contrast["incomplete"],
+                                                   "unmeasured": unmeasured}
+                        print(f"{state}: unique targets={coverage['nodes']}; "
+                              f"groups examined={coverage['groups']}; "
+                              f"violations={len(contrast['violations'])}; "
+                              f"contrast incomplete={contrast['incomplete']}, measured={measured}, "
+                              f"unmeasured={unmeasured}; lowest={low:.2f}:1", flush=True)
+                        if (contrast["violations"] or unmeasured or low < 4.5
+                                or any(target != "select" for target in painted)):
+                            preparation_failures.append(f"{state}: unexplained accessibility problem")
+                        check(page, f"{state}, {label}", preparation_failures)
+
+            def collect(preparation_failures, name=name):
+                failures.extend(f"{name}: {item}" for item in preparation_failures)
+                return int(bool(preparation_failures))
+
+            scale.axe_check = compare
+            scale.timings = lambda *args: None  # No unrelated performance rerun.
+            scale.finish = collect
+            print(f"{name} supplemental comparator: full unchanged S15 preparation; "
+                  "instrumented S13 coverage; timing phase omitted", flush=True)
+            scale.main()
+            results.append(per_state)
+    finally:
+        scale.axe_check, scale.timings, scale.finish, scale.AXE = original
+        configure()
+    for state, baseline in results[0].items():
+        candidate = results[1][state]
+        reduced = any(candidate[key] < baseline[key] for key in ("nodes", "groups", "measured"))
+        complete = not candidate["unmeasured"] and not baseline["unmeasured"]
+        print(f"coverage comparison {state[0]}px {state[1]}: reduced={reduced}; "
+              f"all incomplete targets measured={complete}", flush=True)
+        if reduced or not complete:
+            failures.append(f"{state}: reduced or incomplete accessibility coverage")
+    for failure in failures:
+        print(f"FAIL: {failure}", flush=True)
+    return not failures
 
 
 def main() -> int:
@@ -183,9 +226,9 @@ def main() -> int:
         if not focused or not rendered["visible"] or not rendered["boxes"]:
             failures.append("keyboard jump did not render/focus last group")
         page.close()
-        if not accessibility(context, live):
-            failures.append("axe/contrast coverage changed")
         context.close()
+    if not accessibility():
+        failures.append("axe/contrast coverage reduced or unexplained")
     return finish(failures)
 
 

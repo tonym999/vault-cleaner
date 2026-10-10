@@ -52,5 +52,16 @@ To preserve one required difference pair explicitly:
 The candidate uses whole-group rendering containment: off-screen groups render as
 approaching the viewport. The traversal proof accounts for the deferred work,
 Long Tasks, geometry (>1px height/middle-element/scroll drift is FAIL) and keyboard jump, and compares full-report axe/contrast
-coverage with #206. A failed gate is a NO-GO; nothing is tuned after the approved
+coverage with #206 at 1440/390 px × light/dark. The supplemental comparator
+reuses S15's complete acknowledged-verdict preparation and six layout/parity/Tab
+laps, then follows S13's width/theme, animation settle, contrast and full focus
+order. A passive wrapper counts result categories from that same axe invocation;
+there is no second axe pass, all-box read or extra warm-up lap after its width
+changes. It reports measured/unmeasured targets per state and fails unexplained
+or reduced coverage. This comparator is instrumented and omits S15's unrelated
+timing phase; the unchanged S15 runner remains the primary correctness proof.
+The full preparation and focus laps can take several minutes per build. The
+original desktop-only supplemental counts did not cover the full S15 sequence;
+they remain historical evidence. Independent unchanged S15 fails narrow-light
+contrast coverage, so Gate C remains FAIL. A failed gate is a NO-GO; nothing is tuned after the approved
 stop condition. See the decision record for the final result.

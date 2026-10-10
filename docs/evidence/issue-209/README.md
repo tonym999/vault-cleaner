@@ -1276,3 +1276,481 @@ Final code-state pre-commit repeat (after timeout/geometry guard completion):
 ```text
 1342 passed in 33.88s
 ```
+
+
+## Independent review at cc29041 — 2026-10-10
+
+Fresh read-only detached checkout `/tmp/vault-cleaner-209-review-cc29041`, pinned
+at `cc29041e7a611f1dd3fa09763794b530d8d8c45c`; requested and actual reviewer:
+OpenAI `gpt-6.1-sol`, native `high`, through Codex collaboration. The previous
+2026-10-09 dispatch reached a usage limit without producing a review; review
+resumed on 2026-10-10. No cross-provider reviewer was callable. One P2 was found:
+the supplemental traversal comparator covered desktop themes only, unlike the
+primary unchanged S15/S13 width/theme sequence. Accepted for measurement and
+record correction; no other P0/P1/P2/P3 findings. Candidate code is unchanged.
+
+The following two complete independent gate invocations supplement implementation
+invocations 1–6 above: **eight total gate invocations**, none discarded. Review 1
+passes all seven, review 2 fails A3 (+0.2 ms) and B3 (+3.7 ms); the required two
+consecutive passing invocations still do not hold. These are separate review
+runs, not replacements for final implementation invocations 5/6. Logs are
+verbatim, captured in the review checkout's `.pytest_cache/review-gate-{1,2}.log`.
+Each fence is independently reproducible with the command shown, using the
+unchanged fixed builds and tracked fixture; timings can vary.
+
+### Independent gate invocation 1
+
+```bash
+.venv/bin/python spikes/issue-209/proof_gate.py
+```
+
+```text
+fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; no overlay
+target: group 74/74; viewport 1440x1000 light; five alternating fresh documents
+run 1 slice: navigation=125.5ms; navigationFrame=126.7ms; dom=13.5ms; frame=14.2ms; navigationSettled=142.0ms; keySettled=61.1ms; ackSettled=22.0ms; responseEnd=32.5ms; elements=13143
+run 1 production: navigation=160.2ms; navigationFrame=166.3ms; dom=9.5ms; frame=13.3ms; navigationSettled=169.0ms; keySettled=57.0ms; ackSettled=31.8ms; responseEnd=40.9ms; elements=17138
+run 2 production: navigation=161.5ms; navigationFrame=166.9ms; dom=9.4ms; frame=19.8ms; navigationSettled=169.5ms; keySettled=47.3ms; ackSettled=22.6ms; responseEnd=40.2ms; elements=17138
+run 2 slice: navigation=124.8ms; navigationFrame=125.8ms; dom=8.4ms; frame=9.1ms; navigationSettled=139.4ms; keySettled=55.4ms; ackSettled=21.8ms; responseEnd=33.6ms; elements=13143
+run 3 slice: navigation=110.2ms; navigationFrame=116.3ms; dom=15.8ms; frame=16.6ms; navigationSettled=129.5ms; keySettled=50.7ms; ackSettled=22.7ms; responseEnd=34.7ms; elements=13143
+run 3 production: navigation=149.2ms; navigationFrame=156.3ms; dom=9.7ms; frame=16.0ms; navigationSettled=167.1ms; keySettled=56.0ms; ackSettled=32.9ms; responseEnd=40.2ms; elements=17138
+run 4 production: navigation=158.9ms; navigationFrame=165.8ms; dom=10.4ms; frame=21.6ms; navigationSettled=169.7ms; keySettled=51.1ms; ackSettled=23.3ms; responseEnd=33.1ms; elements=17138
+run 4 slice: navigation=127.0ms; navigationFrame=127.9ms; dom=9.4ms; frame=10.1ms; navigationSettled=141.6ms; keySettled=43.9ms; ackSettled=23.0ms; responseEnd=39.5ms; elements=13143
+run 5 slice: navigation=124.6ms; navigationFrame=125.5ms; dom=8.5ms; frame=10.1ms; navigationSettled=138.7ms; keySettled=49.5ms; ackSettled=26.8ms; responseEnd=36.3ms; elements=13143
+run 5 production: navigation=162.3ms; navigationFrame=169.1ms; dom=9.7ms; frame=19.3ms; navigationSettled=171.7ms; keySettled=44.9ms; ackSettled=21.0ms; responseEnd=40.2ms; elements=17138
+A1 navigation to all groups: slice=124.8ms production=160.2ms gap=-35.4ms PASS
+A2 navigation to next frame: slice=125.8ms production=166.3ms gap=-40.5ms PASS
+A3 acknowledgement to DOM: slice=9.4ms production=9.7ms gap=-0.3ms PASS
+A4 acknowledgement to next frame: slice=10.1ms production=19.3ms gap=-9.2ms PASS
+B1 navigation to settled: slice=139.4ms production=169.5ms gap=-30.1ms PASS
+B2 key press to settled: slice=50.7ms production=51.1ms gap=-0.4ms PASS
+B3 acknowledgement to settled: slice=22.7ms production=23.3ms gap=-0.6ms PASS
+slice navigation CDP medians: ScriptDuration=65.0ms; RecalcStyleDuration=7.1ms; LayoutDuration=24.9ms; TaskDuration=133.5ms
+slice verdict CDP medians: ScriptDuration=11.3ms; RecalcStyleDuration=8.7ms; LayoutDuration=1.0ms; TaskDuration=49.0ms
+production navigation CDP medians: ScriptDuration=24.0ms; RecalcStyleDuration=17.2ms; LayoutDuration=48.4ms; TaskDuration=156.2ms
+production verdict CDP medians: ScriptDuration=3.7ms; RecalcStyleDuration=3.3ms; LayoutDuration=10.4ms; TaskDuration=44.5ms
+M4 one-class: buttons=1; style median=0.5ms; samples=[1.2, 0.5, 0.5, 0.4, 0.4, 0.6]
+M4 all-class: buttons=435; style median=2.6ms; samples=[2.2, 2.4, 2.6, 2.9, 4.1, 2.7]
+M4 all-aria: buttons=435; style median=2.9ms; samples=[2.9, 2.6, 2.8, 3.2, 3.1, 2.9]
+M4 all-both: buttons=435; style median=3.6ms; samples=[3.9, 2.9, 3.0, 5.3, 3.7, 3.6]
+M4 all-disabled: buttons=435; style median=5.2ms; samples=[5.4, 5.1, 4.6, 5.3, 4.7, 5.7]
+M4 all-unused: buttons=435; style median=0.0ms; samples=[1.4, 1.5, 0.0, 0.0, 0.0, 0.0]
+M5 warm Node medians (50): bytes=743025; JSON.parse=1.343ms; projection=0.349ms; value-stable projection=0.857ms
+RESULT: PASS
+```
+
+### Independent gate invocation 2
+
+```bash
+.venv/bin/python spikes/issue-209/proof_gate.py
+```
+
+```text
+fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; no overlay
+target: group 74/74; viewport 1440x1000 light; five alternating fresh documents
+run 1 slice: navigation=137.8ms; navigationFrame=138.7ms; dom=9.0ms; frame=9.5ms; navigationSettled=155.0ms; keySettled=47.2ms; ackSettled=23.5ms; responseEnd=40.9ms; elements=13143
+run 1 production: navigation=157.1ms; navigationFrame=162.9ms; dom=10.0ms; frame=15.1ms; navigationSettled=172.9ms; keySettled=55.1ms; ackSettled=31.9ms; responseEnd=40.1ms; elements=17138
+run 2 production: navigation=157.4ms; navigationFrame=164.2ms; dom=10.0ms; frame=20.8ms; navigationSettled=166.8ms; keySettled=51.0ms; ackSettled=23.2ms; responseEnd=37.9ms; elements=17138
+run 2 slice: navigation=123.8ms; navigationFrame=124.2ms; dom=10.2ms; frame=10.7ms; navigationSettled=137.8ms; keySettled=52.9ms; ackSettled=25.4ms; responseEnd=33.6ms; elements=13143
+run 3 slice: navigation=123.2ms; navigationFrame=124.2ms; dom=17.6ms; frame=18.3ms; navigationSettled=138.3ms; keySettled=63.1ms; ackSettled=28.0ms; responseEnd=34.8ms; elements=13143
+run 3 production: navigation=157.1ms; navigationFrame=163.4ms; dom=10.0ms; frame=18.5ms; navigationSettled=173.0ms; keySettled=46.6ms; ackSettled=20.0ms; responseEnd=41.9ms; elements=17138
+run 4 production: navigation=164.2ms; navigationFrame=170.0ms; dom=9.7ms; frame=20.1ms; navigationSettled=172.8ms; keySettled=48.1ms; ackSettled=21.7ms; responseEnd=42.5ms; elements=17138
+run 4 slice: navigation=132.7ms; navigationFrame=133.6ms; dom=10.7ms; frame=11.2ms; navigationSettled=147.8ms; keySettled=48.0ms; ackSettled=27.5ms; responseEnd=33.1ms; elements=13143
+run 5 slice: navigation=124.7ms; navigationFrame=125.8ms; dom=7.9ms; frame=8.5ms; navigationSettled=139.0ms; keySettled=44.5ms; ackSettled=19.1ms; responseEnd=33.4ms; elements=13143
+run 5 production: navigation=167.9ms; navigationFrame=173.6ms; dom=9.4ms; frame=18.7ms; navigationSettled=183.5ms; keySettled=43.7ms; ackSettled=20.6ms; responseEnd=52.0ms; elements=17138
+A1 navigation to all groups: slice=124.7ms production=157.4ms gap=-32.7ms PASS
+A2 navigation to next frame: slice=125.8ms production=164.2ms gap=-38.4ms PASS
+A3 acknowledgement to DOM: slice=10.2ms production=10.0ms gap=+0.2ms FAIL
+A4 acknowledgement to next frame: slice=10.7ms production=18.7ms gap=-8.0ms PASS
+B1 navigation to settled: slice=139.0ms production=172.9ms gap=-33.9ms PASS
+B2 key press to settled: slice=48.0ms production=48.1ms gap=-0.1ms PASS
+B3 acknowledgement to settled: slice=25.4ms production=21.7ms gap=+3.7ms FAIL
+slice navigation CDP medians: ScriptDuration=70.2ms; RecalcStyleDuration=7.1ms; LayoutDuration=28.1ms; TaskDuration=135.4ms
+slice verdict CDP medians: ScriptDuration=11.1ms; RecalcStyleDuration=11.9ms; LayoutDuration=1.2ms; TaskDuration=49.7ms
+production navigation CDP medians: ScriptDuration=23.8ms; RecalcStyleDuration=16.9ms; LayoutDuration=47.9ms; TaskDuration=159.1ms
+production verdict CDP medians: ScriptDuration=3.7ms; RecalcStyleDuration=3.3ms; LayoutDuration=10.2ms; TaskDuration=41.1ms
+M4 one-class: buttons=1; style median=0.5ms; samples=[0.6, 0.5, 0.6, 0.4, 0.3, 0.5]
+M4 all-class: buttons=435; style median=2.6ms; samples=[2.0, 2.8, 2.6, 2.4, 3.3, 2.5]
+M4 all-aria: buttons=435; style median=2.9ms; samples=[3.0, 3.0, 2.9, 3.0, 2.8, 2.9]
+M4 all-both: buttons=435; style median=3.2ms; samples=[3.3, 2.9, 3.0, 3.7, 3.1, 4.1]
+M4 all-disabled: buttons=435; style median=5.1ms; samples=[4.5, 5.3, 4.7, 5.1, 5.2, 5.2]
+M4 all-unused: buttons=435; style median=0.0ms; samples=[1.6, 1.3, 0.0, 0.0, 0.0, 0.0]
+M5 warm Node medians (50): bytes=743025; JSON.parse=1.332ms; projection=0.371ms; value-stable projection=0.875ms
+FAIL: A3 acknowledgement to DOM
+FAIL: B3 acknowledgement to settled
+RESULT: FAIL
+```
+
+### Independent primary unchanged S15 — completed failure
+
+Command: `.venv/bin/python spikes/issue-209/run_proof.py S15`, once, at the
+reviewed head. This independent execution completed with status 1; it did not
+time out. The historical implementation execution's 900s timeout and traceback
+above remain unchanged. No cause for the difference in completion is established.
+The reviewer reports these contrast counts from that unchanged execution:
+
+| Width/theme | Incomplete targets | Measured | Unmeasured |
+| --- | --- | --- | --- |
+| 1440 light | 581 | 581 | 0 |
+| 1440 dark | 581 | 581 | 0 |
+| 390 light | 2862 | 116 | Thousands; original selector list truncated by the tool |
+| 390 dark | 581 | 581 | 0 |
+
+**This table is a disclosed reviewer count summary, not a verbatim transcript.**
+The initial 390-light output included a roughly 97k-token selector line; the tool
+truncated it. The original full line was not captured to a file and is not
+reconstructed here. No second S15 run was made. Remaining stdout was captured in
+`.pytest_cache/s15-review-remaining-{1,2}.log`; the following concatenated excerpt
+is verbatim. The command above reproduces the primary proof, not the tool's
+original capture boundary. Gate C remains FAIL due to unexplained narrow-light
+accessibility coverage, independently of the historical timeout.
+
+```text
+sanitised report, acknowledged verdict, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 581 nodes, measured here 581, lowest 5.24:1 (article[aria-labelledby="c839-name"] > .sm\:p-6.card-body.gap-4 > .items-start > .items-center > .badge-warning.badge[data-field="kind"]), below 4.5:1: []; with a real background image: ['select']; not measured: []
+
+sanitised report, acknowledged verdict, 390px dark: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
+slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
+timing run 1 slice: all groups=74; navigation=128.2ms, next frame=129.2ms; ack-to-DOM=7.9ms, next frame=8.5ms; DOM elements=13143
+timing run 1 production: all groups=74; navigation=156.3ms, next frame=162.2ms; ack-to-DOM=10.4ms, next frame=18.6ms; DOM elements=17138
+timing run 2 production: all groups=74; navigation=179.6ms, next frame=190.0ms; ack-to-DOM=14.7ms, next frame=32.2ms; DOM elements=17138
+timing run 2 slice: all groups=74; navigation=154.8ms, next frame=155.6ms; ack-to-DOM=11.8ms, next frame=12.9ms; DOM elements=13143
+timing run 3 slice: all groups=74; navigation=146.5ms, next frame=147.9ms; ack-to-DOM=11.3ms, next frame=12.2ms; DOM elements=13143
+timing run 3 production: all groups=74; navigation=194.9ms, next frame=203.2ms; ack-to-DOM=14.0ms, next frame=31.3ms; DOM elements=17138
+timing run 4 production: all groups=74; navigation=186.4ms, next frame=194.0ms; ack-to-DOM=10.8ms, next frame=21.2ms; DOM elements=17138
+timing run 4 slice: all groups=74; navigation=142.2ms, next frame=143.3ms; ack-to-DOM=13.0ms, next frame=14.0ms; DOM elements=13143
+timing run 5 slice: all groups=74; navigation=174.8ms, next frame=175.6ms; ack-to-DOM=9.5ms, next frame=10.8ms; DOM elements=13143
+timing run 5 production: all groups=74; navigation=187.2ms, next frame=194.7ms; ack-to-DOM=12.8ms, next frame=25.4ms; DOM elements=17138
+verdict target: group 74/74, chosen from the envelope
+slice medians (5 runs): navigation=146.5ms, next frame=147.9ms; ack-to-DOM=11.3ms, next frame=12.2ms; DOM elements=13143
+production medians (5 runs): navigation=186.4ms, next frame=194.0ms; ack-to-DOM=12.8ms, next frame=25.4ms; DOM elements=17138
+FAIL: sanitised report, acknowledged verdict, 390px light: an accessibility problem is unexplained
+RESULT: FAIL
+RESULT: FAIL (S15 exited before completion)
+
+```
+
+Reviewer verification (reported inventory; durations were not supplied): root
+and spike Ruff PASS; pytest 1342 PASS; required browser 16 PASS, 3 deselected,
+no skip; clean #209 npm/type/35 unit tests/build and clean #206 npm/build PASS;
+unchanged S1–S6, S13, source PASS; unconditional-identity negative control makes
+all three tests fail. Plan/ancestor/copy-27-files/inclusion/frozen paths/package
+and lock/worklog/sanitised fixtures/whitespace/no-data/clean checkout checks PASS.
+Stylesheet diagnostic PASS (rejected no-transitions mode 7.1ms). All five visual
+pairs FAIL. Traversal FAIL: +557px height, -560.2px middle article, last focused
+control outside viewport; no scrolling Long Tasks. Its desktop-only comparator
+reports 13137 targets/582 measured/444 controls; the accepted P2 explains why
+that report does not establish full S15-state coverage. Historical step timings
+and explicit image-writing modes were not rerun by this reviewer.
+
+
+## Review fix — four-state supplemental comparator
+
+Accepted independent P2: replace the earlier desktop-only supplemental coverage
+comparison with 1440/390 × light/dark. For each fixed build, this instrumented
+comparator reuses the unchanged S15.main preparation: tracked sanitised fixture,
+initial oracle, filter sequences, acknowledged far-down verdict, then six
+1440/1024/390 × light/dark layout/parity/Tab laps in their original order. Its
+callback follows S13's width/theme, SETTLE_JS, RUN_JS and full focus check order.
+No extra all-box read, second axe run or warm-up Tab lap follows its width
+changes. A passive axe wrapper requests complete result categories from the
+same rule invocation and counts selectors/groups without box/style reads. It
+reports per-state coverage and rejects reduced counts or any unmeasured target.
+The unrelated S15 timing phase is omitted; every substituted call-time global
+and build configuration is restored. This supplemental instrument is distinct
+from the primary unchanged S15 execution above.
+
+The orchestrator additionally accepted P3: the bounded S15 parent's generic
+nonzero-child summary said "exited before completion" even after a completed
+failing proof. Only that parent line now says "S15 child returned nonzero status";
+exceptions/timeouts/nonzero behavior are unchanged. Historical stdout remains
+verbatim, including its former summary line.
+
+Ephemeral measurement-guard tests (no tracked tests added): the first system
+python3 attempt failed import because Flask lives in `.venv`; the venv attempt
+then passed narrow-unmeasured rejection, all eight ordered state/focus calls and
+global restoration. A subsequent two-scenario probe additionally rejects reduced
+target counts with no unmeasured entries. It runs no browser and is not parity
+or primary S15 evidence. The standalone reproduction is:
+
+```bash
+.venv/bin/python - <<'PY'
+import sys
+sys.path.insert(0, 'spikes/issue-209')
+import proof_traversal as proof
+selected, visits, focus = [], [], []
+scenario = None
+class Page:
+    def __init__(self):
+        self.mouse = self
+    def set_viewport_size(self, value):
+        self.width = value['width']
+        assert value['height'] == 900
+    def emulate_media(self, color_scheme):
+        self.scheme = color_scheme
+    def move(self, x, y):
+        assert (x, y) == (0, 0)
+    def evaluate(self, source):
+        bad = selected[-1] == proof.FRONTEND and (self.width, self.scheme) == (390, 'light') if hasattr(self, 'width') else False
+        if source == proof.RUN_JS:
+            visits.append((self.width, self.scheme))
+            return {'measured': [{'ratio': 5, 'plain': True, 'target': 'p'}],
+                    'unmeasured': ['hidden'] if bad and scenario == 'unmeasured' else [],
+                    'incomplete': 2 if bad and scenario == 'unmeasured' else 1, 'violations': []}
+        if source == '() => __coverage':
+            return {'nodes': 1 if bad and scenario == 'reduced' else 2, 'groups': 1}
+proof.configure = lambda frontend=proof.FRONTEND: selected.append(frontend)
+proof.check = lambda page, label, failures: focus.append((page.width, page.scheme))
+def preparation():
+    failures = []
+    proof.scale.axe_check(Page(), 'synthetic guard check', failures)
+    return proof.scale.finish(failures)
+proof.scale.main = preparation
+original = proof.scale.axe_check, proof.scale.timings, proof.scale.finish, proof.scale.AXE
+for scenario in ('unmeasured', 'reduced'):
+    selected.clear()
+    visits.clear()
+    focus.clear()
+    assert proof.accessibility() is False
+    assert visits == focus == [(1440, 'light'), (1440, 'dark'), (390, 'light'), (390, 'dark')] * 2
+    assert selected == [proof.BASELINE_FRONTEND, proof.FRONTEND, proof.FRONTEND]
+    assert (proof.scale.axe_check, proof.scale.timings, proof.scale.finish, proof.scale.AXE) == original
+print('Synthetic guards: narrow unmeasured and reduced coverage rejected; 8 ordered states/focus calls each; globals restored; PASS')
+PY
+```
+
+Output tail, verbatim:
+
+```text
+Synthetic guards: narrow unmeasured and reduced coverage rejected; 8 ordered states/focus calls each; globals restored; PASS
+```
+
+The P3 parent-summary probe substitutes a nonzero child result, verifies status 1
+and its accurate summary, without another S15 browser execution:
+
+```bash
+.venv/bin/python - <<'PY'
+import contextlib
+import io
+import sys
+sys.path.insert(0, 'spikes/issue-209')
+import run_proof as proof
+proof.subprocess.Popen = lambda *args, **kwargs: object()
+proof.wait_bounded = lambda process: 1
+output = io.StringIO()
+with contextlib.redirect_stdout(output):
+    assert proof.bounded_s15() == 1
+assert output.getvalue() == 'RESULT: FAIL (S15 child returned nonzero status)\n'
+print('Nonzero-child parent summary preserves status 1 and accurately labels completed FAIL: PASS')
+PY
+```
+
+Verbatim output:
+
+```text
+Nonzero-child parent summary preserves status 1 and accurately labels completed FAIL: PASS
+```
+
+
+### Corrected comparator invocation — captured once
+
+Command (stdout and stderr captured together), one invocation, exit status 1:
+
+```bash
+.venv/bin/python -u spikes/issue-209/proof_traversal.py > /tmp/issue-209-review-fix-traversal.log 2>&1
+```
+
+Complete captured stdout/stderr, verbatim. No state or failed comparison is
+excluded. All eight full focus laps reach 444/444 controls with no focus
+problems. Unique targets/groups remain 13137/74 for every state. Narrow-light
+candidate contrast nonetheless loses measured coverage:
+
+| Width/theme | #206 incomplete/measured/unmeasured | #209 incomplete/measured/unmeasured | Coverage |
+| --- | --- | --- | --- |
+| 1440 light | 581/581/0 | 581/581/0 | Complete |
+| 1440 dark | 581/581/0 | 581/581/0 | Complete |
+| 390 light | 581/581/0 | 2862/116/2746 | **FAIL: reduced and unmeasured** |
+| 390 dark | 581/581/0 | 581/581/0 | Complete |
+
+The same invocation also fails unchanged geometry and keyboard assertions:
+slice navigation+traversal 1757.9ms, 61 steps, largest 29.9ms, total 1611.0ms;
+production 1993.4ms, 59 steps, largest 31.6ms, total 1818.7ms. Neither has a
+scrolling Long Task. Slice height +557px and middle article -560.2px at restored
+scroll 0, with the last focused control outside the viewport. No tuning follows.
+These supplemental timings are traversal figures, not another seven-comparison
+gate invocation. Overall seven-comparison gate count remains eight.
+
+```text
+slice traversal: steps=61; largest=29.9ms; total=1611.0ms; steps with Long Task >50ms=[]; navigation=146.9ms; navigation+traversal=1757.9ms
+slice geometry: height before=60392 after=60949; mid-page element viewport top before=30118.2px after=29558.0px; scroll before=0 after=0
+production traversal: steps=59; largest=31.6ms; total=1818.7ms; steps with Long Task >50ms=[]; navigation=174.7ms; navigation+traversal=1993.4ms
+production geometry: height before=58059 after=58059; mid-page element viewport top before=29816.6px after=29816.6px; scroll before=0 after=0
+keyboard jump to last control: Shift+Tab presses=2; focused=True; visible=False; group fully rendered=True; group controls=6
+#206 supplemental comparator: full unchanged S15 preparation; instrumented S13 coverage; timing phase omitted
+fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; no overlay
+report: exact=9, same-stat=65; same-stat sizes={2: 57, 3: 6, 4: 2}; members=158; wire bytes=690503
+unreviewed 1440px: groups=74, members=158, value/role assertions=3401, differences=0
+unreviewed 390px: groups=74, members=158, value/role assertions=3401, differences=0
+spirit signatures from unmodified upload: 5/5 exact groups correct
+1440px no filter: equal=True; groups=74; scope='74 groups · 158 pieces'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected=''
+1440px kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+1440px kind=same_stat: equal=True; groups=65; scope='65 of 74 groups · 140 of 158 pieces — filtered to same-stat groups'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected=''
+1440px class=Titan: equal=True; groups=40; scope='40 of 74 groups · 88 of 158 pieces — filtered to class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Titan'
+1440px kind=exact, then class=Titan: equal=True; groups=6; scope='6 of 74 groups · 12 of 158 pieces — filtered to exact duplicates, class Titan'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected='Titan'
+1440px class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Hunter'
+1440px kind=same_stat, then class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to same-stat groups, class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Hunter'
+1440px class=Titan, then kind=same_stat: equal=True; groups=34; scope='34 of 74 groups · 76 of 158 pieces — filtered to same-stat groups, class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Titan'
+1440px class=Hunter, then kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+  dropped-class notices: slice='Filter no longer applies and was cleared: class Hunter.'; production='Local view state dropped: duplicate filter guardianClass Hunter.'
+1440px E10 sequences: executed=9, unsupported=0; real-upload Hunter-to-Exact drops=1
+390px no filter: equal=True; groups=74; scope='74 groups · 158 pieces'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected=''
+390px kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+390px kind=same_stat: equal=True; groups=65; scope='65 of 74 groups · 140 of 158 pieces — filtered to same-stat groups'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected=''
+390px class=Titan: equal=True; groups=40; scope='40 of 74 groups · 88 of 158 pieces — filtered to class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Titan'
+390px kind=exact, then class=Titan: equal=True; groups=6; scope='6 of 74 groups · 12 of 158 pieces — filtered to exact duplicates, class Titan'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected='Titan'
+390px class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Hunter'
+390px kind=same_stat, then class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to same-stat groups, class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Hunter'
+390px class=Titan, then kind=same_stat: equal=True; groups=34; scope='34 of 74 groups · 76 of 158 pieces — filtered to same-stat groups, class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Titan'
+390px class=Hunter, then kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+  dropped-class notices: slice='Filter no longer applies and was cleared: class Hunter.'; production='Local view state dropped: duplicate filter guardianClass Hunter.'
+390px E10 sequences: executed=9, unsupported=0; real-upload Hunter-to-Exact drops=1
+far-down acknowledged verdict: group=74/74; scroll before=100533px; same focused node=True; scroll change=20px; control viewport change=0px
+acknowledged 1440px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1440px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1440px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1440px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1024px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1024px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1024px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1024px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 390px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 390px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 390px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 390px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+#206, 1440px light: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#206, 1440px light, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
+#206, 1440px dark: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#206, 1440px dark, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
+#206, 390px light: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#206, 390px light, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
+#206, 390px dark: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#206, 390px dark, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
+slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
+#209 supplemental comparator: full unchanged S15 preparation; instrumented S13 coverage; timing phase omitted
+fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; no overlay
+report: exact=9, same-stat=65; same-stat sizes={2: 57, 3: 6, 4: 2}; members=158; wire bytes=690503
+unreviewed 1440px: groups=74, members=158, value/role assertions=3401, differences=0
+unreviewed 390px: groups=74, members=158, value/role assertions=3401, differences=0
+spirit signatures from unmodified upload: 5/5 exact groups correct
+1440px no filter: equal=True; groups=74; scope='74 groups · 158 pieces'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected=''
+1440px kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+1440px kind=same_stat: equal=True; groups=65; scope='65 of 74 groups · 140 of 158 pieces — filtered to same-stat groups'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected=''
+1440px class=Titan: equal=True; groups=40; scope='40 of 74 groups · 88 of 158 pieces — filtered to class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Titan'
+1440px kind=exact, then class=Titan: equal=True; groups=6; scope='6 of 74 groups · 12 of 158 pieces — filtered to exact duplicates, class Titan'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected='Titan'
+1440px class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Hunter'
+1440px kind=same_stat, then class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to same-stat groups, class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Hunter'
+1440px class=Titan, then kind=same_stat: equal=True; groups=34; scope='34 of 74 groups · 76 of 158 pieces — filtered to same-stat groups, class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Titan'
+1440px class=Hunter, then kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+  dropped-class notices: slice='Filter no longer applies and was cleared: class Hunter.'; production='Local view state dropped: duplicate filter guardianClass Hunter.'
+1440px E10 sequences: executed=9, unsupported=0; real-upload Hunter-to-Exact drops=1
+390px no filter: equal=True; groups=74; scope='74 groups · 158 pieces'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected=''
+390px kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+390px kind=same_stat: equal=True; groups=65; scope='65 of 74 groups · 140 of 158 pieces — filtered to same-stat groups'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected=''
+390px class=Titan: equal=True; groups=40; scope='40 of 74 groups · 88 of 158 pieces — filtered to class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Titan'
+390px kind=exact, then class=Titan: equal=True; groups=6; scope='6 of 74 groups · 12 of 158 pieces — filtered to exact duplicates, class Titan'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected='Titan'
+390px class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (40 groups)', 'Warlock=Warlock (22 groups)']; selected='Hunter'
+390px kind=same_stat, then class=Hunter: equal=True; groups=12; scope='12 of 74 groups · 24 of 158 pieces — filtered to same-stat groups, class Hunter'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Hunter'
+390px class=Titan, then kind=same_stat: equal=True; groups=34; scope='34 of 74 groups · 76 of 158 pieces — filtered to same-stat groups, class Titan'; Class=['=any class', 'Hunter=Hunter (12 groups)', 'Titan=Titan (34 groups)', 'Warlock=Warlock (19 groups)']; selected='Titan'
+390px class=Hunter, then kind=exact: equal=True; groups=9; scope='9 of 74 groups · 18 of 158 pieces — filtered to exact duplicates'; Class=['=any class', 'Titan=Titan (6 groups)', 'Warlock=Warlock (3 groups)']; selected=''
+  dropped-class notices: slice='Filter no longer applies and was cleared: class Hunter.'; production='Local view state dropped: duplicate filter guardianClass Hunter.'
+390px E10 sequences: executed=9, unsupported=0; real-upload Hunter-to-Exact drops=1
+far-down acknowledged verdict: group=74/74; scroll before=62615px; same focused node=True; scroll change=20px; control viewport change=0px
+acknowledged 1440px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1440px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1440px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1440px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1024px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1024px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 1024px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 1024px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 390px light: groups=74, members=158, value/role assertions=3401, differences=0
+layout 390px light: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+acknowledged 390px dark: groups=74, members=158, value/role assertions=3401, differences=0
+layout 390px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
+#209, 1440px light: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#209, 1440px light, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
+#209, 1440px dark: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#209, 1440px dark, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
+#209, 390px light: unique targets=13137; groups examined=74; violations=0; contrast incomplete=2862, measured=116, unmeasured=2746; lowest=5.24:1
+#209, 390px light, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 17.72:1 (Skip to review content); primary=[('Skip to review content', 17.72), ('Finalise review', 17.72), ('All (74)', 17.72)]; outline floor=3px/2px; problems=[]
+#209, 390px dark: unique targets=13137; groups examined=74; violations=0; contrast incomplete=581, measured=581, unmeasured=0; lowest=5.24:1
+#209, 390px dark, sanitised report, acknowledged verdict: keyboard focus=444/444; lowest 14.75:1 (Skip to review content); primary=[('Skip to review content', 14.75), ('Finalise review', 14.75), ('All (74)', 14.75)]; outline floor=3px/2px; problems=[]
+slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
+coverage comparison 1440px light: reduced=False; all incomplete targets measured=True
+coverage comparison 1440px dark: reduced=False; all incomplete targets measured=True
+coverage comparison 390px light: reduced=True; all incomplete targets measured=False
+coverage comparison 390px dark: reduced=False; all incomplete targets measured=True
+FAIL: #209: #209, 390px light: unexplained accessibility problem
+FAIL: (390, 'light'): reduced or incomplete accessibility coverage
+FAIL: slice document geometry changed across traversal (>1px)
+FAIL: keyboard jump did not render/focus last group
+FAIL: axe/contrast coverage reduced or unexplained
+RESULT: FAIL
+```
+
+
+### Review-fix mandatory verification
+
+After the one completed corrected comparator invocation, both mandatory suites
+were captured with stdout/stderr together and exited 0. No required browser
+suite skipped. Root pytest count stays **1342**. Commands and verbatim tails:
+
+```bash
+.venv/bin/pytest -q > /tmp/issue-209-review-fix-pytest.log 2>&1
+VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py > /tmp/issue-209-review-fix-browser.log 2>&1
+```
+
+```text
+..............................................                           [100%]
+1342 passed in 33.68s
+................                                                         [100%]
+16 passed, 3 deselected in 12.79s
+```
+
+```bash
+.venv/bin/ruff check src tests scripts
+.venv/bin/ruff check spikes/issue-209
+python3 scripts/check_worklog.py --base origin/main
+```
+
+Verbatim outputs:
+
+```text
+All checks passed!
+All checks passed!
+worklog: ok
+```
+
+Sanitised-fixture guard, working-tree and committed-range whitespace checks print
+nothing. Both inclusion commands print nothing (grep status 1 means no matching
+out-of-scope/build path). Package/lock comparisons and frozen-path diff are empty.
+Historical evidence at cc29041 is an exact byte prefix of this appended record;
+frontend, gate and plan have no incremental change.
+
+```bash
+python3 scripts/check_real_fixtures.py
+git diff --check
+git diff --check origin/main...HEAD
+git diff --name-only 3be17ac7d39d88cb01439edf328872f48051368e...HEAD | grep -vE '^(spikes/issue-209/|docs/evidence/issue-209/|docs/frontend-framework-decision\.md$|worklog/[0-9]{4}-[0-9]{2}-[0-9]{2}-issue-209-[a-z0-9-]+\.md$)'
+git ls-files spikes/issue-209 | grep -E '(^|/)(node_modules|dist)/'
+git diff --stat 3be17ac7d39d88cb01439edf328872f48051368e -- src tests scripts .github spikes/issue-206 spikes/issue-137 docs/evidence/issue-206 pyproject.toml .gitignore PLAN.md AGENTS.md
+cmp spikes/issue-206/frontend/package.json spikes/issue-209/frontend/package.json
+cmp spikes/issue-206/frontend/package-lock.json spikes/issue-209/frontend/package-lock.json
+```
+
+No frontend/package/source change in this round: clean npm/type/35-unit/build
+and unchanged S1–S6/S13/source were already rerun by the independent reviewer at
+the same candidate. They were not duplicated by the implementer for this bounded
+measurement/doc fix. Primary S15 was not rerun; both original and review failures
+remain recorded. Neither new synthetic probe is substituted for browser evidence.
+Recommendation remains **NO-GO**: A/B consecutive-run bar, C narrow-light
+coverage, D appearance, geometry and keyboard traversal all fail. No issue or
+PR mutation, additional optimization or migration release follows.

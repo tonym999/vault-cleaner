@@ -1,6 +1,6 @@
 # Frontend framework decision
 
-Status: **NO-GO**, 2026-10-09, after
+Status: **NO-GO**, reviewed 2026-10-10 (implementation 2026-10-09), after
 [#209](https://github.com/tonym999/vault-cleaner/issues/209)'s approved
 presentation-performance gate. [Evidence](evidence/issue-209/README.md) records
 every invocation and the failed visual comparison. This decision began with
@@ -24,7 +24,10 @@ first final invocation and passes in the second; passing only once does not
 meet the bar. The visual gate also fails: skipped off-screen group content is
 blank inside the required top-2,400-px captures. A keyboard jump focuses the
 last control outside the viewport. The unchanged S15 correctness proof also
-did not complete within 900s. These gaps and changes were
+did not complete within 900s during implementation; an independent execution
+later completed with unexplained narrow-light contrast coverage (2862 incomplete
+targets, only 116 measured). Independent gate runs pass once, then fail A3 and
+B3 again, so the two-consecutive-invocation bar still fails. These gaps and changes were
 not accepted by the owner. The issue permits explicit owner acceptance of a
 remaining gap; this record does not infer it.
 
@@ -483,8 +486,10 @@ focus, offline filtering and scope counts. Those alternatives were not built.
 
 ### #209: the approved presentation-performance gate
 
-[#209 evidence](evidence/issue-209/README.md) keeps all six gate invocations:
-one incomplete instrumentation attempt, then five complete invocations.
+[#209 evidence](evidence/issue-209/README.md) keeps all six implementation gate
+invocations: one incomplete instrumentation attempt, then five complete
+invocations. Two independent review invocations are appended separately below
+and in the evidence: eight total, none discarded.
 The corrected proof applies S15’s focus invariant only to the slice, as S15
 itself does; production’s disabled-control focus loss remains baseline behavior.
 Final invocations 5 and 6 use the same candidate, with no change or excluded run.
@@ -536,8 +541,30 @@ settle promise before 390px light. Its browser was closed at the verification
 bound, captured traceback preserved, and all owned processes exited. The cause
 is unproven; separate bounded diagnostics did not reproduce a nonresolving wait
 through 800 successful settle calls. S1–S6, S13 and source rules pass, as do
-clean install/type/unit/build checks. There is no completed final S15 timing
-phase and no claim that the modified diagnostic is a correctness pass.
+clean install/type/unit/build checks. There is no completed S15 timing
+phase for that historical implementation invocation and no claim that the modified diagnostic is a correctness pass.
+Independent review at `cc29041` completed one unchanged S15 execution with
+status 1: 1440 light/dark and 390 dark each measure all 581 incomplete contrast
+targets, but 390 light reports 2862 incomplete targets and only 116 measured,
+with thousands unmeasured. The initial selector-heavy tool output was truncated;
+the evidence labels its count summary and preserves the remaining captured
+stdout verbatim. It is not a second implementation invocation or evidence that
+the historical timeout had a known cause. Gate C remains FAIL.
+
+| Comparison, ms | Review 1 slice | Production | Result | Review 2 slice | Production | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| A1 Navigation to every group box | 124.8 | 160.2 | Pass | 124.7 | 157.4 | Pass |
+| A2 Navigation to next frame | 125.8 | 166.3 | Pass | 125.8 | 164.2 | Pass |
+| A3 Acknowledgement to DOM | 9.4 | 9.7 | Pass | 10.2 | 10.0 | **Fail +0.2** |
+| A4 Acknowledgement to next frame | 10.1 | 19.3 | Pass | 10.7 | 18.7 | Pass |
+| B1 Navigation to settled | 139.4 | 169.5 | Pass | 139.0 | 172.9 | Pass |
+| B2 Key press to settled | 50.7 | 51.1 | Pass | 48.0 | 48.1 | Pass |
+| B3 Acknowledgement to settled | 22.7 | 23.3 | Pass | 25.4 | 21.7 | **Fail +3.7** |
+
+The reviewer ran exactly twice: one passes all seven comparisons, the next fails
+A3 and B3. The required consecutive passing pair still does not hold. The
+candidate and all gate samples/stamps are unchanged; no passing reroll is claimed.
+
 Gate D also fails
 all four idle capture pairs and the held-request pair. Off-screen groups render
 when approaching the viewport, so a crop taller than the live viewport can
@@ -558,9 +585,22 @@ has a scrolling Long Task. Slice height grows 60392→60949 px (+557), and a
 middle article moves 30118.2→29558.0 px (-560.2) at restored scrollY 0;
 production height 58059 and middle top 29816.6 remain fixed. Reading that
 article's box may itself affect containment. The proof independently fails drift above 1 px; these figures are not a stability
-pass. All three traversal attempts are retained. S15-precondition axe coverage matches #206 in both themes: 13137 targets,
-74 groups, 444 controls, 0 violations, 582 incomplete contrast rows measured.
-The full Tab lap and all-box reads can render deferred groups themselves.
+pass. All three implementation traversal attempts are retained. Their earlier
+supplemental desktop-only comparison reports 13137 targets, 74 groups, 444
+controls, 0 violations and 582 incomplete contrast rows measured in each theme.
+Those desktop-only counts did not reproduce the acknowledged S15 sequence
+or its narrow states; independent review accepted this omission as P2. The
+corrected supplemental comparator reuses full S15 preparation, then S13's
+1440/390 × light/dark settle/contrast/focus sequence and reports unmeasured
+counts. A passive wrapper counts the same axe invocation; no extra all-box read
+or warm-up lap follows its width changes. This instrumented comparison remains
+distinct from primary unchanged S15, which already demonstrates a narrow-light
+coverage failure. All-box reads and Tab laps during preparation can themselves
+render deferred groups. [Review-fix evidence](evidence/issue-209/README.md#review-fix--four-state-supplemental-comparator)
+records the corrected measurement: candidate narrow-light contrast leaves
+2746 of 2862 incomplete targets unmeasured (only 116 measured), while #206
+measures all 581. Unique axe-target/group counts remain equal, demonstrating
+that matching those counts alone does not establish full contrast coverage.
 
 The optimization adds **34 non-blank served-source lines**, counted as S12:
 projection +27 (325 total), session +1, stylesheet +6 (67 total). Components,
