@@ -1,78 +1,79 @@
 <script lang="ts">
   import type { ReviewSession } from '../lib/session.svelte';
-  import type { GroupView } from '../lib/view';
-  import MemberRow from './MemberRow.svelte';
-  import StatList from './StatList.svelte';
+  import { tunedStatMerged, type GroupView } from '../lib/view';
+  import Badge from './ui/badge.svelte';
+  import PieceColumn from './PieceColumn.svelte';
+  import StatStrip from './StatStrip.svelte';
   import Value from './Value.svelte';
 
   let { group, session }: { group: GroupView; session: ReviewSession } = $props();
 
   const uid = $props.id();
   const total = $derived(group.members.length);
+  // One "Tuned stat" value stands for Tuning Mod Slot and Tuning Stat when
+  // they agree on every piece; otherwise both fields are shown.
+  const merged = $derived(tunedStatMerged(group));
+  const hidden = (key: string) => merged && key === 'tuning_stat';
+  const rows = $derived(group.differing.filter((field) => !hidden(field.key)));
+  const shared = $derived(group.shared.filter((fact) => !hidden(fact.key)));
+  // Facts whose value says what it is; the rest need their label shown.
+  const SELF_EVIDENT = new Set(['item_archetype', 'type', 'guardian_class']);
 </script>
 
 <article
-  class="card card-border bg-base-100 shadow-sm"
+  class="group"
   aria-labelledby="{uid}-name"
   data-group={group.key}
   data-kind={group.kind}
 >
-  <div class="card-body gap-4 p-4 sm:p-6">
-    <header class="flex flex-wrap items-start justify-between gap-2">
-      <h4 id="{uid}-name" class="card-title" data-field="name">
-        <Value cell={group.name} />
-      </h4>
-      <p class="flex flex-wrap items-center gap-2">
-        <span class="badge {group.kind === 'exact' ? 'badge-primary' : 'badge-warning'}" data-field="kind">
+  <div class="group-head">
+    <header class="group-title">
+      <h4 id="{uid}-name" data-field="name"><Value cell={group.name} /></h4>
+      <p class="group-chips">
+        <Badge variant="outline" class={group.kind === 'exact' ? 'border-primary/60 text-primary' : 'border-warn/60 text-warn'} data-field="kind">
           {group.kind === 'exact' ? 'Exact duplicates' : 'Same stats · review only'}
-        </span>
-        <span class="font-semibold" data-field="piece_count">{total} {total === 1 ? 'piece' : 'pieces'}</span>
+        </Badge>
+        <span class="count" data-field="piece_count">{total} {total === 1 ? 'piece' : 'pieces'}</span>
       </p>
-    </header>
-
-    <dl class="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-5">
-      {#each group.facts as fact (fact.key)}
-        <div class="min-w-0">
-          <dt class="eyebrow">{fact.label}</dt>
-          <dd class={fact.key === 'hash' ? 'font-mono text-sm' : ''} data-field={fact.key}>
-            <Value cell={fact.cell} />
-          </dd>
-        </div>
-      {/each}
-    </dl>
-
-    <StatList stats={group.stats} />
-
-    {#if group.kind === 'same_stat'}
-      <p class="alert alert-warning" data-field="review_only">
-        These pieces have the same base stats but different tuning, so no survivor is chosen. A piece
-        has verdict buttons only if the report already proposes something for it.
-      </p>
-    {/if}
-
-    <div>
-      <h5 class="eyebrow mb-2">
-        {total === 1 ? 'This piece' : `The same for all ${total} pieces`}
-      </h5>
-      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]">
-        {#each group.shared as fact (fact.key)}
-          <div class="min-w-0">
-            <dt class="eyebrow">{fact.label}</dt>
-            <dd data-shared={fact.key}><Value cell={fact.cell} /></dd>
+      <dl class="group-facts">
+        {#each group.facts as fact (fact.key)}
+          <div class:lead={fact.key === 'item_archetype'}>
+            <dt class:sr-only={SELF_EVIDENT.has(fact.key) && !fact.cell.unknown}>{fact.label}</dt>
+            <dd class:mono={fact.key === 'hash'} data-field={fact.key}><Value cell={fact.cell} /></dd>
           </div>
         {/each}
       </dl>
-    </div>
-
-    <div>
-      <h5 class="eyebrow mb-2">
-        {group.differing.length ? 'Piece by piece: what differs' : 'Piece by piece'}
-      </h5>
-      <ol class="grid gap-2">
-        {#each group.members as member, index (member.id)}
-          <MemberRow {group} {member} position={index + 1} {session} />
-        {/each}
-      </ol>
-    </div>
+      {#if group.kind === 'same_stat'}
+        <p class="sr-only" data-field="review_only">
+          Review only: these pieces have the same base stats but different tuning, so no survivor is chosen.
+        </p>
+      {/if}
+    </header>
+    <StatStrip stats={group.stats} />
   </div>
+
+  <ol class="matrix n{Math.min(total, 7)} r{rows.length + 3}">
+    <li class="labels" aria-hidden="true">
+      <div class="cell piece-head"></div>
+      {#each rows as field (field.key)}
+        <div class="cell" class:tuned={field.key === 'tuning_mod_slot'}>
+          {merged && field.key === 'tuning_mod_slot' ? 'Tuned stat' : field.label}
+        </div>
+      {/each}
+      <div class="cell">Proposal</div>
+      <div class="cell verdict-cell">Verdict</div>
+    </li>
+    {#each group.members as member, index (member.id)}
+      <PieceColumn {group} {member} position={index + 1} fields={rows} {merged} {session} />
+    {/each}
+  </ol>
+
+  {#if shared.length}
+    <dl class="shared">
+      <dt class="shared-lead">{total === 2 ? 'Same on both' : `Same on all ${total}`}</dt>
+      {#each shared as fact (fact.key)}
+        <dd><span class="quiet">{fact.label}</span> <span data-shared={fact.key}><Value cell={fact.cell} /></span></dd>
+      {/each}
+    </dl>
+  {/if}
 </article>

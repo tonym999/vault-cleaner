@@ -2,13 +2,13 @@
   import Filters from './components/Filters.svelte';
   import GroupCard from './components/GroupCard.svelte';
   import SessionPanel from './components/SessionPanel.svelte';
+  import Button, { buttonVariants } from './components/ui/button.svelte';
   import type { ReviewSession } from './lib/session.svelte';
   import { SECTION_COPY, type GroupKind } from './lib/view';
 
   let { session }: { session: ReviewSession } = $props();
 
   const KINDS: GroupKind[] = ['exact', 'same_stat'];
-  const TONES = { info: 'alert-info', ok: 'alert-success', error: 'alert-error' } as const;
 
   const sections = $derived(
     KINDS.map((kind) => ({ kind, groups: session.shown.filter((group) => group.kind === kind) })).filter(
@@ -35,21 +35,19 @@
   });
 </script>
 
-<a class="btn btn-primary sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-10" href="#vc-title">
-  Skip to review content
-</a>
+<a class="{buttonVariants()} skip" href="#vc-title">Skip to review content</a>
 
-<main class="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6">
-  <header>
-    <h1 id="vc-title" tabindex="-1" class="text-2xl font-bold">Armor duplicates</h1>
-    <p class="text-sm">vault-cleaner review · Svelte frontend spike (#206)</p>
+<main class="page">
+  <header class="page-head">
+    <h1 id="vc-title" tabindex="-1">Armor duplicates</h1>
+    <p class="quiet">vault-cleaner review · redesigned Svelte slice (#210)</p>
   </header>
 
   <p
     id="vc-status"
     role="status"
     aria-live="polite"
-    class="alert {TONES[session.status.tone]}"
+    class="notice"
     data-connection={session.connection}
     data-busy={session.busy ?? ''}
     data-tone={session.status.tone}
@@ -67,49 +65,56 @@
     id="vc-reconciliation"
     role="status"
     aria-live="polite"
-    class={session.reconciliation ? 'alert alert-warning' : 'sr-only'}
+    class={session.reconciliation ? 'notice' : 'sr-only'}
+    data-tone="warn"
   >
     {session.reconciliation}
   </p>
 
+  <!-- `frozen` is the long-lived case (finalised, closed, disconnected). A
+       request in flight changes nothing visible on the controls. -->
   <section
-    class="flex flex-col gap-4"
+    class="list"
+    class:frozen={!session.canMutate && !session.busy}
     aria-labelledby="vc-list-title"
     bind:this={list}
   >
-    <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 id="vc-list-title" tabindex="-1" class="text-xl font-semibold" bind:this={listHeading}>
-        Duplicate groups
-      </h2>
-      <p id="vc-scope" role="status" aria-live="polite" class="font-semibold">{session.scope}</p>
+    <div class="list-head">
+      <h2 id="vc-list-title" tabindex="-1" bind:this={listHeading}>Duplicate groups</h2>
+      <p id="vc-scope" role="status" aria-live="polite">{session.scope}</p>
     </div>
 
     {#if session.envelope === null}
-      <p class="alert" data-empty="waiting">Waiting for the review server.</p>
+      <p class="notice" data-empty="waiting">Waiting for the review server.</p>
     {:else if session.envelope.snapshot === null}
-      <p class="alert" data-empty="no-report">
+      <p class="notice" data-empty="no-report">
         Nothing to show because no report is loaded. Upload a DIM armor export on the
         <a class="link" href="/">main review page</a>, then use Reload report.
       </p>
     {:else if session.groups.length === 0}
-      <p class="alert" data-empty="no-groups">
+      <p class="notice" data-empty="no-groups">
         The loaded report has no armor duplicate groups, so there is nothing to compare.
       </p>
     {:else if session.shown.length === 0}
-      <p class="alert" data-empty="filtered">
+      <p class="notice" data-empty="filtered">
         No group matches the filters.
-        <button type="button" class="btn btn-sm" onclick={() => session.resetFilters()}>Reset filters</button>
+        <Button variant="outline" size="sm" onclick={() => session.resetFilters()}>Reset filters</Button>
       </p>
     {/if}
 
     {#each sections as section (section.kind)}
-      <div>
-        <h3 class="text-lg font-semibold" data-section={section.kind}>{SECTION_COPY[section.kind].heading}</h3>
-        <p class="text-sm">{SECTION_COPY[section.kind].rule}</p>
-      </div>
-      {#each section.groups as group (group.key)}
-        <GroupCard {group} {session} />
-      {/each}
+      <section class="kind kind-{section.kind}" aria-labelledby="vc-kind-{section.kind}">
+        <div class="kind-head">
+          <h3 id="vc-kind-{section.kind}" data-section={section.kind}>{SECTION_COPY[section.kind].heading}</h3>
+          <p class="kind-rule">{SECTION_COPY[section.kind].rule}</p>
+          <p class="count">{section.groups.length} {section.groups.length === 1 ? 'group' : 'groups'}</p>
+        </div>
+        <div class="groups">
+          {#each section.groups as group (group.key)}
+            <GroupCard {group} {session} />
+          {/each}
+        </div>
+      </section>
     {/each}
   </section>
 </main>

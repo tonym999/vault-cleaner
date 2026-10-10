@@ -355,3 +355,21 @@ export function sameView(left: unknown, right: unknown): boolean {
 function retain<T>(previous: T | undefined, next: T): T {
   return previous !== undefined && sameView(previous, next) ? previous : next;
 }
+
+/** The exact group's survivor, which the page marks as the piece that is kept. */
+export const isKept = (group: GroupView, member: MemberView): boolean =>
+  group.kind === 'exact' && member.status === DISPOSITIONS.preferred_survivor;
+
+/**
+ * Whether one "Tuned stat" value can stand for both Tuning Mod Slot and
+ * Tuning Stat: true when every piece's two values agree, ignoring case.
+ * When any piece disagrees the page shows both fields for the whole group.
+ */
+export function tunedStatMerged(group: GroupView): boolean {
+  if (group.kind !== 'same_stat') return false;
+  return group.members.every((member) => {
+    const slot = member.cells.tuning_mod_slot;
+    const stat = member.cells.tuning_stat;
+    return slot !== undefined && stat !== undefined && slot.text.toLowerCase() === stat.text.toLowerCase();
+  });
+}

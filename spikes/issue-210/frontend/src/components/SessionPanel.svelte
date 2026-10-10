@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ReviewSession } from '../lib/session.svelte';
+  import Button, { buttonVariants } from './ui/button.svelte';
 
   let { session }: { session: ReviewSession } = $props();
 
@@ -15,41 +16,40 @@
   const hasReport = $derived(session.envelope?.snapshot != null);
 </script>
 
-<section class="card card-border bg-base-100" aria-label="Review session">
-  <div class="card-body flex-row flex-wrap items-center justify-between gap-3 p-4">
-    <p class="min-w-0 flex-1 basis-64" data-field="session_note" data-state={session.serverState}>{note}</p>
-    <div class="flex flex-wrap gap-2" role="group" aria-label="Review session actions">
-      <button
-        type="button"
-        class="btn btn-sm"
-        class:btn-disabled={!session.canRequest}
-        aria-disabled={!session.canRequest}
-        onclick={() => session.load()}
+<section class="session" aria-label="Review session">
+  <p class="session-note" data-field="session_note" data-state={session.serverState}>{note}</p>
+  <div class="session-actions" role="group" aria-label="Review session actions">
+    <Button
+      variant="outline"
+      size="sm"
+      class={session.canRequest ? '' : 'is-off'}
+      aria-disabled={!session.canRequest}
+      onclick={() => session.load()}
+    >
+      Reload report
+    </Button>
+    {#if session.serverState === 'finalized'}
+      <a class={buttonVariants({ size: 'sm' })} href="/api/finalized.csv" download="dim-import.csv">
+        Download reviewed CSV
+      </a>
+    {:else}
+      <Button
+        size="sm"
+        class={session.canMutate && hasReport ? '' : 'is-off'}
+        aria-disabled={!session.canMutate || !hasReport}
+        onclick={() => session.finalize()}
       >
-        Reload report
-      </button>
-      {#if session.serverState === 'finalized'}
-        <a class="btn btn-sm btn-primary" href="/api/finalized.csv" download="dim-import.csv">Download reviewed CSV</a>
-      {:else}
-        <button
-          type="button"
-          class="btn btn-sm btn-primary"
-          class:btn-disabled={!session.canMutate || !hasReport}
-          aria-disabled={!session.canMutate || !hasReport}
-          onclick={() => session.finalize()}
-        >
-          Finalise review
-        </button>
-      {/if}
-      <button
-        type="button"
-        class="btn btn-sm btn-outline"
-        class:btn-disabled={!session.canReset}
-        aria-disabled={!session.canReset}
-        onclick={() => session.reset()}
-      >
-        Reset session
-      </button>
-    </div>
+        Finalise review
+      </Button>
+    {/if}
+    <Button
+      variant="outline"
+      size="sm"
+      class={session.canReset ? '' : 'is-off'}
+      aria-disabled={!session.canReset}
+      onclick={() => session.reset()}
+    >
+      Reset session
+    </Button>
   </div>
 </section>

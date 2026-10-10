@@ -3,64 +3,714 @@
 @import "tailwindcss" source("./");
 @source not "./contract";
 @source not "./lib/*.test.ts";
-@plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
-}
+
+/* shadcn's `dark:` classes follow the system scheme, as the page does. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 /*
- * daisyUI's only data: URI is a noise texture layered on buttons.  The
- * server's policy has no img-src, so it would be blocked (experiment S7).
- * The texture is invisible at daisyUI's default --noise: 0, so turn it off
- * and keep the policy unchanged.
+ * Direction D's palette (#210), under shadcn's variable names. Dark is the
+ * design; light is its counterpart. Four surface steps separate the levels:
+ * page (--background), section (--section), group (--card), piece (--piece).
+ * System fonts only: the server's policy has no font-src.
  */
 :root {
-  --fx-noise: none;
-  /* S15's acknowledged approval exposed a 4.46:1 default success label.
-     Darker text on the same green fill clears AA in both schemes. */
-  --color-success-content: oklch(22% 0.02 160);
+  color-scheme: light dark;
+  --background: oklch(0.93 0.008 252);
+  --section: oklch(0.965 0.006 252);
+  --card: oklch(0.995 0.002 252);
+  --piece: oklch(0.945 0.01 252);
+  --foreground: oklch(0.2 0.02 252);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.9 0.012 252);
+  --muted-foreground: oklch(0.4 0.025 252);
+  --primary: oklch(0.42 0.16 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.9 0.012 252);
+  --secondary-foreground: var(--foreground);
+  --accent: var(--muted);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.45 0.19 22);
+  --border: oklch(0.78 0.018 252);
+  --border-soft: oklch(0.86 0.014 252);
+  --input: oklch(0.7 0.02 252);
+  --ring: var(--primary);
+  --ok: oklch(0.38 0.11 160);
+  --no: oklch(0.43 0.17 20);
+  --warn: oklch(0.42 0.1 70);
+  --radius: 0.6rem;
 }
 
-/*
- * daisyUI's dark theme puts near-white text on a mid indigo primary, which
- * measures 4.1:1 (experiment S13).  A slightly darker primary reaches AA.
- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-primary: oklch(50% 0.233 277.117);
-  }
-  /* The darker primary fill above cannot also serve as text on an outlined
-     badge. S15 measures the real tier-5 stat-role badges at 2.39:1. */
-  .badge-outline.badge-primary {
-    color: oklch(80% 0.10 277.117);
+    --background: oklch(0.13 0.015 252);
+    --section: oklch(0.165 0.017 252);
+    --card: oklch(0.205 0.02 252);
+    --piece: oklch(0.255 0.023 252);
+    --foreground: oklch(0.96 0.015 248);
+    --muted: oklch(0.27 0.023 252);
+    --muted-foreground: oklch(0.76 0.025 248);
+    --primary: oklch(0.78 0.12 251);
+    --primary-foreground: oklch(0.14 0.02 252);
+    --secondary: oklch(0.27 0.023 252);
+    --destructive: oklch(0.76 0.15 18);
+    --border: oklch(0.36 0.027 252);
+    --border-soft: oklch(0.28 0.022 252);
+    --input: oklch(0.42 0.03 252);
+    --ok: oklch(0.82 0.15 160);
+    --no: oklch(0.8 0.13 18);
+    --warn: oklch(0.83 0.13 80);
   }
 }
 
-/* Outside the layers so daisyUI's component focus rules cannot weaken the
-   contract's floor. Base content contrasts with the adjacent canvas in both
-   themes, including primary and acknowledged verdict controls (S13/S15). */
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-no: var(--no);
+  --color-warn: var(--warn);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Outside the layers, so no component focus rule can weaken the contract's
+   floor: a 3px outline that contrasts with every surface in both schemes. */
 :focus-visible {
-  outline: 3px solid var(--color-base-content);
+  outline: 3px solid var(--foreground);
   outline-offset: 2px;
 }
 
 @layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    font-family: var(--font-sans);
+    /* A sticky section heading must never cover the focused control. */
+    scroll-padding-top: 5.5rem;
+  }
   /* Ids, hashes, names and reasons wrap anywhere; nothing is truncated and
      the page never scrolls sideways (contract section 8). */
   body {
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    line-height: 1.45;
     overflow-wrap: anywhere;
+  }
+  code,
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
   }
 }
 
 @layer components {
-  .badge {
-    height: auto;
-    white-space: normal;
+  .quiet,
+  .note {
+    color: var(--muted-foreground);
   }
-  .eyebrow {
-    font-size: 0.75rem;
+  .note {
+    font-size: 0.78rem;
+  }
+  .absent {
+    font-style: italic;
+    color: var(--muted-foreground);
+  }
+  .count {
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .link {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+  .skip {
+    position: absolute;
+    left: -999rem;
+  }
+  .skip:focus {
+    left: 0.5rem;
+    top: 0.5rem;
+    z-index: 10;
+  }
+  /* A switched-off session action. A class, not an [aria-disabled] rule:
+     see VerdictControls. */
+  .is-off {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* ---- Page ---- */
+  .page {
+    max-width: 90rem;
+    margin: 0 auto;
+    padding: 1.25rem 2rem 4rem;
+    display: grid;
+    gap: 1rem;
+  }
+  .page-head h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .notice {
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: var(--radius-md);
+    background: var(--section);
+    padding: 0.55rem 0.85rem;
+  }
+  .notice[data-tone="ok"] {
+    border-left-color: var(--ok);
+  }
+  .notice[data-tone="error"] {
+    border-left-color: var(--no);
     font-weight: 600;
-    letter-spacing: 0.04em;
+  }
+  .notice[data-tone="warn"] {
+    border-left-color: var(--warn);
+    font-weight: 600;
+  }
+  .session,
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: end;
+    justify-content: space-between;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    background: var(--section);
+    padding: 0.75rem 0.85rem;
+  }
+  .session {
+    align-items: center;
+  }
+  .session-note {
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+  .session-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .filters {
+    justify-content: start;
+  }
+  .filter {
+    display: grid;
+    gap: 0.25rem;
+  }
+  .filter-label {
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+  }
+  .segments,
+  .verdict {
+    display: inline-flex;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .segment[aria-pressed="true"] {
+    background: color-mix(in oklab, var(--primary) 22%, transparent);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .select {
+    height: 2rem;
+    width: 14rem;
+    max-width: 100%;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    color: var(--foreground);
+    padding: 0 0.6rem;
+  }
+
+  /* ---- Level 1: the list and its two kinds of group ---- */
+  .list {
+    display: grid;
+    gap: 1rem;
+  }
+  .list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .list-head h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  #vc-scope {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .kind {
+    background: var(--section);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-xl);
+    padding: 0 0.75rem 0.75rem;
+  }
+  /* Sticky, so the kind of group and its rule are always on screen. */
+  .kind-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.9rem;
+    background: var(--section);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: 0.8rem 0.4rem 0.7rem;
+  }
+  .kind-head h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+  }
+  /* A square for exact, a disc for same-stat: shape as well as colour. */
+  .kind-head h3::before {
+    content: "";
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 2px;
+    background: var(--primary);
+  }
+  .kind-same_stat .kind-head h3::before {
+    border-radius: 50%;
+    background: var(--warn);
+  }
+  .kind-rule {
+    color: var(--muted-foreground);
+  }
+  .kind-head .count {
+    margin-left: auto;
+    color: var(--muted-foreground);
+  }
+  .groups {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  /* ---- Level 2: one group ---- */
+  .group {
+    container: group / inline-size;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .group[data-kind="same_stat"] {
+    border-color: color-mix(in oklab, var(--warn) 50%, var(--border));
+  }
+  .group-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem 1.5rem;
+    padding: 0.75rem 1rem;
+    align-items: start;
+  }
+  .group-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem 0.75rem;
+  }
+  .group-title h4 {
+    font-size: 1.06rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .group-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .group-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.65rem;
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+  }
+  .group-facts > div {
+    display: flex;
+    gap: 0.3rem;
+  }
+  .group-facts .lead {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  /* All six stats in one fixed order. Zeros stay, muted. */
+  /* Cells take their content's width and share what is left. With
+     `break-word` a stat name breaks only when it cannot fit at all, so
+     "Weapons" stays whole at 390 px and a 300-character name still wraps. */
+  .strip {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  .stat {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.2;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.2rem 0.3rem;
+  }
+  .stat-name {
+    font-size: 0.64rem;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+  .stat-value {
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-role {
+    font-size: 0.56rem;
+    color: var(--muted-foreground);
+  }
+  .stat.zero {
+    color: var(--muted-foreground);
+  }
+  .stat.zero .stat-value {
+    font-weight: 400;
+  }
+  .stat[data-role] {
+    border-color: transparent;
+  }
+  /* On a filled cell the muted colour falls under 4.5:1 in dark. */
+  .stat[data-role] .stat-role {
+    color: var(--foreground);
+  }
+  .stat[data-role="primary"] {
+    background: color-mix(in oklab, var(--primary) 34%, transparent);
+  }
+  .stat[data-role="secondary"] {
+    background: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  .stat[data-role="tertiary"] {
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+
+  /* ---- Level 3: the pieces, side by side ----
+     Each piece is a column of cells; `grid-auto-flow: column` with a fixed
+     row count lines the cells up across pieces. In this base form every
+     cell carries its own label and there is no label column. */
+  .matrix {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    border-top: 1px solid var(--border-soft);
+  }
+  .labels {
+    display: none;
+  }
+  .piece,
+  .piece-fields {
+    display: contents;
+  }
+  .r3 { grid-template-rows: repeat(3, auto); }
+  .r4 { grid-template-rows: repeat(4, auto); }
+  .r5 { grid-template-rows: repeat(5, auto); }
+  .r6 { grid-template-rows: repeat(6, auto); }
+  .r7 { grid-template-rows: repeat(7, auto); }
+  .r8 { grid-template-rows: repeat(8, auto); }
+  .r9 { grid-template-rows: repeat(9, auto); }
+  .r10 { grid-template-rows: repeat(10, auto); }
+  .r11 { grid-template-rows: repeat(11, auto); }
+  .r12 { grid-template-rows: repeat(12, auto); }
+  .r13 { grid-template-rows: repeat(13, auto); }
+  .r14 { grid-template-rows: repeat(14, auto); }
+  .cell {
+    min-width: 0;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border-soft);
+    border-left: 1px solid var(--border-soft);
+  }
+  .labels + .piece > .cell,
+  .labels + .piece > .piece-fields > .cell {
+    border-left: 0;
+  }
+  .cell-label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+  }
+  .piece-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem 0.5rem;
+    background: var(--piece);
+    border-top: 3px solid transparent;
+  }
+  .piece-number {
+    font-weight: 700;
+  }
+  .piece-where {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.6rem;
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+  }
+  /* The kept piece: a tinted column, a rule on top, and the status text. */
+  .kept > .cell,
+  .kept > .piece-fields > .cell {
+    background: color-mix(in oklab, var(--primary) 9%, transparent);
+  }
+  .kept > .piece-head {
+    background: color-mix(in oklab, var(--primary) 20%, var(--piece));
+    border-top-color: var(--primary);
+  }
+  .tuned-value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.6rem;
+  }
+  .tuned-boxes {
+    display: inline-grid;
+    grid-template-columns: repeat(6, 1.1rem);
+    gap: 2px;
+  }
+  .tuned-box {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font: 600 0.62rem/1rem var(--font-mono);
+    text-align: center;
     text-transform: uppercase;
-    color: color-mix(in oklab, var(--color-base-content) 75%, transparent);
+    color: var(--muted-foreground);
+  }
+  .tuned-box.on {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .tuned-name {
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .proposal {
+    font-size: 0.8rem;
+  }
+  .verdict-cell {
+    display: grid;
+    gap: 0.25rem;
+    justify-items: start;
+    align-content: start;
+    border-bottom: 0;
+  }
+  .verdict {
+    max-width: 100%;
+  }
+  .verdict-state {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+  .verdict-state[data-state="approved"] {
+    color: var(--ok);
+  }
+  .verdict-state[data-state="vetoed"] {
+    color: var(--no);
+  }
+  /* Finalised, closed or disconnected. Not applied while a request is in
+     flight: that would restyle every control twice per verdict. */
+  .frozen .verdict {
+    opacity: 0.55;
+  }
+  .shared {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.9rem;
+    padding: 0.55rem 1rem;
+    border-top: 1px solid var(--border-soft);
+    background: color-mix(in oklab, var(--background) 35%, transparent);
+    font-size: 0.78rem;
+  }
+  .shared-lead {
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+
+  /* Three pieces in a narrow group: stack the verdict buttons. */
+  @container group (max-width: 479.98px) {
+    .n3 .verdict {
+      display: grid;
+      width: 100%;
+    }
+    .n3 .tuned-boxes {
+      grid-template-columns: repeat(6, 0.9rem);
+      gap: 1px;
+    }
+    /* The cell's label already says "Proposal"; at this width the linking
+       words cost three lines, so they are kept for screen readers only. */
+    .n3 .proposal .quiet {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .n3 .proposal strong {
+      display: block;
+    }
+  }
+
+  /* Too many pieces for columns at this width: one block per piece. The
+     budgets are per piece count, measured on the group's own width. */
+  .n7 { display: block; }
+  @container group (max-width: 559.98px) { .n4 { display: block; } }
+  @container group (max-width: 699.98px) { .n5 { display: block; } }
+  @container group (max-width: 839.98px) { .n6 { display: block; } }
+  .n7 > .piece,
+  .n4 > .piece,
+  .n5 > .piece,
+  .n6 > .piece {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @container group (min-width: 560px) { .n4 > .piece { display: contents; } }
+  @container group (min-width: 700px) { .n5 > .piece { display: contents; } }
+  @container group (min-width: 840px) { .n6 > .piece { display: contents; } }
+  .n7 .cell { border-left: 0; }
+  .n7 .piece-head, .n7 .proposal-cell, .n7 .verdict-cell { grid-column: 1 / -1; border-bottom: 1px solid var(--border-soft); }
+  @container group (max-width: 559.98px) {
+    .n4 .cell { border-left: 0; }
+    .n4 .piece-head, .n4 .proposal-cell, .n4 .verdict-cell { grid-column: 1 / -1; border-bottom: 1px solid var(--border-soft); }
+  }
+  @container group (max-width: 699.98px) {
+    .n5 .cell { border-left: 0; }
+    .n5 .piece-head, .n5 .proposal-cell, .n5 .verdict-cell { grid-column: 1 / -1; border-bottom: 1px solid var(--border-soft); }
+  }
+  @container group (max-width: 839.98px) {
+    .n6 .cell { border-left: 0; }
+    .n6 .piece-head, .n6 .proposal-cell, .n6 .verdict-cell { grid-column: 1 / -1; border-bottom: 1px solid var(--border-soft); }
+  }
+
+  /* Room for a label column: the labels move out of the cells. */
+  @container group (min-width: 760px) {
+    .group-head {
+      grid-template-columns: minmax(0, 1fr) 28rem;
+    }
+    .group-title {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .group-title h4 { grid-column: 1; }
+    .group-chips { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+    .group-facts { grid-column: 1; }
+    /* Equal cells here, so a stat sits at the same place in every group. */
+    .stat { flex: 1 1 0; padding: 0.25rem 0.4rem 0.3rem; }
+    .stat-name { font-size: 0.72rem; }
+    .stat-role { font-size: 0.66rem; }
+    .cell { padding: 0.4rem 0.75rem; }
+    .n2, .n3, .n4 { grid-template-columns: 9.4rem; }
+    .n2 > .labels, .n3 > .labels, .n4 > .labels { display: contents; }
+    .labels > .cell {
+      border-left: 0;
+      font-size: 0.78rem;
+      color: var(--muted-foreground);
+    }
+    .labels > .tuned { color: var(--primary); font-weight: 700; }
+    .n2 .cell-label, .n3 .cell-label, .n4 .cell-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .labels + .piece > .cell,
+    .labels + .piece > .piece-fields > .cell {
+      border-left: 1px solid var(--border-soft);
+    }
+  }
+  @container group (min-width: 1000px) {
+    .n5, .n6 { grid-template-columns: 9.4rem; }
+    .n5 > .labels, .n6 > .labels { display: contents; }
+    .n5 .cell-label, .n6 .cell-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .page { padding: 1rem 1rem 3rem; }
+    .kind { padding: 0 0.5rem 0.5rem; }
+    .kind-head .count { margin-left: 0; }
+    .kind-rule { font-size: 0.78rem; }
+    .group-head { padding: 0.65rem 0.75rem; }
+    .shared { padding: 0.5rem 0.75rem; }
+  }
+}
+
+/*
+ * Outside the layers, because these must win over the shadcn utility classes
+ * the joined buttons carry (their own border, padding and height).
+ */
+.segment + .segment,
+.verdict-button + .verdict-button {
+  border-left: 1px solid var(--input);
+}
+.verdict-button {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 2.5rem;
+  padding-inline: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+@container group (max-width: 479.98px) {
+  .n3 .verdict-button + .verdict-button {
+    border-left: 0;
+    border-top: 1px solid var(--input);
+  }
+}
+@container group (min-width: 760px) {
+  .verdict-button {
+    min-height: 2rem;
+    padding-inline: 0.75rem;
+    font-size: 0.8rem;
   }
 }

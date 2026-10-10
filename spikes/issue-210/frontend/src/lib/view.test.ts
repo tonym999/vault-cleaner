@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { samples } from '../contract/samples';
 import type { Envelope } from './envelope';
-import { duplicateGroups, statViews } from './view';
+import { duplicateGroups, isKept, statViews, tunedStatMerged } from './view';
 
 const groups = duplicateGroups(samples.reviewing);
 const [exact, sameStat] = groups;
@@ -152,5 +152,35 @@ describe('statViews', () => {
     const stats = { class: 0, grenade: 25, health: 0, melee: 30, super: 20, weapons: 0 };
     expect(statViews(stats, 4).every((stat) => stat.role === '')).toBe(true);
     expect(statViews({ ...stats, class: 5 }, 5).every((stat) => stat.role === '')).toBe(true);
+  });
+});
+
+describe('the kept piece and the merged tuned stat', () => {
+  it('marks only the exact group\'s preferred survivor as kept', () => {
+    expect(exact!.members.map((member) => isKept(exact!, member))).toEqual([true, false]);
+    expect(sameStat!.members.map((member) => isKept(sameStat!, member))).toEqual([false, false]);
+  });
+
+  it('merges when every piece\'s tuning stat is its tuning slot, ignoring case', () => {
+    expect(sameStat!.members.map((member) => member.cells.tuning_stat!.text)).toEqual(['melee', 'grenade']);
+    expect(tunedStatMerged(sameStat!)).toBe(true);
+    expect(tunedStatMerged(exact!)).toBe(false);
+  });
+
+  it('does not merge when one piece\'s tuning stat differs from its slot', () => {
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    const armor = envelope.snapshot!.sections.find((section) => section.armor)!.armor!;
+    armor.same_stat_groups[0]!.members[1]!.tuning_stat = 'super';
+    const group = duplicateGroups(envelope)[1]!;
+    expect(tunedStatMerged(group)).toBe(false);
+    expect(group.differing.map((field) => field.key)).toContain('tuning_stat');
+  });
+
+  it('does not merge when a slot is unknown and the stat is empty', () => {
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    const armor = envelope.snapshot!.sections.find((section) => section.armor)!.armor!;
+    armor.same_stat_groups[0]!.members[0]!.tuning_mod_slot = 'none/unknown';
+    armor.same_stat_groups[0]!.members[0]!.tuning_stat = '';
+    expect(tunedStatMerged(duplicateGroups(envelope)[1]!)).toBe(false);
   });
 });
