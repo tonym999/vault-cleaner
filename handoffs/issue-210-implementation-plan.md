@@ -22,6 +22,11 @@ The implementer must **not** open a pull request or edit this file. The branch i
 
 This document uses role-neutral names (planner, orchestrator, implementer, independent adversarial reviewer).
 
+**Amended 2026-10-10 (Amendment 1).** The first approved plan SHA was
+`a0069201bb3adf25a1e6ff451b39c9579118ef52`. The implementation stopped at
+head `725bc99` on a stop condition. *Amendment 1* below says what changed;
+the sections it changes are marked. Everything else stands.
+
 ## Objective
 
 Rebuild the presentation of the Svelte Armor duplicates slice so that section,
@@ -53,6 +58,120 @@ Nothing ships. No production code, envelope, route or CSP changes.
    design does not repeat #209's dominant cost.
 5. **#152:** this ticket supersedes it. Closing or commenting on #152 is an
    issue mutation that needs its own authorization.
+
+## Amendment 1 — proofs that test #206's markup and layout
+
+### What happened
+
+The redesign was built at `725bc99`
+(`worklog/2026-10-10-issue-210-implementation.md`). S1 to S5 and the source
+scan pass unedited. Four #206 proofs cannot, for reasons that concern #206's
+daisyUI markup and layout and not this slice's behaviour:
+
+- **S7** reads `document.querySelector(".btn")` to show the stylesheet
+  applied ([proof_s7_csp.py:144](../spikes/issue-206/proof_s7_csp.py#L144)).
+  The slice has no `.btn`.
+- **S13** prints the lowest ratio among nodes axe could not judge and
+  crashes when there are none
+  ([proof_s13_axe.py:129](../spikes/issue-206/proof_s13_axe.py#L129)). Its
+  negative control finds primary controls by `btn-primary` and expects
+  daisyUI's layered rule to shrink the outline to 2 px
+  ([focus_contrast.py:102](../spikes/issue-206/focus_contrast.py#L102)).
+- **S15** calls S13's `run`
+  ([proof_s15_scale.py:373](../spikes/issue-206/proof_s15_scale.py#L373))
+  and crashes at the same line.
+- **S6 and S15** require every piece to share one left edge at every width
+  ([proof_s6_layout.py:140](../spikes/issue-206/proof_s6_layout.py#L140),
+  [proof_s15_scale.py:353](../spikes/issue-206/proof_s15_scale.py#L353)).
+  That is #206's stacked layout. The issue asks for pieces side by side, and
+  direction D delivers it. S6 passes at `725bc99` only because a piece is
+  `display: contents` and has no box; that pass says nothing about layout.
+
+### Owner decisions (2026-10-10)
+
+- **The design is accepted** from the captures at `725bc99`, dark and light,
+  1440 px and 390 px.
+- **shadcn-svelte stays for now.**
+- The four conflicts are handled by this amendment.
+
+### What is now allowed
+
+`spikes/issue-206/` stays untouched. Every adaptation lives in
+`spikes/issue-210/`. This is the complete list; anything else is still a stop
+condition.
+
+1. **The tuned-stat merge** in the parity oracle, as first approved and as
+   implemented in `run_proof.py`.
+
+2. **S7 is replaced by `spikes/issue-210/proof_csp.py`.** It repeats S7's
+   part 1 on the #210 build: the same exercise (class facet, kind filter with
+   the dropped-class notice, approve, veto, unset, a focus ring, finalise,
+   reset, reload) and the same pass conditions (production's policy on every
+   response, no CSP violation, no console or page error, no `style` element,
+   no `style` attribute, and only document, script, stylesheet and fetch
+   requests). The one change: "the stylesheet applied" is read from this
+   slice's own buttons, not `.btn`. It also reports image and web-font
+   counts, which must be zero. S7's part 2 probes #206's library shortlist
+   and is not rerun.
+
+3. **S13 is replaced by `spikes/issue-210/proof_axe.py`.** It imports and
+   reuses, unedited, S13's axe script (`RUN_JS`) and
+   `focus_contrast.keyboard_lap` and `problems`. It covers S13's seven states
+   (unreviewed, approval in flight, one approval, one veto, filtered,
+   finalised, no report) at 1440 px and 390 px in both schemes, and adds the
+   real fixture unreviewed and with one approval. It fails on any axe
+   violation, any node axe leaves unjudged, any measured ratio under 4.5:1,
+   and any focus stop that misses the 3 px outline or 3:1. Differences from
+   S13, each required:
+   - an empty "could not judge" list is a pass, not a crash;
+   - before each axe run the page is scrolled to the top and focus is
+     cleared, so a sticky heading left over a node by the previous keyboard
+     lap is not reported as an unjudged node. If a node is still unjudged
+     after that, it is a failure to investigate, not to tolerate;
+   - its own two negative controls, both applied through the CSSOM and both
+     required to be detected: a text colour lowered below 4.5:1 on a filled
+     stat cell (the defect the diagnostic found), and the unlayered focus
+     floor replaced by a low-contrast outline.
+
+4. **S6 and S15 run through the runner with two substitutions,** made by the
+   runner before the proof's `main` runs:
+   - the member-column measure in `LAYOUT_JS` is replaced by the constant
+     `1`, in both modules that hold a reference to it. Every other layout
+     condition in S6 and S15 gates as written: no sideways page scroll, no
+     inner sideways scroller, ids and hashes inside the viewport and not
+     clipped, every required value visible, every control reached by Tab in
+     document order and visible;
+   - S15's `axe_check` is replaced by `proof_axe`'s run function.
+
+   S15's timing comparison stays recorded and not gated.
+
+5. **A new `spikes/issue-210/proof_layout.py` asserts what replaced "one
+   column".** On the synthetic both-kinds and four-member fixtures and on the
+   real fixture, in both schemes:
+   - at 1440 px, in every group of two to four pieces, the piece headers
+     share one top edge and have strictly increasing left edges;
+   - at 390 px the same holds for every pair and triple, and every group of
+     four is one block per piece: the piece headers share one left edge and
+     have strictly increasing top edges;
+   - within one group, each row's cells share one top edge across pieces
+     whenever the pieces are columns, so a value lines up with the same
+     field on the next piece;
+   - every piece header, cell and verdict button lies inside the viewport's
+     width.
+
+   It needs a negative control: with the matrix forced to block layout
+   through the CSSOM, the 1440 px assertion must fail.
+
+### What remains to do
+
+- The three new proofs and the runner changes above.
+- Every proof run, verbatim, in `docs/evidence/issue-210/README.md`, and
+  `spikes/issue-210/README.md`.
+- A worklog entry for the session.
+
+First-render time is not in scope. It is slower than #206 (260.5 ms against
+209.5 ms) and belongs to the follow-up timing gate; the implementer may note
+a cause if one is obvious, and must not add deferred rendering.
 
 ## Context & Measurement
 
@@ -198,6 +317,10 @@ Proofs in scope: S1 parity, S2 hostile values, S3 acknowledged verdicts, S4
 lifecycle, S5 focus, S6 layout, S7 CSP, S13 axe and contrast, S15 real scale,
 and `check_source.py`. S15's timing comparison is recorded, not gated.
 
+*Changed by Amendment 1:* S7 and S13 are replaced by `proof_csp.py` and
+`proof_axe.py`; S6 and S15 run with two named substitutions; and
+`proof_layout.py` is added.
+
 #### The one proof adaptation
 
 Direction D prints one "Tuned stat" value per piece. The runner may wrap the
@@ -211,6 +334,10 @@ oracle for exactly this, in `spikes/issue-210/`, without editing #206:
 
 Add a unit test for the differing case on a synthetic envelope; the fixture
 has none. Any other oracle or proof change is a stop condition.
+
+*Changed by Amendment 1:* the complete list of allowed adaptations is in
+*Amendment 1, What is now allowed*. Anything outside that list is a stop
+condition.
 
 ### Step 2 — the redesign
 
@@ -381,8 +508,10 @@ Worked examples:
 
 Stop implementation and return to orchestrator if:
 
-- a #206 proof cannot pass without an oracle or proof change other than the
-  one adaptation above;
+- a #206 proof cannot pass without an oracle or proof change other than
+  those listed in Amendment 1;
+- a replacement proof would need a weaker pass condition than Amendment 1
+  states, or a node axe cannot judge persists after scrolling to the top;
 - direction D cannot meet a behavioural or accessibility requirement of the
   design contract (sections 5.11, 7, 8) without changing its structure;
 - shadcn-svelte needs a package outside the approved list, a CSP addition,
@@ -412,6 +541,10 @@ Escalation route: `implementer → orchestrator → planner`.
 4. **The cheap-to-change number is flattering.** Generated shadcn-svelte
    files or carried-forward logic are left out of the split, or the split is
    measured from the wrong commit.
+5. **A replacement proof is weaker than the one it replaces** (Amendment 1).
+   A pass condition is dropped, a state or scheme is skipped, a negative
+   control is missing or cannot fail, or the member-column substitution
+   reaches further than that one measure.
 
 ## Implementer selection
 
@@ -442,7 +575,7 @@ Rules:
 - add no package outside the plan's approved list; ask through the orchestrator for any other;
 - use only synthetic fixtures and the tracked sanitised fixture; read nothing under `data/`;
 - add a dated worklog entry file under `worklog/` (format in `AGENTS.md`, *Worklog*);
-- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`, `git diff --check origin/main...HEAD`, and in `spikes/issue-210/frontend/`: `npm ci`, `npm run check`, `npm test`, `npm run build`; then every proof named in Step 1 through `spikes/issue-210/run_proof.py`, and `spikes/issue-210/proof_no_transition.py`;
+- run all verification commands: `.venv/bin/ruff check src tests scripts`, `.venv/bin/pytest -q`, `VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_server_browser.py`, `git diff --check origin/main...HEAD`, and in `spikes/issue-210/frontend/`: `npm ci`, `npm run check`, `npm test`, `npm run build`; then every proof named in Step 1 and Amendment 1 through `spikes/issue-210/run_proof.py`, and `proof_no_transition.py`, `proof_csp.py`, `proof_axe.py` and `proof_layout.py` in `spikes/issue-210/`;
 - commit and push the implementation branch; and
 - **do not open a pull request.**
 
@@ -452,10 +585,10 @@ When complete, provide the full implementer → orchestrator handoff: starting a
 
 # Ticket-specific review decision
 
-**Review path:** `standard orchestrator review`
+**Review path:** `independent adversarial review` (changed by Amendment 1; it was `standard orchestrator review`)
 
 **Reason:**
-The change is confined to a spike directory and evidence. It touches no parser, rule, rail, server lifecycle or shipped code, and the #206 proofs run against it mechanically. The judgement that cannot be automated, whether the design is good, belongs to the owner's acceptance from the captures, not to a second model. The orchestrator should move to independent adversarial review if the real diff adapts more than the one oracle case, changes `lib/` beyond the carry-forward and a small helper, or needed difficult iterations.
+The change is still confined to a spike directory and evidence, and the owner has accepted the design. But the first plan said to move to independent review if the diff adapted more than the one oracle case, and Amendment 1 replaces two proofs and substitutes into two more. Whether those replacements are as strict as the originals is exactly what an implementer cannot judge about its own work. There is a second reason: the planning session also implemented, with no separate orchestrator, so nothing at `725bc99` has been reviewed by anyone but its author. The reviewer must be a fresh session and should compare each replacement proof's pass conditions with the #206 proof it stands in for.
 
 The orchestrator confirms the path against the real diff and, when adversarial review is required, selects and records the reviewer's exact provider, model ID, and native effort at dispatch time.
 
@@ -465,7 +598,9 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] Nothing outside `spikes/issue-210/`, `docs/evidence/issue-210/` and `worklog/` changed; `spikes/issue-206/` is byte-identical to `main`.
 - [ ] The copy commit is verbatim (`diff -r -x node_modules -x dist` prints nothing at that commit) and the carry-forward commit equals #209's `lib/` diff.
 - [ ] `package.json` adds only approved packages, pinned exactly; `daisyui` is gone; licences and sizes are recorded.
-- [ ] S1, S2, S3, S4, S5, S6, S7, S13, S15 and `check_source.py` pass through the runner, with transcripts. The only oracle change is the tuned-stat merge, and its differing case has a test.
+- [ ] S1, S2, S3, S4, S5, S6, S15 and `check_source.py` pass through the runner, with transcripts. The tuned-stat merge has a test for its differing case.
+- [ ] (Amendment 1) `proof_csp.py`, `proof_axe.py` and `proof_layout.py` pass, each with its negative control shown to fail; each replacement's pass conditions are no weaker than the #206 proof it replaces, compared line by line.
+- [ ] (Amendment 1) The runner's substitutions are exactly two: the member-column measure, and S15's axe step. No other condition in S6 or S15 is touched.
 - [ ] `proof_no_transition.py` passes in both schemes over all 435 buttons; the style-recalculation diagnostic is recorded.
 - [ ] Verdict controls are `aria-pressed` buttons using `aria-disabled`; the class filter is a native `select`; pressed, kept and same-stat states each have a non-colour cue.
 - [ ] No inline `style` attribute, web font, image or CSP addition; no `content-visibility`.
@@ -473,7 +608,7 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] The cheap-to-change report splits components and stylesheet, generated files, logic, tests and tooling, measured from the carry-forward commit.
 - [ ] Tried-and-dropped approaches and the shadcn-svelte trial are reported.
 - [ ] Likely findings 1 to 4 were each checked against the diff.
-- [ ] The owner has accepted the design from the captures before any PR is proposed.
+- [ ] The owner has accepted the design from the captures before any PR is proposed. (Done 2026-10-10, at `725bc99`; a later visual change needs a new acceptance.)
 
 # Review outcome steps (each needs its own authorization)
 
@@ -487,4 +622,4 @@ Planned #210 in [handoffs/issue-210-implementation-plan.md](https://github.com/t
 
 - **Implementer model & effort:** `claude-opus-5-5` at `high`
 - **Implementation branch:** `feat/issue-210-armor-duplicates-redesign`
-- **Likely findings:** parity loss hidden by the tuned-stat merge; transitions returning through shadcn-svelte classes on verdict controls; accessibility semantics traded for the library; a cheap-to-change figure that leaves out generated files or carried-forward logic
+- **Likely findings:** parity loss hidden by the tuned-stat merge; transitions returning through shadcn-svelte classes on verdict controls; accessibility semantics traded for the library; a cheap-to-change figure that leaves out generated files or carried-forward logic; a replacement proof weaker than the #206 proof it replaces
