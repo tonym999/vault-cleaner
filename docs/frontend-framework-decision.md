@@ -1,8 +1,14 @@
 # Frontend framework decision
 
-Status: **NO-GO**, reviewed 2026-10-10 (implementation 2026-10-09), after
+Status: **NO-GO for the #209 candidate; the framework decision is deferred**,
+reviewed 2026-10-10 (implementation 2026-10-09), after
 [#209](https://github.com/tonym999/vault-cleaner/issues/209)'s approved
-presentation-performance gate. [Evidence](evidence/issue-209/README.md) records
+presentation-performance gate. That gate held the #206 visual design fixed,
+and the owner did not accept that design. The owner's direction on 2026-10-10
+is to redesign the slice first
+([#210](https://github.com/tonym999/vault-cleaner/issues/210)) and then
+consider the framework and its packages again; see
+[section 1](#1-recommendation). [Evidence](evidence/issue-209/README.md) records
 every invocation and the failed visual comparison. This decision began with
 [#206](https://github.com/tonym999/vault-cleaner/issues/206) on 2026-10-04;
 its original tables and evidence remain below. No production code changes.
@@ -16,7 +22,30 @@ fixtures. Nothing in either spike ships.
 
 ## 1. Recommendation
 
-**NO-GO.** Keep the current page. The 2026-10-09 performance candidate
+**NO-GO for the #209 candidate. The framework decision is deferred until
+after #210's redesign.** Keep the current page.
+
+What failed is one candidate measured against a gate that kept the #206
+design unchanged. It is not a finding that Svelte cannot meet the bar, and it
+is not a release of the migration either:
+
+- The approved plan allowed only changes that alter nothing the slice shows.
+  The largest measured cost, daisyUI's `.btn` transition running on all 435
+  verdict buttons at the start and end of every request, could therefore not
+  be removed ([section 6](#209-the-approved-presentation-performance-gate)).
+  No gate invocation was run with it removed, so what the slice would score
+  without it is unmeasured.
+- The visual, geometry and keyboard failures below come from the rendering
+  containment used instead, not from the framework.
+- The owner rejected the #206 design on 2026-10-07 (#210). A result that
+  depends on that design must be repeated on the design that replaces it.
+
+Owner direction, 2026-10-10: do #210 first, with latitude to change the
+structure, the component library and the packages; then repeat the timing
+gate on the redesigned slice and take the framework decision on that
+evidence. The owner has not accepted the gaps recorded here.
+
+The 2026-10-09 performance candidate
 improves navigation through whole-group rendering containment, but fails the
 approved gate in both final invocations: acknowledgement to DOM remains
 1.1 ms and 0.5 ms slower. Acknowledgement to settled fails by 1.1 ms in the
@@ -33,8 +62,9 @@ remaining gap; this record does not infer it.
 
 The candidate is preserved as a failed measured spike, with no further
 optimization after the stop condition. Svelte 5 + TypeScript + Vite remains
-the stack investigated by #206; migration is not released by this result.
-The proposed architecture remains:
+the stack investigated by #206; migration is not released by this result,
+and the styling layer in particular is open to change in #210.
+The architecture #206 proposed was:
 
 - **Svelte 5 with TypeScript, built by Vite 8.** Plain Svelte, not SvelteKit.
 - **Tailwind CSS 4 with daisyUI 5** for styling, on native HTML controls.
@@ -48,7 +78,8 @@ The proposed architecture remains:
   contributor never need Node.
 
 The H1–H9 table preserves #206’s architectural results. H5 now records
-#209’s NO-GO result; its earlier layout checks alone do not release migration:
+#209’s NO-GO result for its candidate on the #206 design; its earlier layout
+checks alone do not release migration:
 
 | Gate | Requirement | Result | Evidence |
 | --- | --- | --- | --- |
@@ -56,7 +87,7 @@ The H1–H9 table preserves #206’s architectural results. H5 now records
 | H2 | Untrusted values inert; ids and hashes opaque | Pass, in two passes. With all 602 strings replaced: no element created, no dialog, no violation, ids byte-identical in the DOM, and no member has verdict buttons. With the three values that decide eligibility kept (574 strings replaced): the same, and the id is byte-identical in the verdict request body | [S2](evidence/issue-206/README.md#s2-hostile-content-gate-h2), [source rules](evidence/issue-206/README.md#source-rules-gates-h2-h8) |
 | H3 | Acknowledged state only; no replay; correct across finalise, reset and disconnect | Pass. The already-open page reaches the frozen state with the revision pair unchanged | [S3](evidence/issue-206/README.md#s3-acknowledged-state-only-gate-h3), [S4](evidence/issue-206/README.md#s4-finalise-reset-disconnect-gate-h3) |
 | H4 | Contract section 7 met; focus survives a verdict | Pass, with one stated change of mechanism (`aria-disabled`, [section 4](#4-design)) | [S5](evidence/issue-206/README.md#s5-focus-and-live-regions-gate-h4), [S13](evidence/issue-206/README.md#s13-automated-accessibility-check-gate-h4), [S15](evidence/issue-206/README.md#s15-real-scale-gates-h1-h4-h5) |
-| H5 | Narrow layout usable; page never scrolls sideways; real-scale performance condition | **NO-GO.** #209 improves navigation but fails acknowledgement-to-DOM in both final invocations, acknowledgement-to-settled in one, the required visual gate, and keyboard traversal. Original #206 layout results remain historical evidence | [#209 finals](evidence/issue-209/README.md#step-3-and-final-invocation-5--containment), [visual comparison](evidence/issue-209/README.md#gate-d--visual-comparison) |
+| H5 | Narrow layout usable; page never scrolls sideways; real-scale performance condition | **NO-GO for the #209 candidate; to be repeated after #210.** #209 improves navigation but fails acknowledgement-to-DOM in both final invocations, acknowledgement-to-settled in one, the required visual gate, and keyboard traversal. Original #206 layout results remain historical evidence | [#209 finals](evidence/issue-209/README.md#step-3-and-final-invocation-5--containment), [visual comparison](evidence/issue-209/README.md#gate-d--visual-comparison) |
 | H6 | Works from an installed wheel without Node | Pass. Chromium rendered a group and completed a verdict against the wheel, Node absent from the server's `PATH` | [S8](evidence/issue-206/README.md#s8-installed-wheel-in-a-browser-gate-h6) |
 | H7 | Auth, Host, Origin and `no-store` unchanged; CSP unchanged or within the approved envelope | Pass with the **unchanged** policy. No addition is used | [S7](evidence/issue-206/README.md#s7-content-security-policy-gate-h7), [S9](evidence/issue-206/README.md#s9-request-envelope-gate-h7) |
 | H8 | Maintenance effort is clearly lower | Pass, on structure and not on size. Verdict and reasons in [section 6](#6-comparison) | [S12](evidence/issue-206/README.md#s12-code-comparison-npm-tree-and-licences-gate-h8), [S14](evidence/issue-206/README.md#s14-change-exercises-gate-h8) |
@@ -792,8 +823,9 @@ Awkward, each found by a proof:
 
 ## 9. Migration ticket drafts
 
-Migration drafts; draft 5 was carried out by #209 with NO-GO. The other
-drafts are not released by that result. Each is one ticket, in this order; each
+Migration drafts; draft 5 was carried out by #209 with NO-GO for its
+candidate. The other drafts are not released by that result, and wait on
+#210's redesign and a repeat of the gate. Each is one ticket, in this order; each
 depends on the one before unless it says otherwise. All inherit the hard
 rules in `AGENTS.md`, and none changes the envelope, the routes, the session
 lifecycle or the CSP.
@@ -859,7 +891,8 @@ beyond what `review_ui.js` already does.
 
 ### 5. M10: real-scale presentation performance gate
 
-**Carried out by #209, 2026-10-09: NO-GO.** The approved plan widened the
+**Carried out by #209, 2026-10-09: NO-GO for its candidate on the #206
+design; to be repeated after #210.** The approved plan widened the
 original scope to settled frames and preserved the #206 design. All seven
 comparisons must pass twice consecutively; final invocations fail A3 in both,
 B3 in one, the unchanged-appearance gate, and keyboard traversal. No switch-over is released.
