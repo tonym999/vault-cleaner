@@ -160,3 +160,22 @@ by this fix round. All original and review invocations remain in the record.
 Final recommendation **NO-GO**, because A/B consecutive bar, C coverage, D
 appearance, geometry and keyboard traversal fail. Commit/push allocated branch
 only; no PR, issue/project mutation or migration release.
+
+
+After the first fix commit `80b2685d32e5375dbfcb9ba22adedb52ccb9b831`, the
+implementer's final inventory audit caught ambiguous footer wording: "No
+frontend/package/source change" could imply that proof source had not changed.
+The orchestrator accepted a documentation-only clarification to "No frontend or
+package change" and this branch-added worklog update, with fresh mandatory
+precommit checks. No other edit or extra gate/browser measurement is made.
+
+Orchestrator audit at 80b2685: appended review/comparator captures and old evidence
+prefix match bytes exactly; all six scoped files, unchanged candidate/gate and
+approved plan verified. Its independent Ruff checks pass; pytest **1342 passed
+in 33.82s**, required browsers **16 passed, 3 deselected in 12.59s**, no skip.
+
+
+Documentation-only follow-up precommit checks: both Ruff checks PASS;
+**1342 passed in 32.71s**, exit 0, captured to
+`/tmp/issue-209-review-fix-doc-pytest.log`. Worklog and whitespace checks pass.
+No additional gate, S15 or browser measurement invocation.

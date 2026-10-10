@@ -1746,7 +1746,7 @@ cmp spikes/issue-206/frontend/package.json spikes/issue-209/frontend/package.jso
 cmp spikes/issue-206/frontend/package-lock.json spikes/issue-209/frontend/package-lock.json
 ```
 
-No frontend/package/source change in this round: clean npm/type/35-unit/build
+No frontend or package change in this round: clean npm/type/35-unit/build
 and unchanged S1–S6/S13/source were already rerun by the independent reviewer at
 the same candidate. They were not duplicated by the implementer for this bounded
 measurement/doc fix. Primary S15 was not rerun; both original and review failures
