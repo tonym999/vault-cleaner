@@ -33,6 +33,12 @@ of that head arrived first. *Amendment 2* below adds its accepted findings
 and three design refinements. Approving the SHA that holds Amendment 2
 approves both amendments.
 
+**Amended 2026-10-11 (Amendment 3).** Amendments 1 and 2 were approved at
+`50560efa8f81b0883a4c5fa52a1ff24a00f2fb5d` and implemented through `ef0f599`,
+which is open as PR #212. *Amendment 3* below adds one thing: the project's
+minimum Python version rises to 3.14, in the same PR. It widens this plan's
+scope beyond the spike for that change only.
+
 ## Objective
 
 Rebuild the presentation of the Svelte Armor duplicates slice so that section,
@@ -292,6 +298,90 @@ finding about its usability; it remains a candidate for later task testing.
 - Every proof run, verbatim, in the evidence README; the correction above;
   and `spikes/issue-210/README.md`.
 - A worklog entry for the session.
+
+## Amendment 3 — raise the minimum Python version to 3.14
+
+### Why this is in a UI ticket
+
+A third review comment on PR #212, by OpenAI Codex at the owner's request
+(<https://github.com/tonym999/vault-cleaner/pull/212#issuecomment-6106496939>),
+found that
+[proof_layout.py:149](../spikes/issue-210/proof_layout.py#L149) calls
+`Path.read_text(..., newline="")`. That parameter exists from Python 3.13.
+The project declares 3.12.
+
+The planner's advice was to fix that one line here and raise the baseline in
+a ticket of its own. **The owner decided on 2026-10-11 to raise the baseline
+to 3.14 in this PR.** This amendment carries that decision; it is not the
+planner's recommendation, and the reasons against are recorded in the
+worklog.
+
+### Measured at `ef0f599`
+
+- The local environment is Python 3.14.4 (`.venv/bin/python`). Every check
+  and proof in this ticket ran on it, which is why the incompatibility was
+  never seen. CI does not run the spike proofs.
+- The baseline is declared in four places:
+  [pyproject.toml:7](../pyproject.toml#L7) (`requires-python = ">=3.12"`),
+  [ci.yml:59](../.github/workflows/ci.yml#L59) and
+  [ci.yml:74](../.github/workflows/ci.yml#L74) (`python-version: "3.12"`,
+  the `test` and `browser` jobs),
+  [AGENTS.md:44](../AGENTS.md#L44) and [PLAN.md:59](../PLAN.md#L59).
+  `git grep` finds no other current statement of it: not in `README.md`,
+  `docs/` or `scripts/`.
+- The `hygiene` job has no `setup-python` step. Its four scripts run on
+  whatever `python3` the runner image provides.
+- `pyproject.toml` has no `[tool.ruff]` section, so ruff takes its target
+  from `requires-python`. `ruff check src tests scripts --target-version
+  py314` reports nothing.
+- On 3.14.4 locally: 1342 tests pass, the browser suite passes (16 passed, 3
+  deselected), and the installed-wheel check runs in the browser job's
+  steps.
+- **Not measured:** whether the pinned toolchain (`pytest==9.1.1`,
+  `ruff==0.16.0`, `playwright==1.62.0`, `pytest-playwright==0.9.0`) and
+  `pandas>=3.0,<4` install on Python 3.14 on `windows-latest`. Only CI can
+  show that.
+
+### The change
+
+#### [MODIFY] [pyproject.toml](../pyproject.toml#L7)
+#### [MODIFY] [.github/workflows/ci.yml](../.github/workflows/ci.yml#L59)
+#### [MODIFY] [AGENTS.md](../AGENTS.md#L44)
+#### [MODIFY] [PLAN.md](../PLAN.md#L59)
+
+- `requires-python = ">=3.14"`.
+- `python-version: "3.14"` in the `test` and `browser` jobs.
+- Add a `setup-python` step at `"3.14"` to the `hygiene` job, before its
+  first Python step, so no CI job runs project scripts on an undeclared
+  version. It installs nothing else.
+- `AGENTS.md:44` and `PLAN.md:59`: "Python 3.12" becomes "Python 3.14".
+  Change those two words and nothing else on either line: the rest of each
+  line is the runtime-dependency rule, which this amendment does not touch.
+- Leave `proof_layout.py:149` as it is. On 3.14 it is correct.
+- Do not edit the frozen `WORKLOG.md`, any entry already on `main`, any
+  earlier plan under `handoffs/`, or `spikes/issue-206/`. Their mentions of
+  3.12 are history.
+- No dependency pin changes. No new package.
+
+### Verification
+
+- Locally on 3.14: `ruff check src tests scripts`, `pytest -q`, the required
+  browser suite, `python scripts/check_wheel_install.py`, `git diff --check
+  origin/main...HEAD`, and the four `hygiene` scripts.
+- **CI on the pushed head is the gate for this amendment.** All of `hygiene`,
+  `test (ubuntu-latest)`, `test (windows-latest)` and `browser` must pass on
+  3.14. Read the result once it has run; do not poll.
+- The spike proofs need no rerun for this change: no file they read changes.
+  Say so in the worklog.
+- The PR body gains a line stating the baseline change, since a reader of a
+  UI redesign would not expect it.
+
+### What it does to the rest of the plan
+
+- *Out of scope* no longer lists `PLAN.md` and `AGENTS.md` for this change
+  alone; every other exclusion stands.
+- The mechanical inclusion test gains one clause (below).
+- Nothing in the slice, the proofs or the evidence changes.
 
 ## Context & Measurement
 
@@ -608,6 +698,10 @@ A proposed change is **in scope** if and only if:
   names, and
 - it adds no package beyond the approved list.
 
+*Added by Amendment 3:* a change is also in scope if it is one of the edits
+Amendment 3 lists to `pyproject.toml`, `.github/workflows/ci.yml`,
+`AGENTS.md` or `PLAN.md`, and nothing more in those files.
+
 Worked examples:
 
 - **IN SCOPE:** replacing `GroupCard.svelte` and `MemberRow.svelte` with a
@@ -623,6 +717,12 @@ Worked examples:
   the mockup's wording.
 - **OUT OF SCOPE:** adding `content-visibility: auto` to shorten the first
   render.
+- **IN SCOPE (Amendment 3):** changing `python-version: "3.12"` to `"3.14"`
+  in the `test` job.
+- **OUT OF SCOPE (Amendment 3):** loosening `playwright==1.62.0` because it
+  has no wheel for 3.14 on Windows. That is a stop condition.
+- **OUT OF SCOPE (Amendment 3):** adding a `[tool.ruff]` section, a version
+  matrix, or classifiers while editing `pyproject.toml`.
 
 ### Stop conditions
 
@@ -636,6 +736,12 @@ Stop implementation and return to orchestrator if:
   note's text, or a live region's node or id to change;
 - always showing the Tuned stat row cannot be made to pass S1 without a
   further oracle adaptation;
+- (Amendment 3) any CI job fails on Python 3.14, on either platform, for a
+  reason a version or pin change would be needed to fix; or a test that
+  passed on 3.12 in CI fails on 3.14. Report the failure; do not change a
+  pin, skip a test or add a version matrix;
+- (Amendment 3) another current statement of the 3.12 baseline turns up
+  outside the four files named;
 - direction D cannot meet a behavioural or accessibility requirement of the
   design contract (sections 5.11, 7, 8) without changing its structure;
 - shadcn-svelte needs a package outside the approved list, a CSP addition,
@@ -676,6 +782,10 @@ Escalation route: `implementer → orchestrator → planner`.
    dropped status word, an error notice no more prominent than the quiet
    connected state, or text under 11 px left somewhere the check does not
    look.
+8. **The baseline change is uneven or too wide** (Amendment 3): one of the
+   four declarations is missed, the `hygiene` job still runs on the runner's
+   own Python, a historical record is rewritten, or the dependency rule on
+   `AGENTS.md:44` or `PLAN.md:59` is touched along with the version.
 
 ## Implementer selection
 
@@ -736,6 +846,8 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] (Amendment 2) Every same-stat group shows a per-piece Tuned stat row first, including the identical-tuning case reproduced through the real server; S1 parity holds there; no new oracle adaptation.
 - [ ] (Amendment 2) Refinements A, B and C are done; ids and proof-fixed copy are intact; the three live regions are the same nodes; no visible text is under 11 px; the first group's top edge is reported before and after.
 - [ ] (Amendment 2) The evidence README carries the dated correction about direction C.
+- [ ] (Amendment 3) `requires-python`, all three CI jobs, `AGENTS.md:44` and `PLAN.md:59` say 3.14; nothing else on those two prose lines changed; no pin, matrix or lint configuration was added; no historical record was edited.
+- [ ] (Amendment 3) CI passed on the pushed head on both platforms, and the PR body states the baseline change.
 - [ ] `proof_no_transition.py` passes in both schemes over all 435 buttons; the style-recalculation diagnostic is recorded.
 - [ ] Verdict controls are `aria-pressed` buttons using `aria-disabled`; the class filter is a native `select`; pressed, kept and same-stat states each have a non-colour cue.
 - [ ] No inline `style` attribute, web font, image or CSP addition; no `content-visibility`.
