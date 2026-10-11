@@ -211,9 +211,10 @@ real-narrow-light: page 390 x 55274 px, 74 groups
 ## 5. Proof transcripts
 
 Each fence is the whole output of the command above it, unedited, from one
-run on 2026-10-11 against the build recorded under *Build*. The frontend
-needs `npm ci` in `spikes/issue-210/frontend/` first. Commands run from the
-repository root unless they say otherwise.
+run on 2026-10-11 against the build recorded under *Build*. These are the
+runs of fix round 2; they replace the transcripts recorded at `61d9410`. The
+frontend needs `npm ci` in `spikes/issue-210/frontend/` first. Commands run
+from the repository root unless they say otherwise.
 
 ### Type check
 
@@ -224,8 +225,8 @@ cd spikes/issue-210/frontend && npm run check
 ```text
 npm notice run vault-cleaner-spike-206-frontend@0.0.0 check
 npm notice run svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
-1791682050999 START "/home/raver/projects/personal/vault-cleaner/spikes/issue-210/frontend"
-1791682051001 COMPLETED 303 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
+1791700909612 START "/home/raver/projects/personal/vault-cleaner/spikes/issue-210/frontend"
+1791700909614 COMPLETED 303 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
 ```
 
 ### Unit tests
@@ -243,8 +244,8 @@ npm notice run vitest run
 
  Test Files  3 passed (3)
       Tests  43 passed (43)
-   Start at  01:27:31
-   Duration  544ms (transform 81%, import 12%, tests 6%, worker 1%)
+   Start at  06:41:50
+   Duration  827ms (transform 87%, import 8%, tests 4%, worker 1%)
 ```
 
 ### Build
@@ -263,10 +264,10 @@ rendering chunks...
 computing gzip size...
 dist/index.html        0.44 kB │ gzip:  0.28 kB
 dist/modules.json      4.41 kB │ gzip:  0.71 kB
-dist/assets/app.css   31.66 kB │ gzip:  6.81 kB
+dist/assets/app.css   31.72 kB │ gzip:  6.83 kB
 dist/assets/app.js   144.38 kB │ gzip: 42.81 kB
 
-✓ built in 233ms
+✓ built in 530ms
 ```
 
 ### S1 parity (#206 proof, unedited, tuned-stat merge applied)
@@ -514,7 +515,7 @@ main.ts:8 document.getElementById: the mount point, once at start-up
 components/StatStrip.svelte:10 return [...stats].sort((a, b) => rank(a.name) - rank(b.name));
 lib/filters.ts:60 .sort(([left], [right]) => left.localeCompare(right, 'en', { sensitivity: 'base' }))
 -- build output --
-assets/app.css: 31665 bytes; URL strings 1 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
+assets/app.css: 31725 bytes; URL strings 1 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
 assets/app.js: 144389 bytes; URL strings 16 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
 index.html: 442 bytes; URL strings 0 (XML namespaces, Svelte error-message links, a Tailwind banner); URLs the page would load: []; data: URIs: []; @import/@font-face/remote url(): []
 index.html inline scripts, style elements, style or event attributes: []
@@ -570,30 +571,34 @@ acknowledged 390px dark: groups=74, members=158, value/role assertions=3261, dif
 layout 390px dark: sideways=False; internal sideways scrollers=0; opaque values inside=True, clipped=0; member columns=1; Tab=444/444, document order=True, all visible=True
 sanitised report, acknowledged verdict, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, acknowledged verdict, 1440px light: keyboard focus=444/444; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, acknowledged verdict, 1440px light: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, acknowledged verdict, 1440px light, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, acknowledged verdict, 1440px light, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, acknowledged verdict, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, acknowledged verdict, 1440px dark: keyboard focus=444/444; lowest 15.96:1 (Approve item 1000000000000000296); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, acknowledged verdict, 1440px dark: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, acknowledged verdict, 1440px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, acknowledged verdict, 1440px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, acknowledged verdict, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, acknowledged verdict, 390px light: keyboard focus=444/444; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, acknowledged verdict, 390px light: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, acknowledged verdict, 390px light, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, acknowledged verdict, 390px light, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, acknowledged verdict, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, acknowledged verdict, 390px dark: keyboard focus=444/444; lowest 15.96:1 (Approve item 1000000000000000296); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, acknowledged verdict, 390px dark: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, acknowledged verdict, 390px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, acknowledged verdict, 390px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
-timing run 1 slice: all groups=74; navigation=253.4ms, next frame=266.0ms; ack-to-DOM=7.1ms, next frame=12.4ms; DOM elements=13019
-timing run 1 production: all groups=74; navigation=152.3ms, next frame=157.8ms; ack-to-DOM=9.3ms, next frame=18.2ms; DOM elements=17138
-timing run 2 production: all groups=74; navigation=169.2ms, next frame=174.5ms; ack-to-DOM=11.3ms, next frame=25.4ms; DOM elements=17138
-timing run 2 slice: all groups=74; navigation=250.4ms, next frame=263.0ms; ack-to-DOM=8.8ms, next frame=12.5ms; DOM elements=13019
-timing run 3 slice: all groups=74; navigation=248.8ms, next frame=262.3ms; ack-to-DOM=6.5ms, next frame=7.0ms; DOM elements=13019
-timing run 3 production: all groups=74; navigation=159.3ms, next frame=165.0ms; ack-to-DOM=12.1ms, next frame=25.9ms; DOM elements=17138
-timing run 4 production: all groups=74; navigation=162.8ms, next frame=169.9ms; ack-to-DOM=8.8ms, next frame=18.1ms; DOM elements=17138
-timing run 4 slice: all groups=74; navigation=234.5ms, next frame=246.7ms; ack-to-DOM=6.5ms, next frame=6.9ms; DOM elements=13019
-timing run 5 slice: all groups=74; navigation=235.0ms, next frame=247.1ms; ack-to-DOM=7.6ms, next frame=7.9ms; DOM elements=13019
-timing run 5 production: all groups=74; navigation=155.2ms, next frame=161.6ms; ack-to-DOM=9.2ms, next frame=17.8ms; DOM elements=17138
+timing run 1 slice: all groups=74; navigation=245.5ms, next frame=257.9ms; ack-to-DOM=7.4ms, next frame=12.3ms; DOM elements=13019
+timing run 1 production: all groups=74; navigation=150.2ms, next frame=156.5ms; ack-to-DOM=10.0ms, next frame=18.1ms; DOM elements=17138
+timing run 2 production: all groups=74; navigation=147.0ms, next frame=153.6ms; ack-to-DOM=11.3ms, next frame=19.8ms; DOM elements=17138
+timing run 2 slice: all groups=74; navigation=235.5ms, next frame=247.3ms; ack-to-DOM=7.5ms, next frame=7.8ms; DOM elements=13019
+timing run 3 slice: all groups=74; navigation=227.1ms, next frame=241.1ms; ack-to-DOM=7.6ms, next frame=12.1ms; DOM elements=13019
+timing run 3 production: all groups=74; navigation=151.2ms, next frame=157.0ms; ack-to-DOM=11.4ms, next frame=19.6ms; DOM elements=17138
+timing run 4 production: all groups=74; navigation=143.9ms, next frame=148.8ms; ack-to-DOM=9.4ms, next frame=17.7ms; DOM elements=17138
+timing run 4 slice: all groups=74; navigation=236.7ms, next frame=249.4ms; ack-to-DOM=6.6ms, next frame=7.1ms; DOM elements=13019
+timing run 5 slice: all groups=74; navigation=228.8ms, next frame=241.9ms; ack-to-DOM=8.3ms, next frame=8.5ms; DOM elements=13019
+timing run 5 production: all groups=74; navigation=141.1ms, next frame=148.4ms; ack-to-DOM=9.8ms, next frame=9.9ms; DOM elements=17138
 verdict target: group 74/74, chosen from the envelope
-slice medians (5 runs): navigation=248.8ms, next frame=262.3ms; ack-to-DOM=7.1ms, next frame=7.9ms; DOM elements=13019
-production medians (5 runs): navigation=159.3ms, next frame=165.0ms; ack-to-DOM=9.3ms, next frame=18.2ms; DOM elements=17138
+slice medians (5 runs): navigation=235.5ms, next frame=247.3ms; ack-to-DOM=7.5ms, next frame=8.5ms; DOM elements=13019
+production medians (5 runs): navigation=147.0ms, next frame=153.6ms; ack-to-DOM=10.0ms, next frame=18.1ms; DOM elements=17138
 RESULT: PASS
 ```
 
@@ -608,9 +613,10 @@ production policy: default-src 'none'; script-src 'self'; style-src 'self'; conn
 additions the slice is served with: []
 exercised: ['class facet', 'kind filter, dropping the class (reconciliation notice)', 'verdict buttons (approve, veto, unset)', 'focus ring', 'finalise (frozen controls, persisted-veto notice, download link)', 'reset (the no-report empty state)', 'reload']
 requests: {'document GET spike/': 1, 'script GET spike/assets/app.js': 1, 'stylesheet GET spike/assets/app.css': 1, 'fetch GET api/report': 3, 'fetch POST api/verdicts': 4, 'fetch POST api/finalize': 1, 'fetch POST api/reset': 1}
-policy on every response equals production's: True
+responses checked one by one: 12 for 12 requests; without production's policy: 0 []
 violations: []; console errors: []; page errors: []
 stylesheet applied: True (read from 3 slice buttons); <style> elements: 0; style attributes: 0; images: 0; web fonts: 0
+negative control, policy removed from verdict responses after the first: verdict responses=4; responses without production's policy=3 ['api/verdicts']; a one-policy-per-path check would have seen=0
 RESULT: PASS
 ```
 
@@ -625,116 +631,155 @@ axe-core 4.13.0 (MPL-2.0), development-only
 -- S13's seven states, synthetic fixture --
 reviewing, unreviewed, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, unreviewed, 1440px light: keyboard focus=18/18; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, unreviewed, 1440px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, unreviewed, 1440px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, unreviewed, 1440px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, unreviewed, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, unreviewed, 1440px dark: keyboard focus=18/18; lowest 15.96:1 (Approve item 6032); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, unreviewed, 1440px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, unreviewed, 1440px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, unreviewed, 1440px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, unreviewed, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, unreviewed, 390px light: keyboard focus=18/18; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, unreviewed, 390px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, unreviewed, 390px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, unreviewed, 390px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, unreviewed, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, unreviewed, 390px dark: keyboard focus=18/18; lowest 15.96:1 (Approve item 6032); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, unreviewed, 390px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, unreviewed, 390px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, unreviewed, 390px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 approval in flight, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 approval in flight, 1440px light: keyboard focus=18/18; lowest 3.27:1 (Reload report); primary=[]; outline floor=3px/2px; problems=[]
-approval in flight, 1440px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+approval in flight, 1440px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+approval in flight, 1440px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 approval in flight, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 approval in flight, 1440px dark: keyboard focus=18/18; lowest 4.86:1 (Reload report); primary=[]; outline floor=3px/2px; problems=[]
-approval in flight, 1440px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+approval in flight, 1440px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+approval in flight, 1440px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 approval in flight, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 approval in flight, 390px light: keyboard focus=18/18; lowest 3.27:1 (Reload report); primary=[]; outline floor=3px/2px; problems=[]
-approval in flight, 390px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+approval in flight, 390px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+approval in flight, 390px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 approval in flight, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 approval in flight, 390px dark: keyboard focus=18/18; lowest 4.86:1 (Reload report); primary=[]; outline floor=3px/2px; problems=[]
-approval in flight, 390px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+approval in flight, 390px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+approval in flight, 390px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one approval, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one approval, 1440px light: keyboard focus=18/18; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one approval, 1440px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one approval, 1440px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one approval, 1440px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one approval, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one approval, 1440px dark: keyboard focus=18/18; lowest 15.96:1 (Approve item 6032); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one approval, 1440px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one approval, 1440px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one approval, 1440px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one approval, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one approval, 390px light: keyboard focus=18/18; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one approval, 390px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one approval, 390px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one approval, 390px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one approval, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one approval, 390px dark: keyboard focus=18/18; lowest 15.96:1 (Approve item 6032); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one approval, 390px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one approval, 390px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one approval, 390px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one veto, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one veto, 1440px light: keyboard focus=18/18; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one veto, 1440px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one veto, 1440px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one veto, 1440px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one veto, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one veto, 1440px dark: keyboard focus=18/18; lowest 15.96:1 (Approve item 6032); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one veto, 1440px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one veto, 1440px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one veto, 1440px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one veto, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one veto, 390px light: keyboard focus=18/18; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one veto, 390px light: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one veto, 390px light, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one veto, 390px light, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 reviewing, one veto, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 reviewing, one veto, 390px dark: keyboard focus=18/18; lowest 15.96:1 (Approve item 6032); primary=[]; outline floor=3px/2px; problems=[]
-reviewing, one veto, 390px dark: focus stops=18, with a visible focus indicator=18, outline clipped=0 []
+reviewing, one veto, 390px dark, Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
+reviewing, one veto, 390px dark, Shift+Tab: focus stops=18, reached=18, with a visible focus indicator=18, outline clipped or covered=0 []
 filtered, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 filtered, 1440px light: keyboard focus=15/15; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-filtered, 1440px light: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+filtered, 1440px light, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+filtered, 1440px light, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 filtered, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 filtered, 1440px dark: keyboard focus=15/15; lowest 15.96:1 (Approve item 6081); primary=[]; outline floor=3px/2px; problems=[]
-filtered, 1440px dark: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+filtered, 1440px dark, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+filtered, 1440px dark, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 filtered, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 filtered, 390px light: keyboard focus=15/15; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-filtered, 390px light: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+filtered, 390px light, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+filtered, 390px light, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 filtered, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 filtered, 390px dark: keyboard focus=15/15; lowest 15.96:1 (Approve item 6081); primary=[]; outline floor=3px/2px; problems=[]
-filtered, 390px dark: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+filtered, 390px dark, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+filtered, 390px dark, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 finalised, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 finalised, 1440px light: keyboard focus=15/15; lowest 4.00:1 (Approve item 6081); primary=[]; outline floor=3px/2px; problems=[]
-finalised, 1440px light: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+finalised, 1440px light, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+finalised, 1440px light, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 finalised, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 finalised, 1440px dark: keyboard focus=15/15; lowest 5.56:1 (Approve item 6081); primary=[]; outline floor=3px/2px; problems=[]
-finalised, 1440px dark: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+finalised, 1440px dark, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+finalised, 1440px dark, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 finalised, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 finalised, 390px light: keyboard focus=15/15; lowest 4.00:1 (Approve item 6081); primary=[]; outline floor=3px/2px; problems=[]
-finalised, 390px light: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+finalised, 390px light, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+finalised, 390px light, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 finalised, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 finalised, 390px dark: keyboard focus=15/15; lowest 5.56:1 (Approve item 6081); primary=[]; outline floor=3px/2px; problems=[]
-finalised, 390px dark: focus stops=15, with a visible focus indicator=15, outline clipped=0 []
+finalised, 390px dark, Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
+finalised, 390px dark, Shift+Tab: focus stops=15, reached=15, with a visible focus indicator=15, outline clipped or covered=0 []
 no report, 1440px light: rules passed=33, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 no report, 1440px light: keyboard focus=5/5; lowest 3.27:1 (Finalise review); primary=[]; outline floor=3px/2px; problems=[]
-no report, 1440px light: focus stops=5, with a visible focus indicator=5, outline clipped=0 []
+no report, 1440px light, Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
+no report, 1440px light, Shift+Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
 no report, 1440px dark: rules passed=33, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 no report, 1440px dark: keyboard focus=5/5; lowest 4.86:1 (Finalise review); primary=[]; outline floor=3px/2px; problems=[]
-no report, 1440px dark: focus stops=5, with a visible focus indicator=5, outline clipped=0 []
+no report, 1440px dark, Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
+no report, 1440px dark, Shift+Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
 no report, 390px light: rules passed=33, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 no report, 390px light: keyboard focus=5/5; lowest 3.27:1 (Finalise review); primary=[]; outline floor=3px/2px; problems=[]
-no report, 390px light: focus stops=5, with a visible focus indicator=5, outline clipped=0 []
+no report, 390px light, Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
+no report, 390px light, Shift+Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
 no report, 390px dark: rules passed=33, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 no report, 390px dark: keyboard focus=5/5; lowest 4.86:1 (Finalise review); primary=[]; outline floor=3px/2px; problems=[]
-no report, 390px dark: focus stops=5, with a visible focus indicator=5, outline clipped=0 []
+no report, 390px dark, Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
+no report, 390px dark, Shift+Tab: focus stops=5, reached=5, with a visible focus indicator=5, outline clipped or covered=0 []
 -- the sanitised report --
 sanitised report, unreviewed, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, unreviewed, 1440px light: keyboard focus=444/444; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, unreviewed, 1440px light: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, unreviewed, 1440px light, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, unreviewed, 1440px light, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, unreviewed, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, unreviewed, 1440px dark: keyboard focus=444/444; lowest 15.96:1 (Approve item 1000000000000000296); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, unreviewed, 1440px dark: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, unreviewed, 1440px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, unreviewed, 1440px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, unreviewed, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, unreviewed, 390px light: keyboard focus=444/444; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, unreviewed, 390px light: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, unreviewed, 390px light, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, unreviewed, 390px light, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, unreviewed, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, unreviewed, 390px dark: keyboard focus=444/444; lowest 15.96:1 (Approve item 1000000000000000296); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, unreviewed, 390px dark: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, unreviewed, 390px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, unreviewed, 390px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, one approval, 1440px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, one approval, 1440px light: keyboard focus=444/444; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, one approval, 1440px light: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, one approval, 1440px light, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, one approval, 1440px light, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, one approval, 1440px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, one approval, 1440px dark: keyboard focus=444/444; lowest 15.96:1 (Approve item 1000000000000000296); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, one approval, 1440px dark: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, one approval, 1440px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, one approval, 1440px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, one approval, 390px light: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, one approval, 390px light: keyboard focus=444/444; lowest 14.68:1 (Skip to review content); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, one approval, 390px light: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, one approval, 390px light, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, one approval, 390px light, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, one approval, 390px dark: rules passed=40, violations=[]; contrast axe could not judge: 0 nodes, measured here 0, lowest none to measure; unexplained: []
 sanitised report, one approval, 390px dark: keyboard focus=444/444; lowest 15.96:1 (Approve item 1000000000000000296); primary=[]; outline floor=3px/2px; problems=[]
-sanitised report, one approval, 390px dark: focus stops=444, with a visible focus indicator=444, outline clipped=0 []
+sanitised report, one approval, 390px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
+sanitised report, one approval, 390px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 negative control, muted role word on a filled stat cell (390px dark): detected=True ['violation {\'id\': \'color-contrast\', \'impact\': \'serious\', \'nodes\': 74, \'first\': \'article[aria-labelledby="c2-name"] > .group-head > ul > .stat[data-stat="class"][data-role="primary"] > .stat-role[data-field="stat_role"]\'}']
 negative control, focus outline in the card colour: controls failing=444
-negative control, overflow hidden on the verdict wrapper: outlines clipped=435 of 435 verdict buttons
+negative control, overflow hidden on the verdict wrapper: outlines clipped by it=435 of 435 verdict buttons
+negative control, no scroll padding below (1440px): outlines past the viewport's bottom=75
+negative control, no scroll padding below (390px): outlines past the viewport's bottom=6
+negative control, no scroll padding above (390px, Shift+Tab): outlines under the sticky heading=6
 RESULT: PASS
 ```
 
@@ -773,7 +818,7 @@ RESULT: PASS
 ```text
 built stylesheet: rules mentioning aria-disabled=0
 dark: verdict buttons=435, pressed=145, with a transition or animation=0
-style recalculation over one acknowledged verdict, ms: 1.3, 1.6, 1.1, 1.4, 1.1; median 1.3 (recorded, not gated; #209 measured 138.7 on #206)
+style recalculation over one acknowledged verdict, ms: 1.2, 1.8, 1.0, 1.5, 1.1; median 1.2 (recorded, not gated; #209 measured 138.7 on #206)
 after 5 verdicts: pressed=145, with a transition or animation=0
 negative control, a 0.2s transition added: with a transition=435 of 435
 light: verdict buttons=435, pressed=145, with a transition or animation=0

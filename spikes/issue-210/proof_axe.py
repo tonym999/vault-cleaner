@@ -17,12 +17,15 @@ select, and any focus stop that misses the 3 px outline, its 2 px offset or
 - nothing left unjudged is a pass, not a crash;
 - before each axe run the page is scrolled to the top and focus is cleared,
   so the previous keyboard lap cannot leave a sticky heading over a node;
-- **no focus outline is clipped** (Amendment 2): for every focus stop, the
-  outline's painted rectangle lies inside the viewport's width and inside
-  every ancestor that clips. Computed style alone is not enough: that is how
-  a clipped outline was first reported as present;
-- three negative controls of its own, each applied through the CSSOM and
-  each required to be detected.
+- **no focus outline is clipped** (Amendment 2): on a real keyboard lap in
+  each direction, every stop's painted outline lies inside the viewport on
+  all four sides, clear of the sticky heading, and inside every ancestor
+  that clips. Computed style alone is not enough: that is how a clipped
+  outline was first reported as present. The first version of this check
+  compared only the viewport's sides and passed outlines that ran off its
+  bottom (second review of #210, REV-01);
+- five negative controls of its own, each applied through the CSSOM and each
+  required to be detected.
 """
 
 from __future__ import annotations
@@ -44,50 +47,67 @@ from proof_s13_axe import AXE, RUN_JS
 SIZES = ((1440, "light"), (1440, "dark"), (390, "light"), (390, "dark"))
 REST_JS = "() => { if (document.activeElement) document.activeElement.blur(); window.scrollTo(0, 0); }"
 
-# Every focus stop, focused in turn after a real Tab press (so the browser is
-# in keyboard modality and :focus-visible applies).  The outline is painted
-# outside the border box by its width plus its offset.  An ancestor clips when
-# it has a non-visible overflow on an axis, paint containment, or a clip path;
-# its clipping edge is its padding box.
-CLIPPING_JS = """
+# The focused control, measured after a real key press, so the browser is in
+# keyboard modality and has scrolled the control into view its own way.  The
+# outline is painted outside the border box by its width plus its offset.  It
+# must lie inside the viewport on all four sides, clear of any sticky or
+# fixed element that is not its own ancestor, and inside every ancestor that
+# clips (a non-visible overflow on an axis, paint containment or a clip
+# path; the clipping edge is the ancestor's padding box).
+FOCUSED_JS = """
 () => {
-  const stops = Array.from(document.querySelectorAll("a[href], button, select, input"));
-  const viewport = document.documentElement.clientWidth;
-  const clipped = [];
-  let visible = 0;
-  for (const node of stops) {
-    node.focus();
-    if (!node.matches(":focus-visible")) continue;
-    visible += 1;
-    const style = getComputedStyle(node);
-    const grow = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-    const box = node.getBoundingClientRect();
-    const ring = { left: box.left - grow, right: box.right + grow, top: box.top - grow, bottom: box.bottom + grow };
-    const name = node.getAttribute("aria-label") || node.textContent.trim();
-    if (ring.left < -0.5 || ring.right > viewport + 0.5) { clipped.push(name + " by the viewport"); continue; }
-    for (let at = node.parentElement; at; at = at.parentElement) {
-      const around = getComputedStyle(at);
-      const x = around.overflowX !== "visible";
-      const y = around.overflowY !== "visible";
-      const paint = /paint|strict|content/.test(around.contain) || around.clipPath !== "none";
-      if (!x && !y && !paint) continue;
-      const outer = at.getBoundingClientRect();
-      const edge = {
-        left: outer.left + parseFloat(around.borderLeftWidth),
-        right: outer.right - parseFloat(around.borderRightWidth),
-        top: outer.top + parseFloat(around.borderTopWidth),
-        bottom: outer.bottom - parseFloat(around.borderBottomWidth),
-      };
-      const cutX = (x || paint) && (ring.left < edge.left - 0.5 || ring.right > edge.right + 0.5);
-      const cutY = (y || paint) && (ring.top < edge.top - 0.5 || ring.bottom > edge.bottom + 0.5);
-      if (cutX || cutY) {
-        clipped.push(name + " by " + at.tagName.toLowerCase() + "." + at.className.split(" ")[0]);
-        break;
-      }
+  const node = document.activeElement;
+  if (!node || node === document.body) return null;
+  const name = node.getAttribute("aria-label") || node.textContent.trim().replace(/\\s+/g, " ");
+  const stop = window.__stops.indexOf(node);
+  if (!node.matches(":focus-visible")) return { stop, name, visible: false, cut: "" };
+  const style = getComputedStyle(node);
+  const grow = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+  const box = node.getBoundingClientRect();
+  const ring = { left: box.left - grow, right: box.right + grow, top: box.top - grow, bottom: box.bottom + grow };
+  const width = document.documentElement.clientWidth;
+  const height = document.documentElement.clientHeight;
+  if (ring.left < -0.5 || ring.right > width + 0.5) return { stop, name, visible: true, cut: "the viewport's side" };
+  if (ring.top < -0.5) return { stop, name, visible: true, cut: "the viewport's top" };
+  if (ring.bottom > height + 0.5) return { stop, name, visible: true, cut: "the viewport's bottom" };
+  for (const over of window.__covers) {
+    const position = getComputedStyle(over).position;
+    if (over.contains(node)) continue;
+    const cover = over.getBoundingClientRect();
+    if (cover.width > 0 && cover.height > 0 && ring.left < cover.right && ring.right > cover.left
+        && ring.top < cover.bottom - 0.5 && ring.bottom > cover.top + 0.5) {
+      return { stop, name, visible: true, cut: "a " + position + " " + over.tagName.toLowerCase() + "." + over.className.split(" ")[0] };
     }
   }
-  if (document.activeElement) document.activeElement.blur();
-  return { stops: stops.length, visible, clipped };
+  for (let at = node.parentElement; at; at = at.parentElement) {
+    const around = getComputedStyle(at);
+    const x = around.overflowX !== "visible";
+    const y = around.overflowY !== "visible";
+    const paint = /paint|strict|content/.test(around.contain) || around.clipPath !== "none";
+    if (!x && !y && !paint) continue;
+    const outer = at.getBoundingClientRect();
+    const edge = {
+      left: outer.left + parseFloat(around.borderLeftWidth),
+      right: outer.right - parseFloat(around.borderRightWidth),
+      top: outer.top + parseFloat(around.borderTopWidth),
+      bottom: outer.bottom - parseFloat(around.borderBottomWidth),
+    };
+    const cutX = (x || paint) && (ring.left < edge.left - 0.5 || ring.right > edge.right + 0.5);
+    const cutY = (y || paint) && (ring.top < edge.top - 0.5 || ring.bottom > edge.bottom + 0.5);
+    if (cutX || cutY) return { stop, name, visible: true, cut: "its ancestor " + at.tagName.toLowerCase() + "." + at.className.split(" ")[0] };
+  }
+  return { stop, name, visible: true, cut: "" };
+}
+"""
+# Before a lap: the sticky and fixed elements, found once, and the stop count.
+STOPS_JS = """
+() => {
+  window.__covers = Array.from(document.querySelectorAll("*")).filter((node) => {
+    const position = getComputedStyle(node).position;
+    return position === "sticky" || position === "fixed";
+  });
+  window.__stops = Array.from(document.querySelectorAll("a[href], button, select, input"));
+  return window.__stops.length;
 }
 """
 ADD_RULE_JS = """(rule) => {
@@ -135,9 +155,47 @@ def unexplained(result: dict) -> list[str]:
     return found
 
 
-def clipping(page: Any) -> dict:
-    page.keyboard.press("Tab")
-    return page.evaluate(CLIPPING_JS)
+def clipping(page: Any, backward: bool = False) -> dict:
+    """One real keyboard lap, Tab or Shift+Tab, measuring each stop as it takes focus.
+
+    Forward, the browser brings a control in at the bottom of the viewport;
+    backward, at the top, under the sticky heading. Both are walked.
+    """
+    page.evaluate(REST_JS)
+    if backward:
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+    stops = page.evaluate(STOPS_JS)
+    key = "Shift+Tab" if backward else "Tab"
+    # The lap does not start at a known stop (the browser keeps its place
+    # after a blur) and passes through the document's edge once, where
+    # nothing in the page has focus. So walk until every stop has been seen,
+    # with a few presses to spare, and count stops, not presses.
+    seen: dict[int, dict] = {}
+    for _ in range(stops + 3):
+        page.keyboard.press(key)
+        focused = page.evaluate(FOCUSED_JS)
+        if focused is not None and focused["stop"] >= 0:
+            seen.setdefault(focused["stop"], focused)
+        if len(seen) == stops:
+            break
+    page.evaluate(REST_JS)
+    return {
+        "stops": stops,
+        "reached": len(seen),
+        "visible": sum(entry["visible"] for entry in seen.values()),
+        "clipped": [f"{entry['name']} by {entry['cut']}" for entry in seen.values() if entry["cut"]],
+    }
+
+
+def clipping_both(page: Any, label: str, failures: list[str]) -> None:
+    for backward in (False, True):
+        ring = clipping(page, backward)
+        way = "Shift+Tab" if backward else "Tab"
+        print(f"{label}, {way}: focus stops={ring['stops']}, reached={ring['reached']}, with a visible "
+              f"focus indicator={ring['visible']}, outline clipped or covered={len(ring['clipped'])} "
+              f"{ring['clipped'][:3]}")
+        if ring["reached"] != ring["stops"] or ring["visible"] != ring["stops"] or ring["clipped"]:
+            failures.append(f"{label}, {way}: a focus outline is clipped, covered or missing")
 
 
 def run(page: Any, label: str, failures: list[str]) -> None:
@@ -155,11 +213,7 @@ def run(page: Any, label: str, failures: list[str]) -> None:
         if bad:
             failures.append(f"{label}, {width}px {scheme}: an accessibility problem is unexplained")
         check(page, f"{label}, {width}px {scheme}", failures)
-        ring = clipping(page)
-        print(f"{label}, {width}px {scheme}: focus stops={ring['stops']}, with a visible focus "
-              f"indicator={ring['visible']}, outline clipped={len(ring['clipped'])} {ring['clipped'][:3]}")
-        if ring["visible"] != ring["stops"] or ring["clipped"]:
-            failures.append(f"{label}, {width}px {scheme}: a focus outline is clipped or missing")
+        clipping_both(page, f"{label}, {width}px {scheme}", failures)
 
 
 def negative_controls(page: Any, failures: list[str]) -> None:
@@ -180,19 +234,43 @@ def negative_controls(page: Any, failures: list[str]) -> None:
     print(f"negative control, focus outline in the card colour: controls failing={len(weak)}")
     if not weak:
         failures.append("negative control: a low-contrast focus outline was not detected")
-    # 3. The reviewed defect: the joined-button wrapper clips its buttons' outlines.
+    # 3. The first reviewed defect: the joined-button wrapper clips its buttons' outlines.
     size(page, 1440, "dark")
     page.evaluate(ADD_RULE_JS, ".verdict { overflow: hidden; }")
     ring = clipping(page)
     page.evaluate(DROP_RULE_JS)
     verdicts = page.locator("[data-member] button").count()
-    print(f"negative control, overflow hidden on the verdict wrapper: outlines clipped="
-          f"{len(ring['clipped'])} of {verdicts} verdict buttons")
-    if len(ring["clipped"]) != verdicts:
-        failures.append("negative control: a clipped focus outline was not detected")
+    cut = sum("its ancestor div.verdict" in entry for entry in ring["clipped"])
+    print(f"negative control, overflow hidden on the verdict wrapper: outlines clipped by it="
+          f"{cut} of {verdicts} verdict buttons")
+    if cut != verdicts:
+        failures.append("negative control: an outline clipped by its wrapper was not detected")
+    # 4. The second reviewed defect: no room below, so the outline leaves the viewport.
+    #    The property is set through the CSSOM; the policy refuses a style attribute.
+    for width in (1440, 390):
+        size(page, width, "dark")
+        page.evaluate("() => { document.documentElement.style.scrollPaddingBottom = '0px'; }")
+        ring = clipping(page)
+        page.evaluate("() => { document.documentElement.style.scrollPaddingBottom = ''; }")
+        below = sum("the viewport's bottom" in entry for entry in ring["clipped"])
+        print(f"negative control, no scroll padding below ({width}px): outlines past the viewport's "
+              f"bottom={below}")
+        if not below:
+            failures.append(f"negative control: an outline past the viewport's bottom was not detected at {width}px")
+    # 5. No room above: walking backward, a control comes in under the sticky heading.
+    size(page, 390, "dark")
+    page.evaluate("() => { document.documentElement.style.scrollPaddingTop = '0px'; }")
+    ring = clipping(page, backward=True)
+    page.evaluate("() => { document.documentElement.style.scrollPaddingTop = ''; }")
+    covered = sum("a sticky" in entry for entry in ring["clipped"])
+    print(f"negative control, no scroll padding above (390px, Shift+Tab): outlines under the sticky "
+          f"heading={covered}")
+    if not covered:
+        failures.append("negative control: an outline under the sticky heading was not detected")
+    size(page, 1440, "dark")
     after = clipping(page)
     if after["clipped"]:
-        failures.append("negative control: the stylesheet was not restored")
+        failures.append("negative control: the page was not restored")
 
 
 def main() -> int:

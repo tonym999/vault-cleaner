@@ -104,8 +104,12 @@
   }
   html {
     font-family: var(--font-sans);
-    /* A sticky section heading must never cover the focused control. */
+    /* A control that takes focus is scrolled clear of the sticky section
+       heading above and keeps its whole outline (3px at a 2px offset) on
+       screen below. Without the bottom padding the browser stops with the
+       control's edge on the viewport's edge and the outline outside it. */
     scroll-padding-top: 5.5rem;
+    scroll-padding-bottom: 0.75rem;
   }
   /* Ids, hashes, names and reasons wrap anywhere; nothing is truncated and
      the page never scrolls sideways (contract section 8). */
@@ -696,6 +700,8 @@
   }
 
   @media (max-width: 899px) {
+    /* The sticky heading wraps to more lines here, so it is taller. */
+    html { scroll-padding-top: 8.5rem; }
     .page { padding: 1rem 1rem 3rem; }
     .kind { padding: 0 0.5rem 0.5rem; }
     .kind-head .count { margin-left: 0; }
