@@ -64,6 +64,13 @@ otherwise. Recorded so the next reader knows it was weighed:
 - `gh pr edit` fails in this repository on a Projects-classic GraphQL
   error. The body was changed with `gh api -X PATCH`.
 
+## Correction before approval
+
+The amendment as first committed (`eb74763`) said the `hygiene` job runs
+four scripts. It runs three, one of them in two steps. A second planner
+commit corrects that wording in the plan and nothing else, so the SHA to
+approve is the later one.
+
 ## Not done
 
 - Nothing in the amendment is implemented. It needs the owner's approval by

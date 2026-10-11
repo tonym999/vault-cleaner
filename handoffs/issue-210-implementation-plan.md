@@ -329,8 +329,10 @@ worklog.
   [AGENTS.md:44](../AGENTS.md#L44) and [PLAN.md:59](../PLAN.md#L59).
   `git grep` finds no other current statement of it: not in `README.md`,
   `docs/` or `scripts/`.
-- The `hygiene` job has no `setup-python` step. Its four scripts run on
-  whatever `python3` the runner image provides.
+- The `hygiene` job has no `setup-python` step. Its three scripts
+  (`check_real_fixtures.py`, `check_model_roster.py` and `check_worklog.py`,
+  the last in two steps) run on whatever `python3` the runner image
+  provides.
 - `pyproject.toml` has no `[tool.ruff]` section, so ruff takes its target
   from `requires-python`. `ruff check src tests scripts --target-version
   py314` reports nothing.
@@ -367,7 +369,7 @@ worklog.
 
 - Locally on 3.14: `ruff check src tests scripts`, `pytest -q`, the required
   browser suite, `python scripts/check_wheel_install.py`, `git diff --check
-  origin/main...HEAD`, and the four `hygiene` scripts.
+  origin/main...HEAD`, and the three `hygiene` scripts.
 - **CI on the pushed head is the gate for this amendment.** All of `hygiene`,
   `test (ubuntu-latest)`, `test (windows-latest)` and `browser` must pass on
   3.14. Read the result once it has run; do not poll.
