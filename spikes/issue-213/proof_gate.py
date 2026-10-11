@@ -132,6 +132,7 @@ def sample(context: Any, live: Any, name: str, group: dict, member: dict) -> dic
       viewportJump: Math.abs(__scaleButton.getBoundingClientRect().top - __scaleTop),
     })"""))
     result["verdictMetrics"] = delta(before, after)
+    result["action"] = action
     assert result["groups"] == 74
     if name == "slice":
         assert result["same"] and result["viewportJump"] <= 1
@@ -228,7 +229,8 @@ def main() -> int:
                 measured[name].append(result)
                 print(f"run {run + 1} {name}: " + "; ".join(
                     f"{key}={result[key]:.1f}ms" for _, key in COMPARISONS
-                ) + f"; responseEnd={result['responseEnd']:.1f}ms; elements={result['nodes']}")
+                ) + f"; responseEnd={result['responseEnd']:.1f}ms; elements={result['nodes']}"
+                      f"; action={result['action']}")
         for label, key in COMPARISONS:
             mine = median(s[key] for s in measured["slice"])
             theirs = median(s[key] for s in measured["production"])
