@@ -41,7 +41,7 @@ Regenerate the sanitised real-export fixtures from a snapshot directory
 python scripts/sanitize_export.py data/in/<snapshot>
 ```
 
-Python 3.12, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, added by #49) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
+Python 3.14, pandas, `tomllib`, pytest. Runtime deps are pandas and (from M8, added by #49) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
 
 ## Hard rules
 

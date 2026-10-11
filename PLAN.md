@@ -56,7 +56,7 @@ All thresholds (top-N, score floors, archetype weights, set bonuses to favor) li
 
 ## Tech stack
 
-Python 3.12, pandas for CSV handling, `tomllib` for config, `pytest` for tests. Runtime dependencies are pandas and (from M8, added by the server ticket) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
+Python 3.14, pandas for CSV handling, `tomllib` for config, `pytest` for tests. Runtime dependencies are pandas and (from M8, added by the server ticket) Flask 3.1 — exactly; anything further needs a ticket amending this line. Dev/test tooling (pytest, ruff, Playwright) stays out of the runtime set.
 
 ## Repo layout
 
