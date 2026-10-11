@@ -27,6 +27,12 @@ This document uses role-neutral names (planner, orchestrator, implementer, indep
 head `725bc99` on a stop condition. *Amendment 1* below says what changed;
 the sections it changes are marked. Everything else stands.
 
+**Amended 2026-10-11 (Amendment 2).** Amendment 1 was committed at
+`653adeb40a02a2f575b357656bdc7f1ff19b542f` and was never approved; a review
+of that head arrived first. *Amendment 2* below adds its accepted findings
+and three design refinements. Approving the SHA that holds Amendment 2
+approves both amendments.
+
 ## Objective
 
 Rebuild the presentation of the Svelte Armor duplicates slice so that section,
@@ -172,6 +178,120 @@ condition.
 First-render time is not in scope. It is slower than #206 (260.5 ms against
 209.5 ms) and belongs to the follow-up timing gate; the implementer may note
 a cause if one is obvious, and must not add deferred rendering.
+
+## Amendment 2 — review findings and design refinements
+
+### Source
+
+A standalone review of `653adeb` by OpenAI Codex, posted at the owner's
+request:
+<https://github.com/tonym999/vault-cleaner/issues/210#issuecomment-6103418695>.
+The comment does not name an exact model or effort. It is an input to this
+plan. It is not the independent adversarial review this plan requires of the
+final head, which is still owed.
+
+### Dispositions
+
+| Finding | Disposition |
+| --- | --- |
+| P2: joined controls clip the keyboard-focus outline | Accepted. Required fix 1 |
+| P2: a same-stat group's Tuned stat row can disappear | Accepted. Required fix 2. The first plan already required the row; the implementation departed from it without reporting |
+| Medium: phone triples remain cramped | Accepted. Refinement A |
+| Medium: administration delays the comparison content | Accepted. Refinement B |
+| Medium: raw rule slugs weaken explanations | Deferred to a follow-up issue. The reason strings are the server's and the proofs fix them |
+| Low: stat-role captions are too small | Accepted. Refinement C |
+| Direction C was incompatible with this ticket's proofs, not shown to be worse to use | Accepted. Correct the record (below) |
+| shadcn-svelte's visual contribution is small for its size | Noted. The owner decided on 2026-10-10 to keep it for now |
+
+### Required fix 1 — the focus outline is never clipped
+
+`.segments` and `.verdict` set `overflow: hidden`
+([app.css:228-234](../spikes/issue-210/frontend/src/app.css#L228-L234), at
+`653adeb`), which clips the 3 px outline their buttons draw 2 px outside
+themselves. Remove the clipping and keep the joined shape another way.
+
+Add a check, in `proof_axe.py` or `proof_layout.py`: for every stop in the
+keyboard lap, the outline's painted rectangle (the control's box grown by its
+outline width and offset) lies inside the viewport and inside every ancestor
+that clips (an `overflow` other than `visible` on either axis, paint
+containment, or a clip path). Run it on the real fixture at 1440 px and
+390 px in both schemes. Its negative control restores `overflow: hidden` on
+the verdict wrapper through the CSSOM and must be detected. Reading the
+computed outline alone does not count; that is how the defect was missed.
+
+### Required fix 2 — the Tuned stat row is always present
+
+For a same-stat group, every piece shows a tuned-stat cell (marker and
+name), and it is the first row, whether or not tuning differs between
+pieces. `GroupCard.svelte` builds its rows only from `group.differing`
+([GroupCard.svelte:15-18](../spikes/issue-210/frontend/src/components/GroupCard.svelte#L15-L18),
+at `653adeb`).
+
+- **No new oracle adaptation.** When tuning is identical on every piece the
+  oracle requires it in the shared line. Keep it there as well, so the value
+  appears per piece and in "Same on both". That duplication, in a rare case,
+  is preferred to adapting another proof.
+- When Tuning Stat and Tuning Mod Slot do not agree (the unmerged case), the
+  Tuning Mod Slot row is the one that is always present; Tuning Stat follows
+  the oracle as before.
+- **Verification.** Reproduce the reviewer's case and assert it: take the
+  bytes of `tests/fixtures/armor_same_stat_ui.csv` in memory, give both
+  pieces the same Tuning Stat, set one Holofoil to `true`, upload through the
+  real server, and assert at 1440 px and 390 px that every piece has a
+  tuned-stat cell with its value and that S1's parity still holds. No fixture
+  file is added or edited. Add a unit test where the row list is computed; if
+  that moves into `lib/`, report it as logic.
+
+### Design refinements
+
+These change the look, so **the owner's acceptance of 2026-10-10 no longer
+covers the result.** New captures are required, and a new acceptance before
+any PR.
+
+All three are the implementer's design to make, with its design skills,
+reviewed on the 74-group fixture in dark and light at 1440 px and 390 px.
+What each must preserve is fixed:
+
+- **A. Phone triples.** At narrow group widths, flatten the status framing
+  and cut repeated visual emphasis so the tuned stat and the differing
+  values lead. Preserve every full value (ids are never shortened), all
+  proof-fixed copy, and verdict buttons at least 40 px tall. A width check
+  does not show the result is comfortable to use; say so in the worklog.
+  The review server is loopback-only, so the slice cannot be opened on a
+  phone; the 390 px captures and a narrow desktop window are the evidence.
+- **B. Administration.** Make the connected state quiet and bring the
+  session note and actions together where the width allows, so the first
+  group starts higher. Preserve the session note's text and its
+  `data-field`, the three live regions as the same nodes with the same ids,
+  and an error or "not applied" notice that is plainly more prominent than
+  the quiet connected state. Report the first group's top edge at 1440 by
+  1000 px before and after (about 415 px at `653adeb`). It is reported, not
+  gated.
+- **C. Small text.** No visible text in the slice is set smaller than 11 px
+  (`0.6875rem`). The stat-role captions are 0.56rem in narrow groups and the
+  stat names 0.64rem. Add an assertion to `proof_layout.py` that no visible
+  text node's computed size is under 11 px, on the real fixture at both
+  widths. The six-stat strip must still fit at 390 px without breaking a
+  stat name; how is the implementer's choice.
+
+### Correct the record
+
+`docs/evidence/issue-210/README.md` section 3 says direction C was dropped
+because the #206 proofs "could not pass". Add a dated correction beneath the
+table, without rewriting the row: C was incompatible with this ticket's
+all-values-visible proofs, which is a constraint of the ticket and not a
+finding about its usability; it remains a candidate for later task testing.
+
+### What remains to do (replaces Amendment 1's list)
+
+- Required fixes 1 and 2, with their checks.
+- Refinements A, B and C.
+- Amendment 1's three new proofs and two runner substitutions.
+- New captures of the final build, replacing those in
+  `docs/evidence/issue-210/captures/`.
+- Every proof run, verbatim, in the evidence README; the correction above;
+  and `spikes/issue-210/README.md`.
+- A worklog entry for the session.
 
 ## Context & Measurement
 
@@ -512,6 +632,10 @@ Stop implementation and return to orchestrator if:
   those listed in Amendment 1;
 - a replacement proof would need a weaker pass condition than Amendment 1
   states, or a node axe cannot judge persists after scrolling to the top;
+- a refinement in Amendment 2 would need a proof-fixed string, the session
+  note's text, or a live region's node or id to change;
+- always showing the Tuned stat row cannot be made to pass S1 without a
+  further oracle adaptation;
 - direction D cannot meet a behavioural or accessibility requirement of the
   design contract (sections 5.11, 7, 8) without changing its structure;
 - shadcn-svelte needs a package outside the approved list, a CSP addition,
@@ -545,6 +669,13 @@ Escalation route: `implementer → orchestrator → planner`.
    A pass condition is dropped, a state or scheme is skipped, a negative
    control is missing or cannot fail, or the member-column substitution
    reaches further than that one measure.
+6. **The clipping check reads computed style, not painted bounds**
+   (Amendment 2), so it would have passed at `653adeb`. Or the Tuned stat
+   fix is asserted only on the fixture, which has no identical-tuning group.
+7. **A refinement costs information** (Amendment 2): a shortened id, a
+   dropped status word, an error notice no more prominent than the quiet
+   connected state, or text under 11 px left somewhere the check does not
+   look.
 
 ## Implementer selection
 
@@ -601,6 +732,10 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] S1, S2, S3, S4, S5, S6, S15 and `check_source.py` pass through the runner, with transcripts. The tuned-stat merge has a test for its differing case.
 - [ ] (Amendment 1) `proof_csp.py`, `proof_axe.py` and `proof_layout.py` pass, each with its negative control shown to fail; each replacement's pass conditions are no weaker than the #206 proof it replaces, compared line by line.
 - [ ] (Amendment 1) The runner's substitutions are exactly two: the member-column measure, and S15's axe step. No other condition in S6 or S15 is touched.
+- [ ] (Amendment 2) No focus outline is clipped, shown by a check on painted bounds against clipping ancestors at both widths and schemes, with its negative control detected.
+- [ ] (Amendment 2) Every same-stat group shows a per-piece Tuned stat row first, including the identical-tuning case reproduced through the real server; S1 parity holds there; no new oracle adaptation.
+- [ ] (Amendment 2) Refinements A, B and C are done; ids and proof-fixed copy are intact; the three live regions are the same nodes; no visible text is under 11 px; the first group's top edge is reported before and after.
+- [ ] (Amendment 2) The evidence README carries the dated correction about direction C.
 - [ ] `proof_no_transition.py` passes in both schemes over all 435 buttons; the style-recalculation diagnostic is recorded.
 - [ ] Verdict controls are `aria-pressed` buttons using `aria-disabled`; the class filter is a native `select`; pressed, kept and same-stat states each have a non-colour cue.
 - [ ] No inline `style` attribute, web font, image or CSP addition; no `content-visibility`.
@@ -608,13 +743,14 @@ The orchestrator confirms the path against the real diff and, when adversarial r
 - [ ] The cheap-to-change report splits components and stylesheet, generated files, logic, tests and tooling, measured from the carry-forward commit.
 - [ ] Tried-and-dropped approaches and the shadcn-svelte trial are reported.
 - [ ] Likely findings 1 to 4 were each checked against the diff.
-- [ ] The owner has accepted the design from the captures before any PR is proposed. (Done 2026-10-10, at `725bc99`; a later visual change needs a new acceptance.)
+- [ ] The owner has accepted the design from the captures before any PR is proposed. (Accepted 2026-10-10 at `725bc99`. Amendment 2's refinements change the look, so a new acceptance from new captures is required.)
 
 # Review outcome steps (each needs its own authorization)
 
 - Open the ticket's one PR to `main`, with `Refs #210` unless the owner says the PR closes the issue.
 - Create the follow-up issue for repeating #209's seven-comparison timing gate on the redesigned slice.
 - Comment on and close #152 as superseded by #210.
+- Create a follow-up issue for human-readable proposal reasons with the rule slug kept as an audit reference (Amendment 2; the reasons are the server's, so it is not Svelte-slice work).
 
 # Dispatch comment draft
 
@@ -622,4 +758,4 @@ Planned #210 in [handoffs/issue-210-implementation-plan.md](https://github.com/t
 
 - **Implementer model & effort:** `claude-opus-5-5` at `high`
 - **Implementation branch:** `feat/issue-210-armor-duplicates-redesign`
-- **Likely findings:** parity loss hidden by the tuned-stat merge; transitions returning through shadcn-svelte classes on verdict controls; accessibility semantics traded for the library; a cheap-to-change figure that leaves out generated files or carried-forward logic; a replacement proof weaker than the #206 proof it replaces
+- **Likely findings:** parity loss hidden by the tuned-stat merge; transitions returning through shadcn-svelte classes on verdict controls; accessibility semantics traded for the library; a cheap-to-change figure that leaves out generated files or carried-forward logic; a replacement proof weaker than the #206 proof it replaces; a clipping check that reads computed style and not painted bounds; a refinement that costs information
