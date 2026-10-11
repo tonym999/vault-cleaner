@@ -213,7 +213,11 @@ exit 1
 
 ## 3. Every proof on the unchanged copy
 
-Each ran once through `spikes/issue-213/run_proof.py`. The `build served`
+These are the fix-round runs, made after the independent review, each once
+through `spikes/issue-213/run_proof.py` as it now is. The same thirteen
+passed at the baseline on the same build; those transcripts were in this
+file at commit `895c2ec` and are replaced here, because the runner's
+`build-check` path changed in the fix round. The `build served`
 line in each is the SHA-256 of the two files the live server sent to that
 proof's signed-in browser; the runner fails the proof if they are not the
 #213 build's. The source scan opens no browser, so it has no such line.
@@ -221,6 +225,8 @@ proof's signed-in browser; the runner fails the proof if they are not the
 `build-check` is that check's negative control. It serves #206's build on
 purpose. The `RESULT: FAIL` line in its transcript is the check firing, which
 is what the control requires; the proof's own result is the last line.
+It needs `spikes/issue-206/frontend` built. Without that build it now ends
+with its own `RESULT: FAIL`; that path is shown after its transcript.
 
 ### build-check
 
@@ -234,6 +240,18 @@ RESULT: FAIL (the server did not send the issue-213 build)
 negative control: #206's build was served and refused
 RESULT: PASS
 exit 0
+```
+
+With `spikes/issue-206/frontend/dist` moved aside for one run, then moved back:
+
+```bash
+mv spikes/issue-206/frontend/dist spikes/issue-206/frontend/dist.aside; .venv/bin/python spikes/issue-213/run_proof.py build-check; echo "exit $?"; mv spikes/issue-206/frontend/dist.aside spikes/issue-206/frontend/dist
+```
+
+```text
+FAIL: not built: spikes/issue-206/frontend. Run `npm ci && npm run build` there first.
+RESULT: FAIL
+exit 1
 ```
 
 ### S1
@@ -571,7 +589,7 @@ exit 0
 built stylesheet: rules mentioning aria-disabled=0
 build served: app.js sha256=5b5c2b87d268f942077e053f0e341db1b32e243dc90d65aa2faa600831fcb981 app.css sha256=95368d83cc4ea710d43b41100ab808ee99315294e0ab81cb74ffe8ce087064e0; is the issue-213 build=True; same bytes as the issue-210 build=True
 dark: verdict buttons=435, pressed=145, with a transition or animation=0
-style recalculation over one acknowledged verdict, ms: 1.4, 1.3, 1.4, 1.0, 1.0; median 1.3 (recorded, not gated; #209 measured 138.7 on #206)
+style recalculation over one acknowledged verdict, ms: 1.3, 1.6, 1.0, 1.3, 1.0; median 1.3 (recorded, not gated; #209 measured 138.7 on #206)
 after 5 verdicts: pressed=145, with a transition or animation=0
 negative control, a 0.2s transition added: with a transition=435 of 435
 light: verdict buttons=435, pressed=145, with a transition or animation=0
@@ -810,37 +828,49 @@ sanitised report, acknowledged verdict, 390px dark: keyboard focus=444/444; lowe
 sanitised report, acknowledged verdict, 390px dark, Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 sanitised report, acknowledged verdict, 390px dark, Shift+Tab: focus stops=444, reached=444, with a visible focus indicator=444, outline clipped or covered=0 []
 slice CSP violations: []; console/errors/dialogs: {'dialogs': [], 'console': [], 'errors': []}
-timing run 1 slice: all groups=74; navigation=233.9ms, next frame=247.6ms; ack-to-DOM=7.4ms, next frame=7.9ms; DOM elements=13019
-timing run 1 production: all groups=74; navigation=141.5ms, next frame=146.7ms; ack-to-DOM=10.5ms, next frame=19.5ms; DOM elements=17138
-timing run 2 production: all groups=74; navigation=147.4ms, next frame=153.9ms; ack-to-DOM=10.0ms, next frame=18.0ms; DOM elements=17138
-timing run 2 slice: all groups=74; navigation=233.1ms, next frame=246.2ms; ack-to-DOM=7.6ms, next frame=8.0ms; DOM elements=13019
-timing run 3 slice: all groups=74; navigation=235.8ms, next frame=250.0ms; ack-to-DOM=6.9ms, next frame=7.3ms; DOM elements=13019
-timing run 3 production: all groups=74; navigation=168.1ms, next frame=174.9ms; ack-to-DOM=11.2ms, next frame=23.8ms; DOM elements=17138
-timing run 4 production: all groups=74; navigation=169.1ms, next frame=178.0ms; ack-to-DOM=10.2ms, next frame=21.0ms; DOM elements=17138
-timing run 4 slice: all groups=74; navigation=261.9ms, next frame=278.0ms; ack-to-DOM=7.9ms, next frame=10.9ms; DOM elements=13019
-timing run 5 slice: all groups=74; navigation=241.1ms, next frame=257.4ms; ack-to-DOM=7.2ms, next frame=7.4ms; DOM elements=13019
-timing run 5 production: all groups=74; navigation=148.2ms, next frame=154.4ms; ack-to-DOM=9.3ms, next frame=17.4ms; DOM elements=17138
+timing run 1 slice: all groups=74; navigation=241.2ms, next frame=254.3ms; ack-to-DOM=6.4ms, next frame=6.9ms; DOM elements=13019
+timing run 1 production: all groups=74; navigation=139.9ms, next frame=145.2ms; ack-to-DOM=8.9ms, next frame=18.0ms; DOM elements=17138
+timing run 2 production: all groups=74; navigation=135.7ms, next frame=141.4ms; ack-to-DOM=9.6ms, next frame=18.2ms; DOM elements=17138
+timing run 2 slice: all groups=74; navigation=230.5ms, next frame=243.4ms; ack-to-DOM=6.5ms, next frame=12.2ms; DOM elements=13019
+timing run 3 slice: all groups=74; navigation=251.0ms, next frame=264.5ms; ack-to-DOM=8.7ms, next frame=11.7ms; DOM elements=13019
+timing run 3 production: all groups=74; navigation=158.8ms, next frame=166.3ms; ack-to-DOM=11.3ms, next frame=21.4ms; DOM elements=17138
+timing run 4 production: all groups=74; navigation=145.5ms, next frame=151.6ms; ack-to-DOM=10.5ms, next frame=15.0ms; DOM elements=17138
+timing run 4 slice: all groups=74; navigation=234.1ms, next frame=246.8ms; ack-to-DOM=8.0ms, next frame=11.5ms; DOM elements=13019
+timing run 5 slice: all groups=74; navigation=244.0ms, next frame=258.7ms; ack-to-DOM=7.7ms, next frame=10.5ms; DOM elements=13019
+timing run 5 production: all groups=74; navigation=153.8ms, next frame=159.3ms; ack-to-DOM=9.9ms, next frame=18.2ms; DOM elements=17138
 verdict target: group 74/74, chosen from the envelope
-slice medians (5 runs): navigation=235.8ms, next frame=250.0ms; ack-to-DOM=7.4ms, next frame=7.9ms; DOM elements=13019
-production medians (5 runs): navigation=148.2ms, next frame=154.4ms; ack-to-DOM=10.2ms, next frame=19.5ms; DOM elements=17138
+slice medians (5 runs): navigation=241.2ms, next frame=254.3ms; ack-to-DOM=7.7ms, next frame=11.5ms; DOM elements=13019
+production medians (5 runs): navigation=145.5ms, next frame=151.6ms; ack-to-DOM=9.9ms, next frame=18.2ms; DOM elements=17138
 RESULT: PASS
 exit 0
 ```
 
 ## 4. Attribution
 
-`proof_attribution.py` ran three times. The third run is the complete one and
-is the one the record quotes first. All three are kept.
+`proof_attribution.py` ran four times. All four are kept.
 
 - **Run 1** stopped in part 4: the container-rule rewrite looked for
   `(min-width: …)` and the build writes `(width>=…)`. Parts 1 to 3 completed.
 - **Run 2** is complete for the script as it then was, without the two
   layout ablations.
 - **Run 3** adds the layout ablations to the last comparison.
+- **Run 4** was made in the fix round, after the independent review. It
+  intercepts production's document and static files the same way as the
+  slice's, and adds part 0, which measures what interception costs each
+  page.
 
-Runs 1 and 2 were made with earlier versions of the script, which were not
-committed, so those two fences cannot be reproduced exactly from this
-repository. The differences are the two listed above.
+**Runs 1 to 3 intercepted the slice and the floor but not production.** That
+was a defect in the proof, found by the review. In those three runs every
+figure that sets the slice or the floor beside production is biased against
+the slice, by about the 10 ms that run 4's part 0 measures. Comparisons among
+slice arms, and among floor arms, are not affected: both sides were
+intercepted alike. Chromium's counters (script, style, layout) are not
+affected either. The record takes its slice-against-production timings from
+run 4 only.
+
+Runs 1 to 3 were made with earlier versions of the script. Runs 1 and 2 used
+versions that were never committed; run 3 used the version at commit
+`895c2ec`. Those fences cannot be reproduced exactly from the current file.
 
 Reading the output:
 
@@ -852,15 +882,96 @@ Reading the output:
   and so forces style and layout before this stamp is taken.
 - In the profile, "browser built-ins called from script" includes that forced
   style and layout, because the box read is called from script.
+- The floor fetches its 1 MB of markup through the interception. Production
+  has no equivalent request, so the floor's stamps against production's are
+  an upper estimate of the floor's cost; its counters are not.
 - The run-to-run spread of the unchanged arm's `ready` median across these
-  comparisons is 241 to 262 ms. A difference smaller than that between two
+  comparisons is 241 to 262 ms. A difference under about 15 ms between two
   arms is not a finding.
 
-### Run 3 (complete)
+### Run 4 (complete; production intercepted like the slice)
 
 ```bash
 .venv/bin/python spikes/issue-213/proof_attribution.py
 ```
+
+```text
+fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; viewport 1440x1000 light
+build served: app.js sha256=5b5c2b87d268f942077e053f0e341db1b32e243dc90d65aa2faa600831fcb981 app.css sha256=95368d83cc4ea710d43b41100ab808ee99315294e0ab81cb74ffe8ce087064e0; is the issue-213 build=True; same bytes as the issue-210 build=True
+-- 0. what interception adds: each page with and without it --
+  unchanged: ready=245.6ms (+0.0); settled=264.6ms (+0.0); script=94.9 style=30.7 layout=79.3 task=248.1ms; report 48.3-62.4ms; first group=245.6ms; elements=13019; report requests=[1]; ready samples=[267.3, 250, 239.3, 245.6, 242.6]
+  slice, not intercepted: ready=235.6ms (-10.0); settled=259.3ms (-5.3); script=95.8 style=30.6 layout=75.6 task=255.3ms; report 39.9-51.1ms; first group=235.6ms; elements=13019; report requests=[1]; ready samples=[244.9, 233.1, 229.7, 242.3, 235.6]
+  production: ready=151.4ms (-94.2); settled=159.3ms (-105.3); script=22.1 style=15.8 layout=46.7 task=145.5ms; report 29.9-44.3ms; first group=151.5ms; elements=17138; report requests=[1]; ready samples=[162.7, 166.9, 150.3, 148.4, 151.4]
+  production, not intercepted: ready=144.7ms (-100.9); settled=161.2ms (-103.4); script=22.3 style=15.7 layout=46.2 task=152.7ms; report 23.7-35.1ms; first group=144.8ms; elements=17138; report requests=[1]; ready samples=[143.2, 144.7, 143.7, 147.9, 145.8]
+-- 1. timeline, medians of 5 alternating fresh documents, ms from navigation start --
+  slice: document=4.3; /spike/assets/app.css loaded=15.5; /spike/assets/app.js loaded=19.7
+  slice: report request 48.1 to 61.9; first group in document=246.3; all groups in document=144.7; ready=246.3; next frame=259.4; settled=265.5
+  slice: before the report arrived=61.9; report arrival to ready=184.4; counters to settled: script=96.5 style=30.6 layout=76.3 task=246.1; elements=13019
+  production: document=4.0; /assets/review.css loaded=16.0; /assets/review_server.js loaded=18.5; /assets/review_ui.js loaded=17.2
+  production: report request 28.9 to 46.5; first group in document=156.8; all groups in document=102.2; ready=156.7; next frame=163.0; settled=165.0
+  production: before the report arrived=46.5; report arrival to ready=110.2; counters to settled: script=23.1 style=15.2 layout=47.6 task=147.3; elements=17138
+-- 2. profile: unminified build of the same source, sampling every 200 us, medians of 5 fresh documents; proportions, not timings --
+  self time by where the function came from:
+      125.7 ms  browser built-ins called from script
+       57.9 ms  package: svelte
+       51.2 ms  browser, outside script
+       12.7 ms  garbage collection
+        7.5 ms  package: tailwind-variants
+        5.3 ms  package: tailwind-merge
+        3.8 ms  slice: lib/filters.ts
+        3.0 ms  slice: lib/view.ts
+        2.3 ms  slice: components/PieceColumn.svelte
+        2.0 ms  slice: components/GroupCard.svelte
+        1.2 ms  slice: components/ui/badge.svelte
+        0.6 ms  slice: lib/session.svelte.ts
+        0.6 ms  slice: App.svelte
+  inclusive time under each component:
+       67.3 ms  GroupCard
+       40.4 ms  PieceColumn
+       10.3 ms  Badge
+        6.9 ms  TunedStat
+        5.9 ms  StatStrip
+        5.6 ms  Value
+        5.1 ms  Filters
+        4.9 ms  VerdictControls
+        4.9 ms  App
+        3.5 ms  Button
+        3.4 ms  SessionPanel
+-- 3. floor: the slice's own markup and stylesheet, no framework --
+  captured markup: 1007504 bytes; assigned once the same report request has answered
+  markup equal (comment anchors ignored)=True; every element's box equal=True
+  unchanged: ready=243.5ms (+0.0); settled=263.2ms (+0.0); script=94.8 style=30.8 layout=76.0 task=248.7ms; report 46.2-60.4ms; first group=243.5ms; elements=13019; report requests=[1]; ready samples=[246.2, 246.3, 243.5, 242.6, 243]
+  floor: ready=180.8ms (-62.7); settled=199.3ms (-63.9); script=1.2 style=30.5 layout=73.8 task=164.6ms; report 19.4-37.1ms; first group=180.9ms; elements=13019; report requests=[1]; ready samples=[180.8, 196.2, 176.4, 181.9, 173.7]
+  production: ready=156.2ms (-87.3); settled=164.0ms (-99.2); script=22.7 style=15.4 layout=48.2 task=142.8ms; report 30.4-47.3ms; first group=156.3ms; elements=17138; report requests=[1]; ready samples=[183.2, 150.6, 156.2, 148.8, 162]
+-- 4. ablations: one suspected cause removed, against the unchanged build --
+  class-merge-once: a badge's class string is merged once per distinct input, not once per badge
+  class-merge-once: app.js 144500 bytes sha256=5d8467ea4d01e99d; markup equal (comment anchors ignored)=True
+  report-first: the report is requested before the page is mounted, not after
+  report-first: app.js 144389 bytes sha256=ff0b1152095fbbc9; markup equal (comment anchors ignored)=True
+  value-inline: no Value component
+  value-inline: 7 uses of the Value component written out as their one span
+  value-inline: app.js 145058 bytes sha256=ab7ef2065cd1ce4f; markup equal (comment anchors ignored)=True
+  no-container-queries: 17 container rules and declarations resolved for a 1348 px group; markup equal (comment anchors ignored)=True; every element's box equal=True
+  report-preload: a preload hint for /api/report in index.html; markup equal (comment anchors ignored)=True
+  unchanged: ready=252.8ms (+0.0); settled=271.1ms (+0.0); script=97.9 style=30.6 layout=76.0 task=244.5ms; report 52.6-66.8ms; first group=252.8ms; elements=13019; report requests=[1]; ready samples=[252.8, 256.5, 240.5, 265.9, 246.6]
+  class-merge-once: ready=243.8ms (-9.0); settled=261.3ms (-9.8); script=95.9 style=31.5 layout=74.4 task=243.9ms; report 50.4-64.2ms; first group=244.0ms; elements=13019; report requests=[1]; ready samples=[241.1, 243.8, 243.3, 252.3, 245.8]
+  report-first: ready=245.5ms (-7.3); settled=263.3ms (-7.8); script=94.8 style=29.8 layout=77.8 task=243.3ms; report 41.7-61.8ms; first group=245.6ms; elements=13019; report requests=[1]; ready samples=[242.9, 246, 245.5, 240, 250.6]
+  value-inline: ready=241.6ms (-11.2); settled=258.0ms (-13.1); script=90.2 style=30.9 layout=76.1 task=244.1ms; report 49.0-61.9ms; first group=241.6ms; elements=13019; report requests=[1]; ready samples=[235, 239.3, 248.1, 241.6, 249.3]
+  no-container-queries: ready=239.8ms (-13.0); settled=258.4ms (-12.7); script=97.0 style=22.4 layout=79.2 task=240.7ms; report 50.9-65.8ms; first group=239.9ms; elements=13019; report requests=[1]; ready samples=[254.5, 235.4, 237, 239.8, 242.2]
+  report-preload: ready=255.2ms (+2.4); settled=273.5ms (+2.4); script=96.1 style=30.9 layout=77.1 task=250.7ms; report 8.8-24.0ms; first group=255.2ms; elements=13020; report requests=[1]; ready samples=[261.2, 258.8, 255.2, 249.6, 252.6]
+  the floor again with stylesheet ablations, beside production. The two layout
+  ablations change the page's geometry: they measure the grid, they are not candidates:
+  floor: ready=181.0ms (+0.0); settled=200.4ms (+0.0); script=1.1 style=32.0 layout=76.0 task=169.9ms; report 19.7-38.6ms; first group=181.1ms; elements=13019; report requests=[1]; ready samples=[191.1, 176.2, 181, 174.5, 186.4]
+  floor + no-container-queries: ready=183.5ms (+2.5); settled=205.2ms (+4.8); script=1.2 style=23.6 layout=77.3 task=167.5ms; report 18.4-37.7ms; first group=183.6ms; elements=13019; report requests=[1]; ready samples=[183.7, 191.1, 180.4, 183.5, 174.2]
+  floor + comparison grid as blocks: ready=179.6ms (-1.4); settled=196.0ms (-4.4); script=1.2 style=31.4 layout=70.8 task=163.2ms; report 19.3-39.0ms; first group=179.7ms; elements=13019; report requests=[1]; ready samples=[179.6, 174.3, 193.2, 172.5, 181.4]
+  floor + every grid as blocks: ready=166.5ms (-14.5); settled=183.1ms (-17.3); script=1.2 style=31.0 layout=56.4 task=147.8ms; report 19.6-37.9ms; first group=166.5ms; elements=13019; report requests=[1]; ready samples=[159.3, 167.6, 165.5, 169.3, 166.5]
+  floor + no-container-queries + every grid as blocks: ready=161.0ms (-20.0); settled=177.9ms (-22.5); script=1.3 style=23.0 layout=57.0 task=139.5ms; report 20.4-37.3ms; first group=161.0ms; elements=13019; report requests=[1]; ready samples=[160.4, 154.9, 167.3, 164.6, 161]
+  production: ready=154.2ms (-26.8); settled=162.4ms (-38.0); script=22.2 style=15.5 layout=47.0 task=143.8ms; report 24.3-44.3ms; first group=154.3ms; elements=17138; report requests=[1]; ready samples=[154.2, 148.3, 169.5, 144.9, 161.2]
+RESULT: PASS
+exit 0
+```
+
+### Run 3 (complete; production not intercepted)
 
 ```text
 fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; viewport 1440x1000 light
@@ -937,7 +1048,7 @@ RESULT: PASS
 exit 0
 ```
 
-### Run 2 (complete, before the layout ablations were added)
+### Run 2 (complete, before the layout ablations were added; production not intercepted)
 
 ```text
 fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; viewport 1440x1000 light
@@ -1008,7 +1119,7 @@ RESULT: PASS
 exit 0
 ```
 
-### Run 1 (stopped in part 4)
+### Run 1 (stopped in part 4; production not intercepted)
 
 ```text
 fixture: tests/fixtures/real/2026-09-01T-current/armor.csv; viewport 1440x1000 light
@@ -1173,9 +1284,14 @@ exit 1
 ```
 
 A1 on the slice is 236.2 ms, between the two baseline invocations (229.2 and
-240.8 ms). No gated navigation comparison moved by more than the baseline
-spread, so the change was taken out with `git checkout -- spikes/issue-213/frontend`
-and the slice rebuilt (section 1).
+240.8 ms), and A2 and B1 are likewise inside the baseline range. B2 and B3
+did move by more than the baseline spread, from fail to pass: B2 from +8.2
+and +2.0 to -1.5, B3 from +9.1 and +7.5 to -1.0. That movement is not
+credited to the change, because the two final invocations in section 6, on
+the unchanged source, show the same movement without it (B2 -6.9 and -2.6;
+B3 -2.5 and +0.6). The change was taken out with
+`git checkout -- spikes/issue-213/frontend` and the slice rebuilt
+(section 1).
 
 ## 6. The two final gate invocations
 
@@ -1349,7 +1465,7 @@ exit 0
 ........................................................................ [ 91%]
 ........................................................................ [ 96%]
 ..............................................                           [100%]
-1342 passed in 32.35s
+1342 passed in 31.99s
 exit 0
 ```
 
@@ -1359,6 +1475,6 @@ VAULT_CLEANER_BROWSER_REQUIRED=1 .venv/bin/pytest -q -m browser tests/test_serve
 
 ```text
 ................                                                         [100%]
-16 passed, 3 deselected in 12.08s
+16 passed, 3 deselected in 12.06s
 exit 0
 ```

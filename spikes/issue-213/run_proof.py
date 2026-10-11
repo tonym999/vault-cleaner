@@ -153,6 +153,10 @@ def bounded_s15() -> int:
 
 def build_check() -> int:
     """Negative control: serve #206's build and require the check to refuse it."""
+    if not (ISSUE_206 / "frontend" / "dist" / "index.html").is_file():
+        print("FAIL: not built: spikes/issue-206/frontend. Run `npm ci && npm run build` there first.")
+        print("RESULT: FAIL")
+        return 1
     runner_210().configure(ISSUE_206 / "frontend")
     import harness
 

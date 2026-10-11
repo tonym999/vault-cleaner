@@ -546,61 +546,91 @@ the same bytes in all four columns.
 **Where first-render time goes.** Measured before any change, by
 `proof_attribution.py`
 ([evidence, section 4](evidence/issue-213/README.md#4-attribution)). Medians
-of five fresh documents; ranges are across its three runs.
+of five fresh documents, from its fourth run.
 
-| To the settled frame | Slice | Production |
+The attribution harness answers each page's document and static files
+through Playwright's request interception, so that it can swap in variant
+files. Interception costs time: in that run it added 10.0 ms to the slice's
+`ready` and 6.7 ms to production's, and moved each page's report request
+6 to 8 ms later. Both pages are intercepted alike in the fourth run. In the
+first three runs only the slice was, which the independent review found;
+their slice-against-production figures are biased against the slice by about
+that much and are not used here. So the figures in this part are comparable
+with each other and are a little higher than the gate's, which intercepts
+nothing.
+
+| To the settled frame, both pages intercepted | Slice | Production |
 | --- | --- | --- |
-| Report request starts | 49 to 53 ms | 23 to 29 ms |
-| Report has arrived | 61 to 66 ms | 35 to 42 ms |
-| Every group in the document | 144 to 149 ms | 94 to 95 ms |
-| Every group laid out (`ready`) | 241 to 248 ms | 146 to 149 ms |
-| Script | 93 to 97 ms | 22 to 23 ms |
-| Layout | 74 to 77 ms | 46 to 47 ms |
-| Style recalculation | 30 to 31 ms | 15 ms |
-| Main-thread task time | 242 to 249 ms | 142 ms |
+| Report request starts | 48.1 ms | 28.9 ms |
+| Report has arrived | 61.9 ms | 46.5 ms |
+| Every group in the document | 144.7 ms | 102.2 ms |
+| Every group laid out (`ready`) | 246.3 ms | 156.7 ms |
+| Script | 96.5 ms | 23.1 ms |
+| Layout | 76.3 ms | 47.6 ms |
+| Style recalculation | 30.6 ms | 15.2 ms |
+| Main-thread task time | 246.1 ms | 147.3 ms |
 | Elements | 13,019 | 17,138 |
 
+The four counter rows do not depend on interception: each was the same to
+within 5 ms across all four runs, and they match the gate's own counters.
+
 The slice's main thread is busy from start to finish: task time equals the
-time to `ready`. The gap has three parts of similar size. The report is
-requested 21 to 26 ms later, because the 144 kB script has to load and run
-first. Building the document from the report takes about 83 ms against 52
-to 59. Styling and laying it out takes about 98 ms against 53.
+time to `ready`. Of the 90 ms between the two `ready` stamps, the report
+arriving later is 15 ms (the 144 kB script has to load and run before the
+request is made; without interception the request started 16 ms later than
+production's). Building the document from the report takes 83 ms against
+56. Styling and laying it out takes 102 ms against 55. The last two are the
+bulk of the gap, and they are what the counters show: script +73 ms, layout
++29 ms, style +15 ms.
 
 **The floor.** The slice's own rendered markup and its own stylesheet, with
 no framework at all: the script is replaced by one that waits for the same
 report and assigns the markup. Every element's box is identical to the
-slice's. In five comparisons the floor reached `ready` in 180 to 193 ms and
-production, in the same comparisons, in 151 to 162 ms. **With no client code
-left to remove, the redesigned document is still 21 to 41 ms slower than
-production**, on layout (74 to 76 ms against 45 to 49) and style (30 to 33
-against 15 to 16). No change to the slice's script can pass A1.
+slice's. With both pages intercepted, the floor reached `ready` in 180.8 and
+181.0 ms and production in 156.2 and 154.2 ms: 25 and 27 ms slower. The
+floor also fetches its 1 MB of markup through the interception, which
+production has no equivalent of, so that margin is an upper estimate. The
+counters carry no such bias. The floor spends 74 to 76 ms on layout and 30
+to 33 ms on style with about 1 ms of script, in every run: 105 to 110 ms.
+Production spends 84 to 88 ms on script, style and layout together. **With
+no client code left to remove, the redesigned document still costs about
+20 ms more main-thread work than the whole of production's load.** No change
+to the slice's script alone can pass A1.
 
 **Ablations.** One suspected cause removed at a time, against the unchanged
-build in the same alternation. The unchanged arm's own median moved between
-241 and 262 ms across these comparisons, so a smaller difference is not a
-finding.
+build in the same alternation, through the attribution harness and not
+through the gate. Every arm in these comparisons is the slice or the floor,
+intercepted alike, so all three complete runs count. The unchanged arm's own
+`ready` median moved between 241 and 262 ms across comparisons, so a
+difference under about 15 ms between two arms is not a finding.
 
 | Removed | Moves `ready` by | What the counters show |
 | --- | --- | --- |
-| Class merging per badge (`tailwind-merge`, the cause #210 guessed) | -3.9, -11.4 ms | script -1.9, -6.3 ms |
-| The `Value` component, written out inline | -1.2, -15.6 ms | script -0.7, -5.7 ms |
-| Report requested before mounting | -1.7, -9.3 ms | script -0.7, -3.9 ms |
-| A preload hint for the report | +0.9, +5.1 ms | the report arrives about 39 ms earlier, still one request, and `ready` does not move: the main thread is busy anyway |
-| Container queries, resolved for this width | -4.4, -5.0 ms on the slice; -19.5, +0.6 ms on the floor | style down 8 to 10 ms, in every run |
-| The comparison grid as plain blocks (changes the layout) | -6.2 ms on the floor | layout down 5 ms |
-| Every grid as plain blocks (changes the layout) | -21.5 ms on the floor | layout down 19 ms, to 57; production 48 |
+| Class merging per badge (`tailwind-merge`, the cause #210 guessed) | -3.9, -11.4, -9.0 ms | script -1.9, -6.3, -2.0 ms |
+| The `Value` component, written out inline | -1.2, -15.6, -11.2 ms | script -0.7, -5.7, -7.7 ms |
+| Report requested before mounting | -1.7, -9.3, -7.3 ms | script -0.7, -3.9, -3.1 ms |
+| A preload hint for the report | +0.9, +5.1, +2.4 ms | the report arrives 39 to 43 ms earlier, still one request, and `ready` does not move: the main thread is busy anyway |
+| Container queries, resolved for this width | -4.4, -5.0, -13.0 ms on the slice; -19.5, +0.6, +2.5 ms on the floor | style down 8 to 10 ms, in every run |
+| The comparison grid as plain blocks (changes the layout) | -6.2, -1.4 ms on the floor | layout down 5 ms, both times |
+| Every grid as plain blocks (changes the layout) | -21.5, -14.5 ms on the floor | layout down 19 and 20 ms, to 56 to 57; production 47 to 48 |
 
-Two figures in a cell are the two complete runs. In the second run the
+The figures in a cell are the complete runs in order. The grid ablations
+exist in the last two runs only. In the second of the three runs the
 unchanged arm's own script counter was 6 ms higher than in the first (101.6
-against 95.4 ms), so the larger script figures are that arm moving, not the
-variants. Only two effects are stable across runs: container queries cost 8
-to 10 ms of style, and the page's grids cost about 19 ms of layout. The
-second is the layout the owner accepted in #210, which lines pieces up row
-by row. Nothing in the script rows is separable from noise.
+against 95.4 ms), so that run's larger figures are partly that arm moving.
+
+Read against the baseline spread, which is 11.6 ms on the slice's A1 median:
+of the allowed candidates, the `Value` ablation passed it once (-15.6 ms)
+and container queries once (-13.0 ms), and none did in every run. None was
+measured through the gate. What the counters show consistently is small: class merging, the
+`Value` component and request order are each a few milliseconds of script;
+container queries are 8 to 10 ms of style; the page's grids are about 19 ms
+of layout. The grids are the layout the owner accepted in #210, which lines
+pieces up row by row.
 
 In the profile, of the script time inside the bundle, Svelte's runtime is
 53 to 58 ms of samples, `tailwind-variants` and `tailwind-merge` together
-about 13, and all of the slice's own modules about 19. Those are proportions
+about 13, and all of the slice's own modules 14 to 19. Those are proportions
 from a sampling profile, not timings.
 
 **Not attributed.** About 7 ms of style beyond production's that container
@@ -615,15 +645,32 @@ change follows from it.
 | Step | What | Result |
 | --- | --- | --- |
 | 0 | Baseline on the unchanged copy, two invocations; all thirteen proofs | Gate fails as above; proofs pass |
-| 1 | Attribution, before any change | As above |
-| 2 | Class string merged once per distinct input. Rendered markup identical. Gate invocation 3: A1 236.2 / 148.5, +87.7; A2 +95.9; B1 +99.0; A3, A4, B2, B3 pass | **Dropped.** A1 on the slice sits between the two baseline values (229.2 and 240.8) |
+| 1 | Attribution | As above |
+| 2 | Class string merged once per distinct input. Rendered markup identical. Gate invocation 3: A1 236.2 / 148.5, +87.7; A2 +95.9; B1 +99.0; A3 and A4 pass; B2 53.2 / 54.7, -1.5; B3 29.6 / 30.6, -1.0 | **Dropped** (see below) |
 | 3 | Two final invocations on the unchanged source | Gate fails |
 
-No other change was built. Every other allowed candidate has an ablation
-above, and none moves a gated comparison by more than the spread between the
-two baseline invocations. Together they could not close a gap of 84 ms.
-Rendering containment, deferred or chunked mounting, paging and
+**Why the change was dropped.** The plan keeps a change only if it moved a
+gated comparison by more than the spread between the two baseline
+invocations. Read literally, invocation 3 met that on two comparisons: B2
+went from +8.2 and +2.0 to -1.5, and B3 from +9.1 and +7.5 to -1.0, both
+from fail to pass. That is not credited to the change, for a measured
+reason: the two final invocations, on the unchanged source, show the same
+movement without it (B2 -6.9 and -2.6; B3 -2.5 and +0.6). The baseline
+spread on B2 and B3 understates how far those two comparisons move on their
+own, because they turn on which frame production's median lands in. On the
+navigation comparisons, the ones that fail by 84 ms and more, A1 on the
+slice was 236.2 ms, between the two baseline values of 229.2 and 240.8.
+
+No other change was built. Each remaining allowed candidate has an ablation
+above. By the counters each is worth a few milliseconds, and together well
+under 20 ms, against navigation gaps of 84 ms and more, so none was taken to
+the gate. Rendering containment, deferred or chunked mounting, paging and
 virtualisation were excluded by the plan and were not measured.
+
+**The order of work.** The plan asked for the attribution to be committed
+before any change to the slice. No commit changes the slice, so history
+cannot show that order; the attribution's first three runs were made before
+the change was tried, and its fourth after the review.
 
 **What a pass would need.** Not a faster script alone: the floor fails. A
 passing slice would need less layout and style than the accepted design
@@ -634,8 +681,10 @@ this ticket to change, and both are the owner's decision.
 the source scan, and #210's four own proofs each pass against this build,
 and each printed the hashes of the files it was served
 ([evidence, section 3](evidence/issue-213/README.md#3-every-proof-on-the-unchanged-copy)).
-The visual comparison the plan required for a changed slice was not needed.
-Lines added to the slice: none. H8 is not affected.
+They were run at the baseline and again in the fix round after the review,
+on the same bytes both times. The visual comparison the plan required for a
+changed slice was not needed. Lines added to the slice: none. H8 is not
+affected.
 
 ### H8: is maintenance effort clearly lower? Yes, on structure
 

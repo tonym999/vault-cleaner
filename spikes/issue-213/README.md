@@ -37,6 +37,12 @@ Node 24 and the project environment are needed.
 
 The second build is only compared by hash.
 
+```bash
+(cd spikes/issue-206/frontend && npm ci && npm run build)
+```
+
+Only `build-check` needs the third: it serves #206's build as the wrong one.
+
 ## The gate
 
 ```bash

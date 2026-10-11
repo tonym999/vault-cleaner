@@ -93,12 +93,16 @@ gate (#213)". Transcripts are in `docs/evidence/issue-213/README.md`.
 ## Surprises, for the next agent
 
 - **The floor fails.** The redesigned document with no client code at all
-  reaches `ready` 21 to 41 ms after production. Layout is 74 to 76 ms
+  reaches `ready` about 25 ms after production. Layout is 74 to 76 ms
   against 45 to 49 and style 30 to 33 against 15 to 16, with fewer elements.
-  So the gap is not only Svelte's mount: about a third of it is the design.
+  So the gap is not only Svelte's mount: part of it is the design.
+  (Corrected in fix round 1: this bullet first said "21 to 41 ms" and "about
+  a third", from runs that intercepted the floor and not production. See
+  `2026-10-11-issue-213-fix-round-1.md`.)
 - **The grids are most of the extra layout.** With every grid forced to
-  blocks the floor's layout falls by 19 ms and it draws level with
-  production. That destroys the row alignment the owner accepted, so it is
+  blocks the floor's layout falls by 19 ms and it comes within 12 ms
+  of production. (Corrected in fix round 1: measured once when this was
+  written, twice now; "draws level" was one run.) That destroys the row alignment the owner accepted, so it is
   a measurement, not a candidate.
 - **Container queries cost 8 to 10 ms of style,** stable in every run. They
   could in principle become media queries, since a group's width follows

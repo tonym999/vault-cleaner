@@ -23,8 +23,14 @@ Four parts, all on the tracked sanitised fixture at 1440x1000, light:
    the unchanged build in the same alternation. A cause counts only if
    removing it moves the number.
 
-Every arm, the unchanged build included, has its three files answered through
-the same interception, so the arms differ only in the bytes named.
+Every arm has its document and its static files answered through the same
+interception: the slice's three files, the floor's, and production's page,
+stylesheet and two scripts. API requests are not intercepted on any arm. The
+arms then differ only in the bytes named.
+
+Interception is not free. Part 0 measures what it adds to each page, so the
+figures here are comparable with each other and are not the gate's: the gate
+intercepts nothing.
 """
 
 from __future__ import annotations
@@ -207,8 +213,9 @@ class Arm:
     """One set of served bytes. ``files`` replaces any of the three by name."""
 
     def __init__(self, label: str, files: dict[str, bytes] | None = None, path: str = "/spike/",
-                 floor: bytes | None = None) -> None:
+                 floor: bytes | None = None, routed: bool = True) -> None:
         self.label, self.files, self.path, self.floor = label, files or {}, path, floor
+        self.routed = routed
 
     def open(self, context: Any, live: Any) -> tuple[Any, Any, list[str]]:
         page = context.new_page()
@@ -222,10 +229,15 @@ class Arm:
             elif path in FILES:
                 response = route.fetch()
                 route.fulfill(response=response, body=self.files.get(FILES[path], response.body()))
+            elif path == "/" or path.startswith("/assets/"):
+                # Production's page and static files: the same round trip, bytes unchanged.
+                response = route.fetch()
+                route.fulfill(response=response)
             else:
                 route.continue_()
 
-        page.route("**/spike/**", serve)
+        if self.routed:
+            page.route("**/*", serve)
         cdp = context.new_cdp_session(page)
         cdp.send("Performance.enable")
         return page, cdp, requests
@@ -384,6 +396,14 @@ def main() -> int:
         context = harness.authenticated_context(browser, live)
         context.add_init_script("window.__scaleGroups = 74;\n" + TIMING_JS + SETTLED_JS + FIRST_JS)
         unchanged = Arm("unchanged", served)
+
+        print("-- 0. what interception adds: each page with and without it --")
+        compare(context, live, [
+            unchanged,
+            Arm("slice, not intercepted", routed=False),
+            Arm("production", path="/"),
+            Arm("production, not intercepted", path="/", routed=False),
+        ])
 
         timeline(context, live, unchanged)
 
