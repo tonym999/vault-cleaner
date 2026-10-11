@@ -26,10 +26,6 @@ WIDTHS = {"desktop": (1440, 1000, 1), "narrow": (390, 844, 2)}
 STILL = "document.querySelectorAll('.kind-head').forEach((head) => { head.style.position = 'static'; })"
 
 
-def group_with(page, pieces: int):
-    return page.locator(f"article[data-group]:has(.n{pieces})").first
-
-
 def signed_in(browser, live) -> dict:
     """The session cookie from one real bootstrap; the sign-in link is one-use."""
     context = harness.authenticated_context(browser, live)
@@ -58,14 +54,24 @@ def capture_real(browser, live, out: Path) -> None:
             page.screenshot(path=out / f"{stem}-viewport.png")
             page.evaluate(STILL)
             tall = 1900 if name == "desktop" else 2300
-            page.screenshot(path=out / f"{stem}-top.png", full_page=True,
-                            clip={"x": 0, "y": 0, "width": width, "height": tall})
             edge = page.evaluate(
                 "document.querySelector('.kind-same_stat').getBoundingClientRect().top + scrollY")
             page.screenshot(path=out / f"{stem}-boundary.png", full_page=True,
                             clip={"x": 0, "y": max(0, edge - tall * 0.3), "width": width, "height": tall})
-            group_with(page, 3).screenshot(path=out / f"{stem}-three.png")
-            group_with(page, 4).screenshot(path=out / f"{stem}-four.png")
+            for pieces, word in ((3, "three"), (4, "four")):
+                # Clipped from the full page: an element capture of a group
+                # taller than the viewport came back cut off.
+                box = page.evaluate(
+                    """(pieces) => {
+                      const box = document.querySelector(`article[data-group]:has(.n${pieces})`)
+                        .getBoundingClientRect();
+                      return { x: box.left, y: box.top + scrollY, width: box.width, height: box.height };
+                    }""", pieces)
+                page.screenshot(path=out / f"{stem}-{word}.png", full_page=True, clip=box)
+            if scheme == "dark":
+                top = page.evaluate(
+                    "document.querySelector('article[data-group]').getBoundingClientRect().top + scrollY")
+                print(f"{stem}: first group's top edge at {top:.0f} px")
             context.close()
 
 

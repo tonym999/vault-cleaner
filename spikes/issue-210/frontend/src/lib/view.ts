@@ -373,3 +373,26 @@ export function tunedStatMerged(group: GroupView): boolean {
     return slot !== undefined && stat !== undefined && slot.text.toLowerCase() === stat.text.toLowerCase();
   });
 }
+
+const TUNING_MOD_SLOT = SAME_STAT_FIELDS.find((field) => field.key === 'tuning_mod_slot')!;
+
+/**
+ * The rows of a group's comparison, in order. A same-stat group always leads
+ * with Tuning Mod Slot, whether or not the pieces differ on it: tuning is
+ * what such a group is about. Tuning Stat is left out when one "Tuned stat"
+ * value stands for both (see `tunedStatMerged`).
+ */
+export function comparisonRows(group: GroupView): { key: string; label: string }[] {
+  const merged = tunedStatMerged(group);
+  const rest = group.differing.filter(
+    (field) => field.key !== TUNING_MOD_SLOT.key && !(merged && field.key === 'tuning_stat'),
+  );
+  if (group.kind !== 'same_stat') return group.differing;
+  return [{ key: TUNING_MOD_SLOT.key, label: TUNING_MOD_SLOT.label }, ...rest];
+}
+
+/** The shared line's facts. An identical tuning slot stays here as well. */
+export function sharedFacts(group: GroupView): Fact[] {
+  const merged = tunedStatMerged(group);
+  return group.shared.filter((fact) => !(merged && fact.key === 'tuning_stat'));
+}

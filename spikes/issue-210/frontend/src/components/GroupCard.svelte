@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ReviewSession } from '../lib/session.svelte';
-  import { tunedStatMerged, type GroupView } from '../lib/view';
+  import { comparisonRows, sharedFacts, tunedStatMerged, type GroupView } from '../lib/view';
   import Badge from './ui/badge.svelte';
   import PieceColumn from './PieceColumn.svelte';
   import StatStrip from './StatStrip.svelte';
@@ -13,9 +13,8 @@
   // One "Tuned stat" value stands for Tuning Mod Slot and Tuning Stat when
   // they agree on every piece; otherwise both fields are shown.
   const merged = $derived(tunedStatMerged(group));
-  const hidden = (key: string) => merged && key === 'tuning_stat';
-  const rows = $derived(group.differing.filter((field) => !hidden(field.key)));
-  const shared = $derived(group.shared.filter((fact) => !hidden(fact.key)));
+  const rows = $derived(comparisonRows(group));
+  const shared = $derived(sharedFacts(group));
   // Facts whose value says what it is; the rest need their label shown.
   const SELF_EVIDENT = new Set(['item_archetype', 'type', 'guardian_class']);
 </script>

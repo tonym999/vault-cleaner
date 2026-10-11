@@ -165,45 +165,72 @@
     margin: 0 auto;
     padding: 1.25rem 2rem 4rem;
     display: grid;
-    gap: 1rem;
+    gap: 0.75rem;
+  }
+  .page-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+  }
+  .page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.9rem;
   }
   .page-head h1 {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.01em;
   }
+  /* A notice is a full-width box. The one exception is the status line
+     while all is well: quiet text beside the title, so it costs no row. */
   .notice {
+    flex: 1 1 100%;
     border: 1px solid var(--border);
     border-left-width: 4px;
     border-radius: var(--radius-md);
     background: var(--section);
     padding: 0.55rem 0.85rem;
   }
-  .notice[data-tone="ok"] {
-    border-left-color: var(--ok);
+  #vc-status:is([data-tone="info"], [data-tone="ok"]) {
+    flex: 0 1 auto;
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--muted-foreground);
+  }
+  #vc-status[data-tone="ok"]::before {
+    content: "";
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: 0.45rem;
+    border-radius: 50%;
+    background: var(--ok);
   }
   .notice[data-tone="error"] {
-    border-left-color: var(--no);
-    font-weight: 600;
+    border-color: var(--no);
+    font-weight: 700;
   }
   .notice[data-tone="warn"] {
-    border-left-color: var(--warn);
-    font-weight: 600;
+    border-color: var(--warn);
+    font-weight: 700;
   }
+  /* Session and filters: two plain rows under one rule, not two boxes. */
   .session,
   .filters {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem 1rem;
-    align-items: end;
+    gap: 0.5rem 1rem;
+    align-items: center;
     justify-content: space-between;
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius-lg);
-    background: var(--section);
-    padding: 0.75rem 0.85rem;
   }
   .session {
-    align-items: center;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 0.75rem;
   }
   .session-note {
     flex: 1 1 16rem;
@@ -218,19 +245,23 @@
     justify-content: start;
   }
   .filter {
-    display: grid;
-    gap: 0.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
   }
   .filter-label {
     font-size: 0.78rem;
     color: var(--muted-foreground);
   }
+  /* Joined buttons. The wrapper must not clip: a focused button draws its
+     outline outside itself (#210 review). The end buttons carry the corners. */
   .segments,
   .verdict {
+    --join: calc(var(--radius-md) - 1px);
     display: inline-flex;
     border: 1px solid var(--input);
     border-radius: var(--radius-md);
-    overflow: hidden;
   }
   .segment[aria-pressed="true"] {
     background: color-mix(in oklab, var(--primary) 22%, transparent);
@@ -389,7 +420,7 @@
     padding: 0.25rem 0.2rem 0.3rem;
   }
   .stat-name {
-    font-size: 0.64rem;
+    font-size: 0.6875rem;
     font-weight: 500;
     text-transform: capitalize;
   }
@@ -399,7 +430,7 @@
     font-variant-numeric: tabular-nums;
   }
   .stat-role {
-    font-size: 0.56rem;
+    font-size: 0.6875rem;
     color: var(--muted-foreground);
   }
   .stat.zero {
@@ -512,7 +543,7 @@
   .tuned-box {
     border: 1px solid var(--border);
     border-radius: 4px;
-    font: 600 0.62rem/1rem var(--font-mono);
+    font: 600 0.6875rem/1rem var(--font-mono);
     text-align: center;
     text-transform: uppercase;
     color: var(--muted-foreground);
@@ -539,15 +570,18 @@
   .verdict {
     max-width: 100%;
   }
+  /* "Unreviewed" is the resting state of nearly every piece, so it is
+     quiet. Only a recorded verdict is set in weight and colour. */
   .verdict-state {
     font-size: 0.78rem;
-    font-weight: 600;
     color: var(--muted-foreground);
   }
   .verdict-state[data-state="approved"] {
+    font-weight: 700;
     color: var(--ok);
   }
   .verdict-state[data-state="vetoed"] {
+    font-weight: 700;
     color: var(--no);
   }
   /* Finalised, closed or disconnected. Not applied while a request is in
@@ -576,21 +610,8 @@
       width: 100%;
     }
     .n3 .tuned-boxes {
-      grid-template-columns: repeat(6, 0.9rem);
+      grid-template-columns: repeat(6, 0.94rem);
       gap: 1px;
-    }
-    /* The cell's label already says "Proposal"; at this width the linking
-       words cost three lines, so they are kept for screen readers only. */
-    .n3 .proposal .quiet {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-    .n3 .proposal strong {
-      display: block;
     }
   }
 
@@ -639,7 +660,6 @@
     /* Equal cells here, so a stat sits at the same place in every group. */
     .stat { flex: 1 1 0; padding: 0.25rem 0.4rem 0.3rem; }
     .stat-name { font-size: 0.72rem; }
-    .stat-role { font-size: 0.66rem; }
     .cell { padding: 0.4rem 0.75rem; }
     .n2, .n3, .n4 { grid-template-columns: 9.4rem; }
     .n2 > .labels, .n3 > .labels, .n4 > .labels { display: contents; }
@@ -693,6 +713,14 @@
 .verdict-button + .verdict-button {
   border-left: 1px solid var(--input);
 }
+.segment:first-child,
+.verdict-button:first-child {
+  border-radius: var(--join) 0 0 var(--join);
+}
+.segment:last-child,
+.verdict-button:last-child {
+  border-radius: 0 var(--join) var(--join) 0;
+}
 .verdict-button {
   flex: 1 1 auto;
   height: auto;
@@ -706,11 +734,76 @@
     border-left: 0;
     border-top: 1px solid var(--input);
   }
+  .n3 .verdict-button:first-child {
+    border-radius: var(--join) var(--join) 0 0;
+  }
+  .n3 .verdict-button:last-child {
+    border-radius: 0 0 var(--join) var(--join);
+  }
 }
 @container group (min-width: 760px) {
   .verdict-button {
     min-height: 2rem;
     padding-inline: 0.75rem;
     font-size: 0.8rem;
+  }
+}
+
+/*
+ * A narrow group. The status of an ordinary piece is plain text, not a pill:
+ * in a 100 px column a wrapped pill outweighed the values. The kept piece
+ * keeps its pill, which is short and is the point of the group. Outside the
+ * layers because it undoes the badge's own utility classes.
+ */
+@container group (max-width: 559.98px) {
+  .piece-head {
+    display: grid;
+    justify-items: start;
+    gap: 0.1rem;
+  }
+  .piece:not(.kept) .status {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    justify-content: start;
+    text-align: left;
+    color: var(--muted-foreground);
+  }
+}
+
+/* Pieces as narrow columns. Each cell's label already says "Proposal", and
+   the linking words cost a line or two, so they are kept for screen readers
+   only: the action, then the reason. */
+@container group (max-width: 559.98px) {
+  :is(.n2, .n3) .proposal .quiet {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :is(.n2, .n3) .proposal strong {
+    display: block;
+  }
+}
+
+/* At 11 px the six stat cells do not reliably fit one row of a phone-width
+   group (the role words are the widest text, and font widths vary by
+   system). Two rows of three keep the reading order, and so each stat's
+   place. Outside the layers only to sit with the other narrow-group rules. */
+@container group (max-width: 479.98px) {
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .stat {
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    column-gap: 0.4rem;
+    padding: 0.2rem 0.4rem;
+  }
+  .stat-name {
+    grid-column: 1 / -1;
   }
 }

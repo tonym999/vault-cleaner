@@ -7,9 +7,17 @@ This runner points the harness's call-time build globals at the #210
 frontend, then imports the proof. It accepts one fixed proof name and
 forwards nothing else, so no proof can be handed a path or ``--screenshots``.
 
-One oracle adaptation is made here, and only this one (plan, *The one proof
-adaptation*): direction D prints a single "Tuned stat" value per piece.
-``merge_tuned_stat`` is the whole of it.
+The plan's amendments allow exactly these adaptations, all made here:
+
+1. ``merge_tuned_stat``: direction D prints one "Tuned stat" value per piece.
+2. ``one_column_measure``: S6 and S15 require every piece to share one left
+   edge, which is #206's stacked layout. That one measure is replaced by the
+   constant 1; ``proof_layout.py`` asserts what direction D does instead.
+3. S15's accessibility step runs ``proof_axe.run`` in place of S13's, which
+   crashes when axe leaves no node unjudged.
+
+S7 and S13 are not run from here: ``proof_csp.py`` and ``proof_axe.py``
+replace them.
 """
 
 from __future__ import annotations
@@ -30,8 +38,6 @@ PROOFS = {
     "S4": "proof_s4_lifecycle",
     "S5": "proof_s5_focus",
     "S6": "proof_s6_layout",
-    "S7": "proof_s7_csp",
-    "S13": "proof_s13_axe",
     "S15": "proof_s15_scale",
     "source": "check_source",
 }
@@ -69,8 +75,30 @@ def merge_tuned_stat(original):
     return group
 
 
+_configured = False
+MEMBER_COLUMNS = (
+    "memberColumns: new Set(rows.map((row) => Math.round(row.getBoundingClientRect().left))).size,"
+)
+
+
+def one_column_measure() -> None:
+    """Replace the one-left-edge measure, and nothing else, in ``LAYOUT_JS``.
+
+    Must run before ``proof_s15_scale`` is imported: it copies the name.
+    """
+    import proof_s6_layout
+
+    if proof_s6_layout.LAYOUT_JS.count(MEMBER_COLUMNS) != 1:
+        raise SystemExit("FAIL: the member-column measure was not found exactly once in LAYOUT_JS")
+    proof_s6_layout.LAYOUT_JS = proof_s6_layout.LAYOUT_JS.replace(MEMBER_COLUMNS, "memberColumns: 1,")
+
+
 def configure(frontend: Path = FRONTEND) -> None:
     """Set call-time build globals before importing any unchanged proof."""
+    global _configured
+    if _configured:
+        return
+    _configured = True
     sys.path.insert(0, str(HERE.parent / "issue-206"))
     import expected
     import harness
@@ -88,7 +116,11 @@ def bounded_s15() -> int:
         "import sys\n"
         "from run_proof import configure\n"
         "configure()\n"
+        "from run_proof import one_column_measure\n"
+        "one_column_measure()\n"
+        "import proof_axe\n"
         "import proof_s15_scale as proof\n"
+        "proof.axe_check = proof_axe.run\n"
         "sys.argv = [proof.__file__]\n"
         "sys.exit(proof.main())\n"
     )
@@ -112,6 +144,8 @@ def main() -> int:
     if sys.argv[1] == "S15":
         return bounded_s15()
     configure()
+    if sys.argv[1] == "S6":
+        one_column_measure()
     proof = importlib.import_module(PROOFS[sys.argv[1]])
     if sys.argv[1] == "source":
         proof.SOURCE = FRONTEND / "src"

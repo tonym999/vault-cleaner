@@ -30,7 +30,7 @@
     <span class="piece-number">Piece {position}</span>
     <Badge
       variant={kept ? 'default' : 'outline'}
-      class={kept ? '' : member.proposal ? 'border-dashed' : 'text-muted-foreground'}
+      class="status {kept ? '' : member.proposal ? 'border-dashed' : 'text-muted-foreground'}"
       data-field="status">{member.status}</Badge
     >
     <span class="piece-where">

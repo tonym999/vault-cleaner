@@ -111,7 +111,8 @@ def main() -> int:
             page.wait_for_selector("article[data-group]")
             found = page.evaluate(DURATIONS_JS)
             print(f"{scheme}: verdict buttons={found['buttons']}, pressed={found['pressed']}, "
-                  f"with a transition or animation={found['moving']} {found['first']}")
+                  f"with a transition or animation={found['moving']}"
+                  + (f" (first: {found['first']})" if found["first"] else ""))
             if found["buttons"] != 435 or found["moving"]:
                 failures.append(f"{scheme}: a verdict control animates, or the count is not 435")
             if scheme == "dark":

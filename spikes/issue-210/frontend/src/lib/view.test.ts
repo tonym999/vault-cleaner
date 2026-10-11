@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { samples } from '../contract/samples';
 import type { Envelope } from './envelope';
-import { duplicateGroups, isKept, statViews, tunedStatMerged } from './view';
+import { comparisonRows, duplicateGroups, isKept, sharedFacts, statViews, tunedStatMerged } from './view';
 
 const groups = duplicateGroups(samples.reviewing);
 const [exact, sameStat] = groups;
@@ -182,5 +182,40 @@ describe('the kept piece and the merged tuned stat', () => {
     armor.same_stat_groups[0]!.members[0]!.tuning_mod_slot = 'none/unknown';
     armor.same_stat_groups[0]!.members[0]!.tuning_stat = '';
     expect(tunedStatMerged(duplicateGroups(envelope)[1]!)).toBe(false);
+  });
+});
+
+describe('the comparison rows', () => {
+  const keys = (rows: { key: string }[]) => rows.map((row) => row.key);
+
+  it('lists an exact group\'s differing fields unchanged', () => {
+    expect(comparisonRows(exact!)).toEqual(exact!.differing);
+  });
+
+  it('leads a same-stat group with the tuning slot and drops the merged tuning stat', () => {
+    expect(keys(comparisonRows(sameStat!))).toEqual(['tuning_mod_slot']);
+    expect(keys(sharedFacts(sameStat!))).not.toContain('tuning_stat');
+  });
+
+  it('keeps the tuning slot row when every piece has the same tuning', () => {
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    const members = envelope.snapshot!.sections.find((section) => section.armor)!.armor!.same_stat_groups[0]!
+      .members;
+    members[1]!.tuning_mod_slot = members[0]!.tuning_mod_slot;
+    members[1]!.tuning_stat = members[0]!.tuning_stat;
+    members[1]!.holofoil = 'true';
+    const group = duplicateGroups(envelope)[1]!;
+    expect(keys(group.differing)).toEqual(['holofoil']);
+    expect(keys(comparisonRows(group))).toEqual(['tuning_mod_slot', 'holofoil']);
+    // Still in the shared line too: the parity oracle requires it there.
+    expect(keys(sharedFacts(group))).toContain('tuning_mod_slot');
+    expect(keys(sharedFacts(group))).not.toContain('tuning_stat');
+  });
+
+  it('shows both tuning fields when they disagree on a piece', () => {
+    const envelope: Envelope = structuredClone(samples.reviewing);
+    envelope.snapshot!.sections.find((section) => section.armor)!.armor!.same_stat_groups[0]!.members[1]!
+      .tuning_stat = 'super';
+    expect(keys(comparisonRows(duplicateGroups(envelope)[1]!))).toEqual(['tuning_mod_slot', 'tuning_stat']);
   });
 });

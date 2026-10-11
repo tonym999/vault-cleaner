@@ -35,25 +35,29 @@
   });
 </script>
 
-<a class="{buttonVariants()} skip" href="#vc-title">Skip to review content</a>
+<a class="{buttonVariants()} skip transition-none" href="#vc-title">Skip to review content</a>
 
 <main class="page">
-  <header class="page-head">
-    <h1 id="vc-title" tabindex="-1">Armor duplicates</h1>
-    <p class="quiet">vault-cleaner review · redesigned Svelte slice (#210)</p>
-  </header>
+  <!-- The title and the server's status share a row. A connected status is
+       quiet text; an error takes a full row of its own (see .notice). -->
+  <div class="page-top">
+    <header class="page-head">
+      <h1 id="vc-title" tabindex="-1">Armor duplicates</h1>
+      <p class="quiet">vault-cleaner review · redesigned Svelte slice (#210)</p>
+    </header>
 
-  <p
-    id="vc-status"
-    role="status"
-    aria-live="polite"
-    class="notice"
-    data-connection={session.connection}
-    data-busy={session.busy ?? ''}
-    data-tone={session.status.tone}
-  >
-    {session.status.text}
-  </p>
+    <p
+      id="vc-status"
+      role="status"
+      aria-live="polite"
+      class="notice"
+      data-connection={session.connection}
+      data-busy={session.busy ?? ''}
+      data-tone={session.status.tone}
+    >
+      {session.status.text}
+    </p>
+  </div>
 
   <SessionPanel {session} />
 
