@@ -7,6 +7,12 @@ Svelte 5 + TypeScript + Vite, keeping Python/Flask as the backend. It changes
 no production code. The migration is the ticket drafts in
 [section 9](#9-migration-ticket-drafts); none has been created.
 
+Added 2026-10-11 by [#213](https://github.com/tonym999/vault-cleaner/issues/213):
+the slice as redesigned in #210 is **NO-GO as measured** against #209's
+timing gate. See
+[The redesigned slice against #209's gate (#213)](#the-redesigned-slice-against-209s-gate-213).
+The rest of this record is #206's text, unchanged.
+
 Every measured claim links to a transcript in
 [docs/evidence/issue-206/README.md](evidence/issue-206/README.md). The proof
 code is in [spikes/issue-206/](../spikes/issue-206/README.md). All data is
@@ -468,6 +474,169 @@ slowdown under this comparison. If that does not suffice, measure paging or
 virtualisation of whole groups, preserving within-group simultaneous values,
 focus, offline filtering and scope counts. Those alternatives were not built.
 
+### The redesigned slice against #209's gate (#213)
+
+Added 2026-10-11. Transcripts:
+[docs/evidence/issue-213/README.md](evidence/issue-213/README.md). Code:
+[spikes/issue-213/](../spikes/issue-213/README.md).
+
+**Verdict: NO-GO for the redesigned slice as measured.** It is a verdict on
+this slice, on this fixture, against this bar. It is not a verdict on Svelte
+or on the migration. #209's issue lets the owner accept a measured gap
+explicitly; the owner has not been asked to.
+
+**What was measured.** #210 redesigned the slice (direction D, merged in PR
+#212). #209 had set a wider gate than S15's four stamps: those four (gate A)
+plus three settled-frame measures (gate B), each needing the slice's median
+at or under production's in each of two consecutive complete invocations.
+#209's own record of that gate on the #206 design is on the unmerged branch
+`feat/issue-209-svelte-perf-gate` at `ee61b07` and is not on `main`. #213 ran
+the same gate proof on a byte-for-byte copy of #210's slice. The proof
+differs from #209's only by printing the verdict action on each run's line
+([evidence, section 7](evidence/issue-213/README.md#7-the-gate-proof-against-209s)).
+
+**The gate.** Slice / production, medians of five alternating runs, 1440 px,
+light. Five complete invocations were made, none incomplete, none discarded.
+Invocation 3, on the one change tried, is in the step table below. Two more
+were made while planning, with #209's unmodified proof on #210's own build;
+they are in the plan and gave the same result.
+
+| | Baseline 1 | Baseline 2 | Final 1 | Final 2 |
+| --- | --- | --- | --- | --- |
+| A1 navigation to every group laid out | 229.2 / 144.0, **+85.2** | 240.8 / 148.3, **+92.5** | 238.4 / 146.7, **+91.7** | 235.1 / 150.7, **+84.4** |
+| A2 navigation to next frame | 241.9 / 149.5, **+92.4** | 252.9 / 153.8, **+99.1** | 251.8 / 153.0, **+98.8** | 247.3 / 156.6, **+90.7** |
+| A3 acknowledgement to DOM | 7.2 / 9.9 | 7.4 / 9.7 | 6.8 / 9.8 | 7.4 / 10.1 |
+| A4 acknowledgement to next frame | 12.1 / 18.8 | 12.3 / 18.0 | 12.2 / 14.9 | 12.1 / 15.3 |
+| B1 navigation to settled | 253.9 / 159.6, **+94.3** | 261.9 / 160.2, **+101.7** | 262.8 / 163.2, **+99.6** | 259.7 / 166.3, **+93.4** |
+| B2 key press to settled | 52.3 / 44.1, **+8.2** | 47.0 / 45.0, **+2.0** | 49.2 / 56.1 | 52.0 / 54.6 |
+| B3 acknowledgement to settled | 29.6 / 20.5, **+9.1** | 28.4 / 20.9, **+7.5** | 29.5 / 32.0 | 29.4 / 28.8, **+0.6** |
+
+Figures are milliseconds; a bold gap is a failed comparison. The source was
+the same bytes in all four columns.
+
+- **Navigation fails in every invocation,** by 84 to 102 ms. That alone
+  decides the verdict.
+- **A verdict is faster on the slice** by S15's stamps (A3, A4) in every
+  invocation.
+- **B2 and B3 changed result with no change to either page.** The settled
+  stamp is the second of two nested animation frames, so it lands on a frame
+  boundary. Acknowledgement to settled falls in two groups about a frame
+  apart on both pages: under 25 ms, or 26 ms and over. Across all five
+  invocations production was in the lower group in 13 of 25 runs and the
+  slice in 5 of 25. Which side production's median fell on decided the
+  comparison. The final invocations, run by run:
+
+  | Acknowledgement to settled, ms | Slice | Production |
+  | --- | --- | --- |
+  | Final 1 | 23.5, 29.5, 29.8, 31.1, 26.1 | 34.1, 32.0, 28.6, 23.7, 33.7 |
+  | Final 2 | 21.3, 29.8, 29.7, 29.0, 29.4 | 30.5, 21.1, 31.7, 28.8, 23.3 |
+
+  | Key press to settled, ms | Slice | Production |
+  | --- | --- | --- |
+  | Final 1 | 39.4, 52.9, 55.1, 49.2, 48.3 | 59.7, 56.1, 55.2, 48.3, 58.0 |
+  | Final 2 | 39.7, 53.6, 46.7, 52.3, 52.0 | 55.9, 43.2, 56.2, 54.6, 50.5 |
+
+  Chromium's own counters over the same verdict window show about the same
+  work on both pages: in the four invocations on the unchanged source,
+  main-thread task time was 34 to 40 ms on the slice and 39 to 42 ms on
+  production, and style recalculation 1.0 to 1.2 ms against 3.0 to 3.3 ms.
+  B3's +0.6 ms in the last invocation is a failure by the rule and is
+  recorded as one.
+
+**Where first-render time goes.** Measured before any change, by
+`proof_attribution.py`
+([evidence, section 4](evidence/issue-213/README.md#4-attribution)). Medians
+of five fresh documents; ranges are across its three runs.
+
+| To the settled frame | Slice | Production |
+| --- | --- | --- |
+| Report request starts | 49 to 53 ms | 23 to 29 ms |
+| Report has arrived | 61 to 66 ms | 35 to 42 ms |
+| Every group in the document | 144 to 149 ms | 94 to 95 ms |
+| Every group laid out (`ready`) | 241 to 248 ms | 146 to 149 ms |
+| Script | 93 to 97 ms | 22 to 23 ms |
+| Layout | 74 to 77 ms | 46 to 47 ms |
+| Style recalculation | 30 to 31 ms | 15 ms |
+| Main-thread task time | 242 to 249 ms | 142 ms |
+| Elements | 13,019 | 17,138 |
+
+The slice's main thread is busy from start to finish: task time equals the
+time to `ready`. The gap has three parts of similar size. The report is
+requested 21 to 26 ms later, because the 144 kB script has to load and run
+first. Building the document from the report takes about 83 ms against 52
+to 59. Styling and laying it out takes about 98 ms against 53.
+
+**The floor.** The slice's own rendered markup and its own stylesheet, with
+no framework at all: the script is replaced by one that waits for the same
+report and assigns the markup. Every element's box is identical to the
+slice's. In five comparisons the floor reached `ready` in 180 to 193 ms and
+production, in the same comparisons, in 151 to 162 ms. **With no client code
+left to remove, the redesigned document is still 21 to 41 ms slower than
+production**, on layout (74 to 76 ms against 45 to 49) and style (30 to 33
+against 15 to 16). No change to the slice's script can pass A1.
+
+**Ablations.** One suspected cause removed at a time, against the unchanged
+build in the same alternation. The unchanged arm's own median moved between
+241 and 262 ms across these comparisons, so a smaller difference is not a
+finding.
+
+| Removed | Moves `ready` by | What the counters show |
+| --- | --- | --- |
+| Class merging per badge (`tailwind-merge`, the cause #210 guessed) | -3.9, -11.4 ms | script -1.9, -6.3 ms |
+| The `Value` component, written out inline | -1.2, -15.6 ms | script -0.7, -5.7 ms |
+| Report requested before mounting | -1.7, -9.3 ms | script -0.7, -3.9 ms |
+| A preload hint for the report | +0.9, +5.1 ms | the report arrives about 39 ms earlier, still one request, and `ready` does not move: the main thread is busy anyway |
+| Container queries, resolved for this width | -4.4, -5.0 ms on the slice; -19.5, +0.6 ms on the floor | style down 8 to 10 ms, in every run |
+| The comparison grid as plain blocks (changes the layout) | -6.2 ms on the floor | layout down 5 ms |
+| Every grid as plain blocks (changes the layout) | -21.5 ms on the floor | layout down 19 ms, to 57; production 48 |
+
+Two figures in a cell are the two complete runs. In the second run the
+unchanged arm's own script counter was 6 ms higher than in the first (101.6
+against 95.4 ms), so the larger script figures are that arm moving, not the
+variants. Only two effects are stable across runs: container queries cost 8
+to 10 ms of style, and the page's grids cost about 19 ms of layout. The
+second is the layout the owner accepted in #210, which lines pieces up row
+by row. Nothing in the script rows is separable from noise.
+
+In the profile, of the script time inside the bundle, Svelte's runtime is
+53 to 58 ms of samples, `tailwind-variants` and `tailwind-merge` together
+about 13, and all of the slice's own modules about 19. Those are proportions
+from a sampling profile, not timings.
+
+**Not attributed.** About 7 ms of style beyond production's that container
+queries do not explain. About 9 ms of layout beyond production's that
+remains with every grid as a block. Garbage collection was 11 to 15 ms of
+profile samples and was not tied to a cause. Which part of Svelte's runtime
+the mount spends its time in was not broken down further, because no allowed
+change follows from it.
+
+**Steps.**
+
+| Step | What | Result |
+| --- | --- | --- |
+| 0 | Baseline on the unchanged copy, two invocations; all thirteen proofs | Gate fails as above; proofs pass |
+| 1 | Attribution, before any change | As above |
+| 2 | Class string merged once per distinct input. Rendered markup identical. Gate invocation 3: A1 236.2 / 148.5, +87.7; A2 +95.9; B1 +99.0; A3, A4, B2, B3 pass | **Dropped.** A1 on the slice sits between the two baseline values (229.2 and 240.8) |
+| 3 | Two final invocations on the unchanged source | Gate fails |
+
+No other change was built. Every other allowed candidate has an ablation
+above, and none moves a gated comparison by more than the spread between the
+two baseline invocations. Together they could not close a gap of 84 ms.
+Rendering containment, deferred or chunked mounting, paging and
+virtualisation were excluded by the plan and were not measured.
+
+**What a pass would need.** Not a faster script alone: the floor fails. A
+passing slice would need less layout and style than the accepted design
+costs, or less of it at load. Both are outside what #210's constraints allow
+this ticket to change, and both are the owner's decision.
+
+**The slice is unchanged,** so #210's proofs hold as recorded: S1 to S6, S15,
+the source scan, and #210's four own proofs each pass against this build,
+and each printed the hashes of the files it was served
+([evidence, section 3](evidence/issue-213/README.md#3-every-proof-on-the-unchanged-copy)).
+The visual comparison the plan required for a changed slice was not needed.
+Lines added to the slice: none. H8 is not affected.
+
 ### H8: is maintenance effort clearly lower? Yes, on structure
 
 - **(a) No grouping, ranking, survivor or eligibility rule is in both
@@ -632,6 +801,13 @@ Awkward, each found by a proof:
   Navigation and DOM/frame timing at 1440 px/light are measured; performance
   at other widths, other machines and reports beyond this 893-row fixture
   remains unmeasured. The slower slice needs a focused follow-up before GO.
+- **#213's timings** (added 2026-10-11) are one machine, the pinned
+  Chromium, 1440 px, light, the one sanitised fixture. Its three
+  settled-frame comparisons are quantised to an animation frame, and two of
+  them changed result between invocations with no change to either page.
+  Other widths, the dark scheme, other browsers, a larger report, and what
+  rendering containment, deferred mounting, paging or virtualisation would
+  save were not measured.
 - **The full-page stacked layout is long:** about 61,000 px at desktop and
   101,000 px at 390 px. Every group is tested, but only the top 2,400 px is
   pictured, and no human task-completion or large-report navigation study
@@ -717,6 +893,11 @@ rule, eligibility, lifecycle or protocol change.
 **Stop if** the comparison still shows the measured slowdown, or an
 optimization sacrifices comparison information, focus, offline filters,
 scope counts or CSP. The migration remains conditional and does not switch over.
+
+**Carried out** (note added 2026-10-11) by #209 on the #206 design, recorded
+on its unmerged branch, and by #213 on #210's redesign: NO-GO as measured,
+in [section 6](#the-redesigned-slice-against-209s-gate-213). The comparison
+still shows the slowdown on navigation, so this draft's stop condition holds.
 
 ### 6. M10: switch over and retire the old page
 
