@@ -543,10 +543,10 @@ the same bytes in all four columns.
   B3's +0.6 ms in the last invocation is a failure by the rule and is
   recorded as one.
 
-**Where first-render time goes.** Measured before any change, by
-`proof_attribution.py`
-([evidence, section 4](evidence/issue-213/README.md#4-attribution)). Medians
-of five fresh documents, from its fourth run.
+**Where first-render time goes.** Measured by `proof_attribution.py`
+([evidence, section 4](evidence/issue-213/README.md#4-attribution)), on the
+unchanged slice. Medians of five fresh documents, from its fourth run, which
+was made after the one change had been tried and taken out.
 
 The attribution harness answers each page's document and static files
 through Playwright's request interception, so that it can swap in variant
@@ -571,8 +571,9 @@ nothing.
 | Main-thread task time | 246.1 ms | 147.3 ms |
 | Elements | 13,019 | 17,138 |
 
-The four counter rows do not depend on interception: each was the same to
-within 5 ms across all four runs, and they match the gate's own counters.
+The script, layout and style rows do not depend on interception: each was
+the same to within 5 ms across all four runs, and they match the gate's own
+counters. Task time does move with interception, by about 7 ms.
 
 The slice's main thread is busy from start to finish: task time equals the
 time to `ready`. Of the 90 ms between the two `ready` stamps, the report
@@ -662,9 +663,9 @@ navigation comparisons, the ones that fail by 84 ms and more, A1 on the
 slice was 236.2 ms, between the two baseline values of 229.2 and 240.8.
 
 No other change was built. Each remaining allowed candidate has an ablation
-above. By the counters each is worth a few milliseconds, and together well
-under 20 ms, against navigation gaps of 84 ms and more, so none was taken to
-the gate. Rendering containment, deferred or chunked mounting, paging and
+above. By the counters each is worth a few milliseconds, and together
+roughly 10 to 25 ms depending on the run, against navigation gaps of 84 ms
+and more, so none was taken to the gate. Rendering containment, deferred or chunked mounting, paging and
 virtualisation were excluded by the plan and were not measured.
 
 **The order of work.** The plan asked for the attribution to be committed

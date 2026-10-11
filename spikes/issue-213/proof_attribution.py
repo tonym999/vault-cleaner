@@ -25,8 +25,9 @@ Four parts, all on the tracked sanitised fixture at 1440x1000, light:
 
 Every arm has its document and its static files answered through the same
 interception: the slice's three files, the floor's, and production's page,
-stylesheet and two scripts. API requests are not intercepted on any arm. The
-arms then differ only in the bytes named.
+stylesheet and two scripts. API requests pass through the same handler and
+are continued unanswered, on every intercepted arm alike. The arms then differ only in the
+bytes named.
 
 Interception is not free. Part 0 measures what it adds to each page, so the
 figures here are comparable with each other and are not the gate's: the gate
